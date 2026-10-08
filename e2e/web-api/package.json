@@ -1,0 +1,21 @@
+{
+  "name": "nestyk-e2e-web-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NESTYK end-to-end tests for the API and the web apps (Playwright)",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:smoke": "playwright test --grep @smoke",
+    "typecheck": "tsc --noEmit",
+    "report": "playwright show-report"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3"
+  }
+}

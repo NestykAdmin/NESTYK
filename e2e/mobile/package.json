@@ -1,0 +1,30 @@
+{
+  "name": "nestyk-e2e-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NESTYK end-to-end tests for the mobile app (WebdriverIO + Appium)",
+  "type": "module",
+  "scripts": {
+    "test": "wdio run ./wdio.conf.ts",
+    "test:smoke": "wdio run ./wdio.conf.ts --mochaOpts.grep @smoke",
+    "test:known-bugs": "wdio run ./wdio.conf.ts --mochaOpts.grep @known-bug",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.20.1",
+    "@wdio/appium-service": "9.32.0",
+    "@wdio/cli": "9.32.0",
+    "@wdio/globals": "9.31.3",
+    "@wdio/local-runner": "9.32.0",
+    "@wdio/mocha-framework": "9.32.0",
+    "@wdio/spec-reporter": "9.32.0",
+    "appium": "3.8.0",
+    "appium-xcuitest-driver": "12.15.0",
+    "typescript": "5.9.3",
+    "webdriverio": "9.32.0"
+  }
+}

@@ -1,0 +1,5 @@
+# ของที่ติดตั้งและของที่ Playwright สร้างตอนรัน ไม่ต้องเก็บใน git
+node_modules/
+test-results/
+playwright-report/
+blob-report/
