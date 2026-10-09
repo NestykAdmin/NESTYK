@@ -16,12 +16,10 @@
  *     ที่ /auth/dev/roles: AuthContext.tsx บรรทัด 46 ถึง 58 กับ 155 ถึง 172) เทสข้อนั้นจะแดงที่การตรวจว่ายังอยู่หน้า login
  *     ชุดเทสลดโอกาสนี้ด้วยการรอให้ปุ่มหยุดเคลื่อนที่ก่อนแตะ และถ้าปิด API ไว้ การล็อกอินนั้นจะไม่สำเร็จ
  */
-import assert from 'node:assert/strict';
 import { env } from '../src/config/env';
 import { openLoginScreen } from '../src/flows/open-login';
 import { labelsFor, SOCIAL_PROVIDERS } from '../src/labels/index';
 import type { LoginScreen } from '../src/screens/LoginScreen';
-import { expectKnownBug, type KnownBug } from '../src/support/known-bug';
 import { readUntil } from '../src/support/wait';
 
 /**
@@ -30,21 +28,15 @@ import { readUntil } from '../src/support/wait';
  */
 const UNKNOWN_EMAIL = 'e2e-unknown-user@example.com';
 
-/** รหัสผ่านที่เทสพิมพ์เอง ไม่ใช่รหัสผ่านของบัญชีไหน */
-const TEST_PASSWORD = 'wrong-password-e2e';
-
-/** ข้อความภาษาอังกฤษที่โค้ดของแอปเขียนไว้ตายตัว ที่มา: apps/consumer-app/lib/auth/AuthContext.tsx บรรทัด 175 */
-const HARD_CODED_REJECTION = 'Invalid email or password';
-
 /**
- * บั๊กที่รู้แล้ว (พบจากการอ่านโค้ดเมื่อ 7 ต.ค. 2026 ยังไม่ได้แจ้งทีม)
- * login.tsx บรรทัด 107 ถึง 109 แสดงข้อความของข้อผิดพลาดตรง ๆ ซึ่ง AuthContext.tsx เขียนเป็นภาษาอังกฤษไว้
- * คำแปลที่มีอยู่แล้ว (mobile.auth.invalidCredentials) จึงไม่ถูกใช้
+ * รหัสผ่านที่เทสพิมพ์เอง ไม่ใช่รหัสผ่านของบัญชีไหน ใช้แค่ตัวเลขกับขีด
+ * เหตุผล: บน iPhone จำลองที่ใช้เทส ช่องรหัสผ่านแบบซ่อนตัวอักษรรับเฉพาะตัวอักษรที่มีปุ่มบนแป้นพิมพ์ที่เครื่องจำลองใช้อยู่
+ *   ตัวอื่นหายไปโดยไม่มีข้อความแจ้ง (ขั้นที่ 29 กับ 30 เมื่อ 8 ต.ค. 2026: แป้นพิมพ์ไทยทิ้งตัวอักษรอังกฤษ แป้นพิมพ์อังกฤษทิ้งตัวอักษรไทย)
+ *   ตัวเลขกับขีดเข้าช่องได้ครบทั้งกับแป้นพิมพ์ไทยและอังกฤษ (ขั้นที่ 28 กับ 31) เทสในไฟล์นี้จึงผ่านได้ไม่ว่าเครื่องจำลองจะใช้แป้นพิมพ์ไหน
+ *   เทสในไฟล์นี้ตรวจกฎของฟอร์ม ไม่ได้ตรวจว่ารหัสผ่านมีตัวอักษรอะไร จึงใช้ค่านี้ได้โดยไม่เสียความหมายของเทส
+ *   รายละเอียดอยู่ใน README หัวข้อ "ข้อควรรู้ของเครื่องจำลองที่ใช้เทส"
  */
-const MOB_001: KnownBug = {
-  id: 'MOB-001',
-  summary: 'ข้อความเมื่ออีเมลหรือรหัสผ่านไม่ถูกต้องเป็นภาษาอังกฤษ แม้แอปตั้งเป็นภาษาอื่น',
-};
+const TEST_PASSWORD = '2026-1008-4242';
 
 describe('Login form', () => {
   /** ข้อความที่คาด ในภาษาที่ชุดเทสสั่งให้แอปใช้ (E2E_APP_LANGUAGE) */
@@ -79,7 +71,7 @@ describe('Login form', () => {
       expect(passwordLength).toBe(0);
     }
 
-    // ขั้นที่ 4: ไม่ว่าโหมดไหน ช่องรหัสผ่านต้องเริ่มแบบซ่อนตัวอักษร (login.tsx บรรทัด 62 กับ 274)
+    // ขั้นที่ 4: ไม่ว่าโหมดไหน ช่องรหัสผ่านต้องเริ่มแบบซ่อนตัวอักษร (login.tsx บรรทัด 62 กับ 272)
     expect(await login.passwordDisplay()).toBe('hidden');
   });
 
@@ -136,7 +128,7 @@ describe('Login form', () => {
     expect(await login.isShown()).toBe(true);
   });
 
-  it('rejects an unknown account and keeps the user on the login screen @known-bug', async () => {
+  it('rejects an unknown account and keeps the user on the login screen', async () => {
     // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วพิมพ์อีเมลที่ไม่มีในระบบ กับรหัสผ่านของเทส
     const login = await openLoginScreen();
     await login.typeEmail(UNKNOWN_EMAIL);
@@ -149,26 +141,17 @@ describe('Login form', () => {
     // ขั้นที่ 3: ส่งฟอร์มด้วยปุ่ม go บนแป้นพิมพ์
     await login.submitFromKeyboard();
 
-    // ขั้นที่ 4: แอปต้องแจ้งว่าอีเมลหรือรหัสผ่านไม่ถูกต้อง และผู้ใช้ยังอยู่ที่หน้า login
-    //   รับได้ 2 ข้อความ: คำแปลตามภาษาของแอป หรือข้อความอังกฤษที่โค้ดเขียนตายตัว (ข้อหลังคืออาการของบั๊ก MOB-001)
-    //   ถ้าขั้นนี้หมดเวลา ให้ดูในไฟล์ XML ของ test-results ว่าแอปแสดงข้อความอะไร: build ที่ต่อ Supabase จริงจะแสดงข้อความของ Supabase แทน
-    //   (AuthContext.tsx บรรทัด 127 ถึง 141) ซึ่งแปลว่า build ไม่ตรงกับสิ่งที่ต้องมีก่อนรัน ไม่ใช่แอปพัง
-    const acceptedTexts = [labels.auth.invalidCredentials, HARD_CODED_REJECTION];
-    const shown = await login.waitForError(acceptedTexts);
-    assert.ok(
-      acceptedTexts.includes(shown),
-      `แอปแสดงข้อความ "${shown}" ซึ่งไม่ใช่ข้อความปฏิเสธบัญชีที่รับได้ ("${acceptedTexts.join('" หรือ "')}")`,
-    );
+    // ขั้นที่ 4: แอปต้องแจ้งว่าอีเมลหรือรหัสผ่านไม่ถูกต้องเป็นภาษาเดียวกับแอป (คำแปล mobile.auth.invalidCredentials) และผู้ใช้ยังอยู่ที่หน้า login
+    //   ข้อนี้เคยเป็นบั๊ก MOB-001: แอปแสดงข้อความอังกฤษ "Invalid email or password" จาก AuthContext.tsx บรรทัด 175 แม้แอปตั้งเป็นภาษาไทย
+    //   ทีมแก้ใน commit f9b9bea: login.tsx บรรทัด 107 ใช้ localizedError (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 29)
+    //   ซึ่งแสดงข้อความของข้อผิดพลาดเฉพาะเมื่อเขียนด้วยอักษรของภาษาที่แอปใช้ ไม่อย่างนั้นแสดงคำแปลนี้แทน 2 ภาษาที่ชุดเทสรันได้จึงตรวจคนละเรื่อง
+    //   - ภาษาไทย (ค่าตั้งต้น): จับ MOB-001 ได้ แต่ข้อผิดพลาดทุกแบบที่ไม่มีตัวอักษรไทยจะออกมาเป็นคำแปลเดียวกัน จึงแยกไม่ออกว่าแอปปฏิเสธเพราะอะไร
+    //   - ภาษาอังกฤษ: คำแปลตรงกับข้อความของบั๊ก จึงจับ MOB-001 ไม่ได้ แต่เห็นข้อความจริงของข้อผิดพลาด
+    //   ถ้าขั้นนี้หมดเวลา ให้ดูในไฟล์ XML ของ test-results ว่าแอปแสดงข้อความอะไร
+    //   - "Invalid email or password" ขณะรันภาษาไทย: บั๊ก MOB-001 กลับมา
+    //   - ข้อความของ Supabase ขณะรันภาษาอังกฤษ: build ต่อ Supabase จริง (AuthContext.tsx บรรทัด 127 ถึง 141) ซึ่งไม่ตรงกับสิ่งที่ต้องมีก่อนรัน ไม่ใช่แอปพัง
+    expect(await login.waitForError([labels.auth.invalidCredentials])).toBe(labels.auth.invalidCredentials);
     expect(await login.isShown()).toBe(true);
-
-    // ขั้นที่ 5: ข้อความต้องเป็นภาษาเดียวกับแอป
-    if (labels.auth.invalidCredentials === HARD_CODED_REJECTION) {
-      // แอปตั้งเป็นภาษาอังกฤษ: คำแปลกับข้อความตายตัวเป็นข้อความเดียวกัน จึงตรวจบั๊กนี้ไม่ได้ในภาษานี้
-      console.log(`  [known-bug ${MOB_001.id}] ตรวจไม่ได้เมื่อแอปเป็นภาษาอังกฤษ เพราะข้อความที่ถูกกับข้อความของบั๊กเป็นข้อความเดียวกัน`);
-      expect(shown).toBe(labels.auth.invalidCredentials);
-    } else {
-      await expectKnownBug(MOB_001, () => assert.equal(shown, labels.auth.invalidCredentials));
-    }
   });
 
   it('shows and hides the password with the eye button', async () => {
@@ -182,7 +165,7 @@ describe('Login form', () => {
     expect(await login.passwordDisplay()).toBe('hidden');
     expect(await login.passwordToggleLabel()).toBe(labels.auth.showPassword);
 
-    // ขั้นที่ 3: แตะปุ่มตา แล้วช่องแสดงตัวอักษรที่พิมพ์ และปุ่มบอกว่ากดแล้วจะ "ซ่อน" (login.tsx บรรทัด 274 กับ 309 ถึง 311)
+    // ขั้นที่ 3: แตะปุ่มตา แล้วช่องแสดงตัวอักษรที่พิมพ์ และปุ่มบอกว่ากดแล้วจะ "ซ่อน" (login.tsx บรรทัด 272 กับ 307 ถึง 309)
     await login.togglePasswordVisibility();
     expect(await readUntil(() => login.passwordDisplay(), 'visible')).toBe('visible');
     expect(await login.visiblePasswordText()).toBe(TEST_PASSWORD);
@@ -199,7 +182,7 @@ describe('Login form', () => {
     const login = await openLoginScreen();
     await login.tapForgotPassword();
 
-    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 325)
+    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 323)
     expect(await login.waitForNotice([labels.auth.resetUnavailable])).toBe(labels.auth.resetUnavailable);
     expect(await login.isShown()).toBe(true);
   });
@@ -209,19 +192,19 @@ describe('Login form', () => {
     const login = await openLoginScreen();
     await login.tapSignUp();
 
-    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 423)
+    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 421)
     expect(await login.waitForNotice([labels.auth.signupUnavailable])).toBe(labels.auth.signupUnavailable);
     expect(await login.isShown()).toBe(true);
   });
 
-  // ปุ่มบัญชีภายนอกมี 3 ปุ่ม ใช้โค้ดเดียวกัน (login.tsx บรรทัด 372 ถึง 402) เทสแยกปุ่มละข้อ เพื่อให้รู้ว่าปุ่มไหนเสีย
+  // ปุ่มบัญชีภายนอกมี 3 ปุ่ม ใช้โค้ดเดียวกัน (login.tsx บรรทัด 370 ถึง 400) เทสแยกปุ่มละข้อ เพื่อให้รู้ว่าปุ่มไหนเสีย
   for (const provider of SOCIAL_PROVIDERS) {
     it(`tells the user that ${provider} sign-in is not available yet`, async () => {
       // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วแตะปุ่มของผู้ให้บริการ
       const login = await openLoginScreen();
       await login.tapSocial(provider);
 
-      // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 383)
+      // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 381)
       expect(await login.waitForNotice([labels.auth.unavailable])).toBe(labels.auth.unavailable);
       expect(await login.isShown()).toBe(true);
     });

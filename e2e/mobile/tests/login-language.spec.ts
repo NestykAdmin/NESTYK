@@ -50,7 +50,7 @@ describe('Login screen language', () => {
     const allOptions = [...LANGUAGE_OPTIONS];
     expect(await readUntil(() => languageSheet.shownOptions(), allOptions)).toEqual(allOptions);
 
-    // ขั้นที่ 3: เลือก English แผ่นต้องปิดเอง (login.tsx บรรทัด 464)
+    // ขั้นที่ 3: เลือก English แผ่นต้องปิดเอง (login.tsx บรรทัด 462)
     await languageSheet.choose('en');
 
     // ขั้นที่ 4: หน้า login เปลี่ยนเป็นภาษาอังกฤษโดยไม่ต้องเปิดแอปใหม่

@@ -1,6 +1,6 @@
 /**
  * ข้อความภาษาอังกฤษของแอปที่ชุดเทสใช้
- * ที่มา: packages/i18n/src/locales/en.ts (อ่านที่ commit 0b7682c) คอมเมนต์ท้ายบรรทัดคือชื่อ key ในไฟล์นั้น
+ * ที่มา: packages/i18n/src/locales/en.ts (อ่านที่ commit 0b7682c และเทียบซ้ำที่ a6b3b1e แล้วตรงทุก key) คอมเมนต์ท้ายบรรทัดคือชื่อ key ในไฟล์นั้น
  */
 import type { Labels } from './index';
 

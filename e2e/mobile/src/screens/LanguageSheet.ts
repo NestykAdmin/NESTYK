@@ -3,7 +3,7 @@
  *
  * เปิดจากปุ่มภาษาบนหน้า login เป็นแผ่นที่เลื่อนขึ้นจากด้านล่าง มีตัวเลือก 4 ภาษา
  * ชื่อของตัวเลือกเหมือนกันทุกภาษาของแอป (ไทย, English, 中文, 日本語) เลือกแล้วแผ่นปิดเอง
- * ที่มา: packages/ui/src/components/MobileLanguagePickerBody.tsx บรรทัด 65 ถึง 84 และ MobileBottomSheet.tsx บรรทัด 70 ถึง 88
+ * ที่มา: packages/ui/src/components/MobileLanguagePickerBody.tsx บรรทัด 65 ถึง 84 และ MobileBottomSheet.tsx บรรทัด 72 ถึง 90
  */
 import { LANGUAGE_NAMES, LANGUAGE_OPTIONS, type LanguageOption } from '../labels/index';
 import { type ElementSpec, isShown, tap, waitUntilGone } from './locators';

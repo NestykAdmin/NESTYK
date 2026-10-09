@@ -11,7 +11,7 @@ import type { AppLanguage } from '../config/env';
 import { th } from './th';
 import { en } from './en';
 
-/** ผู้ให้บริการบัญชีภายนอกที่มีปุ่มบนหน้า login ที่มา: apps/consumer-app/app/login.tsx บรรทัด 372 */
+/** ผู้ให้บริการบัญชีภายนอกที่มีปุ่มบนหน้า login ที่มา: apps/consumer-app/app/login.tsx บรรทัด 370 */
 export const SOCIAL_PROVIDERS = ['Google', 'Facebook', 'Apple'] as const;
 export type SocialProvider = (typeof SOCIAL_PROVIDERS)[number];
 
@@ -52,7 +52,7 @@ export interface Labels {
 
 /**
  * ชื่อภาษาในแผ่นเลือกภาษา เหมือนกันทุกภาษาของแอป จึงเก็บไว้ชุดเดียว
- * ที่มา: mobile.settings.languageNames ใน packages/i18n/src/locales/th.ts และ en.ts บรรทัด 144 ถึง 149
+ * ที่มา: mobile.settings.languageNames ใน packages/i18n/src/locales/th.ts และ en.ts บรรทัด 185 ถึง 190
  */
 export const LANGUAGE_NAMES: Record<LanguageOption, string> = {
   th: 'ไทย',
