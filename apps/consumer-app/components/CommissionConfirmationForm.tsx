@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Text, View } from "react-native";
 import { MobileButton, MobileInput, useMobileTheme } from "@nestyk/ui/native";
-import { useLocale } from "@nestyk/i18n";
+import { localizedError, useLocale } from "@nestyk/i18n";
 import type {
   AgentTenant,
   CommissionConfirmation,
@@ -117,7 +117,7 @@ export function CommissionConfirmationForm({
   onBack: () => void;
   onCreated: (value: CommissionConfirmation) => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const labels = t.agent.contracts.commissionConfirmation;
   const shared = t.agent.contracts.financial;
   const { theme } = useMobileTheme();
@@ -167,7 +167,7 @@ export function CommissionConfirmationForm({
         setError("");
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : shared.invalid);
+        if (active) setError(localizedError(e, t.common.errorGeneric, locale));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -202,7 +202,7 @@ export function CommissionConfirmationForm({
         }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : shared.invalid);
+      setError(localizedError(e, t.common.errorGeneric, locale));
     } finally {
       saving.current = false;
       setBusy(false);

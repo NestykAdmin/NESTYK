@@ -17,18 +17,42 @@ export interface RentalContract {
   updatedAt: string;
 }
 
-export interface BillingInvoice {
-  id: string;
-  contractId: string;
-  tenantId: string;
-  title: string;
+export type TenantBillStatus = 'pending' | 'paid' | 'overdue';
+
+/** Monthly rent bill generated from an active lease agreement (rent only). */
+export interface TenantBill {
+  id: number;
+  leaseContractId: number;
+  contractNo: string | null;
+  tenantName: string;
+  property: string;
+  room: string | null;
+  /** `YYYY-MM` of the due date. */
+  period: string;
+  documentNo: string;
+  issueDate: string;
   dueDate: string;
-  amountRent: number;
-  amountWater?: number;
-  amountElectric?: number;
-  amountOther?: number;
-  totalAmount: number;
-  status: PaymentStatus;
-  paymentQrCode?: string;
-  paidAt?: string;
+  graceUntil: string;
+  amount: number;
+  status: TenantBillStatus;
+  paidAt: string | null;
+  hasPaymentSlip: boolean;
+  payTo: { bankName: string; accountName: string; accountNo: string } | null;
+}
+
+/**
+ * Next rent round for the dashboard: the oldest unpaid bill, or the next period not issued yet.
+ * The payable window is `issueDate` → `graceUntil`.
+ */
+export interface TenantNextBill {
+  billId: number | null;
+  leaseContractId: number;
+  property: string;
+  room: string | null;
+  period: string;
+  issueDate: string;
+  dueDate: string;
+  graceUntil: string;
+  amount: number;
+  status: 'upcoming' | 'pending' | 'overdue';
 }

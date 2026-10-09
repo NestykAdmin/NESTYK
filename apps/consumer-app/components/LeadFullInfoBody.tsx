@@ -25,7 +25,7 @@ import {
 } from '../lib/lead-format';
 import { formatPhoneDisplay, phoneDialString } from '../lib/phone';
 import { distanceKm } from '../lib/lead-match-preview';
-import { LeadStatusBadge, SheetHeader, leadCardShadow } from './AgentLeadDetailBody';
+import { LeadNextViewingLine, LeadStatusBadge, SheetHeader, leadCardShadow, leadDisplayStatus } from './AgentLeadDetailBody';
 
 type Accent = 'lead' | 'matching' | 'screening' | 'notes';
 
@@ -271,11 +271,12 @@ export function LeadFullInfoBody({ lead }: { lead: AgentLead }) {
         </SectionCard>
 
         <View style={styles.footer}>
-          <LeadStatusBadge status={lead.status} />
+          <LeadStatusBadge status={leadDisplayStatus(lead)} />
           <Text style={[styles.label, styles.flex1, { color: theme.textSecondary }]}>
             {c.leadCodeLine.replace('{code}', formatLeadCode(lead)).replace('{date}', createdDate ?? '—')}
           </Text>
         </View>
+        <LeadNextViewingLine lead={lead} />
         {lead.status === 'lost' && lead.lostReason ? (
           <Text style={[styles.label, styles.footerNote, { color: theme.textSecondary }]}>
             {`${info.lostReason}: ${lead.lostReason}`}

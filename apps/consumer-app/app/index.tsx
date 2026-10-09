@@ -1,13 +1,31 @@
 import { AgentCalendarScreen, emptyCalendarDraft } from '../components/AgentCalendarScreen';
-import { calendarDateKey, createCalendarDemoEvents } from '../lib/agent-calendar-demo';
-import { AgentTenantsScreen } from '../components/AgentTenantsScreen';
+import { calendarDateKey, createCalendarDemoEvents, type CalendarDemoEvent } from '../lib/agent-calendar-demo';
+import { calendarViewingRange, viewingToCalendarEvent } from '../lib/agent-calendar-viewings';
+import { getAgentLead, listAgentViewings } from '../lib/agent-leads-api';
+import { useLeadRoomViewing } from '../lib/use-lead-room-viewing';
+import {
+  AgentTenantsScreen,
+  TENANT_DETAIL_CLOSED,
+  TenantEditBar,
+  type TenantDetailActions,
+  type TenantDetailState,
+  type TenantEntry,
+  type TenantListView,
+} from '../components/AgentTenantsScreen';
 import { PartyContractsScreen, type PartyContractRoom } from '../components/PartyContractsScreen';
+import { TenantBillsScreen } from '../components/TenantBillsScreen';
+import { TenantNextBillCard } from '../components/TenantNextBillCard';
+import { OwnerConfirmedRent } from '../components/OwnerConfirmedRent';
 import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
 import { AgentLeadDetailBody } from '../components/AgentLeadDetailBody';
 import { LeadFullInfoBody } from '../components/LeadFullInfoBody';
-import { LeadMatchedRoomBody, LeadMatchedRoomCta } from '../components/LeadMatchedRoomBody';
+import { LeadMatchedRoomBody } from '../components/LeadMatchedRoomBody';
+import { LeadRoomActions } from '../components/LeadRoomActions';
+import { LeadRoomViewingBanner } from '../components/LeadRoomViewingBanner';
+import { AgentMoreToolsBody } from '../components/AgentMoreToolsBody';
+import { AgentRoomDetailModal, type RoomSharePreview } from '../components/AgentRoomDetailModal';
 import type { LeadRoomMatch } from '../lib/lead-match-preview';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Alert, BackHandler } from 'react-native';
@@ -33,7 +51,7 @@ import {
   getDefaultTabForRole,
   tokens,
 } from '@nestyk/ui/native';
-import { UserRole, type AgentLead, type PartyContract } from '@nestyk/types';
+import { UserRole, type AgentLead, type AgentTenant, type PartyContract } from '@nestyk/types';
 import {
   MobileCreateListingWizardBody,
   MobileAgentDashboardBody,
@@ -59,7 +77,9 @@ import {
   MOCK_ACTIVITY_NOTIFICATIONS,
   MOCK_MESSAGE_NOTIFICATIONS,
   MOCK_SERVICE_TICKETS,
+  type DemoNotification,
 } from '../lib/mock-data';
+import { localeTag } from '../lib/lead-format';
 
 function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t']): string {
   switch (tab) {
@@ -122,6 +142,7 @@ export default function AppHomeScreen() {
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => calendarDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => calendarDateKey(new Date()).slice(0, 7) + '-01');
   const [calendarDraft, setCalendarDraft] = useState(emptyCalendarDraft);
+  const [calendarViewings, setCalendarViewings] = useState<CalendarDemoEvent[]>([]);
   const [activeTab, setActiveTab] = useState<MobileAppTab>(() =>
     getDefaultTabForRole(APP_CONFIG.defaultRole),
   );
@@ -131,21 +152,44 @@ export default function AppHomeScreen() {
   const [selectedPartyRoom, setSelectedPartyRoom] = useState<PartyContractRoom | null>(null);
   const [openedPartyContract, setOpenedPartyContract] = useState<PartyContract | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState(MOCK_ACTIVITY_NOTIFICATIONS);
-  const [messages, setMessages] = useState(MOCK_MESSAGE_NOTIFICATIONS);
+  const [notificationsRead, setNotificationsRead] = useState(false);
+  const [notifications, messages] = useMemo(() => {
+    const time = new Intl.DateTimeFormat(localeTag(locale), {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const show = (items: DemoNotification[]) =>
+      items.map(({ text, at, unread, ...item }) => ({
+        ...item,
+        text: t.mobile.notifications.demo[text],
+        time: time.format(new Date(at)),
+        unread: unread && !notificationsRead,
+      }));
+    return [show(MOCK_ACTIVITY_NOTIFICATIONS), show(MOCK_MESSAGE_NOTIFICATIONS)];
+  }, [t, locale, notificationsRead]);
   const [createLeadBusy, setCreateLeadBusy] = useState(false);
   const [leadsWorkFilter, setLeadsWorkFilter] = useState<'lead_follow_up' | null>(null);
   const [clientsWorkFilter, setClientsWorkFilter] = useState<
     'overdue_payment' | 'awaiting_signature' | 'renewal' | 'lead_follow_up' | null
   >(null);
+  const [clientsView, setClientsView] = useState<TenantListView>('work');
+  const clearClientsWorkFilter = useCallback(() => setClientsWorkFilter(null), []);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [pageRefreshing, setPageRefreshing] = useState(false);
   const refreshSequence = useRef(0);
   const pendingRefresh = useRef<number | null>(null);
   const [leadsReloadToken, setLeadsReloadToken] = useState(0);
   const [roomsReloadToken, setRoomsReloadToken] = useState(0);
+  const [creatingTenant, setCreatingTenant] = useState(false);
+  const [createTenantBusy, setCreateTenantBusy] = useState(false);
+  const [createdTenant, setCreatedTenant] = useState<AgentTenant | null>(null);
+  const createTenantBackRef = useRef<(() => boolean) | null>(null);
+  const [tenantDetail, setTenantDetail] = useState<TenantDetailState>(TENANT_DETAIL_CLOSED);
+  const tenantDetailActionsRef = useRef<TenantDetailActions | null>(null);
   const [partyContractsReloadToken, setPartyContractsReloadToken] = useState(0);
-  const [clientsSearchOpen, setClientsSearchOpen] = useState(false);
+  const [billsReloadToken, setBillsReloadToken] = useState(0);
   /** Where header/hardware back should return from secondary screens (e.g. create listing). */
   const [secondaryReturnTab, setSecondaryReturnTab] = useState<MobileAppTab | null>(null);
   const createListingBackRef = useRef<(() => boolean) | null>(null);
@@ -153,13 +197,37 @@ export default function AppHomeScreen() {
   const [activeLead, setActiveLead] = useState<AgentLead | null>(null);
   /** Set while `createLead` edits `activeLead` instead of creating a new lead. */
   const [leadEdit, setLeadEdit] = useState<{ tab: LeadFormTab; returnTab: MobileAppTab } | null>(null);
-  /** Room opened from a lead's matched rooms; its detail closes back to `returnTab`. */
-  const [roomFocus, setRoomFocus] = useState<{ id: number; returnTab: MobileAppTab } | null>(null);
+  /** Room detail opened over a lead's matched room; saving an edit bumps the version so that page re-reads the room. */
+  const [matchRoomId, setMatchRoomId] = useState<number | null>(null);
+  const [matchRoomPreview, setMatchRoomPreview] = useState<RoomSharePreview | null>(null);
+  const [matchRoomVersion, setMatchRoomVersion] = useState(0);
   const [activeMatch, setActiveMatch] = useState<LeadRoomMatch | null>(null);
   /** Bumped by the header "⋯" on lead pages; the body opens its own actions sheet. */
   const [leadMenuRequest, setLeadMenuRequest] = useState(0);
+  /** Tenant page opened from a lead page (just booked, or a booked lead); back returns to `returnTab`. */
+  const [tenantEntry, setTenantEntry] = useState<(TenantEntry & { returnTab: MobileAppTab }) | null>(null);
+  const leadRoomViewing = useLeadRoomViewing(
+    activeTab === 'leadRoom' ? activeLead : null,
+    activeMatch?.room.id ?? null,
+    setActiveLead,
+  );
 
   const unreadCount = [...notifications, ...messages].filter((n) => n.unread).length;
+
+  const calendarOpen = activeTab === 'calendar' && activeRole === 'agent';
+  useEffect(() => {
+    if (!calendarOpen) return;
+    let active = true;
+    const { from, to } = calendarViewingRange(calendarMonth);
+    listAgentViewings(from, to)
+      .then((rows) => {
+        if (active) setCalendarViewings(rows.map(viewingToCalendarEvent));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [calendarOpen, calendarMonth]);
 
   const handleSearchPlaces = useCallback(
     (query: string) => searchPlaces(query, locale),
@@ -197,7 +265,7 @@ export default function AppHomeScreen() {
       setActiveRole('guest');
       setActiveTab('home');
     } else if (hostOrPath.includes('viewing')) {
-      Alert.alert('Schedule Viewing', `Open viewing request from link: ${url}`);
+      Alert.alert(t.common.scheduleViewing, t.mobile.demoAlerts.viewingLink.replace('{url}', url));
     }
   };
 
@@ -220,7 +288,8 @@ export default function AppHomeScreen() {
     if (tab !== 'clients') setClientsWorkFilter(null);
     setSecondaryReturnTab(null);
     setLeadEdit(null);
-    setRoomFocus(null);
+    setMatchRoomId(null);
+    setMatchRoomPreview(null);
     setActiveTab(tab);
   };
 
@@ -236,20 +305,6 @@ export default function AppHomeScreen() {
     },
     [activeTab],
   );
-
-  const openFocusedRoom = useCallback(
-    (id: number) => {
-      setRoomFocus({ id, returnTab: activeTab });
-      setActiveTab('listingRoom');
-    },
-    [activeTab],
-  );
-
-  const closeFocusedRoom = useCallback(() => {
-    if (!roomFocus) return;
-    setRoomFocus(null);
-    setActiveTab(roomFocus.returnTab);
-  }, [roomFocus]);
 
   const openLeadMatch = useCallback((match: LeadRoomMatch) => {
     setActiveMatch(match);
@@ -345,6 +400,87 @@ export default function AppHomeScreen() {
   }, [activeTab, handleCreateLeadBack]);
 
   useEffect(() => {
+    if (activeTab !== 'clients') {
+      setCreatingTenant(false);
+      setCreatedTenant(null);
+      setTenantEntry(null);
+      setTenantDetail(TENANT_DETAIL_CLOSED);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (creatingTenant) {
+      setCreatedTenant(null);
+      setTenantEntry(null);
+    }
+  }, [creatingTenant]);
+
+  /** The open lead booked the room on its matched-room page: show it as booked now, then re-read it. */
+  const handleRoomReserved = useCallback(
+    (tenant: AgentTenant) => {
+      const rentRoomId = activeMatch?.room.id ?? null;
+      setActiveLead((current) =>
+        current?.id === tenant.leadId ? { ...current, status: 'booked', tenantId: tenant.id, rentRoomId } : current,
+      );
+      setLeadsReloadToken((n) => n + 1);
+      getAgentLead(tenant.leadId)
+        .then((lead) => setActiveLead((current) => (current?.id === lead.id ? lead : current)))
+        .catch(() => {});
+    },
+    [activeMatch],
+  );
+
+  /** Opens a tenant's page from a lead page; back from it returns to that page. */
+  const openTenantPage = useCallback(
+    (entry: TenantEntry) => {
+      setClientsWorkFilter(null);
+      setCreatingTenant(false);
+      setCreatedTenant(null);
+      setTenantEntry({ ...entry, returnTab: activeTab });
+      setActiveTab('clients');
+    },
+    [activeTab],
+  );
+
+  const handleTenantEntryBack = useCallback(() => {
+    if (tenantEntry) setActiveTab(tenantEntry.returnTab);
+  }, [tenantEntry]);
+
+  const handleCreateTenantBack = useCallback(() => {
+    if (createTenantBusy) return;
+    if (createTenantBackRef.current?.()) return;
+    setCreatingTenant(false);
+  }, [createTenantBusy]);
+
+  const handleTenantCreated = useCallback((tenant: AgentTenant) => {
+    setCreatedTenant(tenant);
+    // Its lead is `booked` now.
+    setLeadsReloadToken((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!creatingTenant) {
+      setCreateTenantBusy(false);
+      return;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleCreateTenantBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [creatingTenant, handleCreateTenantBack]);
+
+  const isTenantDetail = activeTab === 'clients' && !creatingTenant && tenantDetail.open;
+  useEffect(() => {
+    if (!isTenantDetail) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      tenantDetailActionsRef.current?.back();
+      return true;
+    });
+    return () => sub.remove();
+  }, [isTenantDetail]);
+
+  useEffect(() => {
     if (!partyInbox || !selectedPartyRoom || openedPartyContract) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       setSelectedPartyRoom(null);
@@ -427,10 +563,6 @@ export default function AppHomeScreen() {
     'leadRoom',
   ];
 
-  useEffect(() => {
-    setClientsSearchOpen(false);
-  }, [activeTab]);
-
   const renderAgentHeader = () => {
     const workspace = t.agent.dashboard.workspaceLabel;
     const accent = tokens.colors.roles.agent;
@@ -450,13 +582,12 @@ export default function AppHomeScreen() {
 
     if (agentSectionTabs.includes(activeTab)) {
       const isCreateLead = activeTab === 'createLead';
+      const isCreateTenant = activeTab === 'clients' && creatingTenant;
       const isLeadPage = activeTab === 'leadDetail' || activeTab === 'leadInfo' || activeTab === 'leadRoom';
       const hasLeadMenu = activeTab === 'leadDetail' || activeTab === 'leadRoom';
-      const isSecondary = activeTab === 'createListing' || isCreateLead || isLeadPage;
-      const showSearch =
-        !isSecondary &&
-        activeTab === 'clients';
-      const searchActive = activeTab === 'clients' && clientsSearchOpen;
+      const isSecondary =
+        activeTab === 'createListing' || isCreateLead || isCreateTenant || isTenantDetail || isLeadPage;
+      const canEditTenant = isTenantDetail && tenantDetail.canEdit;
 
       return (
         <MobileSectionHeader
@@ -465,49 +596,83 @@ export default function AppHomeScreen() {
               ? leadEdit
                 ? t.agent.leads.editLead
                 : t.agent.leads.create
+              : isCreateTenant
+                ? t.agent.tenants.create
+              : isTenantDetail
+                ? tenantDetail.title || t.agent.tenants.detailTitle
               : isLeadPage
                 ? getScreenTitle(activeTab, t)
                 : isSecondary
                   ? createListingHeaderTitle || t.agent.listings.addRoom
                   : getScreenTitle(activeTab, t)
           }
-          workspaceLabel={isSecondary ? undefined : workspace}
+          workspaceLabel={
+            isTenantDetail
+              ? tenantDetail.subtitle || undefined
+              : isSecondary
+                ? undefined
+                : activeTab === 'clients'
+                  ? clientsView === 'work'
+                    ? t.agent.tenants.list.subtitleWork
+                    : t.agent.tenants.list.subtitleAll
+                  : workspace
+          }
           accentColor={accent}
           leading={isSecondary ? 'back' : 'menu'}
           onMenuPress={openMenu}
           onBackPress={
             isCreateLead
               ? handleCreateLeadBack
+              : isCreateTenant
+                ? handleCreateTenantBack
+              : isTenantDetail
+                ? () => tenantDetailActionsRef.current?.back()
               : isLeadPage
                 ? goBackFromLead
                 : isSecondary
                   ? handleCreateListingBack
                   : undefined
           }
-          backDisabled={isCreateLead && createLeadBusy}
+          backDisabled={
+            (isCreateLead && createLeadBusy) ||
+            (isCreateTenant && createTenantBusy) ||
+            (isTenantDetail && tenantDetail.saving)
+          }
           onActionPress={
             activeTab === 'leadInfo' && activeLead
               ? () => openLeadEdit('profile')
               : hasLeadMenu
                 ? () => setLeadMenuRequest((n) => n + 1)
-                : undefined
+                : canEditTenant
+                  ? () => tenantDetailActionsRef.current?.edit()
+                  : undefined
           }
           actionLabel={
-            activeTab === 'leadInfo' ? t.agent.leads.editLead : hasLeadMenu ? t.agent.leads.moreActions : undefined
+            activeTab === 'leadInfo'
+              ? t.agent.leads.editLead
+              : hasLeadMenu
+                ? t.agent.leads.moreActions
+                : canEditTenant
+                  ? t.agent.tenants.edit
+                  : undefined
           }
-          actionIcon={activeTab === 'leadInfo' ? 'pencil' : hasLeadMenu ? 'dots-vertical' : undefined}
-          actionVariant={activeTab === 'leadInfo' || hasLeadMenu ? 'icon' : undefined}
+          actionIcon={
+            activeTab === 'leadInfo' || canEditTenant ? 'pencil' : hasLeadMenu ? 'dots-vertical' : undefined
+          }
+          actionVariant={activeTab === 'leadInfo' || hasLeadMenu || canEditTenant ? 'icon' : undefined}
           onAddPress={
             !isSecondary && activeTab === 'listingRoom'
               ? openCreateListing
               : !isSecondary && activeTab === 'listingLead'
                 ? openCreateLead
-                : undefined
+                : !isSecondary && activeTab === 'clients'
+                  ? () => setCreatingTenant(true)
+                  : undefined
           }
           addVariant={
             activeTab === 'listingRoom'
               ? 'room'
-              : activeTab === 'listingLead'
+              : activeTab === 'listingLead' || activeTab === 'clients'
                 ? 'lead'
                 : undefined
           }
@@ -516,16 +681,9 @@ export default function AppHomeScreen() {
               ? t.agent.listings.addRoom
               : activeTab === 'listingLead'
                 ? t.agent.leads.create
+              : activeTab === 'clients'
+                ? t.agent.tenants.create
                 : undefined
-          }
-          searchActive={searchActive}
-          searchAccessibilityLabel={t.agent.dashboard.clientsTitle}
-          onSearchPress={
-            showSearch
-              ? () => {
-                  setClientsSearchOpen((v) => !v);
-                }
-              : undefined
           }
         />
       );
@@ -653,10 +811,16 @@ export default function AppHomeScreen() {
       setPartyContractsReloadToken(token);
     } else if (activeRole === 'agent' && activeTab === 'dashboard') {
       setDashboardRefreshKey(token);
+    } else if ((activeRole === 'tenant' || activeRole === 'owner') && activeTab === 'dashboard') {
+      setBillsReloadToken(token);
+    } else if (activeTab === 'clients') {
+      setBillsReloadToken(token);
     } else if (activeTab === 'listingLead') {
       setLeadsReloadToken(token);
     } else if (activeTab === 'listingRoom') {
       setRoomsReloadToken(token);
+    } else if (activeTab === 'bills' || activeTab === 'income') {
+      setBillsReloadToken(token);
     } else {
       finishPageRefresh(token);
     }
@@ -675,7 +839,7 @@ export default function AppHomeScreen() {
           <Text style={[styles.listingSub, secondaryText]}>{item.roomType} • {item.floor}</Text>
           <View style={styles.listingActionRow}>
             <View style={{ flex: 1 }}>
-              <MobileButton variant="outline" onPress={() => Alert.alert('Schedule Viewing', item.title)}>
+              <MobileButton variant="outline" onPress={() => Alert.alert(t.common.scheduleViewing, item.title)}>
                 <View style={styles.buttonRow}>
                   <MobileIcon name="calendar-plus" size={16} color={tokens.colors.primary} />
                   <Text style={styles.buttonLabel}>{t.common.schedule}</Text>
@@ -683,7 +847,7 @@ export default function AppHomeScreen() {
               </MobileButton>
             </View>
             <View style={{ flex: 1 }}>
-              <MobileButton onPress={() => Alert.alert('Details', item.title)}>{t.common.viewDetails}</MobileButton>
+              <MobileButton onPress={() => Alert.alert(t.common.viewDetails, item.title)}>{t.common.viewDetails}</MobileButton>
             </View>
           </View>
         </View>
@@ -693,29 +857,7 @@ export default function AppHomeScreen() {
 
   const renderBillsBody = () => (
     <View style={styles.bodyContainer}>
-      <View style={[styles.card, cardStyle]}>
-        <Text style={[styles.sectionHeader, headingText]}>Current Bill</Text>
-        <View style={styles.billRow}>
-          <Text style={[styles.billLabel, secondaryText]}>Rent (Sep 2026)</Text>
-          <Text style={[styles.billValue, headingText]}>14,500 THB</Text>
-        </View>
-        <View style={styles.billRow}>
-          <Text style={[styles.billLabel, secondaryText]}>Utilities</Text>
-          <Text style={[styles.billValue, headingText]}>850 THB</Text>
-        </View>
-        <View style={[styles.billRow, styles.billTotal, { borderTopColor: theme.border }]}>
-          <Text style={[styles.billLabel, secondaryText, { fontWeight: '600' }]}>Total Due</Text>
-          <Text style={[styles.billValue, { color: tokens.colors.danger, fontWeight: '700' }]}>15,350 THB</Text>
-        </View>
-        <View style={{ marginTop: 14 }}>
-          <MobileButton onPress={() => Alert.alert('Payment', 'Open PromptPay QR')}>
-            <View style={styles.buttonRow}>
-              <MobileIcon name="qr-code" size={16} color={tokens.colors.primary} />
-              <Text style={styles.buttonLabel}>{t.common.payWithQr}</Text>
-            </View>
-          </MobileButton>
-        </View>
-      </View>
+      <TenantBillsScreen reloadToken={billsReloadToken} onReloadSettled={finishPageRefresh} />
     </View>
   );
 
@@ -733,7 +875,7 @@ export default function AppHomeScreen() {
     }
     const summaries: Record<UserRole, { title: string; desc: string; badge: string }> = {
       guest: { title: 'Welcome to NESTYK', desc: 'Browse rooms and schedule viewings nearby.', badge: 'Guest' },
-      tenant: { title: 'Tenant Dashboard', desc: 'Lease active · Next bill due in 3 days', badge: 'Active Lease' },
+      tenant: { title: 'Tenant Dashboard', desc: '', badge: 'Active Lease' },
       owner: { title: 'Owner Dashboard', desc: '3 active listings · 2 tenants occupied', badge: '3 Listings' },
       agent: { title: 'Agent Dashboard', desc: '24 co-broke listings · 45,000 THB commission', badge: 'Partner' },
       admin: { title: 'Operations Dashboard', desc: 'Pending tickets: 3 · Inspections today: 2', badge: 'Ops' },
@@ -746,7 +888,20 @@ export default function AppHomeScreen() {
             <Text style={[styles.sectionHeader, headingText]}>{summary.title}</Text>
             <MobileBadge role={activeRole} label={summary.badge} />
           </View>
-          <Text style={[styles.sectionDesc, secondaryText]}>{summary.desc}</Text>
+          {activeRole === 'tenant' ? (
+            <TenantNextBillCard
+              reloadToken={billsReloadToken}
+              onReloadSettled={finishPageRefresh}
+              onOpenBills={() => handleTabPress('bills')}
+            />
+          ) : activeRole === 'owner' ? (
+            <OwnerConfirmedRent
+              reloadToken={billsReloadToken}
+              onReloadSettled={finishPageRefresh}
+            />
+          ) : (
+            <Text style={[styles.sectionDesc, secondaryText]}>{summary.desc}</Text>
+          )}
         </View>
       </View>
     );
@@ -810,10 +965,11 @@ export default function AppHomeScreen() {
     if (activeTab === 'income') {
       return (
         <View style={styles.bodyContainer}>
-          <View style={[styles.card, cardStyle]}>
-            <Text style={[styles.sectionHeader, headingText]}>Rental Income</Text>
-            <Text style={[styles.sectionDesc, secondaryText]}>Sep 2026 · 3 units · 43,500 THB collected</Text>
-          </View>
+          <TenantBillsScreen
+            mode="owner"
+            reloadToken={billsReloadToken}
+            onReloadSettled={finishPageRefresh}
+          />
         </View>
       );
     }
@@ -851,6 +1007,7 @@ export default function AppHomeScreen() {
             onOpenInfo={() => setActiveTab('leadInfo')}
             onEditMatching={() => openLeadEdit('matching')}
             onOpenMatch={openLeadMatch}
+            onOpenTenant={(tenantId) => openTenantPage({ tenantId })}
             menuRequest={leadMenuRequest}
           />
         </Animated.View>
@@ -860,11 +1017,29 @@ export default function AppHomeScreen() {
     if (activeTab === 'leadRoom' && activeLead && activeMatch) {
       return (
         <Animated.View entering={SlideInRight.duration(200)} style={styles.bodyContainer}>
+          <LeadRoomViewingBanner viewing={leadRoomViewing.viewing} />
           <LeadMatchedRoomBody
             lead={activeLead}
             match={activeMatch}
-            onOpenRoom={openFocusedRoom}
+            onOpenRoom={(roomId) => {
+              setMatchRoomPreview(null);
+              setMatchRoomId(roomId);
+            }}
+            onPreviewRoom={(roomId, visibility, contactId) => {
+              setMatchRoomPreview({ visibility, contactId });
+              setMatchRoomId(roomId);
+            }}
+            roomVersion={matchRoomVersion}
             menuRequest={leadMenuRequest}
+          />
+          <AgentRoomDetailModal
+            roomId={matchRoomId}
+            preview={matchRoomPreview}
+            onClose={() => {
+              setMatchRoomId(null);
+              setMatchRoomPreview(null);
+            }}
+            onSaved={() => setMatchRoomVersion((n) => n + 1)}
           />
         </Animated.View>
       );
@@ -882,78 +1057,32 @@ export default function AppHomeScreen() {
     }
 
     if (activeTab === 'clients') {
-      const dash = t.agent.dashboard;
-      const clientsFilterLabel =
-        clientsWorkFilter === 'overdue_payment'
-          ? dash.clientsFilterOverdue
-          : clientsWorkFilter === 'awaiting_signature'
-            ? dash.clientsFilterSigning
-            : clientsWorkFilter === 'renewal'
-              ? dash.clientsFilterRenewal
-              : clientsWorkFilter === 'lead_follow_up'
-                ? dash.leadsFollowUp
-                : null;
+      // One wrapper for both layouts so the tenants screen keeps its state when the form closes.
       return (
-        <View style={styles.bodyContainer}>
-          {clientsFilterLabel ? (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                marginBottom: 12,
-                padding: 12,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: accentColor,
-                backgroundColor: theme.surface,
-                minHeight: 44,
-              }}
-            >
-              <Text style={{ flex: 1, color: theme.textHeading, fontSize: 13, lineHeight: 19 }}>
-                {dash.filterActive.replace('{label}', clientsFilterLabel)}
-              </Text>
-              <MobileButton variant="outline" onPress={() => setClientsWorkFilter(null)}>
-                {dash.clearFilter}
-              </MobileButton>
-            </View>
-          ) : null}
+        <View style={creatingTenant ? [styles.wizardBody, styles.fullBleedBody] : styles.bodyContainer}>
           <AgentTenantsScreen
-            searchOpen={clientsSearchOpen}
-            onSearchOpenChange={setClientsSearchOpen}
             workFilter={clientsWorkFilter}
+            onWorkFilterHandled={clearClientsWorkFilter}
+            onListViewChange={setClientsView}
+            reloadToken={billsReloadToken}
+            onReloadSettled={finishPageRefresh}
+            creating={creatingTenant}
+            onCreatingChange={setCreatingTenant}
+            onCreateBusy={setCreateTenantBusy}
+            createBackRef={createTenantBackRef}
+            createdTenant={createdTenant}
+            onTenantCreated={handleTenantCreated}
+            entry={tenantEntry}
+            onEntryBack={handleTenantEntryBack}
+            detailActionsRef={tenantDetailActionsRef}
+            onDetailStateChange={setTenantDetail}
           />
         </View>
       );
     }
 
     if (activeTab === 'more') {
-      const tools: Array<{ label: string; tab: MobileAppTab }> = [
-        { label: t.agent.dashboard.openCalendar, tab: 'calendar' },
-        { label: t.agent.dashboard.openContacts, tab: 'contact' },
-        { label: t.agent.dashboard.openServices, tab: 'services' },
-        { label: t.agent.dashboard.openContracts, tab: 'contracts' },
-      ];
-      return (
-        <View style={styles.bodyContainer}>
-          <Text style={[styles.sectionDesc, secondaryText]}>{t.agent.dashboard.moreToolsHint}</Text>
-          {tools.map((tool) => (
-            <View key={tool.tab} style={{ marginTop: 10 }}>
-              <MobileButton variant="outline" onPress={() => setActiveTab(tool.tab)}>
-                {tool.label}
-              </MobileButton>
-            </View>
-          ))}
-          <View style={{ marginTop: 10 }}>
-            <MobileButton
-              variant="outline"
-              onPress={() => Alert.alert(t.agent.dashboard.openCommission, t.agent.dashboard.unavailableSection)}
-            >
-              {t.agent.dashboard.openCommission}
-            </MobileButton>
-          </View>
-        </View>
-      );
+      return <AgentMoreToolsBody onOpen={setActiveTab} />;
     }
 
     if (activeTab === 'contact') {
@@ -982,7 +1111,7 @@ export default function AppHomeScreen() {
 
     if (activeTab === 'calendar' && activeRole === 'agent') {
       return <AgentCalendarScreen
-        events={calendarEvents}
+        events={[...calendarViewings, ...calendarEvents]}
         onAdd={event => setCalendarEvents(previous => [...previous, event])}
         selectedDate={calendarSelectedDate}
         onSelectDate={setCalendarSelectedDate}
@@ -1024,11 +1153,13 @@ export default function AppHomeScreen() {
           <MobileServiceCatalogBody
             currentRole={activeRole}
             activeTickets={MOCK_SERVICE_TICKETS}
-            onRequestService={(cat) => Alert.alert('Service Request', `Requested: ${cat}`)}
+            onRequestService={(cat) =>
+              Alert.alert(t.mobile.demoAlerts.serviceRequestTitle, t.mobile.demoAlerts.serviceRequested.replace('{category}', t.services[cat]))
+            }
             onHubAction={(id) => {
-              if (id === 'tickets') Alert.alert('My Tickets', `${MOCK_SERVICE_TICKETS.length} open tickets`);
-              if (id === 'emergency') Alert.alert('Emergency', 'Call NESTYK 24h support');
-              if (id === 'move') Alert.alert('Move-in / Move-out', 'Schedule inspection and cleaning');
+              if (id === 'tickets') Alert.alert(t.services.myTickets, t.mobile.demoAlerts.openTickets.replace('{count}', String(MOCK_SERVICE_TICKETS.length)));
+              if (id === 'emergency') Alert.alert(t.services.emergency, t.mobile.demoAlerts.emergencyBody);
+              if (id === 'move') Alert.alert(t.mobile.demoAlerts.moveTitle, t.mobile.demoAlerts.moveBody);
             }}
           />
         </View>
@@ -1039,11 +1170,8 @@ export default function AppHomeScreen() {
       return (
         <View style={styles.bodyContainer}>
           <AgentRoomsScreen
-            onCreate={openCreateListing}
             reloadToken={roomsReloadToken}
             onReloadSettled={finishPageRefresh}
-            focusRoomId={roomFocus?.id ?? null}
-            onFocusRoomClosed={closeFocusedRoom}
           />
         </View>
       );
@@ -1122,7 +1250,7 @@ export default function AppHomeScreen() {
               config={defaultOwnerListingConfig}
               searchPlaces={handleSearchPlaces}
               getPlaceDetails={handleGetPlaceDetails}
-              onSubmitListing={(data) => Alert.alert('Listing Published', JSON.stringify(data))}
+              onSubmitListing={() => Alert.alert(t.mobile.demoAlerts.listingPublished)}
             />
           </View>
         );
@@ -1173,6 +1301,7 @@ export default function AppHomeScreen() {
     activeTab === 'createListing' ||
     activeTab === 'createLead' ||
     activeTab === 'leadInfo' ||
+    (activeTab === 'clients' && creatingTenant) ||
     (activeTab === 'listings' && activeRole === 'owner');
 
   return (
@@ -1195,8 +1324,10 @@ export default function AppHomeScreen() {
             <MobileSectionHeader
               title={
                 selectedPartyRoom
-                  ? (selectedPartyRoom.room ? `ห้อง ${selectedPartyRoom.room}` : selectedPartyRoom.property)
-                  : "สัญญาของฉัน"
+                  ? (selectedPartyRoom.room
+                      ? t.mobile.partyContracts.room.replace('{room}', selectedPartyRoom.room)
+                      : selectedPartyRoom.property)
+                  : t.mobile.partyContracts.title
               }
               workspaceLabel={
                 selectedPartyRoom?.room ? selectedPartyRoom.property : t.roles[partyRole]
@@ -1221,19 +1352,48 @@ export default function AppHomeScreen() {
         }
         bottomBar={
           activeTab === 'leadRoom' && activeLead && activeMatch ? (
-            <LeadMatchedRoomCta onPress={() => openFocusedRoom(activeMatch.room.id)} />
-          ) : ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ? null : <MobileBottomTabBar
-            activeRole={activeRole}
-            activeTab={activeTab}
-            onTabPress={handleTabPress}
-            accentColor={accentColor}
-            {...(activeRole === 'agent'
-              ? {
-                  activeTintColor: theme.screenTitle,
-                  indicatorColor: tokens.colors.brand[500],
-                }
-              : {})}
-          />
+            <LeadRoomActions
+              lead={activeLead}
+              match={activeMatch}
+              viewing={leadRoomViewing.viewing}
+              ready={leadRoomViewing.ready}
+              onViewingSaved={leadRoomViewing.onSaved}
+              onReserved={handleRoomReserved}
+              onContinue={(tenant, next) =>
+                openTenantPage({
+                  tenantId: tenant.id,
+                  tenant,
+                  startContract: next === 'reservation' ? 'reservation' : null,
+                })
+              }
+              onOpenTenant={(tenantId) => openTenantPage({ tenantId })}
+            />
+          ) : isTenantDetail && tenantDetail.editing ? (
+            <TenantEditBar
+              saving={tenantDetail.saving}
+              error={tenantDetail.error}
+              onCancel={() => tenantDetailActionsRef.current?.back()}
+              onSave={() => tenantDetailActionsRef.current?.save()}
+            />
+          ) : null
+        }
+        tabBar={
+          ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
+          (activeTab === 'clients' && creatingTenant) ||
+          isTenantDetail ? null : (
+            <MobileBottomTabBar
+              activeRole={activeRole}
+              activeTab={activeTab}
+              onTabPress={handleTabPress}
+              accentColor={accentColor}
+              {...(activeRole === 'agent'
+                ? {
+                    activeTintColor: theme.screenTitle,
+                    indicatorColor: tokens.colors.brand[500],
+                  }
+                : {})}
+            />
+          )
         }
       >
         <React.Fragment key={`${activeRole}-${activeTab}-${partyInbox ? 'inbox' : 'tab'}`}>
@@ -1282,10 +1442,10 @@ export default function AppHomeScreen() {
               setPartyInbox(true);
               return;
             }
-            Alert.alert('Open', action.path);
+            Alert.alert(t.mobile.demoAlerts.comingSoon);
             return;
           }
-          Alert.alert('Action', action.id);
+          Alert.alert(t.mobile.demoAlerts.comingSoon);
         }}
       />
 
@@ -1298,8 +1458,7 @@ export default function AppHomeScreen() {
           messageItems={messages}
           onBack={() => setNotificationsOpen(false)}
           onClearAll={() => {
-            setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-            setMessages((prev) => prev.map((n) => ({ ...n, unread: false })));
+            setNotificationsRead(true);
           }}
         />
       </MobileNotificationsPanel>
@@ -1360,18 +1519,6 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   listingActionRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  billRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  billTotal: { borderTopWidth: 1, paddingTop: 8 },
-  billLabel: {
-    fontFamily: tokens.typography.native.body,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  billValue: {
-    fontFamily: tokens.typography.native.body,
-    fontSize: 14,
-    lineHeight: 20,
-  },
   buttonRow: {
     flexDirection: 'row',
     alignItems: 'center',

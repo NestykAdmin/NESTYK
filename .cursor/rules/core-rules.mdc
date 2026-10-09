@@ -57,6 +57,11 @@ alwaysApply: true
 
 ### 2.3 Universal Shell & Slot Architecture (Common Header/Footer + Swappable Body)
 * **Shell Components:** โครง Header, Footer, Bottom Tab Bar, และ Drawer Menu ต้องใช้โครงสร้างร่วมกัน (`ModePage` บน Mobile / `WebPageLayout` บน Web)
+* **Bottom Tab Bar (แถบเมนูล่าง):** ใช้ `MobileBottomTabBar` แบบ**แคปซูลลอย** (ค่าเริ่มต้น `variant="floating"`) ทั้ง iOS และ Android — ส่งผ่าน `MobileModePage` prop **`tabBar`** (ไม่ใช่ `bottomBar`)
+ * แคปซูลห่างขอบซ้ายขวา 16 · สูงอย่างน้อย 64 · มุมโค้ง 32 · พื้น `theme.surface` ทึบ + เงา `getCardElevation(3)` · ลอยเหนือ safe area ล่าง (`max(insets.bottom, 12)`)
+ * เนื้อหาเลื่อนลอดใต้แถบได้ — `MobileModePage` เว้นท้ายเนื้อหาให้เท่าความสูงแถบเอง ห้ามเว้นซ้ำใน Body
+ * ซ่อนอัตโนมัติ (จัดการใน `MobileModePage` ห้ามทำซ้ำในหน้า): เลื่อนลงเกิน 12px ซ่อน · เลื่อนขึ้น / บนสุด / ท้ายรายการ / หน้าที่ไม่เลื่อน แสดง · คีย์บอร์ดขึ้นซ่อน ปิดแล้วแสดง · slide 200ms (`react-native-reanimated`)
+ * แถบปุ่ม action / แถบบันทึก ใช้ `bottomBar` (ติดขอบล่างเต็มความกว้าง) และแทนที่ `tabBar` เมื่อมีทั้งคู่
 * **Pure Body Components:** พัฒนา Feature Content (เช่น Service Catalog, Room Details, Listing Form) ให้เป็น Body Component ที่ปราศจาก Header/Footer ภายใน เพื่อนำไปเสียบใช้งานใน Slot ของ Shell ใดก็ได้
 * **Persistent Outer Shell (โครงคงที่ ห้าม Remount):**
   * โครงสร้าง Header, Footer, Bottom Tab Bar, และ Menu ด้านข้างต้อง **Static & Persistent อยู่ที่ระดับ Layout เสมอ**
@@ -137,6 +142,12 @@ alwaysApply: true
    * `Default`: Border `#E5E7EB` | Background `#FFFFFF` | Placeholder `#94A3B8`
    * `Focus`: Border `#F8B615` (สีเหลืองแบรนด์)
    * `Error`: Border `#DC2626` (สีแดง) พร้อมข้อความแจ้งเตือนสีแดง `#DC2626` ("This field is required.")
+4. **Filter Chip (ชิปกรองเหนือรายการ):** ใช้ **`MobileFilterChip`** (`@nestyk/ui`) เท่านั้น — ห้ามเขียนชิปกรองเอง
+   * รูปทรง: **สี่เหลี่ยมมุมมน `borderRadius: 12`** · สูงอย่างน้อย 40 · ขอบ 1px — **ห้ามทรงแคปซูล** (`999`) สำหรับชิปที่กดได้
+   * `Default`: Background `theme.surface` | Border `theme.border` | Text `theme.textHeading` ตัวหนา 13/20 · ตัวเลขจำนวน (`count`) สีรอง
+   * `Selected` (ค่าเริ่มต้น): Background `#FFF0C4` (`brand[100]`) | Border `#F8B615` | Text `#211E1E`
+   * `Selected` แบบสถานะ (`tone` จาก `STATUS_PILL_TONES`): ยังไม่เลือกมีจุดสี 8px (`tone.dot`) · เลือกแล้ว Background `tone.bg` | Border + Text `tone.fg`
+   * ป้ายสถานะที่กดไม่ได้ใช้ `MobileStatusPill` (ทรงแคปซูล) เพื่อแยกจากชิปที่กดได้
 
 ### 3.4 Icon Style & Color Guidelines
 

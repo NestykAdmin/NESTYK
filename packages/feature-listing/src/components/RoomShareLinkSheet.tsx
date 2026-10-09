@@ -15,7 +15,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocale } from '@nestyk/i18n';
+import { localizedError, useLocale } from '@nestyk/i18n';
 import {
   MobileBottomSheet,
   MobileButton,
@@ -198,7 +198,7 @@ export function RoomShareLinkSheet({
         Alert.alert(rd.shareManageTitle, rd.shareLinkCopied);
       }
     } catch (e) {
-      Alert.alert(rd.shareManageTitle, e instanceof Error ? e.message : rd.shareLinkCopyFailed);
+      Alert.alert(rd.shareManageTitle, localizedError(e, rd.shareLinkCopyFailed, locale));
     } finally {
       setBusy(false);
     }
@@ -240,7 +240,7 @@ export function RoomShareLinkSheet({
             } catch (e) {
               Alert.alert(
                 rd.shareManageTitle,
-                e instanceof Error ? e.message : rd.shareLinkCopyFailed,
+                localizedError(e, rd.shareLinkCopyFailed, locale),
               );
             } finally {
               setBusy(false);

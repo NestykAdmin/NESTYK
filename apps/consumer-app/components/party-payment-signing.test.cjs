@@ -5,6 +5,20 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const { contractsTh, fillTemplate, leadFormat } = require('./test-i18n.cjs');
+
+const i18nMock = {
+  useLocale: () => ({
+    locale: 'th',
+    t: {
+      common: { fileTooLarge: 'ไฟล์ต้องไม่เกิน {size} MB' },
+      contracts: contractsTh,
+      mobile: { partyContracts: { bookingPaymentBeforeSigning: 'ผู้เช่าต้องชำระค่าจอง และรอเอเจนต์ตรวจสอบการชำระพร้อมออกใบเสร็จก่อนลงนาม' } },
+    },
+  }),
+  fillTemplate,
+  localizedError: (error, fallback) => (error instanceof Error && error.message) || fallback,
+};
 
 function harness(contract) {
   const states = [], effects = [], buttons = [];
@@ -29,6 +43,8 @@ function harness(contract) {
     };
     if (name === '../lib/party-contracts-api') return { listMyAttachments: async () => ({ requirements: [], documents: [], documentTypes: [] }) };
     if (name === '../lib/contract-signing') return load('../lib/contract-signing.ts');
+    if (name === '@nestyk/i18n') return i18nMock;
+    if (name === '../lib/lead-format') return leadFormat;
     if (name === './ReservationPaymentCard') return { ReservationPaymentCard: () => null };
     if (name === './ContractDocumentPreview') return { ContractDocumentPreview: () => null };
     if (name === './ContractSignaturePad') return { ContractSignaturePad: () => null };

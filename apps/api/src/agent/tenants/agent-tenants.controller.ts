@@ -17,6 +17,12 @@ import {
   AuthRequestUser,
 } from "../../auth/decorators/current-user.decorator";
 import { AgentTenantsService } from "./agent-tenants.service";
+
+/** Optional numeric query parameter; anything else is ignored. */
+function positiveId(value?: string): number | undefined {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+}
 @Controller("agent/tenants")
 @UseGuards(AuthGuard, RolesGuard)
 @Roles("agent")
@@ -31,8 +37,13 @@ export class AgentTenantsController {
   @Get("rooms") rooms(
     @CurrentUser() u: AuthRequestUser,
     @Query("q") q?: string,
+    @Query("leadId") leadId?: string,
+    @Query("roomId") roomId?: string,
   ) {
-    return this.tenants.roomOptions(u.id, q);
+    return this.tenants.roomOptions(u.id, q, {
+      leadId: positiveId(leadId),
+      roomId: positiveId(roomId),
+    });
   }
   @Get() list(@CurrentUser() u: AuthRequestUser) {
     return this.tenants.list(u.id);

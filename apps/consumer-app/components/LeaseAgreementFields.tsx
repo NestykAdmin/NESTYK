@@ -2,6 +2,8 @@ import React from "react";
 import { Pressable, Text, View } from "react-native";
 import { MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { LeaseAgreementInput } from "@nestyk/types";
+import { fillTemplate, useLocale, type ContractCopy } from "@nestyk/i18n";
+import { localeTag } from "../lib/lead-format";
 
 type TextField = Exclude<
   keyof LeaseAgreementInput,
@@ -96,106 +98,165 @@ export const LEASE_AGREEMENT_REQUIRED: TextField[] = [
   "depositAmount",
 ];
 
-const REQUIRED_MESSAGE = "กรุณากรอกข้อมูลนี้";
+/** Must match the `TEXT` limits in apps/api/src/agent/contracts/lease-agreement.ts. */
+export const LEASE_AGREEMENT_MAX_LENGTH: Record<TextField, number> = {
+  documentNo: 40,
+  issueDate: 32,
+  landlordName: 80,
+  landlordFirstName: 80,
+  landlordLastName: 80,
+  landlordNationality: 40,
+  landlordId: 40,
+  landlordAddress: 160,
+  landlordPhone: 40,
+  landlordEmail: 80,
+  tenantName: 80,
+  tenantFirstName: 80,
+  tenantLastName: 80,
+  tenantNationality: 40,
+  tenantId: 40,
+  tenantAddress: 160,
+  tenantPhone: 40,
+  tenantEmail: 80,
+  propertyType: 60,
+  project: 80,
+  houseNo: 40,
+  propertyAddress: 160,
+  roomType: 60,
+  floor: 20,
+  area: 20,
+  termMonths: 12,
+  termFrom: 32,
+  termTo: 32,
+  monthlyRent: 40,
+  monthlyRentWords: 80,
+  rentDueDay: 8,
+  graceDay: 8,
+  latePenalty: 24,
+  latePenaltyWords: 60,
+  bankName: 80,
+  accountName: 80,
+  accountNo: 40,
+  otherPaymentMethod: 160,
+  advanceMonths: 8,
+  advanceAmount: 40,
+  depositMonths: 8,
+  depositAmount: 40,
+  otherInitialPayment: 120,
+  additionalTerms: 800,
+  agentContact: 200,
+  landlordSignName: 60,
+  tenantSignName: 60,
+  witnessSignName: 60,
+};
+
+/** Fields without their own input report length errors on the input they are derived from. */
+const LENGTH_ERROR_FIELD: Partial<Record<TextField, TextField>> = {
+  landlordName: "landlordFirstName",
+  landlordSignName: "landlordFirstName",
+  tenantName: "tenantFirstName",
+  tenantSignName: "tenantFirstName",
+  witnessSignName: "agentContact",
+};
 
 export function leaseAgreementFieldErrors(
   value: LeaseAgreementInput,
+  messages: ContractCopy["validation"],
 ): Partial<Record<TextField, string>> {
   const errors: Partial<Record<TextField, string>> = {};
+  for (const [key, max] of Object.entries(LEASE_AGREEMENT_MAX_LENGTH) as [TextField, number][]) {
+    if (key === "documentNo" || String(value[key] ?? "").trim().length <= max) continue;
+    const target = LENGTH_ERROR_FIELD[key];
+    errors[target ?? key] = target === "landlordFirstName" || target === "tenantFirstName"
+      ? fillTemplate(messages.nameMaxLength, { max })
+      : fillTemplate(messages.maxLength, { max });
+  }
   for (const key of LEASE_AGREEMENT_REQUIRED) {
-    if (!String(value[key] ?? "").trim()) errors[key] = REQUIRED_MESSAGE;
+    if (!String(value[key] ?? "").trim()) errors[key] = messages.required;
   }
   for (const key of ["issueDate", "termFrom", "termTo"] as const) {
     if (value[key].trim() && !/^\d{4}-\d{2}-\d{2}$/.test(value[key].trim()))
-      errors[key] = "รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)";
+      errors[key] = messages.dateFormat;
   }
   if (
     value.termFrom.trim() &&
     value.termTo.trim() &&
     value.termTo.trim() <= value.termFrom.trim()
   )
-    errors.termTo = "วันสิ้นสุดต้องอยู่หลังวันเริ่มเช่า";
+    errors.termTo = messages.endAfterStart;
   return errors;
 }
 
 const FIELDS: Array<{
-  key: TextField;
-  label: string;
+  key: keyof ContractCopy["lease"]["fields"];
   required?: boolean;
   multiline?: boolean;
   placeholder?: string;
 }> = [
   {
     key: "issueDate",
-    label: "วันที่ออกเอกสาร (YYYY-MM-DD)",
     required: true,
     placeholder: "2026-10-01",
   },
-  { key: "landlordFirstName", label: "ชื่อผู้ให้เช่า", required: true },
-  { key: "landlordLastName", label: "นามสกุลผู้ให้เช่า" },
-  { key: "landlordNationality", label: "สัญชาติผู้ให้เช่า" },
-  { key: "landlordId", label: "เลขบัตร / พาสปอร์ตผู้ให้เช่า" },
-  { key: "landlordAddress", label: "ที่อยู่ผู้ให้เช่า", multiline: true },
-  { key: "landlordPhone", label: "เบอร์ติดต่อผู้ให้เช่า" },
-  { key: "landlordEmail", label: "อีเมลผู้ให้เช่า" },
-  { key: "tenantFirstName", label: "ชื่อผู้เช่า", required: true },
-  { key: "tenantLastName", label: "นามสกุลผู้เช่า" },
-  { key: "tenantNationality", label: "สัญชาติผู้เช่า" },
-  { key: "tenantId", label: "เลขบัตร / พาสปอร์ตผู้เช่า" },
-  { key: "tenantAddress", label: "ที่อยู่ผู้เช่า", multiline: true },
-  { key: "tenantPhone", label: "เบอร์ติดต่อผู้เช่า" },
-  { key: "tenantEmail", label: "อีเมลผู้เช่า" },
-  { key: "propertyType", label: "ประเภททรัพย์สิน" },
-  { key: "project", label: "โครงการ", required: true },
-  { key: "houseNo", label: "บ้านเลขที่ / ห้อง" },
-  { key: "propertyAddress", label: "ที่อยู่ทรัพย์สิน", multiline: true },
-  { key: "roomType", label: "ประเภทห้อง" },
-  { key: "floor", label: "ชั้น" },
-  { key: "area", label: "ขนาดห้อง (ตร.ม.)" },
-  { key: "termMonths", label: "ระยะเวลาเช่า (เดือน)" },
+  { key: "landlordFirstName", required: true },
+  { key: "landlordLastName" },
+  { key: "landlordNationality" },
+  { key: "landlordId" },
+  { key: "landlordAddress", multiline: true },
+  { key: "landlordPhone" },
+  { key: "landlordEmail" },
+  { key: "tenantFirstName", required: true },
+  { key: "tenantLastName" },
+  { key: "tenantNationality" },
+  { key: "tenantId" },
+  { key: "tenantAddress", multiline: true },
+  { key: "tenantPhone" },
+  { key: "tenantEmail" },
+  { key: "propertyType" },
+  { key: "project", required: true },
+  { key: "houseNo" },
+  { key: "propertyAddress", multiline: true },
+  { key: "roomType" },
+  { key: "floor" },
+  { key: "area" },
+  { key: "termMonths" },
   {
     key: "termFrom",
-    label: "เริ่มวันที่ (YYYY-MM-DD)",
     required: true,
     placeholder: "2026-10-01",
   },
   {
     key: "termTo",
-    label: "สิ้นสุดวันที่ (YYYY-MM-DD)",
     required: true,
     placeholder: "2027-09-30",
   },
-  { key: "monthlyRent", label: "ค่าเช่าต่อเดือน (บาท)", required: true },
-  { key: "monthlyRentWords", label: "ค่าเช่าเป็นตัวอักษร" },
-  { key: "rentDueDay", label: "วันครบกำหนดชำระค่าเช่า (ของเดือน)" },
-  { key: "graceDay", label: "ผ่อนผันถึงวันที่" },
-  { key: "latePenalty", label: "เบี้ยปรับต่อวัน (บาท)" },
-  { key: "latePenaltyWords", label: "เบี้ยปรับเป็นตัวอักษร" },
-  { key: "bankName", label: "ธนาคาร" },
-  { key: "accountName", label: "ชื่อบัญชี" },
-  { key: "accountNo", label: "เลขบัญชี" },
+  { key: "monthlyRent", required: true },
+  { key: "monthlyRentWords" },
+  { key: "rentDueDay" },
+  { key: "graceDay" },
+  { key: "latePenalty" },
+  { key: "latePenaltyWords" },
+  { key: "bankName" },
+  { key: "accountName" },
+  { key: "accountNo" },
   {
     key: "otherPaymentMethod",
-    label: "ช่องทางชำระอื่น",
     multiline: true,
   },
-  { key: "advanceMonths", label: "ค่าเช่าล่วงหน้า (เดือน)" },
-  { key: "advanceAmount", label: "ค่าเช่าล่วงหน้า (บาท)" },
-  { key: "depositMonths", label: "เงินประกัน (เดือน)" },
+  { key: "advanceMonths" },
+  { key: "advanceAmount" },
+  { key: "depositMonths" },
   {
     key: "depositAmount",
-    label: "เงินประกัน (บาท)",
     required: true,
   },
-  { key: "otherInitialPayment", label: "รายการแรกเข้าอื่น" },
+  { key: "otherInitialPayment" },
   {
     key: "additionalTerms",
-    label: "ข้อตกลงเพิ่มเติม",
     multiline: true,
   },
   {
     key: "agentContact",
-    label: "เอเจนท์ / ช่องทางติดต่อ (พยาน)",
     multiline: true,
   },
 ];
@@ -244,16 +305,20 @@ export function LeaseAgreementFields({
   onStepChange?: (step: number) => void;
 }) {
   const { theme } = useMobileTheme();
+  const { t, locale } = useLocale();
+  const tc = t.contracts;
+  const lc = tc.lease;
   const body = {
     fontFamily: tokens.typography.native.body,
     fontSize: 14,
     lineHeight: 21,
     color: theme.textHeading,
   };
-  const renderFields = (keys: TextField[]) => (
+  const renderFields = (keys: Array<keyof typeof lc.fields>) => (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
       {keys.map((key) => {
         const field = FIELDS.find((item) => item.key === key)!;
+        const label = lc.fields[key];
         const wide =
           field.multiline ||
           /Email$|Id$|Words$/.test(key) ||
@@ -276,8 +341,8 @@ export function LeaseAgreementFields({
             }}
           >
             <MobileInput
-              label={field.label}
-              accessibilityLabel={field.label}
+              label={label}
+              accessibilityLabel={label}
               required={field.required}
               error={errors?.[field.key]}
               value={value[field.key]}
@@ -314,6 +379,7 @@ export function LeaseAgreementFields({
               }}
               placeholder={field.placeholder}
               editable={!disabled}
+              maxLength={LEASE_AGREEMENT_MAX_LENGTH[field.key]}
               multiline={field.multiline}
               autoCapitalize={key.endsWith("Email") ? "none" : "sentences"}
               keyboardType={
@@ -377,7 +443,7 @@ export function LeaseAgreementFields({
         {editStep !== undefined && onStepChange && (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`แก้ไข${title}`}
+            accessibilityLabel={fillTemplate(tc.common.editSection, { label: title })}
             disabled={disabled}
             onPress={() => onStepChange(editStep)}
             style={{
@@ -386,7 +452,7 @@ export function LeaseAgreementFields({
               paddingHorizontal: 8,
             }}
           >
-            <Text style={{ ...body, color: theme.textSecondary }}>แก้ไข</Text>
+            <Text style={{ ...body, color: theme.textSecondary }}>{tc.common.edit}</Text>
           </Pressable>
         )}
       </View>
@@ -399,22 +465,25 @@ export function LeaseAgreementFields({
         {label}
       </Text>
       <Text style={{ ...body, flex: 1, textAlign: "right" }}>
-        {text || "ยังไม่ระบุ"}
+        {text || tc.common.notSpecified}
       </Text>
     </View>
   );
   const amount = (text: string) => {
     const number = Number(text.replace(/,/g, ""));
     return text.trim() && Number.isFinite(number)
-      ? `${number.toLocaleString("th-TH")} บาท`
+      ? fillTemplate(tc.common.baht, {
+          amount: number.toLocaleString(localeTag(locale)),
+        })
       : text;
   };
+  const months = (count: string) => fillTemplate(tc.common.months, { count });
   const dateLabel = (text: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
     const date = new Date(`${text}T00:00:00`);
     return Number.isNaN(date.getTime())
       ? text
-      : date.toLocaleDateString("th-TH", {
+      : date.toLocaleDateString(localeTag(locale), {
           day: "numeric",
           month: "short",
           year: "numeric",
@@ -425,9 +494,9 @@ export function LeaseAgreementFields({
     <View style={{ gap: 16 }}>
       {shown(0) && (
         <>
-          {card("ข้อมูลเอกสาร", renderFields(["issueDate"]))}
+          {card(lc.document, renderFields(["issueDate"]))}
           {card(
-            "ผู้ให้เช่า",
+            tc.common.parties.owner,
             renderFields([
               "landlordFirstName",
               "landlordLastName",
@@ -439,7 +508,7 @@ export function LeaseAgreementFields({
             ]),
           )}
           {card(
-            "ผู้เช่า",
+            tc.common.parties.tenant,
             renderFields([
               "tenantFirstName",
               "tenantLastName",
@@ -455,7 +524,7 @@ export function LeaseAgreementFields({
       {shown(1) && (
         <>
           {card(
-            "ทรัพย์สินที่เช่า",
+            lc.property,
             renderFields([
               "propertyType",
               "project",
@@ -467,7 +536,7 @@ export function LeaseAgreementFields({
             ]),
           )}
           {card(
-            "ระยะเวลาการเช่า",
+            lc.term,
             <>
               {renderFields(["termMonths", "termFrom", "termTo"])}
               {!!value.termFrom &&
@@ -483,7 +552,7 @@ export function LeaseAgreementFields({
                   >
                     <Text style={{ ...body, color: tokens.colors.onBrand }}>
                       {[
-                        value.termMonths ? `${value.termMonths} เดือน` : "",
+                        value.termMonths ? months(value.termMonths) : "",
                         `${dateLabel(value.termFrom)} – ${dateLabel(value.termTo)}`,
                       ]
                         .filter(Boolean)
@@ -498,11 +567,11 @@ export function LeaseAgreementFields({
       {shown(2) && (
         <>
           {card(
-            "ค่าเช่ารายเดือน",
+            lc.monthlyRent,
             renderFields(["monthlyRent", "monthlyRentWords"]),
           )}
           {card(
-            "กำหนดชำระและเบี้ยปรับ",
+            lc.dueAndPenalty,
             renderFields([
               "rentDueDay",
               "graceDay",
@@ -511,7 +580,7 @@ export function LeaseAgreementFields({
             ]),
           )}
           {card(
-            "บัญชีรับชำระ",
+            lc.account,
             renderFields([
               "bankName",
               "accountName",
@@ -520,7 +589,7 @@ export function LeaseAgreementFields({
             ]),
           )}
           {card(
-            "ค่าใช้จ่ายแรกเข้า",
+            lc.initialCosts,
             renderFields([
               "advanceMonths",
               "advanceAmount",
@@ -533,36 +602,36 @@ export function LeaseAgreementFields({
       )}
       {shown(3) && (
         <>
-          {card("ข้อตกลงเพิ่มเติม", renderFields(["additionalTerms"]))}
-          {card("ผู้ประสานงาน / พยาน", renderFields(["agentContact"]))}
+          {card(lc.additionalTerms, renderFields(["additionalTerms"]))}
+          {card(lc.witness, renderFields(["agentContact"]))}
           {step === 3 && (
             <>
               {card(
-                "คู่สัญญา",
+                lc.parties,
                 <>
-                  {row("วันที่ออกเอกสาร", dateLabel(value.issueDate))}
+                  {row(lc.issueDate, dateLabel(value.issueDate))}
                   {row(
-                    "ผู้ให้เช่า",
+                    tc.common.parties.owner,
                     value.landlordName ||
                       [value.landlordFirstName, value.landlordLastName]
                         .filter(Boolean)
                         .join(" "),
                   )}
                   {row(
-                    "ติดต่อผู้ให้เช่า",
+                    lc.landlordContact,
                     [value.landlordPhone, value.landlordEmail]
                       .filter(Boolean)
                       .join("\n"),
                   )}
                   {row(
-                    "ผู้เช่า",
+                    tc.common.parties.tenant,
                     value.tenantName ||
                       [value.tenantFirstName, value.tenantLastName]
                         .filter(Boolean)
                         .join(" "),
                   )}
                   {row(
-                    "ติดต่อผู้เช่า",
+                    lc.tenantContact,
                     [value.tenantPhone, value.tenantEmail]
                       .filter(Boolean)
                       .join("\n"),
@@ -571,79 +640,79 @@ export function LeaseAgreementFields({
                 0,
               )}
               {card(
-                "ห้องและระยะเวลา",
+                lc.roomAndTerm,
                 <>
                   {row(
-                    "ทรัพย์สิน",
+                    lc.propertyRow,
                     [value.propertyType, value.project]
                       .filter(Boolean)
                       .join(" · "),
                   )}
-                  {row("บ้านเลขที่ / ห้อง", value.houseNo)}
-                  {row("ที่อยู่ทรัพย์สิน", value.propertyAddress)}
-                  {row("ประเภทห้อง", value.roomType)}
-                  {row("ชั้น", value.floor)}
-                  {row("ขนาดห้อง", value.area ? `${value.area} ตร.ม.` : "")}
+                  {row(lc.houseNo, value.houseNo)}
+                  {row(lc.propertyAddress, value.propertyAddress)}
+                  {row(lc.roomType, value.roomType)}
+                  {row(lc.floor, value.floor)}
+                  {row(lc.area, value.area ? fillTemplate(tc.common.sqm, { area: value.area }) : "")}
                   {row(
-                    "ระยะเวลาเช่า",
-                    value.termMonths ? `${value.termMonths} เดือน` : "",
+                    lc.leaseTerm,
+                    value.termMonths ? months(value.termMonths) : "",
                   )}
-                  {row("เริ่มวันที่", dateLabel(value.termFrom))}
-                  {row("สิ้นสุดวันที่", dateLabel(value.termTo))}
+                  {row(lc.start, dateLabel(value.termFrom))}
+                  {row(lc.end, dateLabel(value.termTo))}
                 </>,
                 1,
               )}
               {card(
-                "ค่าเช่าและการชำระ",
+                lc.rentAndPayment,
                 <>
-                  {row("ค่าเช่ารายเดือน", amount(value.monthlyRent))}
+                  {row(lc.monthlyRent, amount(value.monthlyRent))}
                   {row(
-                    "กำหนดชำระ",
+                    lc.due,
                     value.rentDueDay
-                      ? `วันที่ ${value.rentDueDay} ของเดือน`
+                      ? fillTemplate(lc.dueDay, { day: value.rentDueDay })
                       : "",
                   )}
-                  {row("ผ่อนผันถึงวันที่", value.graceDay)}
-                  {row("เบี้ยปรับต่อวัน", amount(value.latePenalty))}
+                  {row(lc.grace, value.graceDay)}
+                  {row(lc.penalty, amount(value.latePenalty))}
                   {row(
-                    "ค่าเช่าล่วงหน้า",
+                    lc.advance,
                     [
                       amount(value.advanceAmount),
                       value.advanceMonths
-                        ? `(${value.advanceMonths} เดือน)`
+                        ? `(${months(value.advanceMonths)})`
                         : "",
                     ]
                       .filter(Boolean)
                       .join(" "),
                   )}
                   {row(
-                    "เงินประกัน",
+                    lc.deposit,
                     [
                       amount(value.depositAmount),
                       value.depositMonths
-                        ? `(${value.depositMonths} เดือน)`
+                        ? `(${months(value.depositMonths)})`
                         : "",
                     ]
                       .filter(Boolean)
                       .join(" "),
                   )}
-                  {row("รายการแรกเข้าอื่น", value.otherInitialPayment)}
+                  {row(lc.otherInitial, value.otherInitialPayment)}
                   {row(
-                    "บัญชีรับชำระ",
+                    lc.account,
                     [value.bankName, value.accountName, value.accountNo]
                       .filter(Boolean)
                       .join("\n"),
                   )}
-                  {row("ช่องทางชำระอื่น", value.otherPaymentMethod)}
+                  {row(lc.otherPayment, value.otherPaymentMethod)}
                 </>,
                 2,
               )}
               {card(
-                "ชื่อผู้ลงนาม",
+                lc.signers,
                 <>
-                  {row("ผู้ให้เช่า", value.landlordSignName)}
-                  {row("ผู้เช่า", value.tenantSignName)}
-                  {row("พยาน", value.witnessSignName)}
+                  {row(tc.common.parties.owner, value.landlordSignName)}
+                  {row(tc.common.parties.tenant, value.tenantSignName)}
+                  {row(lc.witnessRow, value.witnessSignName)}
                   <Text
                     style={{
                       ...body,
@@ -652,7 +721,7 @@ export function LeaseAgreementFields({
                       lineHeight: 18,
                     }}
                   >
-                    อ้างอิงจากข้อมูลคู่สัญญาและพยาน
+                    {lc.signersHint}
                   </Text>
                 </>,
               )}

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useLocale } from '@nestyk/i18n';
 import { MobileIcon } from '../icons/MobileIcon';
@@ -8,6 +8,9 @@ import { useMobileTheme } from '../theme/ThemeContext';
 import { tokens } from '../theme/tokens';
 import { ExtendedTabRole, getTabsForRole } from '../config/mobileTabMatrix';
 import { AppIconName } from '../icons/types';
+import { getCardElevation } from '../theme/elevation';
+
+const { boxShadow: _webShadow, ...floatingShadow } = getCardElevation(3);
 
 export type MobileAppTab =
   | 'home'
@@ -47,6 +50,11 @@ export interface MobileBottomTabBarProps {
   activeTintColor?: string;
   /** Brand underline under the active tab (Agent design). */
   indicatorColor?: string;
+  /**
+   * `floating` (default): capsule above the home indicator, for `MobileModePage` `tabBar`.
+   * `docked`: full-width bar with a top border, for a plain `bottomBar` slot.
+   */
+  variant?: 'floating' | 'docked';
 }
 
 /** Shared slot so every tab label sits on the same baseline */
@@ -121,6 +129,7 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
   accentColor = tokens.colors.accent,
   activeTintColor,
   indicatorColor,
+  variant = 'floating',
 }) => {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
@@ -129,20 +138,28 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
   const resolvedActive = useUnderline
     ? activeTintColor || theme.screenTitle || tokens.colors.primary
     : accentColor;
+  const floating = variant === 'floating';
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+    <View
+      accessibilityRole="tablist"
+      style={
+        floating
+          ? [styles.floating, floatingShadow, { backgroundColor: theme.surface, borderColor: theme.border }]
+          : [styles.container, { backgroundColor: theme.surface, borderTopColor: theme.border }]
+      }
+    >
       {tabs.map((tab) => {
         const isActive = activeTab === tab.key;
         const label = t.mobile.tabs[tab.key];
         const isServices = tab.key === 'services';
         return (
-          <TouchableOpacity
+          <Pressable
             key={tab.key}
-            style={styles.tabItem}
+            style={({ pressed }) => [styles.tabItem, pressed && Platform.OS === 'ios' ? styles.pressed : null]}
             onPress={() => onTabPress(tab.key)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
+            android_ripple={{ color: 'rgba(33,30,30,0.08)', borderless: true, radius: 32 }}
+            accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={label}
           >
@@ -177,7 +194,7 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
                 ]}
               />
             ) : null}
-          </TouchableOpacity>
+          </Pressable>
         );
       })}
     </View>
@@ -192,6 +209,17 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
     paddingHorizontal: 4,
   },
+  floating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    minHeight: 64,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 32,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  pressed: { opacity: 0.7 },
   tabItem: {
     flex: 1,
     alignItems: 'center',

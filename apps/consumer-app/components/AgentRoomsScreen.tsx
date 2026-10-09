@@ -1,11 +1,10 @@
-import { AgentRoomEditor } from './AgentRoomEditor';
+import { AgentRoomDetailModal } from './AgentRoomDetailModal';
 import { RoomPriceFilter } from './RoomPriceFilter';
 import { formatPriceSummary, validPriceRange } from './room-price-range';
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
-  Modal,
   ActivityIndicator,
   Pressable,
   ScrollView,
@@ -13,11 +12,8 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import {
   MobileAgentListingsBody,
-  MobileAgentRoomBody,
-  AgentRoomDetail,
   AgentListingCard,
   type AgentListingsViewMode,
 } from '@nestyk/feature-listing';
@@ -32,19 +28,12 @@ import {
   type AppIconName,
   SelectionCheck,
   SelectionChip,
-  MobileSectionHeader,
   ModePageScrollContext,
   tokens,
   useMobileTheme,
 } from '@nestyk/ui/native';
-import { useLocale } from '@nestyk/i18n';
-import {
-  fetchMyAgentListings,
-  fetchAgentRoom,
-  createRoomShareLink,
-  listRoomShareLinks,
-  revokeRoomShareLink,
-} from '../lib/agent-listings-api';
+import { localizedError, useLocale } from '@nestyk/i18n';
+import { fetchMyAgentListings } from '../lib/agent-listings-api';
 
 type VisibilityFilter = '' | 'private' | 'published';
 type StatusFilter = '' | 'available' | 'rented' | 'pending_verification' | 'needs_edit';
@@ -258,23 +247,15 @@ function FilterAccordion({
 }
 
 export function AgentRoomsScreen({
-  onCreate,
   reloadToken,
   onReloadSettled,
   searchOpen = false,
   onSearchOpenChange,
-  focusRoomId = null,
-  onFocusRoomClosed,
 }: {
-  onCreate: () => void;
   reloadToken?: number;
   onReloadSettled?: (token: number) => void;
   searchOpen?: boolean;
   onSearchOpenChange?: (open: boolean) => void;
-  /** Opens this room's detail on mount (e.g. from a lead's matched rooms). */
-  focusRoomId?: number | null;
-  /** Called when the focused room's detail closes, so the caller can navigate back. */
-  onFocusRoomClosed?: () => void;
 }) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
@@ -301,48 +282,10 @@ export function AgentRoomsScreen({
   const [moreAttempt, setMoreAttempt] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [gateOpen, setGateOpen] = useState(false);
-  const [modalReady, setModalReady] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [selected, setSelected] = useState<number | null>(focusRoomId);
-  const focusOpenRef = useRef(focusRoomId != null);
-  const [sharePreviewing, setSharePreviewing] = useState(false);
-  const [room, setRoom] = useState<AgentRoomDetail | null>(null);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [detailRefresh, setDetailRefresh] = useState(0);
-  const promoStaleByRoomRef = useRef<Record<number, boolean>>({});
+  const [selected, setSelected] = useState<number | null>(null);
   const searchRef = React.useRef<TextInput>(null);
-  const editRoomBackRef = useRef<(() => boolean) | null>(null);
-  const [editHeaderTitle, setEditHeaderTitle] = useState('');
   const gateOpenRef = React.useRef(gateOpen);
   gateOpenRef.current = gateOpen;
-
-  const handleEditRoomBack = useCallback(() => {
-    if (saving) return;
-    if (sharePreviewing) {
-      setSharePreviewing(false);
-      return;
-    }
-    if (editing) {
-      if (editRoomBackRef.current?.()) return;
-      setEditing(false);
-      setEditHeaderTitle('');
-      return;
-    }
-    setSelected(null);
-  }, [saving, editing, sharePreviewing]);
-
-  useEffect(() => {
-    if (selected === null) setSharePreviewing(false);
-    if (selected === null && focusOpenRef.current) {
-      focusOpenRef.current = false;
-      onFocusRoomClosed?.();
-    }
-  }, [selected, onFocusRoomClosed]);
-
-  useEffect(() => {
-    if (!editing) setEditHeaderTitle('');
-  }, [editing]);
 
   useEffect(() => {
     if (searchOpen) {
@@ -400,7 +343,7 @@ export function AgentRoomsScreen({
         })
         .catch((err) => {
           if (cancelled) return;
-          const message = err instanceof Error ? err.message : String(err);
+          const message = localizedError(err, copy.loadError, locale);
           if (append) setMoreError(message);
           else setError(message);
         })
@@ -427,28 +370,6 @@ export function AgentRoomsScreen({
   };
   const pageScroll = useContext(ModePageScrollContext);
   useEffect(() => pageScroll?.onEndReached(() => loadMoreRef.current()), [pageScroll]);
-
-  useEffect(() => {
-    if (selected === null) return;
-    let cancelled = false;
-    setRoom(null);
-    setDetailError(null);
-    fetchAgentRoom(selected)
-      .then((result) => {
-        if (!cancelled) {
-          setRoom({
-            ...result,
-            promoCopyStale: promoStaleByRoomRef.current[result.id],
-          });
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setDetailError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selected, detailRefresh]);
 
   const filterBadge = useMemo(() => {
     let n = 0;
@@ -781,13 +702,7 @@ export function AgentRoomsScreen({
         error={items.length ? null : error}
         filtered={hasActiveQuery}
         onRetry={() => setRefresh((n) => n + 1)}
-        onRoomPress={(id) => {
-          setModalReady(false);
-          setRoom(null);
-          setDetailError(null);
-          setSelected(id);
-        }}
-        onCreatePress={onCreate}
+        onRoomPress={setSelected}
       />
 
       {!error && items.length > 0 ? (
@@ -1126,137 +1041,11 @@ export function AgentRoomsScreen({
         </View>
       </MobileBottomSheet>
 
-      <Modal
-        onShow={() => setModalReady(true)}
-        visible={selected !== null}
-        presentationStyle="fullScreen"
-        animationType="slide"
-        onRequestClose={() => {
-          if (!saving) handleEditRoomBack();
-        }}
-      >
-        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-            <View
-              style={{
-                paddingHorizontal: sharePreviewing ? 0 : 16,
-                paddingTop: sharePreviewing ? 0 : 4,
-                paddingBottom: sharePreviewing ? 0 : 8,
-                flexShrink: 0,
-                zIndex: 1,
-                backgroundColor: sharePreviewing ? '#0F172A' : theme.surface,
-                borderBottomWidth: sharePreviewing ? 0 : 1,
-                borderBottomColor: theme.border,
-              }}
-            >
-              {sharePreviewing ? (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    minHeight: 56,
-                    paddingHorizontal: 16,
-                    paddingTop: 4,
-                    paddingBottom: 8,
-                  }}
-                >
-                  <MobileIcon name="globe" size={16} color="#FFFFFF" />
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontFamily: tokens.typography.native.body,
-                      fontSize: 15,
-                      lineHeight: 22,
-                      color: '#FFFFFF',
-                      fontWeight: '600',
-                    }}
-                  >
-                    {t.agent.roomDetail.previewBanner}
-                  </Text>
-                  <Pressable onPress={() => setSharePreviewing(false)} hitSlop={8}>
-                    <Text
-                      style={{
-                        fontFamily: tokens.typography.native.body,
-                        fontSize: 14,
-                        lineHeight: 21,
-                        color: tokens.colors.brand[500],
-                        fontWeight: '700',
-                      }}
-                    >
-                      {t.agent.roomDetail.closePreview}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <MobileSectionHeader
-                  title={editing ? editHeaderTitle || copy.editRoom : copy.details}
-                  leading="back"
-                  backDisabled={saving}
-                  onBackPress={handleEditRoomBack}
-                  onActionPress={
-                    room && !editing ? () => setEditing(true) : undefined
-                  }
-                  actionLabel={room && !editing ? copy.edit : undefined}
-                  actionVariant="icon"
-                  actionIcon="note"
-                />
-              )}
-            </View>
-            {!modalReady ? (
-              <ActivityIndicator />
-            ) : detailError ? (
-              <View style={{ padding: 24, gap: 16 }}>
-                <Text style={{ color: theme.textHeading }}>{detailError}</Text>
-                <MobileButton onPress={() => setDetailRefresh((n) => n + 1)}>
-                  {copy.retry}
-                </MobileButton>
-              </View>
-            ) : room ? (
-              editing ? (
-                <View style={{ flex: 1, padding: 16 }}>
-                  <AgentRoomEditor
-                    room={room}
-                    backHandlerRef={editRoomBackRef}
-                    onHeaderTitleChange={setEditHeaderTitle}
-                    onBusy={setSaving}
-                    onCancelEdit={() => {
-                      setEditing(false);
-                      setEditHeaderTitle('');
-                    }}
-                    onSaved={(result) => {
-                      setEditing(false);
-                      setEditHeaderTitle('');
-                      if (result?.promoCopyStale != null && room) {
-                        promoStaleByRoomRef.current[room.id] = Boolean(result.promoCopyStale);
-                      }
-                      setDetailRefresh((n) => n + 1);
-                      setRefresh((n) => n + 1);
-                    }}
-                  />
-                </View>
-              ) : (
-                <MobileAgentRoomBody
-                  mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
-                  key={`${room.id}-${detailRefresh}`}
-                  room={room}
-                  onEdit={() => setEditing(true)}
-                  previewing={sharePreviewing}
-                  onPreviewChange={setSharePreviewing}
-                  hidePreviewBanner
-                  shareLinkApi={{
-                    create: createRoomShareLink,
-                    list: listRoomShareLinks,
-                    revoke: revokeRoomShareLink,
-                  }}
-                />
-              )
-            ) : (
-              <ActivityIndicator />
-            )}
-          </SafeAreaView>
-        </SafeAreaProvider>
-      </Modal>
+      <AgentRoomDetailModal
+        roomId={selected}
+        onClose={() => setSelected(null)}
+        onSaved={() => setRefresh((n) => n + 1)}
+      />
     </View>
   );
 }

@@ -17,6 +17,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMobileTheme } from '../theme/ThemeContext';
 import { tokens } from '../theme/tokens';
@@ -31,7 +32,7 @@ export interface MobileBottomSheetProps {
   maxHeight?: number | `${number}%`;
   /** Extra style for the sheet panel. */
   sheetStyle?: ViewStyle;
-  /** Show the drag handle (default true). */
+  /** Show the drag handle (default true); dragging it down closes the sheet. */
   showHandle?: boolean;
   /** Dimmed backdrop press closes (default true). */
   closeOnBackdropPress?: boolean;
@@ -62,6 +63,7 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
   const [mounted, setMounted] = useState(false);
   const scrimOpacity = useSharedValue(0);
   const translateY = useSharedValue(hiddenY);
+  const sheetHeight = useSharedValue(hiddenY);
 
   const finishUnmount = useCallback(() => {
     setMounted(false);
@@ -79,13 +81,13 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
     if (!mounted) return;
     scrimOpacity.value = withTiming(0, { duration: 180 });
     translateY.value = withTiming(
-      hiddenY,
+      Math.max(hiddenY, sheetHeight.value, translateY.value),
       { duration: 240, easing: SHEET_EASE },
       (finished) => {
         if (finished) runOnJS(finishUnmount)();
       },
     );
-  }, [visible, mounted, hiddenY, scrimOpacity, translateY, finishUnmount]);
+  }, [visible, mounted, hiddenY, scrimOpacity, translateY, sheetHeight, finishUnmount]);
 
   useEffect(() => {
     if (!mounted || Platform.OS !== 'android') return;
@@ -104,42 +106,70 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
     transform: [{ translateY: translateY.value }],
   }));
 
+  // Only the handle strip drags: sheet bodies often hold their own scroll views.
+  const dragGesture = Gesture.Pan()
+    .activeOffsetY([-6, 6])
+    .onUpdate((event) => {
+      'worklet';
+      const next = Math.max(0, event.translationY);
+      translateY.value = next;
+      scrimOpacity.value = 1 - Math.min(1, next / Math.max(sheetHeight.value, 1));
+    })
+    .onEnd((event) => {
+      'worklet';
+      if (translateY.value > sheetHeight.value * 0.3 || event.velocityY > 800) {
+        runOnJS(onClose)();
+      } else {
+        translateY.value = withTiming(0, { duration: 200, easing: SHEET_EASE });
+        scrimOpacity.value = withTiming(1, { duration: 150 });
+      }
+    });
+
   if (!mounted) return null;
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose} testID={testID}>
-      <KeyboardAvoidingView style={styles.root} pointerEvents="box-none" enabled={avoidKeyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <Animated.View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: theme.overlay }]}
-        />
-        {closeOnBackdropPress ? (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
+      <GestureHandlerRootView style={styles.root}>
+        <KeyboardAvoidingView style={styles.root} pointerEvents="box-none" enabled={avoidKeyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <Animated.View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: theme.overlay }]}
           />
-        ) : null}
-        <Animated.View
-          style={[
-            styles.sheet,
-            panelStyle,
-            {
-              backgroundColor: theme.card,
-              paddingBottom: Math.max(insets.bottom, 16),
-              maxHeight,
-            },
-            sheetStyle,
-          ]}
-          accessibilityViewIsModal
-        >
-          {showHandle ? (
-            <View style={[styles.handle, { backgroundColor: theme.border }]} />
+          {closeOnBackdropPress ? (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            />
           ) : null}
-          {children}
-        </Animated.View>
-      </KeyboardAvoidingView>
+          <Animated.View
+            style={[
+              styles.sheet,
+              panelStyle,
+              {
+                backgroundColor: theme.card,
+                paddingBottom: Math.max(insets.bottom, 16),
+                maxHeight,
+              },
+              sheetStyle,
+            ]}
+            accessibilityViewIsModal
+            onLayout={(e) => {
+              sheetHeight.value = e.nativeEvent.layout.height;
+            }}
+          >
+            {showHandle ? (
+              <GestureDetector gesture={dragGesture}>
+                <View style={styles.handleZone}>
+                  <View style={[styles.handle, { backgroundColor: theme.border }]} />
+                </View>
+              </GestureDetector>
+            ) : null}
+            {children}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 };
@@ -155,12 +185,19 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     overflow: 'hidden',
   },
+  // Full-width touch strip around the handle; negative margin keeps the visual spacing unchanged.
+  handleZone: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: -10,
+    paddingTop: 10,
+    paddingBottom: 18,
+    marginBottom: -10,
+  },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 8,
     backgroundColor: tokens.colors.border,
   },
 });

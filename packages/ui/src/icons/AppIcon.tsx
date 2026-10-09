@@ -52,6 +52,7 @@ import {
   AppleLogo,
   ArrowsLeftRight,
   Funnel,
+  SlidersHorizontal,
   Lock,
   Plus,
   PencilSimple,
@@ -86,6 +87,8 @@ import {
   Toilet,
   Thermometer,
   Wind,
+  Wallet,
+  Files,
   IconProps,
 } from 'phosphor-react';
 import { tokens } from '../theme/tokens';
@@ -143,6 +146,7 @@ const ICON_MAP: Record<Exclude<AppIconName, 'house-plus'>, React.ComponentType<I
   apple: AppleLogo,
   swap: ArrowsLeftRight,
   funnel: Funnel,
+  sliders: SlidersHorizontal,
   lock: Lock,
   plus: Plus,
   pencil: PencilSimple,
@@ -193,6 +197,8 @@ const ICON_MAP: Record<Exclude<AppIconName, 'house-plus'>, React.ComponentType<I
   thermometer: Thermometer,
   wind: Wind,
   elevator: StackSimple,
+  wallet: Wallet,
+  files: Files,
 };
 
 const TONE_COLORS: Record<AppIconTone, string> = {

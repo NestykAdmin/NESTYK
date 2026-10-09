@@ -148,7 +148,7 @@ export function validateLeaseAgreement(input: unknown): LeaseAgreementInput {
       continue;
     }
     if (typeof v !== "string" || v.trim().length > max)
-      throw new BadRequestException("ข้อมูลในฟอร์มไม่ครบหรือยาวเกินไป");
+      throw new BadRequestException(`ข้อมูลในฟอร์มไม่ครบหรือยาวเกินไป (${key} ไม่เกิน ${max} ตัวอักษร)`);
     out[key] = v.trim();
   }
   if (out.landlordFirstName)

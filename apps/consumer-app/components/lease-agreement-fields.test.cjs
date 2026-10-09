@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
+const { i18nMock, contractsTh, fillTemplate, leadFormat } = require('./test-i18n.cjs');
 const loaded = { exports: {} };
 const source = fs.readFileSync(path.join(__dirname, 'LeaseAgreementFields.tsx'), 'utf8');
 const Input = ({ label, value, editable, required }) => React.createElement('input', { 'aria-label': label, value, onChange() {}, readOnly: !editable, required });
@@ -11,6 +12,8 @@ const mockRequire = name => {
   if (name === 'react') return React;
   if (name === 'react-native') return { View: 'section', Text: 'span', Pressable: 'button' };
   if (name === '@nestyk/ui/native') return { MobileInput: Input, useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { brand: { 50: '#fff9e8' } } } };
+  if (name === '@nestyk/i18n') return i18nMock();
+  if (name === '../lib/lead-format') return leadFormat;
   throw new Error(`Unexpected dependency: ${name}`);
 };
 new Function('require', 'module', 'exports', ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);
@@ -63,7 +66,7 @@ test('witness behavior preserves an existing signatory and initializes only an e
 
 test('required fields and date validation remain unchanged and errors point to the right step', () => {
   const value = emptyLeaseAgreementForm();
-  const errors = leaseAgreementFieldErrors(value);
+  const errors = leaseAgreementFieldErrors(value, contractsTh.validation);
   assert.deepEqual(Object.keys(errors).sort(), ['issueDate', 'landlordFirstName', 'tenantFirstName', 'project', 'termFrom', 'termTo', 'monthlyRent', 'depositAmount'].sort());
   assert.equal(leaseAgreementFieldStep('issueDate'), 0);
   assert.equal(leaseAgreementFieldStep('tenantFirstName'), 0);
@@ -71,7 +74,7 @@ test('required fields and date validation remain unchanged and errors point to t
   assert.equal(leaseAgreementFieldStep('termTo'), 1);
   assert.equal(leaseAgreementFieldStep('depositAmount'), 2);
   assert.equal(leaseAgreementFieldStep('additionalTerms'), 3);
-  assert.ok(leaseAgreementFieldErrors({ ...value, termFrom: '2026-10-15', termTo: '2026-10-14' }).termTo);
+  assert.ok(leaseAgreementFieldErrors({ ...value, termFrom: '2026-10-15', termTo: '2026-10-14' }, contractsTh.validation).termTo);
 });
 
 test('review displays current values and edit links navigate to their original sections', () => {

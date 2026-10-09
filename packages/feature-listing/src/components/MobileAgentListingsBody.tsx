@@ -555,12 +555,7 @@ export const MobileAgentListingsBody: React.FC<MobileAgentListingsBodyProps> = (
   if (!items.length) {
     return (
       <View style={styles.centered}>
-        <Text style={[styles.emptyTitle, { color: theme.textHeading }]}>
-          {filtered ? copy.noMatches : copy.emptyTitle}
-        </Text>
-        <Text style={[styles.emptyBody, { color: muted }]}>
-          {filtered ? copy.noMatchesHint : copy.emptyBody}
-        </Text>
+        <Text style={[styles.emptyBody, { color: muted }]}>{t.common.noData}</Text>
         {onCreatePress && !filtered ? (
           <View style={styles.ctaWrap}>
             <MobileButton onPress={onCreatePress}>{copy.emptyCta}</MobileButton>

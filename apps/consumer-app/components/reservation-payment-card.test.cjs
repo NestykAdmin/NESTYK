@@ -5,6 +5,7 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const { i18nMock, contractsTh, fillTemplate, leadFormat } = require('./test-i18n.cjs');
 const loaded = { exports: {} };
 const mockRequire = name => {
   if (name === 'react') return React;
@@ -14,6 +15,8 @@ const mockRequire = name => {
     tokens: { typography: { native: {} } },
     MobileButton: ({ children, disabled }) => React.createElement('button', { disabled }, children),
   };
+  if (name === '@nestyk/i18n') return i18nMock();
+  if (name === '../lib/lead-format') return leadFormat;
   throw new Error(`Unexpected dependency: ${name}`);
 };
 new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, 'ReservationPaymentCard.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);

@@ -5,6 +5,7 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const { contractsTh, fillTemplate } = require('./test-i18n.cjs');
 
 function formHarness(props) {
   const states = [], effects = [], refs = [], buttons = [], calls = [];
@@ -39,7 +40,7 @@ function formHarness(props) {
     if (name === 'react') return hookedReact;
     if (name === 'react-native') return { View: 'section', Text: 'span', Pressable: 'button', ActivityIndicator: () => null, BackHandler: { addEventListener: () => ({ remove() {} }) } };
     if (name === 'expo-document-picker' || name === 'expo-image-picker') return {};
-    if (name === '@nestyk/i18n') return { useLocale: () => ({ t: { common: { cancel: 'ยกเลิก' }, agent: { contracts: { financial: labels, invoice: 'ใบแจ้งหนี้', receipt: 'ใบเสร็จ' } } } }) };
+    if (name === '@nestyk/i18n') return { fillTemplate, useLocale: () => ({ t: { contracts: contractsTh, common: { cancel: 'ยกเลิก' }, agent: { contracts: { financial: labels, invoice: 'ใบแจ้งหนี้', receipt: 'ใบเสร็จ' } } } }) };
     if (name === '@nestyk/ui/native') return { tokens: { typography: { native: {} }, colors: { roles: { agent: '#f8b615' } } }, useMobileTheme: () => ({ theme: {} }), MobileIcon: () => null,
       MobileInput: ({ label, value }) => React.createElement('input', { 'aria-label': label, value, onChange() {} }),
       MobileBottomSheet: () => null,

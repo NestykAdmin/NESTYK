@@ -1,6 +1,7 @@
 import { ServiceCategory, ServiceStatus, UserRole } from '@nestyk/types';
 import { MobileNotificationItem } from '@nestyk/ui/native';
 import type { AppIconName } from '@nestyk/ui';
+import type { TranslationSchema } from '@nestyk/i18n';
 
 export const MOCK_USER = {
   name: 'Jane Doe',
@@ -18,54 +19,62 @@ export const TAB_SCREEN_TITLES = {
   menu: 'Menu',
 } as const;
 
-export const MOCK_ACTIVITY_NOTIFICATIONS: MobileNotificationItem[] = [
+export type DemoNotificationKey = keyof TranslationSchema['mobile']['notifications']['demo'];
+
+/** Demo feed; `text` is a key into `mobile.notifications.demo` and `at` is formatted per locale. */
+export type DemoNotification = Omit<MobileNotificationItem, 'text' | 'time'> & {
+  text: DemoNotificationKey;
+  at: string;
+};
+
+export const MOCK_ACTIVITY_NOTIFICATIONS: DemoNotification[] = [
   {
     id: '1',
-    text: 'Michael Tan confirmed your viewing for The Base Sukhumvit 77',
-    time: 'Sep 7, 11:20',
+    text: 'viewingConfirmed',
+    at: '2026-09-07T11:20:00',
     unread: true,
     icon: 'calendar' as AppIconName,
     iconColor: '#22C55E',
   },
   {
     id: '2',
-    text: 'Rent bill for Sep 2026 is due in 3 days',
-    time: 'Sep 6, 18:45',
+    text: 'rentDue',
+    at: '2026-09-06T18:45:00',
     unread: true,
     icon: 'credit-card' as AppIconName,
     iconColor: '#DC2626',
   },
   {
     id: '3',
-    text: 'Technician updated your AC repair ticket to In Progress',
-    time: 'Yesterday, 09:10',
+    text: 'repairUpdated',
+    at: '2026-09-06T09:10:00',
     unread: true,
     icon: 'wrench' as AppIconName,
     iconColor: '#F59E0B',
   },
   {
     id: '4',
-    text: 'Digital lease for Room 1804 has been signed',
-    time: 'Sep 5, 14:00',
+    text: 'leaseSigned',
+    at: '2026-09-05T14:00:00',
     unread: false,
     icon: 'check' as AppIconName,
     iconColor: '#2563EB',
   },
 ];
 
-export const MOCK_MESSAGE_NOTIFICATIONS: MobileNotificationItem[] = [
+export const MOCK_MESSAGE_NOTIFICATIONS: DemoNotification[] = [
   {
     id: 'm1',
-    text: 'Property Manager: Your move-in inspection is scheduled for Sep 5',
-    time: 'Sep 7, 08:30',
+    text: 'moveInInspection',
+    at: '2026-09-07T08:30:00',
     unread: true,
     icon: 'chat' as AppIconName,
     iconColor: '#0284C7',
   },
   {
     id: 'm2',
-    text: 'NESTYK Support: Welcome to NESTYK Living Hub',
-    time: 'Sep 6, 10:00',
+    text: 'welcome',
+    at: '2026-09-06T10:00:00',
     unread: false,
     icon: 'chat' as AppIconName,
     iconColor: '#0284C7',

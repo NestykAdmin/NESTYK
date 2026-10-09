@@ -2,6 +2,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import { MobileInput, useMobileTheme } from "@nestyk/ui/native";
 import type { BrokerAppointmentInput } from "@nestyk/types";
+import { useLocale, type ContractCopy } from "@nestyk/i18n";
 
 type TextField = Exclude<
   keyof BrokerAppointmentInput,
@@ -57,63 +58,56 @@ export const BROKER_APPOINTMENT_REQUIRED: TextField[] = [
   "propertyLine",
 ];
 
-const REQUIRED_MESSAGE = "กรุณากรอกข้อมูลนี้";
-
 export function brokerAppointmentFieldErrors(
   value: BrokerAppointmentInput,
+  messages: ContractCopy["validation"],
 ): Partial<Record<TextField, string>> {
   const errors: Partial<Record<TextField, string>> = {};
   for (const key of BROKER_APPOINTMENT_REQUIRED) {
-    if (!String(value[key] ?? "").trim()) errors[key] = REQUIRED_MESSAGE;
+    if (!String(value[key] ?? "").trim()) errors[key] = messages.required;
   }
   if (value.issueDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(value.issueDate.trim()))
-    errors.issueDate = "รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)";
+    errors.issueDate = messages.dateFormat;
   if (value.commissionFee.trim() && value.commissionMonths.trim())
-    errors.commissionFee =
-      "เลือกค่าคอมเป็นจำนวนเงิน หรือจำนวนเดือนอย่างใดอย่างหนึ่ง";
+    errors.commissionFee = messages.commissionEither;
   return errors;
 }
 
 const FIELDS: Array<{
-  key: TextField;
-  label: string;
+  key: keyof ContractCopy["broker"]["fields"];
   required?: boolean;
   multiline?: boolean;
   placeholder?: string;
 }> = [
   {
     key: "issueDate",
-    label: "วันที่ (YYYY-MM-DD)",
     required: true,
     placeholder: "2026-10-01",
   },
-  { key: "landlordFirstName", label: "ชื่อผู้ให้เช่า", required: true },
-  { key: "landlordLastName", label: "นามสกุลผู้ให้เช่า" },
-  { key: "landlordNationality", label: "สัญชาติผู้ให้เช่า" },
-  { key: "landlordId", label: "เลขบัตร / พาสปอร์ตผู้ให้เช่า" },
-  { key: "landlordAddress", label: "ที่อยู่ผู้ให้เช่า", multiline: true },
-  { key: "landlordPhone", label: "เบอร์ติดต่อผู้ให้เช่า" },
-  { key: "brokerCompany", label: "บริษัทนายหน้า", required: true },
-  { key: "brokerContact", label: "ผู้ติดต่อนายหน้า", required: true },
-  { key: "brokerNationality", label: "สัญชาตินายหน้า" },
-  { key: "brokerId", label: "เลขบัตร / พาสปอร์ตนายหน้า" },
-  { key: "brokerPhone", label: "เบอร์ติดต่อนายหน้า" },
-  { key: "brokerAddress", label: "ที่อยู่นายหน้า", multiline: true },
+  { key: "landlordFirstName", required: true },
+  { key: "landlordLastName" },
+  { key: "landlordNationality" },
+  { key: "landlordId" },
+  { key: "landlordAddress", multiline: true },
+  { key: "landlordPhone" },
+  { key: "brokerCompany", required: true },
+  { key: "brokerContact", required: true },
+  { key: "brokerNationality" },
+  { key: "brokerId" },
+  { key: "brokerPhone" },
+  { key: "brokerAddress", multiline: true },
   {
     key: "propertyLine",
-    label: "โครงการ / ห้อง / ที่อยู่",
     required: true,
     multiline: true,
   },
-  { key: "monthlyRent", label: "ค่าเช่า (บาท)" },
-  { key: "leaseMonths", label: "ระยะเช่าที่เสนอ (เดือน)" },
+  { key: "monthlyRent" },
+  { key: "leaseMonths" },
   {
     key: "commissionFee",
-    label: "ค่าคอมที่ตกลง (บาท) — หรือเว้นว่างถ้าคิดเป็นเดือน",
   },
   {
     key: "commissionMonths",
-    label: "ค่าคอมเป็นจำนวนเดือนของค่าเช่า — หรือเว้นว่างถ้าคิดเป็นบาท",
   },
 ];
 
@@ -129,6 +123,8 @@ export function BrokerAppointmentFields({
   errors?: Partial<Record<TextField, string>>;
 }) {
   const { theme } = useMobileTheme();
+  const { t } = useLocale();
+  const bc = t.contracts.broker;
   return (
     <View
       style={{
@@ -148,12 +144,12 @@ export function BrokerAppointmentFields({
           color: theme.textHeading,
         }}
       >
-        รายละเอียดแต่งตั้งนายหน้า
+        {bc.details}
       </Text>
       {FIELDS.map((field) => (
         <MobileInput
           key={field.key}
-          label={field.label}
+          label={bc.fields[field.key]}
           required={field.required}
           error={errors?.[field.key]}
           value={value[field.key]}

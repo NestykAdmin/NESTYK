@@ -15,7 +15,7 @@ import Svg, { Path } from "react-native-svg";
 import { Eye, EyeSlash, LockKey, ArrowRight } from "phosphor-react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocale } from "@nestyk/i18n";
+import { localizedError, useLocale } from "@nestyk/i18n";
 import {
   MobileIcon,
   MobileBottomSheet,
@@ -104,9 +104,7 @@ export default function LoginScreen() {
       await signIn(email, password);
       router.replace("/");
     } catch (e) {
-      const message =
-        e instanceof Error ? e.message : t.mobile.auth.invalidCredentials;
-      setError(message);
+      setError(localizedError(e, t.mobile.auth.invalidCredentials, locale));
     } finally {
       setLoading(false);
     }

@@ -58,13 +58,18 @@ import { RoomLayoutValueEntity } from './room-layout-value.entity';
 import { RoomFacilityEntity } from './room-facility.entity';
 import { LeadEntity } from './lead.entity';
 import { LeadLocationEntity } from './lead-location.entity';
+import { LeadMatchRunEntity } from './lead-match-run.entity';
+import { LeadMatchResultEntity } from './lead-match-result.entity';
+import { LeadViewingEntity } from './lead-viewing.entity';
 import { TenantEntity } from './tenant.entity';
 import { RoomTenancyEntity } from './room-tenancy.entity';
 import { LeaseContractEntity } from './lease-contract.entity';
 import { AgentInvoiceEntity } from './agent-invoice.entity';
 import { AgentCommissionConfirmationEntity } from './agent-commission-confirmation.entity';
+import { TenantBillEntity } from './tenant-bill.entity';
 export * from './agent-invoice.entity';
 export * from './agent-commission-confirmation.entity';
+export * from './tenant-bill.entity';
 
 /** All blueprint tables (docs/new-project) — public schema via DATABASE_URL */
 export const ALL_ENTITIES = [
@@ -97,11 +102,15 @@ export const ALL_ENTITIES = [
   RoomFacilityEntity,
   LeadEntity,
   LeadLocationEntity,
+  LeadMatchRunEntity,
+  LeadMatchResultEntity,
+  LeadViewingEntity,
   TenantEntity,
   RoomTenancyEntity,
   LeaseContractEntity,
   AgentInvoiceEntity,
   AgentCommissionConfirmationEntity,
+  TenantBillEntity,
 ];
 
 /** @deprecated use ALL_ENTITIES */

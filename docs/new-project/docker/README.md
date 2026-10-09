@@ -59,6 +59,23 @@ Requires root `.env`: `EXPO_PUBLIC_USE_DEV_AUTH=true` (+ matching `EXPO_PUBLIC_D
 
 Schema อยู่ที่ `public` ตาม blueprint (ไม่ใช้ `NESTYK_PROPTECH` ของ skeleton เก่า)
 
+## ตรวจ entity กับฐานข้อมูล (`db:check`)
+
+```bash
+npm run db:check -w @nestyk/api            # ตรวจ ถ้าไม่ตรงจะถามว่าจะปรับไหม (y/N)
+npm run db:check -w @nestyk/api -- --check # ตรวจอย่างเดียว ไม่ถาม (CI) — ไม่ตรง = exit 1
+```
+
+- เทียบ entity ทุกตัว (`ALL_ENTITIES`) กับฐานข้อมูลใน `.env.api` (`DATABASE_URL` + `DB_SCHEMA`) ระดับ ตาราง / คอลัมน์ / ชนิดข้อมูล / NULL
+- **error:** ขาดตาราง · ขาดคอลัมน์ · ชนิดข้อมูลไม่ตรง · NULL ไม่ตรง — **เตือนเฉยๆ:** คอลัมน์ที่มีในฐานข้อมูลแต่ entity ไม่ใช้
+- **ตอบ y:**
+  - ขาดตาราง/คอลัมน์ → รันไฟล์ใน `apps/api/migrations/` ที่สร้างสิ่งนั้น (ไฟล์ `CREATE TABLE` ก่อน `ALTER`) ใน transaction เดียว พังกลางทาง = rollback ทั้งหมด
+  - ไม่มีไฟล์ migration รองรับ → สร้าง `migrations/<วันที่>-schema-sync.sql` จาก entity (เพิ่มอย่างเดียว) ให้ตรวจก่อน แล้วรัน `db:check` อีกครั้ง
+  - ชนิดข้อมูล / NULL ไม่ตรง → **ไม่ปรับอัตโนมัติ** (อาจทำข้อมูลเสีย) แสดง SQL แนะนำให้ตัดสินใจเอง
+- ไม่ใช้ `typeorm schema:sync` / `schema:log` เพราะ entity ไม่ได้ประกาศ FK / index / CHECK ที่ไฟล์ SQL สร้างไว้ — TypeORM จะสั่งลบทิ้ง
+- API ตรวจซ้ำตอนเปิด (`SchemaDriftCheck`) ถ้าไม่ตรงขึ้น `ERROR [SchemaDrift]` ใน log แต่ API ยังเปิดต่อ
+- โค้ด: `apps/api/src/database/schema-drift.ts` · เทสต์: `npm run test:schema -w @nestyk/api`
+
 ## Files
 
 | File | Role |

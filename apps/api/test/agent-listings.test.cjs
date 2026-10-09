@@ -153,3 +153,15 @@ test('list cards expose room coordinates, falling back to the building pin', asy
   assert.deepEqual(items.slice(0, 2).map((i) => i.roomTypeCode), ['studio', null]);
   assert.deepEqual(items.slice(0, 2).map((i) => i.availableFromDate), ['2026-10-15', null]);
 });
+
+test('match candidates leave out rooms a lead has already booked', async () => {
+  const calls = []; const qb = {};
+  for (const k of ['select', 'leftJoin', 'innerJoin', 'where', 'andWhere', 'setParameters']) qb[k] = (...args) => { calls.push([k, ...args]); return qb; };
+  qb.getRawMany = async () => [];
+  const service = new AgentListingsService({ createQueryBuilder: () => qb });
+  const box = { minLat: 13, maxLat: 14, minLng: 100, maxLng: 101 };
+  assert.deepEqual(await service.matchCandidates(7, { maxPrice: 20000, boxes: [box] }), []);
+  const filters = calls.filter((c) => c[0] === 'andWhere').map((c) => c[1]);
+  assert.ok(filters.includes("roomStatus.code = 'available'"));
+  assert.ok(filters.includes("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked')"));
+});

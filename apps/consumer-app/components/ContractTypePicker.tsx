@@ -12,9 +12,9 @@ import {
   useMobileTheme,
   type AppIconName,
 } from "@nestyk/ui/native";
-import { useLocale } from "@nestyk/i18n";
+import { fillTemplate, useLocale, type ContractCopy } from "@nestyk/i18n";
 
-/** Create-menu options shown under 「เลือกประเภทสัญญา」. */
+/** Create-menu options shown under the contract type picker. */
 export type CreateDocumentKind =
   | "reservation"
   | "lease"
@@ -24,18 +24,14 @@ export type CreateDocumentKind =
 
 const CREATE_OPTIONS: Array<{
   kind: CreateDocumentKind;
-  label: string;
+  label?: keyof ContractCopy["picker"];
   icon: AppIconName;
 }> = [
-  { kind: "reservation", label: "หนังสือจองห้อง", icon: "calendar" },
-  { kind: "lease", label: "สัญญาเช่า", icon: "key" },
-  { kind: "invoice", label: "ใบแจ้งหนี้", icon: "note" },
-  { kind: "broker_appointment", label: "แต่งตั้งนายหน้า", icon: "handshake" },
-  {
-    kind: "agent_commission",
-    label: "ข้อตกลงแบ่งค่าคอมมิชชั่นระหว่างเอเจนต์",
-    icon: "users",
-  },
+  { kind: "reservation", label: "reservation", icon: "calendar" },
+  { kind: "lease", label: "lease", icon: "key" },
+  { kind: "invoice", label: "invoice", icon: "note" },
+  { kind: "broker_appointment", label: "brokerAppointment", icon: "handshake" },
+  { kind: "agent_commission", icon: "users" },
 ];
 
 export function ContractTypePicker({
@@ -49,17 +45,18 @@ export function ContractTypePicker({
 }) {
   const { theme } = useMobileTheme();
   const { t } = useLocale();
+  const pc = t.contracts.picker;
   return (
     <View style={styles.root}>
       <MobileButton variant="outline" onPress={onBack}>
-        ‹ กลับไปหน้าสัญญา
+        {pc.back}
       </MobileButton>
       <View style={styles.heading}>
         <Text style={[styles.title, { color: theme.textHeading }]}>
-          เลือกประเภทสัญญา
+          {pc.title}
         </Text>
         <Text style={[styles.description, { color: theme.textSecondary }]}>
-          ต้องการสร้างเอกสารอะไร?
+          {pc.question}
         </Text>
         {!!message && (
           <Text accessibilityRole="alert" style={styles.message}>
@@ -69,15 +66,14 @@ export function ContractTypePicker({
       </View>
       <View style={styles.grid}>
         {CREATE_OPTIONS.map((option) => {
-          const label =
-            option.kind === "agent_commission"
-              ? t.agent.contracts.commissionConfirmation.menu
-              : option.label;
+          const label = option.label
+            ? pc[option.label]
+            : t.agent.contracts.commissionConfirmation.menu;
           return (
           <Pressable
             key={option.kind}
             accessibilityRole="button"
-            accessibilityLabel={`สร้าง${label}`}
+            accessibilityLabel={fillTemplate(pc.createA11y, { label })}
             onPress={() => onSelect(option.kind)}
             style={({ pressed }) => [
               styles.tile,

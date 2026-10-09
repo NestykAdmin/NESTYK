@@ -32,7 +32,7 @@ import {
   Platform,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useLocale } from '@nestyk/i18n';
+import { localizedError, useLocale } from '@nestyk/i18n';
 import {
   MobileButton,
   MobileInput,
@@ -993,7 +993,7 @@ export const MobileCreateListingWizardBody: React.FC<
         .catch((err) => {
           if (cancelled || seq !== placesSeq.current) return;
           setSuggestions([]);
-          setPlacesError(err instanceof Error && err.message ? err.message : cr.placesError);
+          setPlacesError(localizedError(err, cr.placesError, locale));
           setHasSearchedPlaces(true);
         })
         .finally(() => {
@@ -1022,7 +1022,7 @@ export const MobileCreateListingWizardBody: React.FC<
       .catch((err) => {
         if (cancelled) return;
         setOwners([]);
-        setOwnersError(err instanceof Error && err.message ? err.message : cr.ownerLoadError);
+        setOwnersError(localizedError(err, cr.ownerLoadError, locale));
       })
       .finally(() => {
         if (!cancelled) setOwnersLoading(false);
@@ -1047,7 +1047,7 @@ export const MobileCreateListingWizardBody: React.FC<
         if (cancelled) return;
         setPropertyTypes([]);
         setPropertyTypesError(
-          err instanceof Error && err.message ? err.message : cr.propertyTypeLoadError,
+          localizedError(err, cr.propertyTypeLoadError, locale),
         );
       })
       .finally(() => {
@@ -1076,7 +1076,7 @@ export const MobileCreateListingWizardBody: React.FC<
         if (cancelled) return;
         setContractTypes([]);
         setContractTypesError(
-          err instanceof Error && err.message ? err.message : cr.contractTermRequired,
+          localizedError(err, cr.contractTermRequired, locale),
         );
       })
       .finally(() => {
@@ -1103,7 +1103,7 @@ export const MobileCreateListingWizardBody: React.FC<
         if (cancelled) return;
         setRoomTypes([]);
         setRoomTypesError(
-          err instanceof Error && err.message ? err.message : cr.roomTypeLoadError,
+          localizedError(err, cr.roomTypeLoadError, locale),
         );
       })
       .finally(() => {
@@ -1286,7 +1286,7 @@ export const MobileCreateListingWizardBody: React.FC<
       setPlacesError('');
     } catch (err) {
       if (seq === pinResolveSeq.current) {
-        setPlacesError(err instanceof Error && err.message ? err.message : cr.placesError);
+        setPlacesError(localizedError(err, cr.placesError, locale));
       }
     } finally {
       if (seq === pinResolveSeq.current) setPinResolving(false);
@@ -1308,7 +1308,7 @@ export const MobileCreateListingWizardBody: React.FC<
       applyPlaceDetails(details, item.name);
       setPlaceEntryMode('search');
     } catch (err) {
-      setPlacesError(err instanceof Error && err.message ? err.message : cr.placesError);
+      setPlacesError(localizedError(err, cr.placesError, locale));
     } finally {
       setPlacesLoading(false);
     }
@@ -2185,8 +2185,7 @@ export const MobileCreateListingWizardBody: React.FC<
         }
         await onSubmitListing(buildPayload(uploadedPhotos));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        Alert.alert(cr.saveError, message);
+        Alert.alert(cr.saveError, localizedError(err, t.common.errorGeneric, locale));
       } finally {
         submitLock.current = false;
         setSubmitting(false);
@@ -3119,7 +3118,7 @@ export const MobileCreateListingWizardBody: React.FC<
                         );
                         clearFieldError('photos');
                       } catch (err) {
-                        Alert.alert(cr.saveError, err instanceof Error ? err.message : String(err));
+                        Alert.alert(cr.saveError, localizedError(err, t.common.errorGeneric, locale));
                       } finally {
                         setPickingPhotos(false);
                       }
@@ -3217,8 +3216,6 @@ export const MobileCreateListingWizardBody: React.FC<
               <MobileBottomSheet visible={photoMenuUri != null} onClose={() => setPhotoMenuUri(null)}>
                 <MobileActionSheetBody
                   title={cr.steps.photos}
-                  cancelLabel={t.common.cancel}
-                  onCancel={() => setPhotoMenuUri(null)}
                   actions={[
                     ...(photoMenuUri && photos[0]?.uri !== photoMenuUri
                       ? [
@@ -3274,7 +3271,7 @@ export const MobileCreateListingWizardBody: React.FC<
                                 } catch (err) {
                                   Alert.alert(
                                     cr.enhancePhotoError,
-                                    err instanceof Error ? err.message : String(err),
+                                    localizedError(err, t.common.errorGeneric, locale),
                                   );
                                 } finally {
                                   setEnhancingUri(null);

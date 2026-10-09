@@ -123,6 +123,10 @@ export class LeadEntity extends SerialTimestampEntity {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  /** Saved room-matching preferences; null = defaults. Shape: LeadMatchSettings in @nestyk/types. */
+  @Column({ type: 'jsonb', nullable: true })
+  match_settings: Record<string, unknown> | null;
+
   @Column({ type: 'int', nullable: true })
   tenant_id: number | null;
 

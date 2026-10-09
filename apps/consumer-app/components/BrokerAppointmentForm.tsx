@@ -21,6 +21,7 @@ import {
   generateBrokerAppointment,
   getBrokerAppointmentDefaults,
 } from "../lib/agent-contracts-api";
+import { fillTemplate, localizedError, useLocale, type ContractCopy } from "@nestyk/i18n";
 import { completeBrokerNames } from "./BrokerAppointmentFields";
 import {
   ContractSignaturePad,
@@ -35,57 +36,53 @@ type TextField = Exclude<
 type SignParty = "landlord" | "broker";
 
 const FIELDS: Array<{
-  key: TextField;
-  label: string;
+  key: keyof ContractCopy["broker"]["fields"];
   placeholder?: string;
   required?: boolean;
   multiline?: boolean;
 }> = [
-  { key: "documentNo", label: "เลขที่ *", required: true },
-  { key: "issueDate", label: "วันที่ * (YYYY-MM-DD)", required: true },
-  { key: "landlordFirstName", label: "ชื่อผู้ให้เช่า *", required: true },
-  { key: "landlordLastName", label: "นามสกุลผู้ให้เช่า" },
-  { key: "landlordNationality", label: "สัญชาติผู้ให้เช่า" },
-  { key: "landlordId", label: "เลขบัตร / พาสปอร์ตผู้ให้เช่า" },
-  { key: "landlordAddress", label: "ที่อยู่ผู้ให้เช่า", multiline: true },
-  { key: "landlordPhone", label: "เบอร์ติดต่อผู้ให้เช่า" },
-  { key: "brokerCompany", label: "บริษัทนายหน้า *", required: true },
-  { key: "brokerContact", label: "ผู้ติดต่อนายหน้า *", required: true },
-  { key: "brokerNationality", label: "สัญชาตินายหน้า" },
-  { key: "brokerId", label: "เลขบัตร / พาสปอร์ตนายหน้า" },
-  { key: "brokerPhone", label: "เบอร์ติดต่อนายหน้า" },
-  { key: "brokerAddress", label: "ที่อยู่นายหน้า", multiline: true },
+  { key: "documentNo", required: true },
+  { key: "issueDate", required: true },
+  { key: "landlordFirstName", required: true },
+  { key: "landlordLastName" },
+  { key: "landlordNationality" },
+  { key: "landlordId" },
+  { key: "landlordAddress", multiline: true },
+  { key: "landlordPhone" },
+  { key: "brokerCompany", required: true },
+  { key: "brokerContact", required: true },
+  { key: "brokerNationality" },
+  { key: "brokerId" },
+  { key: "brokerPhone" },
+  { key: "brokerAddress", multiline: true },
   {
     key: "propertyLine",
-    label: "โครงการ / ห้อง / ที่อยู่ *",
     required: true,
     multiline: true,
   },
-  { key: "monthlyRent", label: "ค่าเช่า (บาท)" },
-  { key: "leaseMonths", label: "ระยะเช่าที่เสนอ (เดือน)" },
+  { key: "monthlyRent" },
+  { key: "leaseMonths" },
   {
     key: "commissionFee",
-    label: "ค่าคอมที่ตกลง (บาท) — หรือเว้นว่างถ้าคิดเป็นเดือน",
   },
   {
     key: "commissionMonths",
-    label: "ค่าคอมเป็นจำนวนเดือนของค่าเช่า — หรือเว้นว่างถ้าคิดเป็นบาท",
   },
 ];
 
 const SIGN_PARTIES: Array<{
   key: SignParty;
-  title: string;
+  title: "landlordSigner" | "brokerSigner";
   pngKey: "landlordSignaturePng" | "brokerSignaturePng";
 }> = [
   {
     key: "landlord",
-    title: "ผู้ให้เช่า / Landlord",
+    title: "landlordSigner",
     pngKey: "landlordSignaturePng",
   },
   {
     key: "broker",
-    title: "นายหน้า / Broker",
+    title: "brokerSigner",
     pngKey: "brokerSignaturePng",
   },
 ];
@@ -107,6 +104,9 @@ export function BrokerAppointmentForm({
   ) => void;
 }) {
   const { theme } = useMobileTheme();
+  const { t, locale } = useLocale();
+  const tc = t.contracts;
+  const bc = tc.broker;
   const needsHostPick = fixedContractId == null;
   const [hostId, setHostId] = useState<number | null>(fixedContractId ?? null);
   const [form, setForm] = useState<BrokerAppointmentInput | null>(null);
@@ -165,7 +165,7 @@ export function BrokerAppointmentForm({
       })
       .catch((e) => {
         if (active)
-          setError(e instanceof Error ? e.message : "โหลดฟอร์มไม่สำเร็จ");
+          setError(localizedError(e, t.agent.contracts.notice.loadFormFailed, locale));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -198,7 +198,7 @@ export function BrokerAppointmentForm({
     try {
       onCreated(await generateBrokerAppointment(contractId, form), contractId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "สร้างเอกสารไม่สำเร็จ");
+      setError(localizedError(e, t.agent.contracts.notice.createDocumentFailed, locale));
     } finally {
       saving.current = false;
       setBusy(false);
@@ -211,7 +211,7 @@ export function BrokerAppointmentForm({
   return (
     <View style={{ gap: 14, paddingBottom: 28 }}>
       <MobileButton variant="outline" disabled={busy} onPress={onBack}>
-        ← กลับ
+        {tc.common.back}
       </MobileButton>
       <Text
         style={{
@@ -221,23 +221,23 @@ export function BrokerAppointmentForm({
           fontWeight: "600",
         }}
       >
-        สร้างสัญญาแต่งตั้งนายหน้า
+        {bc.create}
       </Text>
       <Text style={{ fontSize: 13, lineHeight: 20, color: theme.textSecondary }}>
-        กรอกข้อมูลแล้วระบบจะใส่ลงในแม่แบบ PDF อัตโนมัติ
+        {bc.createHint}
       </Text>
 
       {needsHostPick && (
         <View style={{ gap: 8 }}>
           <Text style={[{ fontSize: 14, lineHeight: 22, fontWeight: "600" }, title]}>
-            ผูกกับหนังสือจอง *
+            {tc.common.hostRequired}
           </Text>
           <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
-            เลือกหนังสือจองเพื่อดึงข้อมูลตั้งต้นและบันทึกเอกสาร
+            {bc.hostHint}
           </Text>
           {!hostList.length ? (
             <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
-              ยังไม่มีหนังสือจองที่ใช้ได้ — สร้างหนังสือจองก่อน
+              {tc.common.noHost}
             </Text>
           ) : (
             hostList.map((host) => {
@@ -264,7 +264,7 @@ export function BrokerAppointmentForm({
                   </Text>
                   <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
                     {host.property}
-                    {host.room ? ` · ห้อง ${host.room}` : ""}
+                    {host.room ? ` · ${fillTemplate(tc.common.room, { room: host.room })}` : ""}
                   </Text>
                 </Pressable>
               );
@@ -281,17 +281,18 @@ export function BrokerAppointmentForm({
       )}
       {!loading && !!error && contractId != null && !form && (
         <MobileButton onPress={() => setRetry((n) => n + 1)}>
-          ลองโหลดอีกครั้ง
+          {tc.common.retry}
         </MobileButton>
       )}
       {form &&
         FIELDS.map((field) => (
           <View key={field.key} style={{ gap: 6 }}>
             <Text style={[{ fontSize: 14, lineHeight: 22 }, title]}>
-              {field.label}
+              {bc.fields[field.key]}
+              {field.required ? " *" : ""}
             </Text>
             <MobileInput
-              accessibilityLabel={field.label}
+              accessibilityLabel={bc.fields[field.key]}
               value={form[field.key]}
               editable={!busy}
               multiline={field.multiline}
@@ -328,7 +329,7 @@ export function BrokerAppointmentForm({
       {form && (
         <>
           <Text style={[{ fontSize: 12, lineHeight: 18 }, muted]}>
-            ค่าคอมเลือกอย่างใดอย่างหนึ่ง: จำนวนเงิน (บาท) หรือจำนวนเดือนของค่าเช่า
+            {bc.commissionHint}
           </Text>
           <View
             style={{
@@ -344,10 +345,10 @@ export function BrokerAppointmentForm({
                 title,
               ]}
             >
-              ลายเซ็น
+              {bc.signatures}
             </Text>
             <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
-              ไม่บังคับ — กดลงนามเพื่อวาดลายเซ็นใส่ใน PDF
+              {bc.signaturesHint}
             </Text>
             {SIGN_PARTIES.map((party) => {
               const signed = !!form[party.pngKey];
@@ -364,17 +365,17 @@ export function BrokerAppointmentForm({
                   }}
                 >
                   <Text style={[{ fontSize: 15, lineHeight: 24 }, title]}>
-                    {party.title}
+                    {bc[party.title]}
                   </Text>
                   <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
-                    {signed ? "✓ บันทึกลายเซ็นแล้ว" : "ยังไม่ได้ลงนาม"}
+                    {signed ? bc.signatureSaved : bc.notSigned}
                   </Text>
                   <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
                     <MobileButton
                       disabled={busy}
                       onPress={() => openSignSheet(party.key)}
                     >
-                      {signed ? "แก้ไขลายเซ็น" : "ลงนาม"}
+                      {signed ? bc.editSignature : tc.common.sign}
                     </MobileButton>
                     {signed ? (
                       <MobileButton
@@ -382,7 +383,7 @@ export function BrokerAppointmentForm({
                         disabled={busy}
                         onPress={() => clearSignature(party.key)}
                       >
-                        ล้างลายเซ็น
+                        {tc.common.clearSignature}
                       </MobileButton>
                     ) : null}
                   </View>
@@ -396,7 +397,7 @@ export function BrokerAppointmentForm({
               void save();
             }}
           >
-            {busy ? "กำลังสร้าง…" : "สร้างเอกสาร PDF"}
+            {busy ? bc.creating : bc.createPdf}
           </MobileButton>
         </>
       )}
@@ -419,10 +420,10 @@ export function BrokerAppointmentForm({
               color: theme.textHeading,
             }}
           >
-            {signingMeta ? `ลงนาม — ${signingMeta.title}` : "ลงนาม"}
+            {signingMeta ? fillTemplate(bc.signFor, { party: bc[signingMeta.title] }) : tc.common.sign}
           </Text>
           <Text style={{ fontSize: 13, lineHeight: 20, color: theme.textSecondary }}>
-            วาดลายเซ็นในกรอบ แล้วกดยืนยัน
+            {tc.common.drawSignature}
           </Text>
           {!!signError && (
             <Text accessibilityRole="alert" style={{ color: "#C43D4C" }}>
@@ -444,7 +445,7 @@ export function BrokerAppointmentForm({
                 setSigningParty(null);
                 setSignError("");
               }}
-              onEmpty={() => setSignError("กรุณาวาดลายเซ็นก่อนยืนยัน")}
+              onEmpty={() => setSignError(tc.common.drawSignatureFirst)}
             />
           ) : null}
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -453,13 +454,13 @@ export function BrokerAppointmentForm({
               disabled={busy}
               onPress={() => padRef.current?.clearSignature()}
             >
-              ล้างลายเซ็น
+              {tc.common.clearSignature}
             </MobileButton>
             <MobileButton
               disabled={busy}
               onPress={() => padRef.current?.readSignature()}
             >
-              ยืนยันลายเซ็น
+              {tc.common.confirmSignature}
             </MobileButton>
           </View>
         </View>

@@ -1,4 +1,4 @@
-import { APP_CONFIG } from './config';
+import { APP_CONFIG, toDeviceUrls, toServerUrls } from './config';
 import { getOrCreateDevIdentity, toDevBearer } from './dev-identity';
 import { loadAuthSession } from './auth/session-storage';
 
@@ -44,8 +44,9 @@ export async function apiRequest<T>(
     ...(init?.headers as Record<string, string> | undefined),
   };
 
-  const res = await fetch(`${APP_CONFIG.apiUrl}${path}`, { ...init, headers });
-  const text = await res.text();
+  const body = typeof init?.body === 'string' ? toServerUrls(init.body) : init?.body;
+  const res = await fetch(`${APP_CONFIG.apiUrl}${path}`, { ...init, body, headers });
+  const text = toDeviceUrls(await res.text());
   let parsed: unknown = null;
   if (text) {
     try {

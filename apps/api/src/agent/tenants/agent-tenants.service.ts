@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, In, Not, QueryFailedError } from "typeorm";
 import type {
   AgentTenant,
   CreateAgentTenant,
@@ -13,7 +13,22 @@ import type {
 import { TenantEntity } from "../../entities/tenant.entity";
 import { LeadEntity } from "../../entities/lead.entity";
 import { RentRoomEntity } from "../../entities/rent-room.entity";
+import { LeadViewingEntity } from "../../entities/lead-viewing.entity";
 import { AgentContractsService } from "../contracts/agent-contracts.service";
+
+const ROOM_ALREADY_BOOKED = "ห้องนี้มีผู้จองแล้ว";
+
+/** Postgres unique violation on `uq_leads_one_booked_per_room`: two bookings of one room raced. */
+function isRoomAlreadyBookedError(error: unknown): boolean {
+  if (!(error instanceof QueryFailedError)) return false;
+  const driver = error.driverError as
+    | { code?: string; constraint?: string }
+    | undefined;
+  return (
+    driver?.code === "23505" &&
+    driver?.constraint === "uq_leads_one_booked_per_room"
+  );
+}
 
 function parseTenantProfile(input: unknown): UpdateAgentTenant {
   if (!input || typeof input !== "object" || Array.isArray(input))
@@ -195,28 +210,109 @@ export class AgentTenantsService {
       nationality: l.nationality,
     }));
   }
-  async roomOptions(agentId: number, q = "") {
-    const rooms = await this.db
+  async roomOptions(
+    agentId: number,
+    q = "",
+    options: { leadId?: number; roomId?: number } = {},
+  ) {
+    const search = String(q).slice(0, 255);
+    const latest = await this.db
       .getRepository(RentRoomEntity)
       .createQueryBuilder("room")
       .leftJoinAndSelect("room.property", "property")
       .where("room.created_by_user_id = :agentId", { agentId })
       .andWhere(
         "(property.name ILIKE :q OR room.room_id ILIKE :q OR room.listing_title ILIKE :q)",
-        { q: `%${String(q).slice(0, 255)}%` },
+        { q: `%${search}%` },
       )
       .orderBy("room.id", "DESC")
       .take(30)
       .getMany();
+    // Rooms the lead has a viewing for, and the room being booked, lead the list even when they
+    // are not among the latest 30.
+    const viewedIds = options.leadId
+      ? await this.viewedRoomIds(agentId, options.leadId)
+      : [];
+    const pinnedIds = [
+      ...new Set([...(options.roomId ? [options.roomId] : []), ...viewedIds]),
+    ];
+    const pinned = await this.roomsById(agentId, pinnedIds, search);
+    const pinnedSet = new Set(pinned.map((r) => r.id));
+    const rooms = [
+      ...pinned,
+      ...latest.filter((r) => !pinnedSet.has(r.id)),
+    ].slice(0, 30);
+    const bookedBy = await this.bookedLeadNames(
+      agentId,
+      rooms.map((r) => r.id),
+    );
+    const viewed = new Set(viewedIds);
     return rooms.map((r) => ({
       id: r.id,
       property: r.property?.name || r.listing_title || "ไม่ระบุโครงการ",
       room: r.room_id,
+      viewed: viewed.has(r.id),
+      bookedBy: bookedBy.get(r.id) ?? null,
     }));
+  }
+  /** Rooms this lead has a viewing of that was not cancelled. */
+  private async viewedRoomIds(agentId: number, leadId: number) {
+    const viewings = await this.db.getRepository(LeadViewingEntity).find({
+      where: {
+        lead_id: leadId,
+        created_by_user_id: agentId,
+        status: Not("cancelled"),
+      },
+      select: { id: true, rent_room_id: true },
+    });
+    return [...new Set(viewings.map((v) => v.rent_room_id))];
+  }
+  private async roomsById(agentId: number, ids: number[], search: string) {
+    if (!ids.length) return [];
+    const rooms = await this.db.getRepository(RentRoomEntity).find({
+      where: { id: In(ids), created_by_user_id: agentId },
+      relations: { property: true },
+      order: { id: "DESC" },
+    });
+    const needle = search.trim().toLowerCase();
+    if (!needle) return rooms;
+    return rooms.filter((r) =>
+      [r.property?.name, r.room_id, r.listing_title].some((value) =>
+        (value ?? "").toLowerCase().includes(needle),
+      ),
+    );
+  }
+  /** Room id → name of the agent's lead that booked it. */
+  private async bookedLeadNames(agentId: number, roomIds: number[]) {
+    const names = new Map<number, string>();
+    if (!roomIds.length) return names;
+    const leads = await this.db.getRepository(LeadEntity).find({
+      where: {
+        rent_room_id: In(roomIds),
+        status: "booked",
+        created_by_user_id: agentId,
+      },
+      select: { id: true, name: true, rent_room_id: true },
+    });
+    for (const lead of leads)
+      if (lead.rent_room_id != null) names.set(lead.rent_room_id, lead.name);
+    return names;
   }
   async create(agentId: number, input: unknown) {
     const b = validateTenant(input);
-    const id = await this.db.transaction(async (manager) => {
+    const id = await this.promote(agentId, b).catch((error: unknown) => {
+      if (isRoomAlreadyBookedError(error))
+        throw new ConflictException({
+          code: "ROOM_ALREADY_BOOKED",
+          message: ROOM_ALREADY_BOOKED,
+        });
+      throw error;
+    });
+    return this.view(agentId, id);
+  }
+  /** The tenant row and the lead's move to `booked`, in one transaction. */
+  private promote(agentId: number, b: CreateAgentTenant): Promise<number> {
+    return this.db.transaction(async (manager) => {
       const lead = await manager.findOne(LeadEntity, {
         where: { id: b.leadId, created_by_user_id: agentId },
         lock: { mode: "pessimistic_write" },
@@ -231,11 +327,24 @@ export class AgentTenantsService {
         throw new ConflictException(
           "Lead ที่ปิดเป็นไม่สำเร็จยังไม่สามารถสร้างผู้เช่าได้",
         );
-      const room = await manager.findOneBy(RentRoomEntity, {
-        id: b.rentRoomId,
-        created_by_user_id: agentId,
+      // Locked, so two bookings of one room queue up here and the second sees the first below.
+      const room = await manager.findOne(RentRoomEntity, {
+        where: { id: b.rentRoomId, created_by_user_id: agentId },
+        lock: { mode: "pessimistic_write" },
       });
       if (!room) throw new NotFoundException("ไม่พบห้องที่คุณมีสิทธิ์จัดการ");
+      // One booked lead per room: say so here, before the unique index does.
+      const taken = await manager.findOne(LeadEntity, {
+        where: { rent_room_id: room.id, status: "booked" },
+      });
+      if (taken && taken.id !== lead.id)
+        throw new ConflictException({
+          code: "ROOM_ALREADY_BOOKED",
+          message:
+            taken.created_by_user_id === agentId
+              ? `${ROOM_ALREADY_BOOKED} (${taken.name})`
+              : ROOM_ALREADY_BOOKED,
+        });
       const tenant = await manager.save(
         TenantEntity,
         manager.create(TenantEntity, {
@@ -257,7 +366,6 @@ export class AgentTenantsService {
       await manager.save(LeadEntity, lead);
       return tenant.id;
     });
-    return this.view(agentId, id);
   }
   async update(agentId: number, id: number, input: unknown) {
     const b = validateTenantProfile(input);

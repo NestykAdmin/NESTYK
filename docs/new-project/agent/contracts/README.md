@@ -66,19 +66,30 @@ including tenants with no contracts. Cards group contracts by tenant ID, support
 search/status filters, and show active contracts ending within 30 days. Detail has
 Overview and Contracts tabs. Payment data is not available and is not simulated.
 
-Create tenant: select an eligible Lead → confirm name, phone, optional email/note,
-and select a managed room → review → save. Saving creates the tenant and links
-`leads.tenant_id`, `leads.rent_room_id`, and `leads.status = booked` atomically.
+Create tenant (booking a room): on the Clients tab select an eligible Lead → select a
+managed room, or press "จองห้องนี้" on a Lead's matched-room page. Both open the same
+confirmation sheet (`ReserveRoomSheet`): it shows the Lead and the room, asks for the
+email and ID number the reservation letter needs, and keeps name, phone, nationality
+and note (copied from the Lead) behind an edit link. Confirming creates the tenant and
+links `leads.tenant_id`, `leads.rent_room_id`, and `leads.status = booked` atomically.
 Original Lead contact fields are preserved. Duplicate promotions are rejected under
-a Lead row lock. This does not create a contract or activate occupancy.
+a Lead row lock, and a room another Lead has booked is rejected with 409
+`ROOM_ALREADY_BOOKED` (checked in the transaction; the `uq_leads_one_booked_per_room`
+index catches a race). This does not create a contract or activate occupancy. While
+the tenant has no contract, the tenant page offers "ทำหนังสือจอง" as the next step,
+which opens the reservation letter form directly.
 
 Tenant API (agent-authenticated and scoped to the current agent):
 - `GET /agent/tenants`: tenant cards and their contracts.
 - `GET /agent/tenants/:id`: tenant detail.
 - `GET /agent/tenants/leads?q=`: up to 30 searchable eligible leads; excludes lost
   leads and leads already linked to tenants.
-- `GET /agent/tenants/rooms?q=`: up to 30 searchable rooms managed by this agent.
-- `POST /agent/tenants`: `{leadId, rentRoomId, name, phone, email?, note?}`.
+- `GET /agent/tenants/rooms?q=&leadId=&roomId=`: up to 30 searchable rooms managed by
+  this agent, each with `viewed` and `bookedBy` (name of the Lead that booked it, or
+  null). `leadId` lists the rooms that Lead has a non-cancelled viewing for first;
+  `roomId` includes that room even when it is not among the latest 30.
+- `POST /agent/tenants`: `{leadId, rentRoomId, name, phone, email?, note?}`; 409
+  `ROOM_ALREADY_BOOKED` when another Lead has already booked the room.
 
 Contracts are created inside tenant detail using `GET /agent/contracts`,
 `GET /agent/contracts/:id`, and `POST /agent/contracts`. The form uses the selected

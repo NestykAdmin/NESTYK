@@ -1,4 +1,4 @@
-# Agent calendar — API (UI demo)
+# Agent calendar — API
 
 | | |
 |--|--|
@@ -9,18 +9,20 @@
 
 ## สถานะ
 
-**ยังไม่มี API** — เมนูปฏิทิน Agent ใน Consumer App ใช้ข้อมูลจำลองและ React state เท่านั้น ไม่เรียก backend
+**นัดดูห้อง** ใช้ API ของลีด — ดูรายละเอียดใน [leads/viewings.md](../leads/viewings.md)
+
+| Method | Path | หมายเหตุ |
+|--------|------|----------|
+| `GET` | `/agent/viewings?from=&to=` | ISO datetime · ช่วงไม่เกิน 62 วัน · ไม่รวม `cancelled` · เรียงตามเวลา |
+| `POST` | `/agent/leads/:id/viewings` | สร้างนัด (จากหน้าห้องที่จับคู่) |
+| `PATCH` | `/agent/viewings/:id` | เลื่อน / ยกเลิก / แก้หมายเหตุ |
+
+ติดตามลูกค้า และเซ็นสัญญา **ยังไม่มี API** — ใช้ข้อมูลจำลองและ React state เท่านั้น
 
 ---
 
 ## อนาคต (draft)
 
-เมื่อเริ่ม implement อาจมีรูปแบบใกล้เคียง:
-
-| Method | Path | หมายเหตุ |
-|--------|------|----------|
-| `GET` | `/agent/calendar/events` | `?from=&to=` — นัดดูห้อง / follow-up |
-| `POST` | `/agent/calendar/events` | สร้างนัด manual |
-| `PATCH` | `/agent/calendar/events/:id` | แก้ / ยกเลิก |
-
-หรือ **derive-only** — ไม่มีตาราง events แยก แต่ aggregate จาก `leads.viewed_at`, viewing slots ฯลฯ
+- ติดตามลูกค้า: derive จาก `leads` (เช่นวันนัดติดตาม) หรือตาราง events แยก
+- เซ็นสัญญา: derive จากสัญญาที่รอเซ็น
+- นัด manual ที่ไม่ผูกลีด: `POST /agent/calendar/events` หากจำเป็น

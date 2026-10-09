@@ -10,7 +10,7 @@ import {
   tokens,
   useMobileTheme,
 } from "@nestyk/ui/native";
-import { useLocale } from "@nestyk/i18n";
+import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import type {
   AgentContract,
   FinancialDocumentInput,
@@ -87,7 +87,7 @@ export function FinancialDocumentForm({
   onCreated: (value: AgentContract) => void;
   onStandaloneCreated?: (value: StandaloneInvoice) => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const labels = t.agent.contracts.financial;
   const { theme } = useMobileTheme();
   const linked = fixedContractId != null;
@@ -150,7 +150,7 @@ export function FinancialDocumentForm({
           );
         })
         .catch((e) => {
-          if (active) setError(e instanceof Error ? e.message : labels.invalid);
+          if (active) setError(localizedError(e, t.common.errorGeneric, locale));
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -204,7 +204,7 @@ export function FinancialDocumentForm({
           setDiscount("0");
         })
         .catch((e) => {
-          if (active) setError(e instanceof Error ? e.message : labels.invalid);
+          if (active) setError(localizedError(e, t.common.errorGeneric, locale));
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -236,7 +236,7 @@ export function FinancialDocumentForm({
         );
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : labels.invalid);
+        if (active) setError(localizedError(e, t.common.errorGeneric, locale));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -264,7 +264,7 @@ export function FinancialDocumentForm({
         );
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : labels.invalid);
+        if (active) setError(localizedError(e, t.common.errorGeneric, locale));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -361,7 +361,7 @@ export function FinancialDocumentForm({
       }
       setError("");
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : labels.invalid);
+      setError(localizedError(e, t.common.errorGeneric, locale));
     }
   }
   async function submit() {
@@ -412,7 +412,7 @@ export function FinancialDocumentForm({
           ),
         );
       } catch (e) {
-        setError(e instanceof Error ? e.message : labels.invalid);
+        setError(localizedError(e, t.common.errorGeneric, locale));
       } finally {
         saving.current = false;
         setBusy(false);
@@ -470,7 +470,7 @@ export function FinancialDocumentForm({
       }
       onCreated(await generateFinancialDocument(contractId!, kind, payload));
     } catch (e) {
-      setError(e instanceof Error ? e.message : labels.invalid);
+      setError(localizedError(e, t.common.errorGeneric, locale));
     } finally {
       saving.current = false;
       setBusy(false);
@@ -607,11 +607,11 @@ export function FinancialDocumentForm({
       {needsHostPick && (
         <View style={{ gap: 8 }}>
           <Text style={[{ fontSize: 14, lineHeight: 22, fontWeight: "600" }, title]}>
-            ผูกกับหนังสือจอง *
+            {t.contracts.common.hostRequired}
           </Text>
           {!(hosts ?? []).length ? (
             <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
-              ยังไม่มีหนังสือจองที่ใช้ได้ — สร้างหนังสือจองก่อน
+              {t.contracts.common.noHost}
             </Text>
           ) : (
             (hosts ?? []).map((host) => {
@@ -638,7 +638,7 @@ export function FinancialDocumentForm({
                   </Text>
                   <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
                     {host.property}
-                    {host.room ? ` · ห้อง ${host.room}` : ""}
+                    {host.room ? ` · ${fillTemplate(t.contracts.common.room, { room: host.room })}` : ""}
                   </Text>
                 </Pressable>
               );

@@ -106,7 +106,7 @@ Apply [location migration](./migrations/20260910-lead-locations.sql) before depl
 
 `GET /agent/leads/locations` returns 77 provinces and distinct districts from existing properties, normalizing province names and district prefixes. This is the initial area catalog, not a complete neighborhood catalog. Provinces without property districts remain selectable.
 
-List filters: `province`, `locations` (JSON string array), and `includeUnspecified=true`. Multiple areas use OR matching; unspecified areas are included only within the selected province. All filters apply before pagination. Legacy leads without a province remain visible in the unfiltered list and text search.
+List filters: `province`, `locations` (JSON string array), `includeUnspecified=true`, and `status` (display status, including derived `viewing`; see [api.md](./api.md)). Multiple areas use OR matching; unspecified areas are included only within the selected province. All filters apply before pagination. Legacy leads without a province remain visible in the unfiltered list and text search.
 
 ### Ranked search pins (current)
 Apply `apps/api/migrations/20260924-lead-locations.sql` (`node apps/api/scripts/apply-lead-locations.cjs --check`, then without `--check`) before deploying the API. It creates `lead_locations` and backfills each existing single pin as rank 1.

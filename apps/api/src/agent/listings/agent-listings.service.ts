@@ -71,6 +71,68 @@ function roomPrices(room: RentRoomEntity) {
   }));
 }
 
+export type MatchRoomFacts = {
+  id: number;
+  latitude: number | null;
+  longitude: number | null;
+  prices: Array<{ termMonths: number | null; price: number }>;
+  roomTypeCode: string | null;
+  availableFromDate: string | null;
+};
+
+export type ListingCard = ReturnType<typeof toListingCard>;
+
+function toListingCard(room: RentRoomEntity) {
+  const medias = [...(room.medias ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+  const cover = medias.find((m) => m.is_cover) ?? medias[0];
+  const primaryContact =
+    (room.room_contacts ?? []).find((link) => link.is_primary)?.contact ??
+    room.room_contacts?.[0]?.contact ??
+    null;
+
+  return {
+    id: room.id,
+    listingTitle: room.listing_title,
+    visibility: room.visibility,
+    isScoutRoom: room.is_scout_room,
+    listingSourceCode: room.listing_source?.code ?? null,
+    roomStatusCode: room.room_status?.code ?? null,
+    property: room.property
+      ? {
+          id: room.property.id,
+          name: room.property.name,
+          district: room.property.district,
+          province: room.property.province,
+        }
+      : null,
+    contact: primaryContact
+      ? {
+          id: primaryContact.id,
+          name: primaryContact.name,
+          phone: primaryContact.phone,
+        }
+      : null,
+    propertyOwner: room.property_owner
+      ? {
+          id: room.property_owner.id,
+          name: room.property_owner.name,
+          phone: room.property_owner.phone,
+        }
+      : null,
+    prices: roomPrices(room),
+    coverMediaUrl: cover?.media_url ?? null,
+    roomTypeCode: room.room_type?.code ?? null,
+    availableFromDate: room.available_from_date ?? null,
+    bedroomCount:
+      layoutValue(room, 'bedroom') ??
+      (room.room_type?.bedroom_count != null ? String(room.room_type.bedroom_count) : null),
+    roomSizeSqm: layoutValue(room, 'room_size'),
+    floor: layoutValue(room, 'floor'),
+    ...roomCoordinates(room),
+    updatedAt: room.updated_at?.toISOString?.() ?? null,
+  };
+}
+
 @Injectable()
 export class AgentListingsService {
   constructor(
@@ -181,6 +243,12 @@ export class AgentListingsService {
       return { items: [], total, page, limit };
     }
 
+    return { items: await this.cardsByIds(agentId, ids), total, page, limit };
+  }
+
+  /** Listing cards for the agent's scout rooms, in the order of `ids`; missing rooms are skipped. */
+  async cardsByIds(agentId: number, ids: number[]): Promise<ListingCard[]> {
+    if (!ids.length) return [];
     const found = await this.roomsRepo.find({
       where: { id: In(ids), created_by_user_id: agentId, is_scout_room: true },
       relations: {
@@ -196,63 +264,58 @@ export class AgentListingsService {
       },
     });
     const byId = new Map(found.map((room) => [room.id, room]));
-    const rows = ids.map((id) => byId.get(id)).filter((room): room is RentRoomEntity => !!room);
+    return ids
+      .map((id) => byId.get(id))
+      .filter((room): room is RentRoomEntity => !!room)
+      .map(toListingCard);
+  }
 
-    return {
-      items: rows.map((room) => {
-        const medias = [...(room.medias ?? [])].sort((a, b) => a.sort_order - b.sort_order);
-        const cover = medias.find((m) => m.is_cover) ?? medias[0];
-        const primaryContact =
-          (room.room_contacts ?? []).find((link) => link.is_primary)?.contact ??
-          room.room_contacts?.[0]?.contact ??
-          null;
-
-        return {
-          id: room.id,
-          listingTitle: room.listing_title,
-          visibility: room.visibility,
-          isScoutRoom: room.is_scout_room,
-          listingSourceCode: room.listing_source?.code ?? null,
-          roomStatusCode: room.room_status?.code ?? null,
-          property: room.property
-            ? {
-                id: room.property.id,
-                name: room.property.name,
-                district: room.property.district,
-                province: room.property.province,
-              }
-            : null,
-          contact: primaryContact
-            ? {
-                id: primaryContact.id,
-                name: primaryContact.name,
-                phone: primaryContact.phone,
-              }
-            : null,
-          propertyOwner: room.property_owner
-            ? {
-                id: room.property_owner.id,
-                name: room.property_owner.name,
-                phone: room.property_owner.phone,
-              }
-            : null,
-          prices: roomPrices(room),
-          coverMediaUrl: cover?.media_url ?? null,
-          roomTypeCode: room.room_type?.code ?? null,
-          availableFromDate: room.available_from_date ?? null,
-          bedroomCount:
-            layoutValue(room, 'bedroom') ??
-            (room.room_type?.bedroom_count != null ? String(room.room_type.bedroom_count) : null),
-          roomSizeSqm: layoutValue(room, 'room_size'),
-          floor: layoutValue(room, 'floor'),
-          ...roomCoordinates(room),
-          updatedAt: room.updated_at?.toISOString?.() ?? null,
-        };
-      }),
-      total,
-      page,
-      limit,
-    };
+  /**
+   * Available scout rooms of the agent nobody has booked, inside any of the lat/lng boxes, whose starting rent fits the budget,
+   * with just the facts scoring needs. Rooms priced only through the legacy JSON column are kept for the scorer.
+   */
+  async matchCandidates(
+    agentId: number,
+    filter: { maxPrice: number; boxes: Array<{ minLat: number; maxLat: number; minLng: number; maxLng: number }> },
+  ): Promise<MatchRoomFacts[]> {
+    if (!filter.boxes.length) return [];
+    const lat = 'CAST(CASE WHEN room.latitude IS NOT NULL AND room.longitude IS NOT NULL THEN room.latitude ELSE property.latitude END AS DOUBLE PRECISION)';
+    const lng = 'CAST(CASE WHEN room.latitude IS NOT NULL AND room.longitude IS NOT NULL THEN room.longitude ELSE property.longitude END AS DOUBLE PRECISION)';
+    const params: Record<string, number> = { agentId, maxPrice: filter.maxPrice };
+    const boxSql = filter.boxes.map((box, i) => {
+      params[`minLat${i}`] = box.minLat;
+      params[`maxLat${i}`] = box.maxLat;
+      params[`minLng${i}`] = box.minLng;
+      params[`maxLng${i}`] = box.maxLng;
+      return `(${lat} BETWEEN :minLat${i} AND :maxLat${i} AND ${lng} BETWEEN :minLng${i} AND :maxLng${i})`;
+    });
+    const idRows = await this.roomsRepo
+      .createQueryBuilder('room')
+      .select('room.id', 'id')
+      .leftJoin('room.property', 'property')
+      .innerJoin('room.room_status', 'roomStatus')
+      .where('room.is_scout_room = TRUE')
+      .andWhere('room.created_by_user_id = :agentId')
+      .andWhere("roomStatus.code = 'available'")
+      // A room one of the agent's leads has booked is taken, whatever its status code still says.
+      .andWhere("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked')")
+      .andWhere(`(${MIN_PRICE_SUBQUERY} IS NULL OR ${MIN_PRICE_SUBQUERY} <= :maxPrice)`)
+      .andWhere(`(${boxSql.join(' OR ')})`)
+      .setParameters(params)
+      .getRawMany<{ id: number }>();
+    const ids = idRows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id));
+    if (!ids.length) return [];
+    const rooms = await this.roomsRepo.find({
+      where: { id: In(ids), created_by_user_id: agentId, is_scout_room: true },
+      relations: { price_rows: { contract_type: true }, property: true, room_type: true },
+    });
+    return rooms.map((room) => ({
+      id: room.id,
+      ...roomCoordinates(room),
+      prices: roomPrices(room).map((p) => ({ termMonths: p.termMonths, price: p.price })),
+      roomTypeCode: room.room_type?.code ?? null,
+      availableFromDate: room.available_from_date ?? null,
+    }));
   }
   async viewMine(agentId: number, id: number) {
     const room = await this.roomsRepo.findOne({

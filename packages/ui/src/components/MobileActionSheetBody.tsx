@@ -22,13 +22,14 @@ export type MobileActionSheetItem = {
 export type MobileActionSheetBodyProps = {
   title?: string;
   actions: MobileActionSheetItem[];
-  cancelLabel: string;
-  onCancel: () => void;
+  /** Optional muted cancel row; sheets close by drag-down or backdrop tap, so most menus omit it. */
+  cancelLabel?: string;
+  onCancel?: () => void;
 };
 
 /**
  * Shared action-list body for MobileBottomSheet (profile photo, room photo menu, etc.).
- * Rows + muted cancel — not stacked outline buttons.
+ * Rows (+ optional muted cancel) — not stacked outline buttons.
  */
 export function MobileActionSheetBody({
   title,
@@ -97,24 +98,26 @@ export function MobileActionSheetBody({
           );
         })}
       </View>
-      <Pressable
-        onPress={onCancel}
-        accessibilityRole="button"
-        accessibilityLabel={cancelLabel}
-        android_ripple={{ color: '#00000014' }}
-        style={({ pressed }) => [
-          styles.cancel,
-          {
-            backgroundColor: isDark ? theme.background : '#F1F5F9',
-            borderColor: tokens.colors.divider,
-            opacity: pressed ? 0.85 : 1,
-          },
-        ]}
-      >
-        <Text style={[styles.rowLabel, styles.cancelLabel, { color: theme.textHeading }]}>
-          {cancelLabel}
-        </Text>
-      </Pressable>
+      {cancelLabel && onCancel ? (
+        <Pressable
+          onPress={onCancel}
+          accessibilityRole="button"
+          accessibilityLabel={cancelLabel}
+          android_ripple={{ color: '#00000014' }}
+          style={({ pressed }) => [
+            styles.cancel,
+            {
+              backgroundColor: isDark ? theme.background : '#F1F5F9',
+              borderColor: tokens.colors.divider,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Text style={[styles.rowLabel, styles.cancelLabel, { color: theme.textHeading }]}>
+            {cancelLabel}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

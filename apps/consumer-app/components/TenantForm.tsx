@@ -1,32 +1,55 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { localizedError, useLocale } from "@nestyk/i18n";
+import {
+  MobileButton,
+  MobileIcon,
+  MobileInput,
+  MobileStatusPill,
+  tokens,
+  useMobileTheme,
+} from "@nestyk/ui/native";
 import type {
   AgentTenant,
   TenantLeadOption,
   TenantRoomOption,
 } from "@nestyk/types";
 import {
-  createAgentTenant,
   tenantLeadOptions,
   tenantRoomOptions,
 } from "../lib/agent-tenants-api";
+import { ReserveRoomSheet } from "./ReserveRoomSheet";
 
+/**
+ * Booking a room from the Clients menu, for the cases a lead's matched-room page cannot reach:
+ * pick the lead, pick the room, then confirm in the same sheet that page uses. The tenant's
+ * details are filled in from the lead there, so nothing is typed here.
+ */
 export function TenantForm({
-  onBack,
   onCreated,
+  onBusy,
+  backRef,
 }: {
-  onBack: () => void;
   onCreated: (tenant: AgentTenant) => void;
+  onBusy?: (busy: boolean) => void;
+  /** Shell header / hardware back: returns true when it stepped back, false on the first step. */
+  backRef?: React.MutableRefObject<(() => boolean) | null>;
 }) {
+  const { t, locale } = useLocale();
+  const c = t.agent.tenants;
+  const viewing = t.agent.leads.viewing;
   const { theme } = useMobileTheme();
   const [step, setStep] = useState(1);
+  const scroll = useRef<ScrollView>(null);
   const [lead, setLead] = useState<TenantLeadOption | null>(null);
   const [room, setRoom] = useState<TenantRoomOption | null>(null);
   const [leads, setLeads] = useState<TenantLeadOption[]>([]);
@@ -35,39 +58,30 @@ export function TenantForm({
   const [roomSearch, setRoomSearch] = useState("");
   const [retry, setRetry] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const saving = useRef(false);
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    email: "",
-    note: "",
-    identityNumber: "",
-    nationality: "",
-  });
+  /** null = loaded; a message (or "" for an unknown failure) = the list could not be read. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const leadId = lead?.id ?? null;
   const title = { color: theme.textHeading };
   const muted = { color: theme.textSecondary };
   const panel = { backgroundColor: theme.surface, borderColor: theme.border };
   useEffect(() => {
-    if (step === 3) return;
     let cancelled = false;
     setLoading(true);
-    setLoadError("");
+    setLoadError(null);
     const timer = setTimeout(async () => {
       try {
         if (step === 1) {
           const data = await tenantLeadOptions(search);
           if (!cancelled) setLeads(data);
         } else {
-          const data = await tenantRoomOptions(roomSearch);
+          const data = await tenantRoomOptions(roomSearch, {
+            leadId: leadId ?? undefined,
+          });
           if (!cancelled) setRooms(data);
         }
       } catch (e) {
-        if (!cancelled)
-          setLoadError(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
+        if (!cancelled) setLoadError(localizedError(e, "", locale));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -76,177 +90,144 @@ export function TenantForm({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [step, search, roomSearch, retry]);
-  const button = (
-    label: string,
-    action: () => void,
-    primary = false,
-    disabled = false,
-  ) => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled: busy || disabled }}
-      disabled={busy || disabled}
-      onPress={action}
-      style={[
-        s.button,
-        {
-          backgroundColor: primary ? "#FFBF19" : theme.surface,
-          borderColor: primary ? "#FFBF19" : theme.border,
-          opacity: busy || disabled ? 0.5 : 1,
-        },
-      ]}
-    >
-      <Text
-        style={[s.body, { color: primary ? "#202631" : theme.textHeading }]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-  function review() {
-    if (!form.firstName.trim() || !form.phone.trim() || !room) {
-      setError("กรุณากรอกชื่อ เบอร์โทร และเลือกห้องที่เช่า");
-      return;
+  }, [step, search, roomSearch, retry, leadId]);
+  // A reloaded list carries the latest number and booking state of the room already picked.
+  useEffect(() => {
+    setRoom(
+      (current) => (current && rooms.find((r) => r.id === current.id)) || current,
+    );
+  }, [rooms]);
+  useEffect(() => {
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
+  useEffect(() => {
+    if (!backRef) return;
+    backRef.current = () => {
+      if (step <= 1) return false;
+      setStep(step - 1);
+      return true;
+    };
+    return () => {
+      backRef.current = null;
+    };
+  }, [backRef, step]);
+  function pickLead(next: TenantLeadOption) {
+    if (lead?.id !== next.id) {
+      setLead(next);
+      setRoom(null);
+      setRooms([]);
+      setRoomSearch("");
     }
-    const digits = form.phone.replace(/\D/g, "");
-    if (
-      !/^[+\d\s().-]+$/.test(form.phone) ||
-      digits.length < 7 ||
-      digits.length > 15
-    ) {
-      setError("กรุณาตรวจสอบเบอร์โทร");
-      return;
-    }
-    if (
-      form.email.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
-    ) {
-      setError("กรุณาตรวจสอบอีเมล");
-      return;
-    }
-    setError("");
-    setStep(3);
+    setStep(2);
   }
-  async function save() {
-    if (saving.current || !lead || !room) return;
-    saving.current = true;
-    setBusy(true);
-    setError("");
-    try {
-      onCreated(
-        await createAgentTenant({
-          leadId: lead.id,
-          rentRoomId: room.id,
-          name: [form.firstName.trim(), form.lastName.trim()].filter(Boolean).join(" "),
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
-          phone: form.phone,
-          email: form.email,
-          note: form.note,
-          identityNumber: form.identityNumber,
-          nationality: form.nationality,
-        }),
-      );
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง",
-      );
-    } finally {
-      saving.current = false;
-      setBusy(false);
-    }
+  function pickRoom(next: TenantRoomOption) {
+    if (next.bookedBy) return;
+    setRoom(next);
+    setConfirming(true);
   }
+  const roomLabel = (r: TenantRoomOption) =>
+    r.room ? viewing.roomNumber.replace("{number}", r.room) : c.roomNoNumber;
+  const steps = [c.stepLead, c.stepRoom];
+  const failed = loadError !== null;
   return (
-    <View style={s.root}>
-      {button(step === 1 ? "← กลับไปหน้าผู้เช่า" : "← ย้อนกลับ", () => {
-        setError("");
-        if (step === 1) onBack();
-        else setStep(step - 1);
-      })}
-      <Text style={[s.heading, title]}>สร้างผู้เช่า</Text>
-      <Text style={[s.body, muted]}>
-        นำข้อมูลจาก Lead มาต่อยอดเป็นผู้เช่าของคุณ
-      </Text>
-      <View style={s.steps}>
-        {["เลือก Lead", "ข้อมูลผู้เช่า", "ตรวจสอบ"].map((label, i) => (
-          <View
-            key={label}
-            style={[
-              s.step,
-              { borderBottomColor: step === i + 1 ? "#FFBF19" : theme.border },
-            ]}
-          >
-            <Text style={[s.small, step === i + 1 ? title : muted]}>
-              {i + 1}. {label}
-            </Text>
-          </View>
-        ))}
-      </View>
-      {!!error && (
-        <Text accessibilityRole="alert" style={[s.body, { color: "#C43D4C" }]}>
-          {error}
-        </Text>
-      )}
-      {step !== 3 && (
-        <>
-          {!!loadError && (
-            <View style={[s.panel, panel]}>
-              <Text
-                accessibilityRole="alert"
-                style={[s.body, { color: "#C43D4C" }]}
+    <KeyboardAvoidingView
+      style={s.fill}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <View style={s.tabsWrap}>
+        <View
+          style={[s.tabs, { borderColor: theme.border }]}
+          accessibilityRole="tablist"
+        >
+          {steps.map((label, i) => {
+            const n = i + 1;
+            const on = step === n;
+            const done = n < step;
+            return (
+              <Pressable
+                key={label}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on, disabled: !done }}
+                disabled={!done}
+                onPress={() => setStep(n)}
+                android_ripple={{ color: tokens.colors.brand[100], borderless: false }}
+                style={({ pressed }) => [
+                  s.tab,
+                  on && s.tabOn,
+                  pressed && Platform.OS === "ios" && s.tabPressed,
+                ]}
               >
-                {loadError}
-              </Text>
-              {button("ลองโหลดอีกครั้ง", () => setRetry((n) => n + 1))}
-            </View>
-          )}
-        </>
+                <Text
+                  style={[
+                    s.tabText,
+                    {
+                      color: on
+                        ? tokens.colors.primary
+                        : done
+                          ? theme.textHeading
+                          : theme.textSecondary,
+                    },
+                    on && s.tabTextOn,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {n}. {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      <ScrollView
+        ref={scroll}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={s.form}
+      >
+      <Text style={[s.body, muted]}>
+        {step === 2 && lead ? c.roomFor.replace("{name}", lead.name) : c.pickIntro}
+      </Text>
+      {failed && (
+        <View style={[s.panel, panel]}>
+          <Text
+            accessibilityRole="alert"
+            style={[s.body, { color: tokens.colors.danger }]}
+          >
+            {loadError || c.loadError}
+          </Text>
+          <MobileButton variant="outline" onPress={() => setRetry((n) => n + 1)}>
+            {c.retry}
+          </MobileButton>
+        </View>
       )}
       {step === 1 && (
         <>
           <MobileInput
             value={search}
             onChangeText={setSearch}
-            placeholder="ค้นหาชื่อหรือเบอร์โทรของ Lead"
+            placeholder={c.leadSearch}
           />
-          <Text style={[s.small, muted]}>
-            แสดงสูงสุด 30 รายการ · เฉพาะ Lead
-            ที่ยังไม่ได้เป็นผู้เช่าและยังไม่ปิดเป็นไม่สำเร็จ
-          </Text>
+          <Text style={[s.small, muted]}>{c.leadListHint}</Text>
           {loading ? (
             <ActivityIndicator />
           ) : (
-            !loadError && (
+            !failed && (
               <>
                 {leads.map((l) => (
                   <Pressable
                     key={l.id}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: lead?.id === l.id }}
-                    onPress={() => {
-                      if (lead?.id !== l.id) {
-                        setLead(l);
-                        setForm({
-                          firstName: l.firstName || l.name.trim().split(/\s+/)[0] || "",
-                          lastName:
-                            l.lastName ||
-                            l.name.trim().split(/\s+/).slice(1).join(" "),
-                          phone: l.phone,
-                          email: l.email || "",
-                          note: "",
-                          identityNumber: "",
-                          nationality: l.nationality || "",
-                        });
-                      }
-                    }}
-                    style={[
+                    onPress={() => pickLead(l)}
+                    android_ripple={{ color: tokens.colors.brand[100], borderless: false }}
+                    style={({ pressed }) => [
                       s.panel,
+                      s.row,
                       panel,
                       lead?.id === l.id && {
                         borderColor: "#FFBF19",
                         borderWidth: 2,
                       },
+                      pressed && Platform.OS === "ios" && s.rowPressed,
                     ]}
                   >
                     <Text style={[s.subtitle, title]}>
@@ -258,184 +239,158 @@ export function TenantForm({
                 ))}
                 {!leads.length && (
                   <Text style={[s.body, muted]}>
-                    {search
-                      ? "ไม่พบ Lead ที่ตรงกับคำค้นหา"
-                      : "ยังไม่มี Lead ให้เลือก กรุณาสร้าง Lead ในเมนู Leads ก่อน"}
+                    {search ? c.leadNoMatch : c.leadEmpty}
                   </Text>
                 )}
               </>
             )
           )}
-          {lead && <Text style={[s.small, muted]}>เลือกแล้ว: {lead.name}</Text>}
-          {button(
-            "ถัดไป · ข้อมูลผู้เช่า",
-            () => setStep(2),
-            true,
-            !lead || loading || !!loadError,
-          )}
         </>
       )}
       {step === 2 && (
         <>
-          <View style={[s.panel, panel]}>
-            <Text style={[s.subtitle, title]}>ข้อมูลติดต่อ</Text>
-            <Text style={[s.small, muted]}>
-              ดึงจาก {lead?.name} · แก้ไขข้อมูลผู้เช่าได้โดยข้อมูล Lead
-              เดิมยังอยู่
-            </Text>
-            {(
-              [
-                ["firstName", "ชื่อ *", "ชื่อ"],
-                ["lastName", "นามสกุล", "ไม่บังคับ"],
-                ["phone", "เบอร์โทร *", "เบอร์โทรที่ติดต่อได้"],
-                ["email", "อีเมล", "name@example.com"],
-                [
-                  "identityNumber",
-                  "เลขบัตรประชาชน / พาสปอร์ต",
-                  "เช่น 1-2345-67890-12-3 หรือ A1234567",
-                ],
-                ["nationality", "สัญชาติ", "เช่น ไทย"],
-                ["note", "หมายเหตุ", "ข้อมูลเพิ่มเติมเกี่ยวกับผู้เช่า"],
-              ] as const
-            ).map(([key, label, placeholder]) => (
-              <View key={key} style={{ gap: 6 }}>
-                <Text style={[s.body, title]}>{label}</Text>
-                <MobileInput
-                  accessibilityLabel={label}
-                  value={form[key]}
-                  onChangeText={(value) =>
-                    setForm((current) => ({ ...current, [key]: value }))
-                  }
-                  placeholder={placeholder}
-                  maxLength={
-                    key === "note"
-                      ? 500
-                      : key === "phone"
-                        ? 50
-                        : key === "identityNumber"
-                          ? 100
-                          : key === "nationality"
-                            ? 120
-                            : 255
-                  }
-                  keyboardType={
-                    key === "phone"
-                      ? "phone-pad"
-                      : key === "email"
-                        ? "email-address"
-                        : "default"
-                  }
-                  autoCapitalize={
-                    key === "email" || key === "identityNumber"
-                      ? "none"
-                      : "sentences"
-                  }
-                />
-              </View>
-            ))}
-          </View>
-          <View style={[s.panel, panel]}>
-            <Text style={[s.subtitle, title]}>ห้องที่เลือกเช่า *</Text>
-            <MobileInput
-              value={roomSearch}
-              onChangeText={setRoomSearch}
-              placeholder="ค้นหาโครงการหรือเลขห้อง"
-            />
-            <Text style={[s.small, muted]}>
-              แสดงสูงสุด 30 ห้อง · ค้นหาเพื่อเลือกห้องอื่น
-            </Text>
-            {loading ? (
-              <ActivityIndicator />
-            ) : (
-              !loadError &&
-              rooms.map((r) => (
-                <Pressable
-                  key={r.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: room?.id === r.id }}
-                  onPress={() => setRoom(r)}
-                  style={[
-                    s.room,
-                    {
-                      borderColor: room?.id === r.id ? "#FFBF19" : theme.border,
-                    },
-                  ]}
-                >
-                  <Text style={[s.body, title]}>
-                    {room?.id === r.id ? "● " : "○ "}
-                    {r.property}
-                  </Text>
-                  <Text style={[s.small, muted]}>
-                    {r.room ? `ห้อง ${r.room}` : `รายการห้อง #${r.id}`}
-                  </Text>
-                </Pressable>
-              ))
-            )}
-            {!loading && !loadError && !rooms.length && (
-              <Text style={[s.body, muted]}>
-                ไม่พบห้อง ลองเปลี่ยนคำค้นหาหรือเพิ่มห้องในเมนูห้องก่อน
-              </Text>
-            )}
-            {room && (
-              <Text style={[s.small, muted]}>
-                เลือกแล้ว: {room.property} · {room.room || `#${room.id}`}
-              </Text>
-            )}
-          </View>
-          {button("ตรวจสอบข้อมูล", review, true)}
-        </>
-      )}
-      {step === 3 && (
-        <>
-          <View style={[s.panel, panel]}>
-            <Text style={[s.subtitle, title]}>ตรวจสอบก่อนสร้างผู้เช่า</Text>
-            {(
-              [
-                ["Lead ต้นทาง", lead?.name],
-                ["ชื่อ", form.firstName],
-                ["นามสกุล", form.lastName || "ไม่ระบุ"],
-                ["เบอร์โทร", form.phone],
-                ["อีเมล", form.email || "ไม่ระบุ"],
-                [
-                  "เลขบัตรประชาชน / พาสปอร์ต",
-                  form.identityNumber || "ไม่ระบุ",
-                ],
-                ["สัญชาติ", form.nationality || "ไม่ระบุ"],
-                [
-                  "ห้องที่เลือก",
-                  `${room?.property} · ${room?.room || `#${room?.id}`}`,
-                ],
-                ["หมายเหตุ", form.note || "ไม่ระบุ"],
-              ] as const
-            ).map(([label, value]) => (
-              <View key={label} style={{ gap: 3 }}>
-                <Text style={[s.small, muted]}>{label}</Text>
-                <Text style={[s.body, title]}>{value}</Text>
-              </View>
-            ))}
-          </View>
-          <Text style={[s.small, muted]}>
-            เมื่อบันทึก Lead จะเป็นสถานะจองแล้ว และเชื่อมกับผู้เช่าคนนี้
-            คุณสามารถสร้างสัญญาในขั้นถัดไปได้
-          </Text>
-          {button(
-            busy ? "กำลังบันทึก…" : "ยืนยันสร้างผู้เช่า",
-            () => {
-              void save();
-            },
-            true,
+          <MobileInput
+            value={roomSearch}
+            onChangeText={setRoomSearch}
+            placeholder={c.roomSearch}
+          />
+          <Text style={[s.small, muted]}>{c.roomListHint}</Text>
+          {loading ? (
+            <ActivityIndicator />
+          ) : (
+            !failed &&
+            rooms.map((r) => (
+              <Pressable
+                key={r.id}
+                accessibilityRole="radio"
+                accessibilityState={{
+                  checked: room?.id === r.id,
+                  disabled: !!r.bookedBy,
+                }}
+                disabled={!!r.bookedBy}
+                onPress={() => pickRoom(r)}
+                android_ripple={{ color: tokens.colors.brand[100], borderless: false }}
+                style={({ pressed }) => [
+                  s.room,
+                  s.row,
+                  panel,
+                  room?.id === r.id && { borderColor: "#FFBF19", borderWidth: 2 },
+                  !!r.bookedBy && s.roomTaken,
+                  pressed && Platform.OS === "ios" && s.rowPressed,
+                ]}
+              >
+                <Text style={[s.body, title]}>
+                  {room?.id === r.id ? "● " : "○ "}
+                  {r.property}
+                </Text>
+                <Text style={[s.small, muted]}>{roomLabel(r)}</Text>
+                {r.bookedBy ? (
+                  <MobileStatusPill
+                    label={c.roomBookedBy.replace("{name}", r.bookedBy)}
+                    tone="red"
+                    style={s.pill}
+                  />
+                ) : r.viewed ? (
+                  <MobileStatusPill label={c.roomViewed} tone="purple" />
+                ) : null}
+              </Pressable>
+            ))
+          )}
+          {!loading && !failed && !rooms.length && (
+            <Text style={[s.body, muted]}>{c.roomEmpty}</Text>
           )}
         </>
       )}
-    </View>
+      </ScrollView>
+      <View
+        style={[
+          s.footer,
+          { backgroundColor: theme.surface, borderTopColor: theme.border },
+        ]}
+      >
+        <View style={s.footerRow}>
+          {step > 1 && (
+            <MobileButton
+              variant="outline"
+              onPress={() => setStep(step - 1)}
+              style={s.backButton}
+            >
+              {c.back}
+            </MobileButton>
+          )}
+          {step === 1 ? (
+            <MobileButton
+              onPress={() => setStep(2)}
+              disabled={!lead}
+              style={s.primaryButton}
+            >
+              <Text style={s.primaryText}>{c.next}</Text>
+            </MobileButton>
+          ) : (
+            <MobileButton
+              onPress={() => setConfirming(true)}
+              disabled={!room || !!room.bookedBy}
+              style={s.primaryButton}
+            >
+              <View style={s.primaryInner}>
+                <MobileIcon name="check" size={18} color={tokens.colors.primary} />
+                <Text style={s.primaryText}>{viewing.reserve}</Text>
+              </View>
+            </MobileButton>
+          )}
+        </View>
+      </View>
+      <ReserveRoomSheet
+        visible={confirming}
+        lead={lead}
+        room={room}
+        showBookedState={false}
+        onBusy={onBusy}
+        onClose={() => setConfirming(false)}
+        onReserved={(tenant) => {
+          setConfirming(false);
+          onCreated(tenant);
+        }}
+      />
+    </KeyboardAvoidingView>
   );
 }
 const s = StyleSheet.create({
-  root: { gap: 16, width: "100%", maxWidth: 760, alignSelf: "center" },
-  heading: {
+  fill: { flex: 1 },
+  tabsWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  tabs: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    backgroundColor: "#F1F5F9",
+  },
+  tab: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    overflow: "hidden",
+  },
+  tabOn: { backgroundColor: tokens.colors.brand[500] },
+  tabPressed: { opacity: 0.7 },
+  tabText: {
     fontFamily: tokens.typography.native.headingTh,
-    fontSize: 25,
-    lineHeight: 36,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  tabTextOn: { fontWeight: "600" },
+  form: {
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
+    padding: 16,
+    paddingTop: 12,
+    gap: 16,
+    paddingBottom: 24,
   },
   subtitle: {
     fontFamily: tokens.typography.native.headingTh,
@@ -454,12 +409,26 @@ const s = StyleSheet.create({
   },
   panel: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
   room: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
-  steps: { flexDirection: "row", gap: 8 },
-  step: { flex: 1, paddingBottom: 10, borderBottomWidth: 3 },
-  button: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 13,
-    alignItems: "center",
+  roomTaken: { opacity: 0.6 },
+  // Rows are pressable: clip the Android ripple to the rounded card, dim on iOS.
+  row: { overflow: "hidden" },
+  rowPressed: { opacity: 0.7 },
+  pill: { maxWidth: 240 },
+  footer: {
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    gap: 8,
+  },
+  footerRow: { flexDirection: "row", gap: 10 },
+  backButton: { flex: 1, minHeight: 50, borderRadius: 12 },
+  primaryButton: { flex: 2, minHeight: 50, borderRadius: 12 },
+  primaryInner: { flexDirection: "row", alignItems: "center", gap: 8 },
+  primaryText: {
+    fontFamily: tokens.typography.native.headingTh,
+    fontSize: 16,
+    lineHeight: 24,
+    color: tokens.colors.primary,
   },
 });

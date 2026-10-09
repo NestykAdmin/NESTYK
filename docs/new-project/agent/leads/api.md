@@ -14,7 +14,13 @@ Base: `/agent/leads` · Auth: Bearer JWT + role `agent`
 
 Query: `rentRoomId`, `status`, `q` (name/phone), `sort`, `page`, `limit`
 
-`sort`: `created_desc` (default) | `created_asc` | `updated_desc` | `name_asc` | `budget_asc` | `budget_desc` | `status_asc` | `status_desc`
+`sort`: `updated_desc` (default) | `created_desc` | `created_asc` | `name_asc` | `budget_asc` | `budget_desc` | `status_asc` | `status_desc`
+
+`leads.updated_at` moves on every lead edit, status change and match-settings save (TypeORM `@UpdateDateColumn`), and also when a match run is stored (`POST /agent/leads/:id/match-runs`) and when a viewing is booked or changed (`POST /agent/leads/:id/viewings`, `PATCH /agent/viewings/:id` — move, cancel or note), in the same transaction. Clearing match results does not move it.
+
+`status` (สถานะที่แสดง): `new` | `inprogress` | `viewing` | `booked` | `lost` — ค่าอื่นได้ 400 · `viewing` = ลีด `new` / `inprogress` ที่มีนัด `scheduled` ที่ยังไม่ถึงเวลา และ `new` / `inprogress` **ไม่รวม** ลีดเหล่านั้น (ตรงกับป้ายในแถว) — SQL `DISPLAY_STATUS_SQL` ใน `agent-leads.service.ts`
+
+Response มี `statusCounts` = `{ new, inprogress, viewing, booked, lost }` นับตามคำค้นและตัวกรองทำเลเดียวกัน แต่**ไม่รวม** `status` (ใช้แสดงตัวเลขบนชิปสถานะทุกตัว; "ทั้งหมด" = ผลรวม)
 
 ---
 

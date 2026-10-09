@@ -2,6 +2,8 @@ import React from "react";
 import { Pressable, Text, View } from "react-native";
 import { tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentContract } from "@nestyk/types";
+import { fillTemplate, useLocale } from "@nestyk/i18n";
+import { localeTag } from "../lib/lead-format";
 
 export function bookingInvoicesForTenant(
   contracts: AgentContract[],
@@ -26,6 +28,8 @@ export function BookingInvoiceListCard({
   onOpen: () => void;
 }) {
   const { theme } = useMobileTheme();
+  const { t, locale } = useLocale();
+  const tc = t.contracts;
   const payment = contract.reservationPayment;
   if (!payment || !contract.invoiceUrl) return null;
   const text = {
@@ -38,7 +42,7 @@ export function BookingInvoiceListCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`ดูใบแจ้งหนี้ค่าจอง ${payment.invoiceDocumentNo}`}
+      accessibilityLabel={`${tc.payment.viewInvoice} ${payment.invoiceDocumentNo}`}
       disabled={busy}
       onPress={onOpen}
       style={({ pressed }) => ({
@@ -55,16 +59,16 @@ export function BookingInvoiceListCard({
         {payment.invoiceDocumentNo}
       </Text>
       <Text style={{ ...text, color: theme.textHeading }}>{contract.tenant}</Text>
-      <Text style={text}>ค่าจอง · ผูกกับหนังสือจอง {contract.contractNo}</Text>
+      <Text style={text}>{fillTemplate(tc.payment.linkedFee, { no: contract.contractNo })}</Text>
       <Text style={text}>
-        {contract.property}{contract.room ? ` · ห้อง ${contract.room}` : ""}
+        {contract.property}{contract.room ? ` · ${fillTemplate(tc.common.room, { room: contract.room })}` : ""}
       </Text>
       <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
         <Text style={text}>
-          ฿{payment.total.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          ฿{payment.total.toLocaleString(localeTag(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
         <Text style={{ ...text, color: payment.status === "paid" ? "#198460" : "#B45309" }}>
-          {closed ? "หนังสือจองปิดแล้ว" : payment.status === "paid" ? "ชำระแล้ว" : payment.status === "submitted" ? "ส่งสลิปแล้ว · รอตรวจสอบ" : "รอชำระเงิน"}
+          {closed ? tc.payment.closed : payment.status === "paid" ? tc.payment.status.paid : payment.status === "submitted" ? tc.payment.submittedShort : tc.payment.unpaidShort}
         </Text>
       </View>
     </Pressable>

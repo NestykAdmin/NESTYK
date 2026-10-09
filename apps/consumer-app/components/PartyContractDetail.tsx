@@ -30,7 +30,9 @@ import {
 } from "./ContractSignaturePad";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
-import { bookingPaymentBlocksSigning, BOOKING_PAYMENT_BEFORE_SIGNING } from "../lib/contract-signing";
+import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
+import { localeTag } from "../lib/lead-format";
+import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
 
 const CONTRACT_ICON: Record<PartyContract["formKind"], AppIconName> = {
   reservation: "calendar",
@@ -38,23 +40,7 @@ const CONTRACT_ICON: Record<PartyContract["formKind"], AppIconName> = {
   broker_appointment: "handshake",
 };
 
-const PARTY_LABEL = {
-  owner: "ผู้ให้เช่า",
-  tenant: "ผู้เช่า",
-  agent: "นายหน้า",
-} as const;
-
-const STATUS_LABEL: Record<PartyContract["status"], string> = {
-  draft: "ฉบับร่าง",
-  awaiting_signatures: "รอลงนาม",
-  awaiting_agent_review: "รอตรวจสัญญา",
-  awaiting_payment: "รอชำระเงิน",
-  awaiting_payment_verification: "รอตรวจชำระเงิน",
-  active: "มีผลแล้ว",
-  cancelled: "ยกเลิก",
-  expired: "หมดอายุ",
-  terminated: "สิ้นสุดสัญญา",
-};
+type SignerKey = "owner" | "tenant" | "agent";
 
 function statusColor(status: PartyContract["status"]) {
   if (status === "active") return "#278268";
@@ -62,29 +48,13 @@ function statusColor(status: PartyContract["status"]) {
   return "#788193";
 }
 
-function money(value: number | null) {
-  return value == null
-    ? "ยังไม่ระบุ"
-    : `฿${value.toLocaleString("th-TH", { maximumFractionDigits: 2 })}`;
-}
-
-function dateLabel(value: string | null) {
-  return value
-    ? new Date(`${value}T00:00:00`).toLocaleDateString("th-TH", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "ยังไม่ระบุ";
-}
-
-function signerKeys(row: PartyContract): Array<keyof typeof PARTY_LABEL> {
+function signerKeys(row: PartyContract): SignerKey[] {
   if (row.formKind === "lease") return ["owner", "tenant"];
   if (row.formKind === "broker_appointment") return ["owner", "agent"];
   return ["owner", "tenant", "agent"];
 }
 
-function signedAt(row: PartyContract, party: keyof typeof PARTY_LABEL) {
+function signedAt(row: PartyContract, party: SignerKey) {
   if (party === "owner") return row.ownerSignedAt;
   if (party === "tenant") return row.tenantSignedAt;
   return row.agentSignedAt;
@@ -108,6 +78,22 @@ export function PartyContractDetail({
   onUpdated: (next: PartyContract) => void;
 }) {
   const { theme } = useMobileTheme();
+  const { t, locale } = useLocale();
+  const pc = t.mobile.partyContracts;
+  const tc = t.contracts;
+  const money = (value: number | null) =>
+    value == null
+      ? tc.common.notSpecified
+      : `฿${value.toLocaleString(localeTag(locale), { maximumFractionDigits: 2 })}`;
+  const dateLabel = (value: string | null) =>
+    value
+      ? new Date(`${value}T00:00:00`).toLocaleDateString(localeTag(locale), {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : tc.common.notSpecified;
+  const fileTooLarge = t.common.fileTooLarge.replace("{size}", "10");
   const [attachments, setAttachments] = useState<AgreementAttachmentChecklist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -140,7 +126,7 @@ export function PartyContractDetail({
       })
       .catch((e) => {
         if (!cancelled)
-          setError(e instanceof Error && e.message ? e.message : "โหลดเอกสารไม่สำเร็จ");
+          setError(localizedError(e, pc.loadDocumentsFailed, locale));
       })
       .finally(() => {
         if (!cancelled) {
@@ -175,7 +161,7 @@ export function PartyContractDetail({
       if (result.canceled) return;
       const file = result.assets[0];
       if (file.size && file.size > 10 * 1024 * 1024)
-        throw new Error("ไฟล์ต้องไม่เกิน 10 MB");
+        throw new Error(fileTooLarge);
       setBusy(true);
       setAttachments(
         await uploadMyAttachment(
@@ -189,9 +175,9 @@ export function PartyContractDetail({
           },
         ),
       );
-      setNotice("แนบเอกสารแล้ว");
+      setNotice(pc.attached);
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : "แนบเอกสารไม่สำเร็จ");
+      setError(localizedError(e, pc.attachFailed, locale));
     } finally {
       setBusy(false);
       setPicking(null);
@@ -201,7 +187,7 @@ export function PartyContractDetail({
   async function openDocument() {
     setPreviewBusy(true);
     setError("");
-    setPreviewTitle("เอกสารสัญญา");
+    setPreviewTitle(tc.party.contractDocument);
     try {
       const ready =
         contract.formKind === "reservation"
@@ -216,7 +202,7 @@ export function PartyContractDetail({
       const doc = await openMyContractDocument(contract.id);
       setPreviewUrl(doc.url);
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : "เปิดสัญญาไม่สำเร็จ");
+      setError(localizedError(e, pc.openContractFailed, locale));
     } finally {
       setPreviewBusy(false);
     }
@@ -225,12 +211,12 @@ export function PartyContractDetail({
   async function openFile(documentId: number) {
     setBusy(true);
     setError("");
-    setPreviewTitle("เอกสารแนบ");
+    setPreviewTitle(tc.party.attachment);
     try {
       const doc = await openMyAttachment(contract.id, documentId);
       setPreviewUrl(doc.url);
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : "เปิดเอกสารไม่สำเร็จ");
+      setError(localizedError(e, pc.openDocumentFailed, locale));
     } finally {
       setBusy(false);
     }
@@ -241,10 +227,10 @@ export function PartyContractDetail({
     setError("");
     try {
       const doc = await openMyFinancialDocument(contract.id, kind);
-      setPreviewTitle(kind === "invoice" ? "ใบแจ้งหนี้ค่าจอง" : kind === "receipt" ? "ใบเสร็จค่าจอง" : "สลิปชำระค่าจอง");
+      setPreviewTitle(kind === "invoice" ? tc.common.paymentDocuments.invoice : kind === "receipt" ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip);
       setPreviewUrl(doc.url);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "เปิดเอกสารไม่สำเร็จ");
+      setError(localizedError(e, pc.openDocumentFailed, locale));
     } finally {
       setPreviewBusy(false);
     }
@@ -264,25 +250,25 @@ export function PartyContractDetail({
       let file: { uri: string; name: string; mimeType: string; file?: File };
       if (source === "photos") {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) throw new Error("กรุณาอนุญาตให้เข้าถึงรูปภาพเพื่อแนบสลิป");
+        if (!permission.granted) throw new Error(pc.slipPermission);
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsMultipleSelection: false, quality: 1, preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible });
         if (result.canceled) return;
         const asset = result.assets[0];
-        if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) throw new Error("ไฟล์ต้องไม่เกิน 10 MB");
+        if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) throw new Error(fileTooLarge);
         file = { uri: asset.uri, name: asset.fileName || "slip.jpg", mimeType: asset.mimeType || "image/jpeg", file: asset.file };
       } else {
         const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/jpeg", "image/png"], copyToCacheDirectory: true, multiple: false });
         if (result.canceled) return;
         const asset = result.assets[0];
-        if (asset.size && asset.size > 10 * 1024 * 1024) throw new Error("ไฟล์ต้องไม่เกิน 10 MB");
+        if (asset.size && asset.size > 10 * 1024 * 1024) throw new Error(fileTooLarge);
         file = { uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? "application/octet-stream", file: asset.file };
       }
       setBusy(true);
       const updated = await uploadMyReservationPaymentSlip(contract.id, file);
       onUpdated(updated);
-      setNotice("ส่งสลิปแล้ว รอเอเจนต์ตรวจสอบและออกใบเสร็จ");
+      setNotice(pc.slipSent);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "อัปโหลดสลิปไม่สำเร็จ");
+      setError(localizedError(e, pc.slipUploadFailed, locale));
     } finally {
       setBusy(false);
       setPicking(null);
@@ -292,7 +278,7 @@ export function PartyContractDetail({
   async function submit(image: string) {
     if (!signing || busy) return;
     if (bookingPaymentBlocksSigning(contract, signing)) {
-      setError(BOOKING_PAYMENT_BEFORE_SIGNING);
+      setError(pc.bookingPaymentBeforeSigning);
       return;
     }
     setBusy(true);
@@ -301,9 +287,9 @@ export function PartyContractDetail({
       const saved = await signMyContract(contract.id, signing, image);
       onUpdated(saved);
       setSigning(null);
-      setNotice("บันทึกลายเซ็นแล้ว");
+      setNotice(pc.signed);
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : "ลงนามไม่สำเร็จ");
+      setError(localizedError(e, pc.signFailed, locale));
     } finally {
       setBusy(false);
     }
@@ -337,7 +323,7 @@ export function PartyContractDetail({
           <Text style={[styles.heading, title, styles.flex]}>{contract.property}</Text>
           <View style={[styles.badge, { backgroundColor: `${statusColor(contract.status)}15` }]}>
             <Text style={[styles.badgeLabel, { color: statusColor(contract.status) }]}>
-              {STATUS_LABEL[contract.status]}
+              {tc.common.status[contract.status]}
             </Text>
           </View>
         </View>
@@ -346,26 +332,26 @@ export function PartyContractDetail({
             <MobileIcon name={CONTRACT_ICON[contract.formKind]} size={18} color={accentColor} />
           </View>
           <Text style={[styles.copy, title, styles.contractNoText]}>
-            เลขที่สัญญา {contract.contractNo}
+            {fillTemplate(tc.common.contractNo, { no: contract.contractNo })}
           </Text>
         </View>
         <Text style={[styles.copy, body]}>
           {contract.tenant}
-          {contract.room ? ` · ห้อง ${contract.room}` : ""}
+          {contract.room ? ` · ${fillTemplate(tc.common.room, { room: contract.room })}` : ""}
         </Text>
         <Text style={[styles.copy, body]}>
-          {contract.agreementTypeName}
+          {locale === "th" ? contract.agreementTypeName : tc.common.kinds[contract.formKind]}
           {contract.formKind === "reservation"
-            ? ` · เงินจอง ${money(contract.reservationFee)}`
+            ? ` · ${fillTemplate(tc.common.reservationFee, { amount: money(contract.reservationFee) })}`
             : contract.formKind === "lease"
-              ? ` · ค่าเช่า ${money(contract.monthlyRent)}`
+              ? ` · ${fillTemplate(tc.common.rent, { amount: money(contract.monthlyRent) })}`
               : ""}
         </Text>
         <Text style={[styles.copy, body]}>
           {contract.formKind === "reservation"
-            ? `วันที่จอง ${dateLabel(contract.bookingDate)} · วันที่เข้าอยู่ ${dateLabel(contract.moveInDate)}`
+            ? fillTemplate(tc.common.bookingAndMoveIn, { booking: dateLabel(contract.bookingDate), moveIn: dateLabel(contract.moveInDate) })
             : contract.formKind === "broker_appointment"
-              ? `วันที่ ${dateLabel(contract.startDate)}`
+              ? fillTemplate(tc.common.dated, { date: dateLabel(contract.startDate) })
               : `${dateLabel(contract.startDate)} – ${dateLabel(contract.endDate)}`}
         </Text>
         <MobileButton
@@ -374,7 +360,7 @@ export function PartyContractDetail({
           isLoading={previewBusy}
           onPress={() => void openDocument()}
         >
-          ดูเอกสารสัญญา
+          {tc.party.viewContractDocument}
         </MobileButton>
       </View>
 
@@ -388,10 +374,10 @@ export function PartyContractDetail({
       )}
 
       <View style={[styles.card, card]}>
-        <Text style={[styles.contractNo, title]}>เอกสารที่จำเป็นของฉัน</Text>
+        <Text style={[styles.contractNo, title]}>{tc.party.myDocuments}</Text>
         {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
         {!loading && !ownRequirements.length ? (
-          <Text style={[styles.copy, body]}>ไม่มีเอกสารที่ฝ่ายคุณต้องแนบ</Text>
+          <Text style={[styles.copy, body]}>{tc.party.noMyDocuments}</Text>
         ) : null}
         {ownRequirements.map((requirement) => {
           const doc = attachments?.documents.find(
@@ -406,7 +392,7 @@ export function PartyContractDetail({
                 attachments?.documentTypes.find((type) => type.code === code)?.nameTh ??
                 code,
             )
-            .join(" หรือ ");
+            .join(tc.common.or);
           return (
             <View key={requirement.groupKey} style={styles.requirement}>
               <Text style={[styles.copy, title]}>
@@ -420,7 +406,7 @@ export function PartyContractDetail({
                   disabled={busy || refreshing}
                   onPress={() => void openFile(doc.id)}
                 >
-                  ดู {doc.fileName}
+                  {fillTemplate(tc.common.viewFile, { name: doc.fileName })}
                 </MobileButton>
               ) : null}
               {attachments?.editable ? (
@@ -440,7 +426,7 @@ export function PartyContractDetail({
                     setPicking(requirement.groupKey);
                   }}
                 >
-                  {doc ? "อัปโหลดใหม่" : "แนบเอกสาร"}
+                  {doc ? tc.common.reupload : tc.common.attach}
                 </MobileButton>
               ) : null}
               {picking === requirement.groupKey ? (
@@ -467,23 +453,23 @@ export function PartyContractDetail({
       </View>
 
       <View style={[styles.card, card]}>
-        <Text style={[styles.contractNo, title]}>การลงนาม</Text>
+        <Text style={[styles.contractNo, title]}>{tc.party.signing}</Text>
         {signerKeys(contract).map((party) => {
           const signed = signedAt(contract, party);
           return (
             <Text key={party} style={[styles.copy, signed ? styles.signed : body]}>
-              {PARTY_LABEL[party]}
-              {signed ? " · ลงนามแล้ว" : " · ยังไม่ลงนาม"}
+              {tc.common.parties[party]}
+              {signed ? tc.common.signedSuffix : tc.common.unsignedSuffix}
             </Text>
           );
         })}
         {signParty && attachments && !partyReady ? (
-          <Text style={[styles.copy, body]}>แนบเอกสารของคุณให้ครบก่อนลงนาม</Text>
+          <Text style={[styles.copy, body]}>{tc.party.attachMineFirst}</Text>
         ) : null}
         {signParty ? (
           <>
             {paymentBlocksSigning && (
-              <Text style={[styles.copy, body]}>{BOOKING_PAYMENT_BEFORE_SIGNING}</Text>
+              <Text style={[styles.copy, body]}>{pc.bookingPaymentBeforeSigning}</Text>
             )}
             <MobileButton
               disabled={busy || refreshing || loading || !attachments || !partyReady || paymentBlocksSigning}
@@ -494,7 +480,7 @@ export function PartyContractDetail({
                 setSigning(signParty);
               }}
             >
-              ลงนาม{PARTY_LABEL[signParty]}
+              {fillTemplate(tc.common.signAs, { party: tc.common.parties[signParty] })}
             </MobileButton>
           </>
         ) : null}
@@ -502,10 +488,10 @@ export function PartyContractDetail({
 
       <MobileBottomSheet visible={slipSourceOpen} onClose={() => setSlipSourceOpen(false)} maxHeight="50%">
         <View style={{ gap: 12, padding: 16 }}>
-          <Text style={[styles.contractNo, title]}>แนบสลิปชำระค่าจอง</Text>
-          <MobileButton onPress={() => chooseSlipSource("photos")}>เลือกจากรูปภาพ</MobileButton>
-          <MobileButton variant="outline" onPress={() => chooseSlipSource("documents")}>เลือกจากไฟล์</MobileButton>
-          <MobileButton variant="outline" onPress={() => setSlipSourceOpen(false)}>ยกเลิก</MobileButton>
+          <Text style={[styles.contractNo, title]}>{tc.party.slipTitle}</Text>
+          <MobileButton onPress={() => chooseSlipSource("photos")}>{tc.party.fromPhotos}</MobileButton>
+          <MobileButton variant="outline" onPress={() => chooseSlipSource("documents")}>{tc.party.fromFiles}</MobileButton>
+          <MobileButton variant="outline" onPress={() => setSlipSourceOpen(false)}>{tc.common.cancel}</MobileButton>
         </View>
       </MobileBottomSheet>
 
@@ -518,7 +504,7 @@ export function PartyContractDetail({
         <View style={styles.previewHeader}>
           <Text style={[styles.contractNo, title]}>{previewTitle} · {contract.contractNo}</Text>
           <MobileButton variant="outline" onPress={() => setPreviewUrl(null)}>
-            ปิด
+            {tc.common.close}
           </MobileButton>
         </View>
         {previewUrl ? (
@@ -536,12 +522,12 @@ export function PartyContractDetail({
       >
         {signing ? (
           <>
-            <Text style={[styles.heading, title]}>ลงนาม{PARTY_LABEL[signing]}</Text>
+            <Text style={[styles.heading, title]}>{fillTemplate(tc.common.signAs, { party: tc.common.parties[signing] })}</Text>
             <Text style={[styles.copy, body]}>
               {contract.contractNo} · {contract.property}
-              {contract.room ? ` ห้อง ${contract.room}` : ""}
+              {contract.room ? ` ${fillTemplate(tc.common.room, { room: contract.room })}` : ""}
             </Text>
-            <Text style={[styles.copy, body]}>วาดลายเซ็นในกรอบ แล้วกดยืนยัน</Text>
+            <Text style={[styles.copy, body]}>{tc.common.drawSignature}</Text>
             {!!error ? (
               <Text accessibilityRole="alert" style={styles.error}>
                 {error}
@@ -553,7 +539,7 @@ export function PartyContractDetail({
               onOK={(image) => {
                 void submit(image);
               }}
-              onEmpty={() => setError("กรุณาวาดลายเซ็นก่อนยืนยัน")}
+              onEmpty={() => setError(pc.drawSignatureFirst)}
             />
             <View style={styles.signActions}>
               <MobileButton
@@ -562,7 +548,7 @@ export function PartyContractDetail({
                 disabled={busy || refreshing}
                 onPress={() => padRef.current?.clearSignature()}
               >
-                ล้างลายเซ็น
+                {tc.common.clearSignature}
               </MobileButton>
               <MobileButton
                 style={styles.signButton}
@@ -572,7 +558,7 @@ export function PartyContractDetail({
                   if (!busy) padRef.current?.readSignature();
                 }}
               >
-                ยืนยันลายเซ็น
+                {tc.common.confirmSignature}
               </MobileButton>
             </View>
           </>

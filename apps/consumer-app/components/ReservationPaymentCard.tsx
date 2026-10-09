@@ -2,6 +2,8 @@ import React from "react";
 import { Text, View } from "react-native";
 import { MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentContract } from "@nestyk/types";
+import { fillTemplate, useLocale } from "@nestyk/i18n";
+import { localeTag } from "../lib/lead-format";
 
 export function ReservationPaymentCard({
   contract,
@@ -19,12 +21,14 @@ export function ReservationPaymentCard({
   onCreateInvoice?: () => void;
 }) {
   const { theme } = useMobileTheme();
+  const { t, locale } = useLocale();
+  const pc = t.contracts.payment;
   const payment = contract.reservationPayment;
   const paymentStatus = contract.receiptUrl ? "paid" : payment?.status ?? "unpaid";
   const status = {
-    unpaid: { label: "รอชำระ", color: "#B45309", background: "#FFFBEB" },
-    submitted: { label: "รอตรวจสอบ", color: "#1D4ED8", background: "#EFF6FF" },
-    paid: { label: "ชำระแล้ว", color: "#15803D", background: "#F0FDF4" },
+    unpaid: { label: pc.status.unpaid, color: "#B45309", background: "#FFFBEB" },
+    submitted: { label: pc.status.submitted, color: "#1D4ED8", background: "#EFF6FF" },
+    paid: { label: pc.status.paid, color: "#15803D", background: "#F0FDF4" },
   }[paymentStatus];
   const closed = ["cancelled", "expired", "terminated"].includes(
     contract.status,
@@ -55,48 +59,49 @@ export function ReservationPaymentCard({
             lineHeight: 27,
           }}
         >
-          การชำระค่าจอง
+          {pc.title}
         </Text>
         <View style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: status.background }}>
           <Text
-            accessibilityLabel={`สถานะการชำระค่าจอง: ${status.label}`}
+            accessibilityLabel={fillTemplate(pc.statusA11y, { status: status.label })}
             style={{ ...text, color: status.color, fontSize: 13 }}
           >
             {status.label}
           </Text>
         </View>
       </View>
-      <Text style={text}>ผูกกับหนังสือจอง {contract.contractNo}</Text>
+      <Text style={text}>{fillTemplate(pc.linked, { no: contract.contractNo })}</Text>
       <Text style={text}>
-        ยอดค่าจอง ฿
-        {(payment?.total ?? contract.reservationFee ?? 0).toLocaleString(
-          "th-TH",
-          { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-        )}
+        {fillTemplate(pc.total, {
+          amount: `฿${(payment?.total ?? contract.reservationFee ?? 0).toLocaleString(
+            localeTag(locale),
+            { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+          )}`,
+        })}
       </Text>
       {paymentStatus !== "unpaid" && (
         <Text style={text}>
           {paymentStatus === "paid"
-            ? "เอเจนต์ยืนยันการชำระและออกใบเสร็จแล้ว"
-            : "ส่งสลิปแล้ว กำลังรอเอเจนต์ตรวจสอบการชำระเงิน"}
+            ? pc.paidHint
+            : pc.submittedHint}
         </Text>
       )}
-      {closed && <Text style={text}>หนังสือจองปิดแล้ว</Text>}
+      {closed && <Text style={text}>{pc.closed}</Text>}
       {contract.invoiceUrl ? (
         <MobileButton
           variant="outline"
           disabled={busy}
           onPress={() => onOpen("invoice")}
         >
-          ดูใบแจ้งหนี้ค่าจอง
+          {pc.viewInvoice}
           {payment?.invoiceDocumentNo ? ` ${payment.invoiceDocumentNo}` : ""}
         </MobileButton>
       ) : onCreateInvoice && !closed ? (
         <MobileButton disabled={busy} onPress={onCreateInvoice}>
-          สร้างใบแจ้งหนี้ค่าจอง
+          {pc.createInvoice}
         </MobileButton>
       ) : (
-        <Text style={text}>ยังไม่มีใบแจ้งหนี้ค่าจอง</Text>
+        <Text style={text}>{pc.noInvoice}</Text>
       )}
       {contract.invoiceUrl &&
         !payment &&
@@ -104,7 +109,7 @@ export function ReservationPaymentCard({
         onCreateInvoice &&
         !closed && (
           <MobileButton disabled={busy} onPress={onCreateInvoice}>
-            สร้างใบแจ้งหนี้ค่าจองที่ผูกกับหนังสือจอง
+            {pc.createLinkedInvoice}
           </MobileButton>
         )}
       {payment?.paymentSlipUrl && (
@@ -113,7 +118,7 @@ export function ReservationPaymentCard({
           disabled={busy}
           onPress={() => onOpen("payment-slip")}
         >
-          ดูสลิปชำระค่าจอง
+          {pc.viewSlip}
         </MobileButton>
       )}
       {onUpload &&
@@ -124,12 +129,11 @@ export function ReservationPaymentCard({
           <>
             <MobileButton disabled={busy} isLoading={busy} onPress={onUpload}>
               {payment?.status === "submitted"
-                ? "อัปโหลดสลิปใหม่"
-                : "อัปโหลดสลิปชำระค่าจอง"}
+                ? pc.reuploadSlip
+                : pc.uploadSlip}
             </MobileButton>
             <Text style={text}>
-              แนบไฟล์ PDF, JPG หรือ PNG ไม่เกิน 10 MB เมื่อเอเจนต์ตรวจสอบแล้ว
-              ใบเสร็จจะแสดงที่นี่
+              {pc.uploadHint}
             </Text>
           </>
         )}
@@ -139,12 +143,12 @@ export function ReservationPaymentCard({
           disabled={busy}
           onPress={() => onOpen("receipt")}
         >
-          ดูใบเสร็จค่าจอง
+          {pc.viewReceipt}
           {payment?.receiptDocumentNo ? ` ${payment.receiptDocumentNo}` : ""}
         </MobileButton>
       ) : onIssueReceipt && payment && contract.invoiceUrl && !closed ? (
         <MobileButton disabled={busy} onPress={onIssueReceipt}>
-          ตรวจสอบการชำระและออกใบเสร็จ
+          {pc.verify}
         </MobileButton>
       ) : null}
     </View>

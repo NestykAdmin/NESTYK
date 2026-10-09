@@ -221,8 +221,6 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
       <MobileBottomSheet visible={photoSheetOpen} onClose={closeSheet}>
         <MobileActionSheetBody
           title={t.mobile.account.changePhoto}
-          cancelLabel={t.common.cancel}
-          onCancel={closeSheet}
           actions={[
             {
               key: 'camera',

@@ -2,7 +2,11 @@ const { test }=require('node:test');const assert=require('node:assert/strict');c
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(require('node:fs').readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,experimentalDecorators:true,emitDecoratorMetadata:true,esModuleInterop:true},fileName:filename}).outputText,filename);
 const {AgentLeadsService,validateLead,normalizeLeadSort,phoneSearchDigits}=require('../src/agent/leads/agent-leads.service.ts');const {AgentLeadsController}=require('../src/agent/leads/agent-leads.controller.ts');const {AuthService}=require('../src/auth/auth.service.ts');const {Module}=require('@nestjs/common');const {NestFactory}=require('@nestjs/core');
 // Fake transaction: pin writes land on the lead row returned by rowById.
-const withTx=(repo,rowById)=>{const pinRepo={delete:async({lead_id})=>{const r=rowById(lead_id);if(r)r.pins=[];},insert:async list=>{const r=rowById(list[0].lead_id);if(r)r.pins=list.map(p=>({...p}));}};repo.manager={...(repo.manager||{}),transaction:async fn=>fn({getRepository:e=>e.name==='LeadLocationEntity'?pinRepo:repo})};return repo;};
+const withTx=(repo,rowById)=>{const pinRepo={delete:async({lead_id})=>{const r=rowById(lead_id);if(r)r.pins=[];},insert:async list=>{const r=rowById(list[0].lead_id);if(r)r.pins=list.map(p=>({...p}));}};repo.manager={...(repo.manager||{}),getRepository:e=>e.name==='LeadViewingEntity'?viewingRepo(repo):repo,transaction:async fn=>fn({getRepository:e=>e.name==='LeadLocationEntity'?pinRepo:repo})};return repo;};
+// Fake next-viewing query: rows come from repo.nextViewings (one viewing entity per lead), filtered to the requested ids.
+const viewingRepo=repo=>({createQueryBuilder:()=>{let ids=[];const qb={leftJoinAndSelect:()=>qb,distinctOn:()=>qb,where:(_,p)=>{ids=p.ids;return qb;},andWhere:()=>qb,orderBy:()=>qb,addOrderBy:()=>qb,getMany:async()=>(repo.nextViewings||[]).filter(v=>ids.includes(v.lead_id))};return qb;}});
+// Fake status-count query from qb.clone(); rows default to none.
+const countsFake=(rows=[])=>()=>{const c={select:()=>c,addSelect:()=>c,groupBy:()=>c,getRawMany:async()=>rows};return c;};
 const asok={rank:1,placeId:'test-place',name:'BTS Asok',latitude:13.737,longitude:100.56,province:'กรุงเทพมหานคร',district:'วัฒนา'};
 const klongtoei={rank:2,placeId:null,name:'Klong Toei Market',latitude:13.722,longitude:100.557,province:'กรุงเทพมหานคร',district:'คลองเตย'};
 test('lead validation requires name/phone and preserves unknown versus false',()=>{
@@ -32,9 +36,11 @@ test('lead HTTP API saves profile, rejects invalid catalogs and scopes reads to 
  const visas=await fetch(base+'/api/v1/agent/leads/visa-types',{headers:headers(7)});assert.equal(visas.status,200);assert.equal((await visas.json())[0].code,'tourist');
  assert.equal((await fetch(base+'/api/v1/agent/leads/visa-types',{headers:headers(8)})).status,403);
  const input={pins:[asok,klongtoei],radiusKm:3,locations:['วัฒนา','คลองเตย'],province:'กรุงเทพมหานคร',name:'Test lead',phone:'TEST',nationality:'Test',budgetMin:10000,budgetMax:15000,preferredLocation:'Test location',moveInPlan:'Next month',hasPets:false,occupation:'Test occupation',visaTypeId:1,leaseDurationMonths:12,usesCar:true,occupantCount:2,isSmoker:false,desiredRoomTypeId:1,notes:'Call after 6pm'};
- const response=await post({...input,created_by_user_id:9,status:'booked'});assert.equal(response.status,201);const lead=await response.json();for(const [key,value]of Object.entries(input))assert.deepEqual(lead[key],value,key);assert.equal(lead.visaTypeCode,'tourist');assert.equal(lead.status,'new');assert.equal(saved[0].created_by_user_id,7);assert.equal(saved[0].rent_room_id,null);
+ const response=await post({...input,created_by_user_id:9,status:'booked'});assert.equal(response.status,201);const lead=await response.json();for(const [key,value]of Object.entries(input))assert.deepEqual(lead[key],value,key);assert.equal(lead.visaTypeCode,'tourist');assert.equal(lead.status,'new');assert.equal(saved[0].created_by_user_id,7);assert.equal(saved[0].rent_room_id,null);assert.equal(lead.tenantId,null);assert.equal(lead.rentRoomId,null);
  assert.equal((await fetch(base+'/api/v1/agent/leads/'+lead.id,{headers:headers(9)})).status,404);
- const firstView=await fetch(base+'/api/v1/agent/leads/'+lead.id,{headers:headers(7)});assert.equal(firstView.status,200);const opened=await firstView.json();assert.equal(opened.status,'new');assert.equal(saved[0].status,'new');
+ const firstView=await fetch(base+'/api/v1/agent/leads/'+lead.id,{headers:headers(7)});assert.equal(firstView.status,200);const opened=await firstView.json();assert.equal(opened.status,'new');assert.equal(saved[0].status,'new');assert.equal(opened.nextViewingAt,null);assert.equal(opened.nextViewingRoom,null);
+ const nextAt=new Date(Date.now()+86400000);repo.nextViewings=[{lead_id:lead.id,scheduled_at:nextAt,rent_room_id:5,rent_room:{room_id:'1208',property:{name:'The Line'}}},{lead_id:999,scheduled_at:new Date(),rent_room_id:6,rent_room:null}];
+ const withViewing=await (await fetch(base+'/api/v1/agent/leads/'+lead.id,{headers:headers(7)})).json();assert.equal(withViewing.nextViewingAt,nextAt.toISOString());assert.equal(withViewing.nextViewingRoom,'The Line · 1208');repo.nextViewings=[];
  const markProgress=await fetch(base+'/api/v1/agent/leads/'+lead.id+'/mark-inprogress',{method:'POST',headers:headers(7),body:'{}'});assert.equal(markProgress.status,201);const inProgress=await markProgress.json();assert.equal(inProgress.status,'inprogress');assert.equal(saved[0].status,'inprogress');
  const markLostBad=await fetch(base+'/api/v1/agent/leads/'+lead.id+'/mark-lost',{method:'POST',headers:headers(7),body:JSON.stringify({lostReason:'  '})});assert.equal(markLostBad.status,400);
  const markLost=await fetch(base+'/api/v1/agent/leads/'+lead.id+'/mark-lost',{method:'POST',headers:headers(7),body:JSON.stringify({lostReason:'Chose another place'})});assert.equal(markLost.status,201);const lost=await markLost.json();assert.equal(lost.status,'lost');assert.equal(lost.lostReason,'Chose another place');
@@ -57,6 +63,7 @@ test('area filters are scoped by agent and province before pagination', async ()
  const qb = {};
  for (const method of ['leftJoinAndSelect','where','andWhere','orderBy','addOrderBy','skip','take']) qb[method] = (...args) => {calls.push([method, ...args]); return qb;};
  qb.getManyAndCount = async () => [[], 42];
+ qb.clone = countsFake();
  const service = new AgentLeadsService({createQueryBuilder:()=>qb}, {}, {}, {});
  const page = await service.list(7, {province:'Bangkok',locations:JSON.stringify(['วัฒนา','คลองเตย']),includeUnspecified:'true',page:'2'});
  assert.equal(page.total, 42);
@@ -65,7 +72,7 @@ test('area filters are scoped by agent and province before pagination', async ()
  assert.ok(calls.some(([method,sql,args])=>method==='andWhere' && sql.includes('cardinality') && args.locations.length===2));
  assert.ok(calls.findIndex(([method])=>method==='andWhere') < calls.findIndex(([method])=>method==='skip'));
  assert.ok(calls.some(([method,n])=>method==='skip' && n===20));
- assert.ok(calls.some(([method,col,dir])=>method==='orderBy' && col==='lead.created_at' && dir==='DESC'));
+ assert.ok(calls.some(([method,col,dir])=>method==='orderBy' && col==='lead.updated_at' && dir==='DESC'));
  calls.length=0;
  await service.list(7, {province:'Bangkok',locations:'["วัฒนา"]'});
  assert.ok(calls.some(([method,sql])=>method==='andWhere' && sql.includes('&&') && !sql.includes('cardinality')));
@@ -74,14 +81,33 @@ test('area filters are scoped by agent and province before pagination', async ()
  await assert.rejects(()=>service.list(7,{province:'Bangkok',locations:'{}'}));
 });
 
+test('status filter uses the displayed status; counts are taken before it', async () => {
+ const calls=[];const countCalls=[];const qb={};
+ for (const method of ['leftJoinAndSelect','where','andWhere','orderBy','addOrderBy','skip','take']) qb[method]=(...args)=>{calls.push([method,...args]);return qb;};
+ qb.getManyAndCount=async()=>[[],3];
+ qb.clone=()=>{const c={getRawMany:async()=>[{status:'viewing',count:'3'},{status:'new',count:'2'},{status:'other',count:'9'}]};for(const method of ['select','addSelect','groupBy'])c[method]=(...args)=>{countCalls.push([method,...args]);return c;};return c;};
+ const service=new AgentLeadsService({createQueryBuilder:()=>qb},{},{},{});
+ const page=await service.list(7,{status:'viewing'});
+ const filter=calls.find(([method,sql])=>method==='andWhere'&&String(sql).includes(':status'));
+ assert.equal(filter[2].status,'viewing');assert.ok(filter[1].includes('lead_viewings')&&filter[1].includes("'viewing'"));
+ assert.deepEqual(page.statusCounts,{new:2,inprogress:0,viewing:3,booked:0,lost:0});
+ assert.ok(countCalls.some(([method,sql,alias])=>method==='select'&&alias==='status'&&sql.includes('lead_viewings')));
+ calls.length=0;
+ await service.list(7,{});
+ assert.ok(!calls.some(([method,sql])=>method==='andWhere'&&String(sql).includes(':status')));
+ await assert.rejects(()=>service.list(7,{status:'viewed'}));
+});
+
 test('lead list sort accepts known keys and rejects invalid values', async () => {
- assert.equal(normalizeLeadSort(), 'created_desc');
+ assert.equal(normalizeLeadSort(), 'updated_desc');
+ assert.equal(normalizeLeadSort('created_desc'), 'created_desc');
  assert.equal(normalizeLeadSort('budget_asc'), 'budget_asc');
  assert.throws(() => normalizeLeadSort('nope'));
  const calls = [];
  const qb = {};
  for (const method of ['leftJoinAndSelect','where','andWhere','addSelect','orderBy','addOrderBy','skip','take']) qb[method] = (...args) => {calls.push([method, ...args]); return qb;};
  qb.getManyAndCount = async () => [[], 0];
+ qb.clone = countsFake();
  const service = new AgentLeadsService({createQueryBuilder:()=>qb}, {}, {}, {});
  await service.list(7, {sort:'status_asc'});
  assert.ok(calls.some(([method,sql,alias])=>method==='addSelect' && String(sql).includes('CASE lead.status') && alias==='sort_status_rank'));
@@ -176,6 +202,7 @@ test('phone search matches Thai local and +66 forms',async()=>{
   const calls=[];const qb={};
   for(const method of ['leftJoinAndSelect','where','andWhere','orderBy','addOrderBy','skip','take']) qb[method]=(...args)=>{calls.push([method,...args]);return qb;};
   qb.getManyAndCount=async()=>[[],0];
+  qb.clone=countsFake();
   const service=new AgentLeadsService({createQueryBuilder:()=>qb},{},{},{});
   await service.list(7,{q:'0812'});
   const search=calls.find(([method,sql])=>method==='andWhere'&&sql.includes('ILIKE :q'));

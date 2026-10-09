@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { ReservationLetterInput } from "@nestyk/types";
+import { fillTemplate, useLocale, type ContractCopy } from "@nestyk/i18n";
 import { searchOwnerUsers } from "../lib/agent-contracts-api";
+import { localeTag } from "../lib/lead-format";
 
 export function emptyReservationLetterForm(): ReservationLetterInput {
   return {
@@ -77,44 +79,42 @@ export function reservationIssueDate(saved?: string | null) {
   }).format(new Date());
 }
 
-const REQUIRED_MESSAGE = "กรุณากรอกข้อมูลนี้";
-
 export function reservationLetterFieldErrors(
   value: ReservationLetterInput,
+  messages: ContractCopy["validation"],
 ): Partial<Record<TextKey, string>> {
   const errors: Partial<Record<TextKey, string>> = {};
   for (const key of RESERVATION_LETTER_REQUIRED) {
-    if (!String(value[key] ?? "").trim()) errors[key] = REQUIRED_MESSAGE;
+    if (!String(value[key] ?? "").trim()) errors[key] = messages.required;
   }
   if (
     value.issueDate.trim() &&
     !/^\d{4}-\d{2}-\d{2}$/.test(value.issueDate.trim())
   )
-    errors.issueDate = "รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)";
+    errors.issueDate = messages.dateFormat;
   if (
     value.termFrom.trim() &&
     !/^\d{4}-\d{2}-\d{2}$/.test(value.termFrom.trim())
   )
-    errors.termFrom = "รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)";
+    errors.termFrom = messages.dateFormat;
   if (value.termTo.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(value.termTo.trim()))
-    errors.termTo = "รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)";
-  if (!value.tenantPhone.trim()) errors.tenantPhone = REQUIRED_MESSAGE;
-  if (!value.tenantEmail.trim()) errors.tenantEmail = REQUIRED_MESSAGE;
-  if (!value.landlordPhone.trim()) errors.landlordPhone = REQUIRED_MESSAGE;
-  if (!value.landlordEmail.trim()) errors.landlordEmail = REQUIRED_MESSAGE;
+    errors.termTo = messages.dateFormat;
+  if (!value.tenantPhone.trim()) errors.tenantPhone = messages.required;
+  if (!value.tenantEmail.trim()) errors.tenantEmail = messages.required;
+  if (!value.landlordPhone.trim()) errors.landlordPhone = messages.required;
+  if (!value.landlordEmail.trim()) errors.landlordEmail = messages.required;
   for (const key of ["tenantEmail", "landlordEmail"] as const) {
     if (
       value[key].trim() &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value[key].trim())
     )
-      errors[key] = "รูปแบบอีเมลไม่ถูกต้อง";
+      errors[key] = messages.emailFormat;
   }
   return errors;
 }
 
 type PartyField = {
-  key: TextKey;
-  label: string;
+  key: keyof ContractCopy["reservation"]["fields"];
   placeholder?: string;
   multiline?: boolean;
   required?: boolean;
@@ -123,108 +123,58 @@ type PartyField = {
 };
 
 const TENANT_FIELDS: PartyField[] = [
-  { key: "tenantFirstName", label: "ชื่อผู้จอง", required: true, locked: true },
-  { key: "tenantLastName", label: "นามสกุลผู้จอง", locked: true },
-  {
-    key: "tenantPhone",
-    label: "เบอร์ติดต่อผู้จอง",
-    required: true,
-    locked: true,
-  },
-  {
-    key: "tenantEmail",
-    label: "อีเมลผู้จอง",
-    email: true,
-    required: true,
-    locked: true,
-  },
-  {
-    key: "tenantId",
-    label: "เลขบัตร / พาสปอร์ต / นิติบุคคล ผู้จอง",
-    locked: true,
-  },
-  { key: "tenantNationality", label: "สัญชาติผู้จอง", locked: true },
+  { key: "tenantFirstName", required: true, locked: true },
+  { key: "tenantLastName", locked: true },
+  { key: "tenantPhone", required: true, locked: true },
+  { key: "tenantEmail", email: true, required: true, locked: true },
+  { key: "tenantId", locked: true },
+  { key: "tenantNationality", locked: true },
 ];
 
 const LANDLORD_FIELDS: PartyField[] = [
-  { key: "landlordFirstName", label: "ชื่อผู้ให้เช่า", required: true },
-  { key: "landlordLastName", label: "นามสกุลผู้ให้เช่า" },
-  { key: "landlordPhone", label: "เบอร์ติดต่อผู้ให้เช่า", required: true },
-  {
-    key: "landlordEmail",
-    label: "อีเมลผู้ให้เช่า",
-    email: true,
-    required: true,
-  },
-  { key: "landlordId", label: "เลขบัตร / พาสปอร์ต / นิติบุคคล ผู้ให้เช่า" },
-  { key: "landlordNationality", label: "สัญชาติผู้ให้เช่า" },
+  { key: "landlordFirstName", required: true },
+  { key: "landlordLastName" },
+  { key: "landlordPhone", required: true },
+  { key: "landlordEmail", email: true, required: true },
+  { key: "landlordId" },
+  { key: "landlordNationality" },
 ];
 
 const AGENT_FIELDS: PartyField[] = [
-  { key: "agentName", label: "ชื่อเอเจนท์" },
-  { key: "companyName", label: "ชื่อบริษัท" },
-  { key: "agentPhone", label: "โทรเอเจนท์" },
+  { key: "agentName" },
+  { key: "companyName" },
+  { key: "agentPhone" },
 ];
 
-const SECTIONS: Array<{
-  title: string;
-  fields: PartyField[];
-}> = [
-  {
-    title: "02 ทรัพย์สินและข้อตกลงการเช่า",
-    fields: [
-      { key: "project", label: "โครงการ", required: true },
-      { key: "address", label: "ที่อยู่", multiline: true },
-      { key: "unitNo", label: "บ้านเลขที่ / ห้อง" },
-      { key: "floor", label: "ชั้น" },
-      { key: "area", label: "พื้นที่ (ตร.ม.)" },
-      { key: "beds", label: "นอน" },
-      { key: "baths", label: "น้ำ" },
-      { key: "termMonths", label: "ระยะเวลา (เดือน)" },
-      {
-        key: "termFrom",
-        label: "เริ่ม / วันที่เข้าอยู่ (YYYY-MM-DD)",
-        placeholder: "2026-10-15",
-      },
-      {
-        key: "termTo",
-        label: "สิ้นสุด (YYYY-MM-DD)",
-        placeholder: "2027-10-14",
-      },
-    ],
-  },
-  {
-    title: "03 จำนวนเงินและการชำระ",
-    fields: [
-      { key: "monthlyRent", label: "ค่าเช่ารายเดือน (บาท)" },
-      { key: "advanceMonths", label: "ค่าเช่าล่วงหน้า (เดือน)" },
-      { key: "advanceAmount", label: "ค่าเช่าล่วงหน้า (บาท)" },
-      { key: "depositMonths", label: "เงินประกัน (เดือน)" },
-      { key: "depositAmount", label: "เงินประกัน (บาท)" },
-      {
-        key: "reservationPayment",
-        label: "เงินจอง (บาท)",
-        required: true,
-        placeholder: "5000",
-      },
-      { key: "balanceDue", label: "คงเหลือ (บาท)" },
-      { key: "payee", label: "ผู้รับเงิน" },
-      { key: "bankAccount", label: "ธนาคาร ชื่อและเลขบัญชี" },
-      { key: "tenantSignName", label: "ชื่อใต้ลายเซ็นผู้จอง" },
-      { key: "landlordSignName", label: "ชื่อใต้ลายเซ็นผู้ให้เช่า" },
-      { key: "agentSignName", label: "ชื่อใต้ลายเซ็นเอเจนท์" },
-    ],
-  },
+const PROPERTY_FIELDS: PartyField[] = [
+  { key: "project", required: true },
+  { key: "address", multiline: true },
+  { key: "unitNo" },
+  { key: "floor" },
+  { key: "area" },
+  { key: "beds" },
+  { key: "baths" },
+  { key: "termMonths" },
+  { key: "termFrom", placeholder: "2026-10-15" },
+  { key: "termTo", placeholder: "2027-10-14" },
 ];
 
-const PAYMENT_OPTIONS: Array<{
-  value: "transfer" | "cash" | "credit";
-  label: string;
-}> = [
-  { value: "transfer", label: "โอน" },
-  { value: "cash", label: "เงินสด" },
-  { value: "credit", label: "บัตรเครดิต" },
+const PAYMENT_FIELDS: PartyField[] = [
+  { key: "monthlyRent" },
+  { key: "advanceMonths" },
+  { key: "advanceAmount" },
+  { key: "depositMonths" },
+  { key: "depositAmount" },
+  { key: "reservationPayment", required: true, placeholder: "5000" },
+  { key: "balanceDue" },
+  { key: "payee" },
+  { key: "bankAccount", multiline: true },
+  { key: "tenantSignName" },
+  { key: "landlordSignName" },
+  { key: "agentSignName" },
 ];
+
+const PAYMENT_OPTIONS = ["transfer", "cash", "credit"] as const;
 
 const THAI_DIGITS = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
 
@@ -278,6 +228,9 @@ export function ReservationLetterFields({
   errors?: Partial<Record<TextKey, string>>;
 }) {
   const { theme } = useMobileTheme();
+  const { t, locale } = useLocale();
+  const tc = t.contracts;
+  const rc = tc.reservation;
   const title = { color: theme.textHeading };
   const muted = { color: theme.textSecondary };
   const [ownerQuery, setOwnerQuery] = useState("");
@@ -332,7 +285,7 @@ export function ReservationLetterFields({
         .catch(() => {
           if (seq === searchSeq.current) {
             setOwnerHits([]);
-            setOwnerSearchError("ค้นหาผู้ให้เช่าไม่สำเร็จ");
+            setOwnerSearchError(rc.searchFailed);
           }
         });
     }, 300);
@@ -394,7 +347,9 @@ export function ReservationLetterFields({
       setLandlordOpen(true);
   }, [value.landlordFirstName, errors?.landlordFirstName]);
 
-  const renderField = (field: PartyField) => (
+  const renderField = (field: PartyField) => {
+    const label = rc.fields[field.key];
+    return (
     <View
       key={field.key}
       style={{
@@ -407,8 +362,8 @@ export function ReservationLetterFields({
       }}
     >
       <MobileInput
-        label={field.label}
-        accessibilityLabel={field.label}
+        label={label}
+        accessibilityLabel={label}
         required={field.required}
         error={errors?.[field.key]}
         value={value[field.key]}
@@ -431,7 +386,8 @@ export function ReservationLetterFields({
         style={{ borderRadius: 12 }}
       />
     </View>
-  );
+    );
+  };
   const fields = (items: PartyField[]) => (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
       {items.map(renderField)}
@@ -470,7 +426,7 @@ export function ReservationLetterFields({
           <Pressable
             disabled={disabled}
             accessibilityRole="button"
-            accessibilityLabel={`แก้ไข${label}`}
+            accessibilityLabel={fillTemplate(tc.common.editSection, { label })}
             onPress={() => onStepChange?.(editStep)}
             style={{
               minHeight: 44,
@@ -478,7 +434,7 @@ export function ReservationLetterFields({
               paddingHorizontal: 8,
             }}
           >
-            <Text style={{ color: theme.textSecondary }}>แก้ไข</Text>
+            <Text style={{ color: theme.textSecondary }}>{tc.common.edit}</Text>
           </Pressable>
         )}
       </View>
@@ -486,12 +442,15 @@ export function ReservationLetterFields({
     </View>
   );
   const amount = (raw: string) => {
-    if (!raw.trim()) return "ยังไม่ระบุ";
+    if (!raw.trim()) return tc.common.notSpecified;
     const number = Number(raw.replace(/,/g, ""));
     return Number.isFinite(number)
-      ? `${number.toLocaleString("th-TH")} บาท`
+      ? fillTemplate(tc.common.baht, {
+          amount: number.toLocaleString(localeTag(locale)),
+        })
       : raw;
   };
+  const months = (count: string) => fillTemplate(tc.common.months, { count });
   const row = (label: string, text: string) => (
     <View
       key={label}
@@ -499,7 +458,7 @@ export function ReservationLetterFields({
     >
       <Text style={{ ...muted, flex: 1, lineHeight: 22 }}>{label}</Text>
       <Text style={{ ...title, flex: 1, textAlign: "right", lineHeight: 22 }}>
-        {text || "ยังไม่ระบุ"}
+        {text || tc.common.notSpecified}
       </Text>
     </View>
   );
@@ -518,27 +477,27 @@ export function ReservationLetterFields({
     borderColor: selected ? tokens.colors.brand[500] : theme.border,
     backgroundColor: selected ? tokens.colors.brand[50] : theme.background,
   });
-  const propertyFields = SECTIONS[0].fields;
-  const paymentFields = SECTIONS[1].fields;
+  const propertyFields = PROPERTY_FIELDS;
+  const paymentFields = PAYMENT_FIELDS;
   return (
     <View style={{ gap: 16 }}>
       {step === 0 && (
         <>
           {card(
-            "ข้อมูลผู้จอง",
+            rc.tenant,
             <>
-              <Text style={muted}>ดึงจากข้อมูลผู้เช่า · แก้ไขไม่ได้</Text>
+              <Text style={muted}>{rc.tenantLocked}</Text>
               {fields(TENANT_FIELDS)}
             </>,
           )}
           {card(
-            "ผู้ให้เช่า",
+            rc.landlord,
             <>
               <MobileInput
-                label="ค้นหาผู้ให้เช่า"
+                label={rc.searchLandlord}
                 value={ownerQuery}
                 onChangeText={setOwnerQuery}
-                placeholder="ชื่อ อีเมล หรือเบอร์"
+                placeholder={rc.searchPlaceholder}
                 editable={!disabled}
               />
               <Pressable
@@ -547,7 +506,7 @@ export function ReservationLetterFields({
                 onPress={addLandlord}
                 style={chipStyle(false)}
               >
-                <Text style={title}>+ เพิ่มผู้ให้เช่า</Text>
+                <Text style={title}>{rc.addLandlord}</Text>
               </Pressable>
               {!!ownerSearchError && (
                 <Text style={{ color: tokens.colors.error }}>
@@ -571,78 +530,65 @@ export function ReservationLetterFields({
               {landlordOpen ? (
                 fields(LANDLORD_FIELDS)
               ) : (
-                <Text style={muted}>
-                  เลือกจากผลค้นหา หรือเพิ่มผู้ให้เช่าใหม่
-                </Text>
+                <Text style={muted}>{rc.pickLandlord}</Text>
               )}
             </>,
           )}
-          {card("ผู้ประสานงาน", fields(AGENT_FIELDS))}
+          {card(rc.coordinator, fields(AGENT_FIELDS))}
         </>
       )}
       {step === 1 && (
         <>
           <Text style={{ ...muted, lineHeight: 22 }}>
-            เลขเอกสาร: {value.documentNo || "ระบบกำหนด"} · วันที่จอง:{" "}
-            {reservationIssueDate(value.issueDate)}
+            {fillTemplate(rc.documentMeta, {
+              no: value.documentNo || rc.documentNoAuto,
+              date: reservationIssueDate(value.issueDate),
+            })}
           </Text>
-          {card(
-            "ข้อมูลทรัพย์สิน",
-            fields(
-              propertyFields
-                .slice(0, 7)
-                .map((field) => ({
-                  ...field,
-                  label:
-                    field.key === "beds"
-                      ? "ห้องนอน"
-                      : field.key === "baths"
-                        ? "ห้องน้ำ"
-                        : field.label,
-                })),
-            ),
-          )}
-          {card("ระยะเวลาการเช่า", fields(propertyFields.slice(7)))}
+          {card(rc.property, fields(propertyFields.slice(0, 7)))}
+          {card(rc.term, fields(propertyFields.slice(7)))}
         </>
       )}
       {step === 2 && (
         <>
           {card(
-            "ค่าเช่ารายเดือน",
+            rc.monthlyRent,
             <>
               {fields(paymentFields.slice(0, 1))}
               <Text style={{ ...muted, lineHeight: 22 }}>
-                ({bahtWords(value.monthlyRent) || "……………………บาทถ้วน"})
+                ({bahtWords(value.monthlyRent) || rc.rentWordsBlank})
               </Text>
             </>,
           )}
           {card(
-            "ค่าเช่าล่วงหน้า",
+            rc.advance,
             <>
               {fields(paymentFields.slice(1, 3))}
-              <Text style={{ ...muted, lineHeight: 22 }}>* ใส่วันจอง</Text>
+              <Text style={{ ...muted, lineHeight: 22 }}>{rc.advanceHint}</Text>
             </>,
           )}
           {card(
-            "เงินประกัน",
+            rc.deposit,
             <>
               {fields(paymentFields.slice(3, 5))}
-              <Text style={{ ...muted, lineHeight: 22 }}>* ใส่วันทำสัญญา</Text>
+              <Text style={{ ...muted, lineHeight: 22 }}>{rc.depositHint}</Text>
             </>,
           )}
           {card(
-            "เงินจอง",
+            rc.reservationFee,
             <>
               {fields(paymentFields.slice(5, 6))}
               <Text style={{ ...muted, lineHeight: 22 }}>
-                ตัวอักษร {bahtWords(value.reservationPayment) || "……………………"}
+                {fillTemplate(rc.inWords, {
+                  words: bahtWords(value.reservationPayment) || "……………………",
+                })}
               </Text>
-              <Text style={title}>นำไปหัก</Text>
+              <Text style={title}>{rc.applyTo}</Text>
               {chips(
                 (
                   [
-                    ["applyToAdvance", "ค่าเช่าล่วงหน้า"],
-                    ["applyToDeposit", "เงินประกัน"],
+                    ["applyToAdvance", rc.advance],
+                    ["applyToDeposit", rc.deposit],
                   ] as const
                 ).map(([key, label]) => (
                   <Pressable
@@ -670,49 +616,43 @@ export function ReservationLetterFields({
               {fields([paymentFields[6]])}
             </>,
           )}
-          {card("ผู้รับเงิน", fields(paymentFields.slice(7, 8)))}
+          {card(rc.payee, fields(paymentFields.slice(7, 8)))}
           {card(
-            "ช่องทางชำระ",
+            rc.paymentMethod,
             <>
               {chips(
                 PAYMENT_OPTIONS.map((option) => (
                   <Pressable
-                    key={option.value}
+                    key={option}
                     accessibilityRole="radio"
                     accessibilityState={{
-                      checked: value.paymentMethod === option.value,
+                      checked: value.paymentMethod === option,
                     }}
                     disabled={disabled}
                     onPress={() =>
                       onChange({
                         ...value,
                         paymentMethod:
-                          value.paymentMethod === option.value ? "" : option.value,
+                          value.paymentMethod === option ? "" : option,
                       })
                     }
-                    style={chipStyle(value.paymentMethod === option.value)}
+                    style={chipStyle(value.paymentMethod === option)}
                   >
                     <Text
                       style={{
                         color:
-                          value.paymentMethod === option.value
+                          value.paymentMethod === option
                             ? tokens.colors.onBrand
                             : theme.textHeading,
                         lineHeight: 22,
                       }}
                     >
-                      {option.label}
+                      {rc.paymentMethods[option]}
                     </Text>
                   </Pressable>
                 )),
               )}
-              {fields(
-                paymentFields.slice(8, 9).map((field) => ({
-                  ...field,
-                  label: "ธนาคาร ชื่อและเลขบัญชี",
-                  multiline: true,
-                })),
-              )}
+              {fields(paymentFields.slice(8, 9))}
             </>,
           )}
         </>
@@ -720,35 +660,35 @@ export function ReservationLetterFields({
       {step === 3 && (
         <>
           {card(
-            "คู่สัญญา",
+            rc.parties,
             <>
               {row(
-                "ผู้จอง",
+                rc.booker,
                 [value.tenantFirstName, value.tenantLastName]
                   .filter(Boolean)
                   .join(" ") || value.tenantName,
               )}
               {row(
-                "ติดต่อผู้จอง",
+                rc.bookerContact,
                 [value.tenantPhone, value.tenantEmail]
                   .filter(Boolean)
                   .join("\n"),
               )}
               {row(
-                "ผู้ให้เช่า",
+                rc.landlord,
                 value.landlordName ||
                   [value.landlordFirstName, value.landlordLastName]
                     .filter(Boolean)
                     .join(" "),
               )}
               {row(
-                "ติดต่อผู้ให้เช่า",
+                rc.landlordContact,
                 [value.landlordPhone, value.landlordEmail]
                   .filter(Boolean)
                   .join("\n"),
               )}
               {row(
-                "ผู้ประสานงาน",
+                rc.coordinator,
                 [value.agentName, value.companyName, value.agentPhone]
                   .filter(Boolean)
                   .join("\n"),
@@ -757,69 +697,64 @@ export function ReservationLetterFields({
             0,
           )}
           {card(
-            "ห้องและสัญญา",
+            rc.roomAndContract,
             <>
-              {row("โครงการ", value.project)}
-              {row("ที่อยู่", value.address)}
+              {row(rc.fields.project, value.project)}
+              {row(rc.fields.address, value.address)}
               {row(
-                "ห้อง / ชั้น",
+                rc.unitAndFloor,
                 [value.unitNo, value.floor].filter(Boolean).join(" / "),
               )}
               {row(
-                "พื้นที่ / นอน / น้ำ",
+                rc.areaBedsBaths,
                 [
-                  value.area ? `${value.area} ตร.ม.` : "—",
+                  value.area ? fillTemplate(tc.common.sqm, { area: value.area }) : "—",
                   value.beds || "—",
                   value.baths || "—",
                 ].join(" / "),
               )}
-              {row(
-                "ระยะเวลา",
-                value.termMonths ? `${value.termMonths} เดือน` : "",
-              )}
-              {row("วันที่เข้าอยู่", value.termFrom)}
-              {row("วันสิ้นสุด", value.termTo)}
+              {row(rc.duration, value.termMonths ? months(value.termMonths) : "")}
+              {row(rc.moveIn, value.termFrom)}
+              {row(rc.end, value.termTo)}
             </>,
             1,
           )}
           {card(
-            "จำนวนเงิน",
+            rc.amounts,
             <>
-              {row("ค่าเช่ารายเดือน", amount(value.monthlyRent))}
+              {row(rc.monthlyRent, amount(value.monthlyRent))}
               {row(
-                `ค่าเช่าล่วงหน้า${value.advanceMonths ? ` (${value.advanceMonths} เดือน)` : ""}`,
+                `${rc.advance}${value.advanceMonths ? ` (${months(value.advanceMonths)})` : ""}`,
                 amount(value.advanceAmount),
               )}
               {row(
-                `เงินประกัน${value.depositMonths ? ` (${value.depositMonths} เดือน)` : ""}`,
+                `${rc.deposit}${value.depositMonths ? ` (${months(value.depositMonths)})` : ""}`,
                 amount(value.depositAmount),
               )}
-              {row("เงินจอง", amount(value.reservationPayment))}
+              {row(rc.reservationFee, amount(value.reservationPayment))}
               {row(
-                "นำไปหัก",
+                rc.applyTo,
                 [
-                  value.applyToAdvance && "ค่าเช่าล่วงหน้า",
-                  value.applyToDeposit && "เงินประกัน",
+                  value.applyToAdvance && rc.advance,
+                  value.applyToDeposit && rc.deposit,
                 ]
                   .filter(Boolean)
                   .join(" / "),
               )}
-              {row("ยอดคงเหลือ", amount(value.balanceDue))}
+              {row(rc.balance, amount(value.balanceDue))}
               {row(
-                "วิธีชำระ",
-                PAYMENT_OPTIONS.find(
-                  (option) => option.value === value.paymentMethod,
-                )?.label || value.paymentMethod,
+                rc.method,
+                rc.paymentMethods[
+                  value.paymentMethod as keyof typeof rc.paymentMethods
+                ] || value.paymentMethod,
               )}
-              {row("ผู้รับเงิน", value.payee)}
-              {row("บัญชีรับเงิน", value.bankAccount)}
+              {row(rc.payee, value.payee)}
+              {row(rc.account, value.bankAccount)}
             </>,
             2,
           )}
-          {card("ชื่อใต้ลายเซ็น", fields(paymentFields.slice(9)))}
-          <Text style={{ ...muted, lineHeight: 20 }}>
-            เงื่อนไขการจองและคืนเงินอยู่ในแม่แบบ PDF แล้ว
-          </Text>
+          {card(rc.signNames, fields(paymentFields.slice(9)))}
+          <Text style={{ ...muted, lineHeight: 20 }}>{rc.termsNote}</Text>
         </>
       )}
     </View>

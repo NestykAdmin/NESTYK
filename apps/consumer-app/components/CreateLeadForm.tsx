@@ -28,7 +28,7 @@ import {
   type LeadContactChannel,
   type LeadPinInput,
 } from '@nestyk/types';
-import { useLocale } from '@nestyk/i18n';
+import { localizedError, useLocale } from '@nestyk/i18n';
 import { MoveInDateField } from '@nestyk/feature-listing';
 import {
   MobileButton,
@@ -560,7 +560,7 @@ export function CreateLeadForm({
         : await createAgentLead(body);
       onSaved(lead);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : String(error));
+      setSaveError(localizedError(error, t.common.errorGeneric, locale));
     } finally {
       lock.current = false;
       setBusy(false);

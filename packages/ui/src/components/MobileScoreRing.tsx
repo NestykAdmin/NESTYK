@@ -10,6 +10,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { tokens } from '../theme/tokens';
 import { useMobileTheme } from '../theme/ThemeContext';
+import { MobileIcon } from '../icons/MobileIcon';
+import type { AppIconName } from '../icons/types';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -34,6 +36,13 @@ export interface MobileScoreRingProps {
   /** Caption under the ring (e.g. "Match"). */
   label?: string;
   accessibilityLabel?: string;
+  /** Empty state only (`value` null): icon in place of the dash, so different "no score" reasons look different. */
+  icon?: AppIconName;
+  iconColor?: string;
+  /** Empty state only: ring colour instead of the grey track. */
+  trackColor?: string;
+  /** Empty state only: dashed ring (e.g. not run yet). */
+  dashed?: boolean;
 }
 
 export function MobileScoreRing({
@@ -42,6 +51,10 @@ export function MobileScoreRing({
   strokeWidth = 5,
   label,
   accessibilityLabel,
+  icon,
+  iconColor,
+  trackColor,
+  dashed = false,
 }: MobileScoreRingProps) {
   const { theme } = useMobileTheme();
   const target = value == null ? 0 : Math.max(0, Math.min(100, Math.round(value)));
@@ -61,6 +74,8 @@ export function MobileScoreRing({
   }));
 
   const center = size / 2;
+  const empty = value == null;
+  const dash = Math.max(2, Math.round(circumference / 16));
 
   return (
     <View
@@ -75,8 +90,9 @@ export function MobileScoreRing({
             cx={center}
             cy={center}
             r={radius}
-            stroke={TRACK}
-            strokeWidth={strokeWidth}
+            stroke={empty && trackColor ? trackColor : TRACK}
+            strokeWidth={empty && dashed ? Math.max(2, strokeWidth - 2) : strokeWidth}
+            strokeDasharray={empty && dashed ? `${dash} ${dash * 0.7}` : undefined}
             fill="none"
           />
           {value != null ? (
@@ -94,16 +110,17 @@ export function MobileScoreRing({
           ) : null}
         </Svg>
         <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
-          <Text
-            style={[
-              styles.value,
-              { color: value == null ? tokens.colors.divider : theme.textHeading },
-            ]}
-            numberOfLines={1}
-          >
-            {value == null ? '—' : target}
-            {value == null ? null : <Text style={styles.percent}>%</Text>}
-          </Text>
+          {empty && icon ? (
+            <MobileIcon name={icon} size={Math.round(size * 0.38)} color={iconColor ?? tokens.colors.divider} />
+          ) : (
+            <Text
+              style={[styles.value, { color: empty ? tokens.colors.divider : theme.textHeading }]}
+              numberOfLines={1}
+            >
+              {empty ? '—' : target}
+              {empty ? null : <Text style={styles.percent}>%</Text>}
+            </Text>
+          )}
         </View>
       </View>
       {label ? (

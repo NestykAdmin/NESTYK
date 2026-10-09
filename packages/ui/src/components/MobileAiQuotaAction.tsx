@@ -25,6 +25,8 @@ export type MobileAiQuotaActionProps = {
   style?: StyleProp<ViewStyle>;
   showIcon?: boolean;
   accessibilityLabel?: string;
+  /** `solid` for the single primary action on a screen or sheet. */
+  variant?: 'outline' | 'solid';
 };
 
 /**
@@ -43,8 +45,10 @@ export const MobileAiQuotaAction: React.FC<MobileAiQuotaActionProps> = ({
   style,
   showIcon = true,
   accessibilityLabel,
+  variant = 'outline',
 }) => {
   const exhausted = remaining <= 0;
+  const solid = variant === 'solid' && !exhausted;
   const isDisabled = disabled || loading || exhausted;
   const displayQuota =
     quotaText.trim() ||
@@ -60,6 +64,7 @@ export const MobileAiQuotaAction: React.FC<MobileAiQuotaActionProps> = ({
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={[
         styles.btn,
+        solid ? styles.btnSolid : null,
         exhausted ? styles.btnExhausted : null,
         isDisabled && !loading ? styles.btnDisabled : null,
         style,
@@ -77,11 +82,17 @@ export const MobileAiQuotaAction: React.FC<MobileAiQuotaActionProps> = ({
               <MobileIcon
                 name="sparkle"
                 size={14}
-                color={exhausted ? tokens.colors.textSecondary : tokens.colors.brand[600]}
+                color={
+                  exhausted
+                    ? tokens.colors.textSecondary
+                    : solid
+                      ? tokens.colors.primary
+                      : tokens.colors.brand[600]
+                }
               />
             ) : null}
             <Text
-              style={[styles.label, exhausted ? styles.labelExhausted : null]}
+              style={[styles.label, solid ? styles.labelSolid : null, exhausted ? styles.labelExhausted : null]}
               numberOfLines={1}
             >
               {label}
@@ -113,6 +124,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: tokens.colors.brand[500],
   },
+  btnSolid: {
+    paddingVertical: 11,
+    backgroundColor: tokens.colors.brand[500],
+  },
   btnExhausted: {
     borderColor: tokens.colors.border,
     backgroundColor: '#F8FAFC',
@@ -131,6 +146,10 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: '700',
     color: tokens.colors.primary,
+  },
+  labelSolid: {
+    fontSize: 14,
+    lineHeight: 21,
   },
   labelExhausted: {
     color: tokens.colors.textSecondary,

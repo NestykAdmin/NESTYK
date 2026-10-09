@@ -13,6 +13,7 @@ cp -R docs/new-project /path/to/new-repo/docs/
 | Pack | Path |
 |------|------|
 | Roles & access | `new-project/roles/` |
+| Billing — แพ็กเกจ สิทธิ์ โควตา | `new-project/billing/` |
 | Agent — create room | `new-project/agent/create-room/` |
 | Agent — dashboard | `new-project/agent/dashboard/` |
 | Agent — listings | `new-project/agent/listings/` |
@@ -39,6 +40,7 @@ Local Docker: ดู [docker/CHECKLIST.md](./docker/CHECKLIST.md) · จาก r
 | Pack | เนื้อหา |
 |------|---------|
 | [roles/](./roles/README.md) | Guest / Tenant / Owner / Agent / Admin |
+| [billing/](./billing/README.md) | Subscription · แพ็กเกจ · สิทธิ์ตามฟีเจอร์ · โควตา — **blueprint** |
 | [agent/create-room/](./agent/create-room/README.md) | **`rent_rooms`** · `is_scout_room` + `visibility` |
 | [agent/dashboard/](./agent/dashboard/README.md) | หน้าหลัก agent · stat · quick actions |
 | [agent/listings/](./agent/listings/README.md) | รายการห้อง scout · visibility toggle |

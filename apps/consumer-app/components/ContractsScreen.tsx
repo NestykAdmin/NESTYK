@@ -52,7 +52,8 @@ import {
   tokens,
   useMobileTheme,
 } from "@nestyk/ui/native";
-import { useLocale } from "@nestyk/i18n";
+import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
+import { localeTag } from "../lib/lead-format";
 import type {
   AgreementType,
   AgreementTemplate,
@@ -95,7 +96,7 @@ import {
   generateFinancialDocument,
 } from "../lib/agent-contracts-api";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
-import { bookingPaymentBlocksSigning, BOOKING_PAYMENT_BEFORE_SIGNING } from "../lib/contract-signing";
+import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
 import { BookingInvoiceListCard, bookingInvoicesForTenant } from "./BookingInvoiceListCard";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import {
@@ -103,55 +104,52 @@ import {
   type ContractSignaturePadHandle,
 } from "./ContractSignaturePad";
 
-const LEASE_REQUIRES_RESERVATION =
-  "ต้องสร้างหนังสือจองและออกเอกสารก่อนทำสัญญาเช่า";
-
-const labels: Record<AgentContractStatus, string> = {
-  draft: "ฉบับร่าง",
-  awaiting_signatures: "รอลงนาม",
-  awaiting_agent_review: "รอตรวจสัญญา",
-  awaiting_payment: "รอชำระเงิน",
-  awaiting_payment_verification: "รอตรวจชำระเงิน",
-  active: "มีผลแล้ว",
-  cancelled: "ยกเลิก",
-  expired: "หมดอายุ",
-  terminated: "สิ้นสุดสัญญา",
-};
 const color = (status: AgentContractStatus) =>
   status === "active"
     ? "#278268"
     : status.startsWith("awaiting")
       ? "#BB7914"
       : "#788193";
-const money = (value: number | null) =>
-  value == null
-    ? "ยังไม่ระบุ"
-    : `฿${value.toLocaleString("th-TH", { maximumFractionDigits: 2 })}`;
-const date = (value: string | null) =>
-  value
-    ? new Date(`${value}T00:00:00`).toLocaleDateString("th-TH", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "ยังไม่ระบุ";
-const message = (error: unknown) =>
-  error instanceof Error
-    ? error.message
-    : "ไม่สามารถเชื่อมต่อระบบได้ กรุณาลองอีกครั้ง";
 
 export function ContractsScreen({
   tenant,
   initialContract,
   onChanged,
+  startCreate = null,
+  onStartCreateHandled,
 }: {
   tenant?: AgentTenant;
   initialContract?: AgentContract | null;
   onChanged?: () => void;
+  /** Open the create form of this document straight away, skipping the type picker. */
+  startCreate?: CreateDocumentKind | null;
+  /** Called once `startCreate` was taken, so the owner can clear it. */
+  onStartCreateHandled?: () => void;
 } = {}) {
   const { theme } = useMobileTheme();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const docs = t.agent.contracts;
+  const cn = docs.notice;
+  const tc = t.contracts;
+  const sc = tc.screen;
+  const message = (error: unknown) => localizedError(error, cn.connectError, locale);
+  const labels = tc.common.status;
+  const money = (value: number | null) =>
+    value == null
+      ? tc.common.notSpecified
+      : `฿${value.toLocaleString(localeTag(locale), { maximumFractionDigits: 2 })}`;
+  const date = (value: string | null) =>
+    value
+      ? new Date(`${value}T00:00:00`).toLocaleDateString(localeTag(locale), {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : tc.common.notSpecified;
+  const roomSuffix = (room: string | null | undefined) =>
+    room ? ` · ${fillTemplate(tc.common.room, { room })}` : "";
+  const typeLabel = (contract: Pick<AgentContract, "formKind" | "agreementTypeName">) =>
+    locale === "th" ? contract.agreementTypeName : tc.common.kinds[contract.formKind];
   const tenantPayer = useMemo(() => {
     if (!tenant) return undefined;
     const digits = (tenant.identityNumber ?? "").replace(/\D/g, "");
@@ -215,6 +213,19 @@ export function ContractsScreen({
       listRequest.current++;
     };
   }, [tenant?.id, retry]);
+  const startedCreate = useRef(false);
+  useEffect(() => {
+    if (!startCreate) {
+      startedCreate.current = false;
+      return;
+    }
+    if (startedCreate.current) return;
+    startedCreate.current = true;
+    onStartCreateHandled?.();
+    void onCreateKind(startCreate);
+    // One start per request; `onCreateKind` is a new function on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startCreate]);
   const [selected, setSelected] = useState<AgentContract | null>(
     initialContract ?? null,
   );
@@ -248,8 +259,8 @@ export function ContractsScreen({
   const creationAnchorRef = useRef<View>(null);
   const steppedCreation = reservation || lease;
   const creationSteps = lease
-    ? ["คู่สัญญา", "ห้องและระยะเวลา", "ค่าเช่าและการชำระ", "ข้อตกลงและตรวจสอบ"]
-    : ["คู่สัญญา", "ห้องและสัญญา", "จำนวนเงินและการชำระ", "ตรวจสอบ"];
+    ? sc.leaseSteps
+    : sc.reservationSteps;
   const reservationFieldStep = (key: string) =>
     key.startsWith("tenant") || key.startsWith("landlord")
       ? 0
@@ -276,7 +287,7 @@ export function ContractsScreen({
   }
   const nextCreationStep = () => {
     if (!leadId) {
-      setError("กรุณาเลือกผู้เช่าและห้อง");
+      setError(cn.selectTenantRoom);
       changeCreationStep(0);
       return;
     }
@@ -286,13 +297,13 @@ export function ContractsScreen({
       !editingDraft?.previousAgreementId &&
       !finalizedReservation(leadId)
     ) {
-      setError(LEASE_REQUIRES_RESERVATION);
+      setError(cn.leaseRequiresReservation);
       changeCreationStep(0);
       return;
     }
     const errors = lease
-      ? leaseAgreementFieldErrors(leaseForm)
-      : reservationLetterFieldErrors(letter);
+      ? leaseAgreementFieldErrors(leaseForm, tc.validation)
+      : reservationLetterFieldErrors(letter, tc.validation);
     const currentErrors = Object.fromEntries(
       Object.entries(errors).filter(
         ([key]) =>
@@ -303,7 +314,7 @@ export function ContractsScreen({
     if (lease) setLeaseErrors(currentErrors);
     else setLetterErrors(currentErrors);
     if (Object.keys(currentErrors).length) {
-      setError("กรุณากรอกข้อมูลที่จำเป็นในขั้นตอนนี้ให้ครบ");
+      setError(cn.stepRequired);
       changeCreationStep(creationStep);
       return;
     }
@@ -463,7 +474,7 @@ export function ContractsScreen({
         ? [
             {
               kind: "broker_appointment",
-              name: "สัญญาแต่งตั้งนายหน้า",
+              name: tc.common.brokerAppointmentDocument,
               url: contract.brokerAppointmentUrl,
             },
           ]
@@ -490,7 +501,7 @@ export function ContractsScreen({
       const updated = await generateFinancialDocument(selected.id, "invoice", {});
       setSelected(updated);
       setContracts((rows) => rows.map((row) => row.id === updated.id ? updated : row));
-      setNotice("สร้างใบแจ้งหนี้ค่าจองแล้ว");
+      setNotice(cn.invoiceCreated);
       onChanged?.();
     } catch (e) {
       setError(message(e));
@@ -593,7 +604,7 @@ export function ContractsScreen({
         };
       }
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : docs.uploadError);
+      setError(localizedError(e, docs.uploadError, locale));
       return;
     }
     if (!picked) return;
@@ -614,7 +625,7 @@ export function ContractsScreen({
       setNotice(docs.uploadSuccess);
       onChanged?.();
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : docs.uploadError);
+      setError(localizedError(e, docs.uploadError, locale));
     } finally {
       setUploadingKind(null);
       setBusy(false);
@@ -647,7 +658,7 @@ export function ContractsScreen({
       {
         key: "owner" as const,
         label:
-          contract.formKind === "broker_appointment" ? "ผู้ให้เช่า" : docs.owner,
+          contract.formKind === "broker_appointment" ? tc.common.parties.owner : docs.owner,
         signed: contract.ownerSignedAt,
         signatureUrl: contract.ownerSignatureUrl,
       },
@@ -660,7 +671,7 @@ export function ContractsScreen({
       {
         key: "agent" as const,
         label:
-          contract.formKind === "broker_appointment" ? "นายหน้า" : docs.agent,
+          contract.formKind === "broker_appointment" ? tc.common.parties.agent : docs.agent,
         signed: contract.agentSignedAt,
         signatureUrl: contract.agentSignatureUrl,
       },
@@ -718,7 +729,7 @@ export function ContractsScreen({
     )
       return;
     if (selected && parties.some((party) => bookingPaymentBlocksSigning(selected, party))) {
-      setError(BOOKING_PAYMENT_BEFORE_SIGNING);
+      setError(t.mobile.partyContracts.bookingPaymentBeforeSigning);
       return;
     }
     setError("");
@@ -765,15 +776,9 @@ export function ContractsScreen({
             };
       setSelected((current) => (current ? stamp(current) : current));
       setContracts((rows) => rows.map(stamp));
-      setNotice(
-        party === "owner"
-          ? "แชร์ให้ผู้ให้เช่าแล้ว"
-          : "แชร์ให้ผู้เช่าแล้ว",
-      );
+      setNotice(party === "owner" ? cn.sharedOwner : cn.sharedTenant);
     } catch (e) {
-      setError(
-        e instanceof Error && e.message ? e.message : docs.shareSignError,
-      );
+      setError(localizedError(e, docs.shareSignError, locale));
     } finally {
       setBusy(false);
     }
@@ -804,13 +809,13 @@ export function ContractsScreen({
         current.map((item) => (item.id === latest.id ? latest : item)),
       );
       if (!latest.reservationLetterUrl)
-        throw new Error("ไม่สามารถเปิดเอกสารได้ กรุณาลองอีกครั้ง");
+        throw new Error(cn.openDocumentFailed);
       openDocumentPreview(
         docs.reservationLetter,
         latest.reservationLetterUrl,
         "reservation_letter",
       );
-      if (generate) setNotice("สร้างเอกสารพร้อมลายเซ็นครบ 3 ฝ่ายแล้ว");
+      if (generate) setNotice(cn.generatedReservation);
       onChanged?.();
     } catch (e) {
       setError(message(e));
@@ -837,13 +842,13 @@ export function ContractsScreen({
         current.map((item) => (item.id === latest.id ? latest : item)),
       );
       if (!latest.brokerAppointmentUrl)
-        throw new Error("ไม่สามารถเปิดเอกสารได้ กรุณาลองอีกครั้ง");
+        throw new Error(cn.openDocumentFailed);
       openDocumentPreview(
-        "สัญญาแต่งตั้งนายหน้า",
+        tc.common.brokerAppointmentDocument,
         latest.brokerAppointmentUrl,
         "broker_appointment",
       );
-      if (generate) setNotice("สร้างเอกสารพร้อมลายเซ็นครบแล้ว");
+      if (generate) setNotice(cn.generatedBroker);
       onChanged?.();
     } catch (e) {
       setError(message(e));
@@ -868,13 +873,13 @@ export function ContractsScreen({
         current.map((item) => (item.id === latest.id ? latest : item)),
       );
       if (!latest.leaseDocumentUrl)
-        throw new Error("ไม่สามารถเปิดเอกสารได้ กรุณาลองอีกครั้ง");
+        throw new Error(cn.openDocumentFailed);
       openDocumentPreview(
         docs.leaseAgreement,
         latest.leaseDocumentUrl,
         "lease_agreement",
       );
-      if (generate) setNotice("สร้างเอกสารสัญญาเช่าพร้อมลายเซ็นครบแล้ว");
+      if (generate) setNotice(cn.generatedLease);
       onChanged?.();
     } catch (e) {
       setError(message(e));
@@ -903,7 +908,7 @@ export function ContractsScreen({
       setNotice(docs.signSuccess);
       onChanged?.();
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : docs.signError);
+      setError(localizedError(e, docs.signError, locale));
     } finally {
       signing.current = false;
       setBusy(false);
@@ -1068,7 +1073,7 @@ export function ContractsScreen({
         );
       }
       if (!available.length)
-        setError("ยังไม่มีแม่แบบที่เปิดใช้งานสำหรับสัญญานี้");
+        setError(cn.noTemplate);
     } catch (e) {
       setError(message(e));
     } finally {
@@ -1160,7 +1165,7 @@ export function ContractsScreen({
       );
       setCancellingDraft(false);
       setCancelReason("");
-      setNotice("ยกเลิกฉบับร่างแล้ว สามารถสร้างสัญญาใหม่ได้");
+      setNotice(cn.draftCancelled);
       onChanged?.();
     } catch (e) {
       setError(message(e));
@@ -1172,7 +1177,7 @@ export function ContractsScreen({
   async function save() {
     if (saving.current || busy) return;
     if (!template) {
-      setError("กรุณาโหลดแม่แบบสัญญาให้สำเร็จก่อนบันทึก");
+      setError(cn.templateRequired);
       return;
     }
     const savedReservation = editingDraft?.data?.reservationLetter as
@@ -1189,35 +1194,35 @@ export function ContractsScreen({
     if (reservation) {
       if (!leadId) {
         changeCreationStep(0);
-        setError("กรุณาเลือกผู้เช่า");
+        setError(cn.selectTenant);
         return;
       }
-      const fieldErrors = reservationLetterFieldErrors(reservationLetter);
+      const fieldErrors = reservationLetterFieldErrors(reservationLetter, tc.validation);
       if (Object.keys(fieldErrors).length) {
         changeCreationStep(
           Math.min(...Object.keys(fieldErrors).map(reservationFieldStep)),
         );
         setLetterErrors(fieldErrors);
-        setError("กรุณากรอกข้อมูลหนังสือจองที่จำเป็นให้ครบ");
+        setError(cn.reservationRequired);
         return;
       }
       setLetterErrors({});
     } else if (broker) {
       if (!leadId) {
-        setError("กรุณาเลือกผู้เช่า");
+        setError(cn.selectTenant);
         return;
       }
-      const fieldErrors = brokerAppointmentFieldErrors(brokerForm);
+      const fieldErrors = brokerAppointmentFieldErrors(brokerForm, tc.validation);
       if (Object.keys(fieldErrors).length) {
         setBrokerErrors(fieldErrors);
-        setError("กรุณากรอกข้อมูลแต่งตั้งนายหน้าให้ครบ");
+        setError(cn.brokerRequired);
         return;
       }
       setBrokerErrors({});
     } else if (lease) {
       if (!leadId) {
         changeCreationStep(0);
-        setError("กรุณาเลือกผู้เช่า");
+        setError(cn.selectTenant);
         return;
       }
       if (
@@ -1226,14 +1231,14 @@ export function ContractsScreen({
         !finalizedReservation(leadId)
       ) {
         changeCreationStep(0);
-        setError(LEASE_REQUIRES_RESERVATION);
+        setError(cn.leaseRequiresReservation);
         return;
       }
-      const fieldErrors = leaseAgreementFieldErrors(leaseForm);
+      const fieldErrors = leaseAgreementFieldErrors(leaseForm, tc.validation);
       if (Object.keys(fieldErrors).length) {
         changeCreationStep(Math.min(...Object.keys(fieldErrors).map(leaseAgreementFieldStep)));
         setLeaseErrors(fieldErrors);
-        setError("กรุณากรอกข้อมูลสัญญาเช่าให้ครบ");
+        setError(cn.leaseRequired);
         return;
       }
       setLeaseErrors({});
@@ -1244,7 +1249,7 @@ export function ContractsScreen({
       !form.monthlyRent.trim() ||
       !form.deposit.trim()
     ) {
-      setError("กรุณาเลือกผู้เช่าและกรอกวันที่กับจำนวนเงินให้ครบ");
+      setError(cn.financialRequired);
       return;
     }
     if (
@@ -1258,7 +1263,7 @@ export function ContractsScreen({
           ),
       )
     ) {
-      setError("แบบสัญญานี้มีฟิลด์ที่ฟอร์มยังไม่รองรับ กรุณาเลือกแบบอื่น");
+      setError(cn.unsupportedFields);
       return;
     }
     saving.current = true;
@@ -1339,7 +1344,7 @@ export function ContractsScreen({
       setCreating(false);
       setSelected(contract);
       setRenewing(null);
-      setNotice(editingDraft ? "บันทึกการแก้ไขแล้ว กรุณาสร้างลิงก์ลงนามใหม่หากเคยแชร์ไว้" : reservation ? "บันทึกฉบับร่างและสร้างใบแจ้งหนี้ค่าจองแล้ว" : "บันทึกฉบับร่างแล้ว");
+      setNotice(editingDraft ? cn.draftEdited : reservation ? cn.draftSavedWithInvoice : cn.draftSaved);
       setEditingDraft(null);
       onChanged?.();
       setLeadId(null);
@@ -1396,7 +1401,7 @@ export function ContractsScreen({
       !loadingList &&
       !finalizedReservation(tenant?.leadId ?? null)
     ) {
-      setError(LEASE_REQUIRES_RESERVATION);
+      setError(cn.leaseRequiresReservation);
       return;
     }
     if (kind === "reservation" || kind === "lease" || kind === "broker_appointment") {
@@ -1404,7 +1409,7 @@ export function ContractsScreen({
       try {
         const types = await listAgreementTypes();
         const type = types.find((row) => row.formKind === kind || row.code === kind);
-        if (!type) throw new Error("ไม่พบประเภทสัญญานี้ในระบบ");
+        if (!type) throw new Error(cn.typeNotFound);
         setChoosingType(false);
         setMenuCreate(null);
         await beginContract(type);
@@ -1494,7 +1499,7 @@ export function ContractsScreen({
     return (
       <View style={s.root} ref={creationAnchorRef} collapsable={false}>
         {button(
-          renewing || editingDraft ? "← กลับไปสัญญาเดิม" : "← เลือกประเภทสัญญา",
+          renewing || editingDraft ? sc.backToOriginal : sc.backToTypes,
           () => {
             if (busy) return;
             setCreating(false);
@@ -1505,15 +1510,29 @@ export function ContractsScreen({
           },
         )}
         <Text style={[s.heading, title]}>
-          {editingDraft ? "แก้ไขฉบับร่าง · " : renewing ? "ต่ออายุ" : "สร้าง"}
-          {agreementType?.nameTh || "สัญญาเช่า"}
+          {fillTemplate(
+            editingDraft ? sc.editDraftTitle : renewing ? sc.renewTitle : sc.createTitle,
+            {
+              type:
+                (locale !== "th" &&
+                  (reservation
+                    ? tc.common.kinds.reservation
+                    : broker
+                      ? tc.common.kinds.broker_appointment
+                      : lease
+                        ? tc.common.kinds.lease
+                        : null)) ||
+                agreementType?.nameTh ||
+                tc.common.kinds.lease,
+            },
+          )}
         </Text>
         <Text style={[s.body, muted]}>
           {editingDraft
-            ? "แก้ไขเงื่อนไขได้โดยคงผู้เช่า ห้อง และเลขสัญญาเดิม เมื่อบันทึกจะสร้างเอกสารการเงินจากข้อมูลล่าสุด"
+            ? sc.editDraftHint
             : steppedCreation
-              ? "กรอกข้อมูลทีละขั้น แล้วตรวจสอบก่อนบันทึกฉบับร่าง"
-              : "เลือกผู้เช่าและห้องเพื่อเตรียมฉบับร่างสัญญา"}
+              ? sc.stepHint
+              : sc.pickHint}
         </Text>
         {steppedCreation && (
           <>
@@ -1606,18 +1625,17 @@ export function ContractsScreen({
         {busy && <ActivityIndicator color={accent} />}
         {renewing && (
           <Text style={[s.body, muted]}>
-            ต่อจาก {renewing.contractNo} ·
-            กรุณาตรวจสอบเงื่อนไขและระบุวันสิ้นสุดใหม่
+            {fillTemplate(sc.renewFrom, { no: renewing.contractNo })}
           </Text>
         )}
         {!template &&
           !busy &&
-          button("โหลดแบบสัญญาอีกครั้ง", () => {
+          button(sc.reloadTemplate, () => {
             if (agreementType) void beginContract(agreementType, renewing);
           })}
         {(!steppedCreation || creationStep === 0) && (
           <View style={[s.card, card]}>
-            <Text style={[s.subtitle, title]}>ผู้เช่าและห้อง</Text>
+            <Text style={[s.subtitle, title]}>{sc.tenantAndRoom}</Text>
             {candidates.map((c) => (
               <Pressable
                 key={c.leadId}
@@ -1682,20 +1700,20 @@ export function ContractsScreen({
                 </Text>
                 <Text style={[s.small, muted]}>
                   {c.property}
-                  {c.room ? ` · ห้อง ${c.room}` : ""}
+                  {roomSuffix(c.room)}
                 </Text>
               </Pressable>
             ))}
             {!busy && !candidates.length && (
               <Text style={[s.body, muted]}>
                 {error
-                  ? "ยังโหลดผู้เช่าไม่ได้"
-                  : "ยังไม่มีผู้เช่าที่พร้อมทำสัญญา ต้องมี Lead สถานะจองแล้ว พร้อมข้อมูลผู้เช่าและห้องที่คุณจัดการ"}
+                  ? sc.tenantsLoadFailed
+                  : sc.noTenants}
               </Text>
             )}
             {!renewing &&
               !editingDraft &&
-              button("โหลดรายชื่ออีกครั้ง", () => {
+              button(sc.reloadTenants, () => {
                 void loadCandidates();
               })}
           </View>
@@ -1704,12 +1722,12 @@ export function ContractsScreen({
           {!steppedCreation && (
             <Text style={[s.subtitle, title]}>
               {reservation
-                ? "รายละเอียดหนังสือจอง"
+                ? sc.reservationDetails
                 : broker
-                  ? "รายละเอียดแต่งตั้งนายหน้า"
+                  ? tc.broker.details
                   : lease
-                    ? "รายละเอียดสัญญาเช่า"
-                    : "เงื่อนไขการเช่า"}
+                    ? sc.leaseDetails
+                    : sc.rentalTerms}
             </Text>
           )}
           {reservation ? (
@@ -1721,20 +1739,20 @@ export function ContractsScreen({
                 onChange={(next) => {
                   setLetter(next);
                   if (Object.keys(letterErrors).length)
-                    setLetterErrors(reservationLetterFieldErrors(next));
+                    setLetterErrors(reservationLetterFieldErrors(next, tc.validation));
                 }}
                 disabled={busy}
                 errors={letterErrors}
               />
               {creationStep === 3 && (
                 <View style={{ gap: 6, marginTop: 8 }}>
-                  <Text style={[s.body, title]}>หมายเหตุ (ไม่บังคับ)</Text>
+                  <Text style={[s.body, title]}>{sc.notes}</Text>
                   <MobileInput
                     value={form.notes}
                     onChangeText={(value) =>
                       setForm((current) => ({ ...current, notes: value }))
                     }
-                    placeholder="รายละเอียดเพิ่มเติม"
+                    placeholder={sc.notesPlaceholder}
                   />
                 </View>
               )}
@@ -1746,19 +1764,19 @@ export function ContractsScreen({
                 onChange={(next) => {
                   setBrokerForm(next);
                   if (Object.keys(brokerErrors).length)
-                    setBrokerErrors(brokerAppointmentFieldErrors(next));
+                    setBrokerErrors(brokerAppointmentFieldErrors(next, tc.validation));
                 }}
                 disabled={busy}
                 errors={brokerErrors}
               />
               <View style={{ gap: 6, marginTop: 8 }}>
-                <Text style={[s.body, title]}>หมายเหตุ (ไม่บังคับ)</Text>
+                <Text style={[s.body, title]}>{sc.notes}</Text>
                 <MobileInput
                   value={form.notes}
                   onChangeText={(value) =>
                     setForm((current) => ({ ...current, notes: value }))
                   }
-                  placeholder="รายละเอียดเพิ่มเติม"
+                  placeholder={sc.notesPlaceholder}
                 />
               </View>
             </>
@@ -1771,20 +1789,20 @@ export function ContractsScreen({
                 onChange={(next) => {
                   setLeaseForm(next);
                   if (Object.keys(leaseErrors).length)
-                    setLeaseErrors(leaseAgreementFieldErrors(next));
+                    setLeaseErrors(leaseAgreementFieldErrors(next, tc.validation));
                 }}
                 disabled={busy}
                 errors={leaseErrors}
               />
               {creationStep === 3 && (
                 <View style={{ gap: 6, marginTop: 8 }}>
-                  <Text style={[s.body, title]}>หมายเหตุ (ไม่บังคับ)</Text>
+                  <Text style={[s.body, title]}>{sc.notes}</Text>
                   <MobileInput
                     value={form.notes}
                     onChangeText={(value) =>
                       setForm((current) => ({ ...current, notes: value }))
                     }
-                    placeholder="รายละเอียดเพิ่มเติม"
+                    placeholder={sc.notesPlaceholder}
                   />
                 </View>
               )}
@@ -1792,11 +1810,11 @@ export function ContractsScreen({
           ) : (
             (
               [
-                ["startDate", "วันเริ่มสัญญา (ค.ศ.)", "2026-10-01"],
-                ["endDate", "วันสิ้นสุดสัญญา (ค.ศ.)", "2027-09-30"],
-                ["monthlyRent", "ค่าเช่าต่อเดือน (บาท)", "15000"],
-                ["deposit", "เงินประกัน (บาท)", "30000"],
-                ["notes", "หมายเหตุ (ไม่บังคับ)", "รายละเอียดเพิ่มเติม"],
+                ["startDate", sc.startDate, "2026-10-01"],
+                ["endDate", sc.endDate, "2027-09-30"],
+                ["monthlyRent", sc.monthlyRentInput, "15000"],
+                ["deposit", sc.depositInput, "30000"],
+                ["notes", sc.notes, sc.notesPlaceholder],
               ] as Array<[keyof typeof form, string, string]>
             ).map(([key, label, placeholder]) => (
               <View key={key} style={{ gap: 6 }}>
@@ -1818,7 +1836,7 @@ export function ContractsScreen({
           )}
           {(!steppedCreation || creationStep === 3) &&
             reservation && (
-              <Text style={[s.body, muted]}>เมื่อบันทึก ระบบจะสร้างใบแจ้งหนี้ค่าจองที่ผูกกับหนังสือจองนี้ ผู้เช่าจะเปิดดูและส่งสลิปได้จากหน้าสัญญา</Text>
+              <Text style={[s.body, muted]}>{sc.invoiceOnSave}</Text>
             )}
           {(!steppedCreation || creationStep === 3) &&
             customFields
@@ -1841,7 +1859,7 @@ export function ContractsScreen({
                   {field.enum || field.type === "boolean" ? (
                     (field.enum ?? [true, false]).map((option) =>
                       button(
-                        `${extraFields[key] === String(option) ? "● " : "○ "}${option === true ? "ใช่" : option === false ? "ไม่ใช่" : String(option)}`,
+                        `${extraFields[key] === String(option) ? "● " : "○ "}${option === true ? sc.yes : option === false ? sc.no : String(option)}`,
                         () =>
                           setExtraFields((current) => ({
                             ...current,
@@ -1876,7 +1894,7 @@ export function ContractsScreen({
             <View style={{ flexDirection: "row", gap: 12, paddingVertical: 8 }}>
               {creationStep > 0 && (
                 <View style={{ flex: 1 }}>
-                  {button("← ย้อนกลับ", () => {
+                  {button(sc.previousStep, () => {
                     setError("");
                     changeCreationStep(creationStep - 1);
                   })}
@@ -1885,7 +1903,7 @@ export function ContractsScreen({
               {creationStep < 3 && (
                 <View style={{ flex: 2 }}>
                   {button(
-                    `ถัดไป: ${creationSteps[creationStep + 1]} →`,
+                    fillTemplate(sc.nextStep, { step: creationSteps[creationStep + 1] }),
                     nextCreationStep,
                     true,
                   )}
@@ -1895,7 +1913,7 @@ export function ContractsScreen({
           )}
           {(!steppedCreation || creationStep === 3) &&
             button(
-              busy ? "กำลังดำเนินการ…" : "บันทึกฉบับร่าง",
+              busy ? sc.working : sc.saveDraft,
               () => {
                 void save();
               },
@@ -1903,7 +1921,7 @@ export function ContractsScreen({
             )}
           {(!steppedCreation || creationStep === 3) && (
             <Text style={[s.small, muted]}>
-              บันทึกเป็นฉบับร่าง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที
+              {sc.saveDraftHint}
             </Text>
           )}
         </View>
@@ -1932,7 +1950,7 @@ export function ContractsScreen({
   if (selected)
     return (
       <View style={s.root}>
-        {button("← กลับไปหน้าสัญญา", back)}
+        {button(sc.backToContracts, back)}
         {errorView}
         {!!notice && (
           <Text accessibilityRole="alert" style={[s.body, { color: accent }]}>
@@ -1943,23 +1961,23 @@ export function ContractsScreen({
           <Text style={[s.eyebrow, { color: accent }]}>E-CONTRACT</Text>
           <Text style={[s.heading, title]}>{selected.property}</Text>
           <Text style={[s.body, muted]}>
-            เลขที่สัญญา {selected.contractNo}
+            {fillTemplate(tc.common.contractNo, { no: selected.contractNo })}
           </Text>
           <Text style={[s.body, muted]}>
             {selected.tenant}
-            {selected.room ? ` · ห้อง ${selected.room}` : ""}
+            {roomSuffix(selected.room)}
           </Text>
           <Text style={[s.body, { color: color(selected.status) }]}>
             {labels[selected.status]}
           </Text>
           <View style={[s.divider, { borderColor: theme.border }]} />
           <Text style={[s.small, muted]}>
-            {selected.agreementTypeName} ·{" "}
+            {typeLabel(selected)} ·{" "}
             {selected.formKind === "reservation"
-              ? "เงินจอง"
+              ? sc.reservationFee
               : selected.formKind === "broker_appointment"
-                ? "แต่งตั้งนายหน้า"
-                : "ค่าเช่าต่อเดือน"}
+                ? tc.common.kinds.broker_appointment
+                : sc.monthlyRent}
           </Text>
           <Text style={[s.heading, title]}>
             {selected.formKind === "broker_appointment"
@@ -1972,14 +1990,14 @@ export function ContractsScreen({
           </Text>
           {selected.formKind === "lease" && (
             <Text style={[s.body, muted]}>
-              เงินประกัน {money(selected.deposit)}
+              {fillTemplate(sc.deposit, { amount: money(selected.deposit) })}
             </Text>
           )}
           <Text style={[s.body, muted]}>
             {selected.formKind === "reservation"
-              ? `วันที่จอง ${date(selected.bookingDate)} · วันที่เข้าอยู่ ${date(selected.moveInDate)}`
+              ? fillTemplate(tc.common.bookingAndMoveIn, { booking: date(selected.bookingDate), moveIn: date(selected.moveInDate) })
               : selected.formKind === "broker_appointment"
-                ? `วันที่ ${date(selected.startDate)}`
+                ? fillTemplate(tc.common.dated, { date: date(selected.startDate) })
                 : `${date(selected.startDate)} – ${date(selected.endDate)}`}
           </Text>
           {!!selected.notes && (
@@ -1988,20 +2006,20 @@ export function ContractsScreen({
         </View>
         {selected.status === "draft" && !selected.ownerSignedAt && !selected.tenantSignedAt && !selected.agentSignedAt && !documentLocked && !selected.receiptUrl && selected.reservationPayment?.status !== "submitted" && (
           <View style={[s.card, card]}>
-            {button("แก้ไขฉบับร่าง", () => { void editDraft(selected); })}
-            {button("ยกเลิกฉบับร่าง", () => { setCancellingDraft(true); setCancelReason(""); setError(""); })}
+            {button(sc.editDraft, () => { void editDraft(selected); })}
+            {button(sc.cancelDraft, () => { setCancellingDraft(true); setCancelReason(""); setError(""); })}
             {cancellingDraft && <>
-              <Text style={[s.body, title]}>ยืนยันยกเลิก {selected.contractNo}</Text>
-              <Text style={[s.small, muted]}>รายการจะยังอยู่ในประวัติ ลิงก์ลงนามเดิมจะใช้ไม่ได้ และสามารถสร้างสัญญาใหม่ได้</Text>
-              <MobileInput label="เหตุผลที่ยกเลิก" value={cancelReason} onChangeText={setCancelReason} editable={!busy} maxLength={1000}
-                placeholder="เหตุผลที่ยกเลิก" accessibilityLabel="เหตุผลที่ยกเลิกฉบับร่าง" multiline />
-              <MobileButton disabled={busy || !cancelReason.trim()} onPress={() => { void cancelDraft(); }}>ยืนยันยกเลิกฉบับร่าง</MobileButton>
-              {button("เก็บฉบับร่างไว้", () => { setCancellingDraft(false); setCancelReason(""); })}
+              <Text style={[s.body, title]}>{fillTemplate(sc.confirmCancel, { no: selected.contractNo })}</Text>
+              <Text style={[s.small, muted]}>{sc.cancelHint}</Text>
+              <MobileInput label={sc.cancelReason} value={cancelReason} onChangeText={setCancelReason} editable={!busy} maxLength={1000}
+                placeholder={sc.cancelReason} accessibilityLabel={sc.cancelReasonA11y} multiline />
+              <MobileButton disabled={busy || !cancelReason.trim()} onPress={() => { void cancelDraft(); }}>{sc.confirmCancelDraft}</MobileButton>
+              {button(sc.keepDraft, () => { setCancellingDraft(false); setCancelReason(""); })}
             </>}
           </View>
         )}
         {selected.status === "cancelled" && !!selected.data.draftCancellation && (
-          <Text style={[s.body, muted]}>เหตุผลที่ยกเลิก: {String((selected.data.draftCancellation as { reason?: string }).reason ?? "")}</Text>
+          <Text style={[s.body, muted]}>{fillTemplate(sc.cancelledReason, { reason: String((selected.data.draftCancellation as { reason?: string }).reason ?? "") })}</Text>
         )}
         {(!!selected.previousAgreementId ||
           (selected.formKind === "lease" &&
@@ -2009,13 +2027,15 @@ export function ContractsScreen({
         <View style={[s.card, card]}>
           {!!selected.previousAgreementId && (
             <Text style={[s.body, muted]}>
-              ฉบับต่ออายุ · สัญญาก่อนหน้า #{selected.previousAgreementId} ·
-              ฉบับแรก #{selected.rootAgreementId}
+              {fillTemplate(sc.renewalOf, {
+                previous: selected.previousAgreementId,
+                root: selected.rootAgreementId ?? "",
+              })}
             </Text>
           )}
           {selected.formKind === "lease" &&
             ["active", "expired"].includes(selected.status) &&
-            button("ต่ออายุสัญญา", () => {
+            button(sc.renew, () => {
               void beginContract(
                 {
                   code: selected.agreementTypeCode,
@@ -2063,14 +2083,14 @@ export function ContractsScreen({
                       isLoading={pdfAction === "preview"}
                       onPress={() => void openReservation(false)}
                     >
-                      ดูหนังสือจอง
+                      {sc.viewReservation}
                     </MobileButton>
                     <Text style={[s.small, muted]}>
                       {generated
-                        ? "สร้างเอกสารพร้อมลายเซ็นครบ 3 ฝ่ายแล้ว — ดูได้อย่างเดียว แก้ไขไม่ได้"
+                        ? sc.lockedAllThree
                         : complete
-                          ? "ลงนามครบแล้ว ยืนยันและสร้างเอกสารได้ที่ด้านล่าง"
-                          : "เอกสารตัวอย่างเปิดดูได้ก่อนลงนาม เมื่อเซ็นครบ 3 ฝ่ายจึงสร้างเอกสารพร้อมลายเซ็นได้"}
+                          ? sc.allSigned
+                          : sc.previewReservation}
                     </Text>
                   </View>
                 );
@@ -2099,14 +2119,14 @@ export function ContractsScreen({
                       isLoading={pdfAction === "preview"}
                       onPress={() => void openBrokerAppointment(false)}
                     >
-                      ดูสัญญาแต่งตั้งนายหน้า
+                      {sc.viewBroker}
                     </MobileButton>
                     <Text style={[s.small, muted]}>
                       {generated
-                        ? "สร้างเอกสารพร้อมลายเซ็นครบแล้ว — ดูได้อย่างเดียว แก้ไขไม่ได้"
+                        ? sc.lockedSigned
                         : complete
-                          ? "ลงนามครบแล้ว ยืนยันและสร้างเอกสารได้ที่ด้านล่าง"
-                          : "เอกสารตัวอย่างเปิดดูได้ก่อนลงนาม เมื่อเซ็นครบผู้ให้เช่าและนายหน้าจึงสร้างเอกสารได้"}
+                          ? sc.allSigned
+                          : sc.previewBroker}
                     </Text>
                   </View>
                 );
@@ -2165,14 +2185,14 @@ export function ContractsScreen({
                         isLoading={pdfAction === "preview"}
                         onPress={() => void openLeaseAgreement(false)}
                       >
-                        ดูสัญญาเช่า
+                        {sc.viewLease}
                       </MobileButton>
                       <Text style={[s.small, muted]}>
                         {generated
-                          ? "สร้างเอกสารพร้อมลายเซ็นครบแล้ว — ดูได้อย่างเดียว แก้ไขไม่ได้"
+                          ? sc.lockedSigned
                           : complete
-                            ? "ลงนามครบแล้ว ยืนยันและสร้างเอกสารได้ที่ด้านล่าง"
-                            : "เอกสารตัวอย่างเปิดดูได้ก่อนลงนาม เมื่อเซ็นครบผู้ให้เช่าและผู้เช่าจึงสร้างเอกสารได้"}
+                            ? sc.allSigned
+                            : sc.previewLease}
                       </Text>
                     </View>
                   );
@@ -2206,24 +2226,24 @@ export function ContractsScreen({
                           openDocumentPreview(fileName, slot.url!, slot.kind)
                         }
                       >
-                        ดู
+                        {tc.common.view}
                       </MobileButton>
                     </>
                   ) : documentLocked ? (
                     <Text style={[s.small, muted]}>
-                      ยังไม่ได้แนบเอกสารสำหรับรายการนี้
+                      {tc.common.notAttached}
                     </Text>
                   ) : (
                     <>
                       <Text style={[s.small, muted]}>
-                        ยังไม่ได้แนบเอกสารสำหรับรายการนี้
+                        {tc.common.notAttached}
                       </Text>
                       <MobileButton
                         disabled={busy}
                         isLoading={uploadingKind === slot.kind}
                         onPress={() => setPickKind(slot.kind)}
                       >
-                        แนบเอกสาร
+                        {tc.common.attach}
                       </MobileButton>
                     </>
                   )}
@@ -2238,7 +2258,7 @@ export function ContractsScreen({
             busy={busy}
             onOpen={(kind) => {
               const url = kind === "invoice" ? selected.invoiceUrl : kind === "receipt" ? selected.receiptUrl : selected.reservationPayment?.paymentSlipUrl;
-              if (url) openDocumentPreview(kind === "invoice" ? "ใบแจ้งหนี้ค่าจอง" : kind === "receipt" ? "ใบเสร็จค่าจอง" : "สลิปชำระค่าจอง", url, kind === "payment-slip" ? "payment_slip" : kind);
+              if (url) openDocumentPreview(kind === "invoice" ? tc.common.paymentDocuments.invoice : kind === "receipt" ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip, url, kind === "payment-slip" ? "payment_slip" : kind);
             }}
             onIssueReceipt={() => { setError(""); setFinancialKind("receipt"); }}
             onCreateInvoice={() => void createBookingInvoice()}
@@ -2258,7 +2278,7 @@ export function ContractsScreen({
           <Text style={[s.subtitle, title]}>{docs.signatories}</Text>
           {attachmentsRequired && !attachmentsReady ? (
             <Text style={[s.small, muted]}>
-              แนบเอกสารที่จำเป็นให้ครบก่อนลงนาม
+              {sc.attachBeforeSigning}
             </Text>
           ) : null}
           {partyMeta(selected).map((party) => (
@@ -2271,7 +2291,7 @@ export function ContractsScreen({
                     : docs.unsigned}
                 </Text>
                 {!party.signed && bookingPaymentBlocksSigning(selected, party.key) && (
-                  <Text style={[s.small, muted]}>{BOOKING_PAYMENT_BEFORE_SIGNING}</Text>
+                  <Text style={[s.small, muted]}>{t.mobile.partyContracts.bookingPaymentBeforeSigning}</Text>
                 )}
               </View>
               {party.signed && party.signatureUrl ? (
@@ -2326,20 +2346,20 @@ export function ContractsScreen({
             {selected.reservationLetterStatus === "ready" ? (
               <>
                 <Text style={[s.small, muted]}>
-                  สร้างเอกสารหนังสือจองแล้ว — ดูได้อย่างเดียว แก้ไขไม่ได้
+                  {sc.reservationGenerated}
                 </Text>
                 <MobileButton
                   disabled={busy}
                   isLoading={pdfAction === "preview"}
                   onPress={() => void openReservation(false)}
                 >
-                  ดูเอกสารฉบับสมบูรณ์
+                  {sc.viewFinal}
                 </MobileButton>
               </>
             ) : (
               <>
                 <Text style={[s.small, muted]}>
-                  แนบหลักฐานกรรมสิทธิ์ และลงนามครบทั้ง 3 ฝ่าย แล้วกดยืนยันเพื่อสร้างเอกสาร
+                  {sc.reservationGenerateHint}
                 </Text>
                 <MobileButton
                   disabled={
@@ -2351,7 +2371,7 @@ export function ContractsScreen({
                   isLoading={pdfAction === "generate"}
                   onPress={() => void openReservation(true)}
                 >
-                  ยืนยันและสร้างเอกสาร
+                  {sc.confirmGenerate}
                 </MobileButton>
               </>
             )}
@@ -2362,20 +2382,20 @@ export function ContractsScreen({
             {selected.brokerAppointmentStatus === "ready" ? (
               <>
                 <Text style={[s.small, muted]}>
-                  สร้างเอกสารแต่งตั้งนายหน้าแล้ว — ดูได้อย่างเดียว แก้ไขไม่ได้
+                  {sc.brokerGenerated}
                 </Text>
                 <MobileButton
                   disabled={busy}
                   isLoading={pdfAction === "preview"}
                   onPress={() => void openBrokerAppointment(false)}
                 >
-                  ดูเอกสารฉบับสมบูรณ์
+                  {sc.viewFinal}
                 </MobileButton>
               </>
             ) : (
               <>
                 <Text style={[s.small, muted]}>
-                  ลงนามครบทั้งผู้ให้เช่าและนายหน้า แล้วกดยืนยันเพื่อสร้างเอกสาร
+                  {sc.brokerGenerateHint}
                 </Text>
                 <MobileButton
                   disabled={
@@ -2385,7 +2405,7 @@ export function ContractsScreen({
                   isLoading={pdfAction === "generate"}
                   onPress={() => void openBrokerAppointment(true)}
                 >
-                  ยืนยันและสร้างเอกสาร
+                  {sc.confirmGenerate}
                 </MobileButton>
               </>
             )}
@@ -2397,20 +2417,20 @@ export function ContractsScreen({
             {selected.leaseAgreementStatus === "ready" ? (
               <>
                 <Text style={[s.small, muted]}>
-                  สร้างเอกสารสัญญาเช่าแล้ว — ดูได้อย่างเดียว แก้ไขไม่ได้
+                  {sc.leaseGenerated}
                 </Text>
                 <MobileButton
                   disabled={busy}
                   isLoading={pdfAction === "preview"}
                   onPress={() => void openLeaseAgreement(false)}
                 >
-                  ดูเอกสารฉบับสมบูรณ์
+                  {sc.viewFinal}
                 </MobileButton>
               </>
             ) : (
               <>
                 <Text style={[s.small, muted]}>
-                  ลงนามครบทั้งผู้ให้เช่าและผู้เช่า แล้วกดยืนยันเพื่อสร้างเอกสาร
+                  {sc.leaseGenerateHint}
                 </Text>
                 <MobileButton
                   disabled={
@@ -2421,7 +2441,7 @@ export function ContractsScreen({
                   isLoading={pdfAction === "generate"}
                   onPress={() => void openLeaseAgreement(true)}
                 >
-                  ยืนยันและสร้างเอกสาร
+                  {sc.confirmGenerate}
                 </MobileButton>
               </>
             )}
@@ -2448,11 +2468,11 @@ export function ContractsScreen({
               >
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="ปิดเอกสาร"
+                  accessibilityLabel={tc.common.closeDocument}
                   onPress={() => setPreviewDoc(null)}
                   style={{ padding: 8 }}
                 >
-                  <Text style={title}>ปิด</Text>
+                  <Text style={title}>{tc.common.close}</Text>
                 </Pressable>
                 <Text style={[s.sheetTitle, title]}>
                   {previewDoc
@@ -2667,18 +2687,18 @@ export function ContractsScreen({
   if (viewingInvoice)
     return (
       <View style={s.root}>
-        {button("← กลับ", () => {
+        {button(tc.common.back, () => {
           setPayingInvoice(false);
           setViewingInvoice(null);
           setPreviewDoc(null);
         })}
-        <Text style={[s.heading, title]}>ใบแจ้งหนี้</Text>
+        <Text style={[s.heading, title]}>{sc.invoice}</Text>
         {errorView}
         <View style={[s.card, card]}>
           <Text style={[s.subtitle, title]}>{viewingInvoice.documentNo}</Text>
           <Text style={[s.body, title]}>{viewingInvoice.customerName}</Text>
           <Text style={[s.small, muted]}>
-            วันที่ {date(viewingInvoice.issueDate)}
+            {fillTemplate(tc.common.dated, { date: date(viewingInvoice.issueDate) })}
           </Text>
           <Text style={[s.body, title]}>{money(viewingInvoice.total)}</Text>
           <Text
@@ -2693,7 +2713,7 @@ export function ContractsScreen({
           </Text>
           {viewingInvoice.receiptDocumentNo ? (
             <Text style={[s.small, muted]}>
-              ใบเสร็จ {viewingInvoice.receiptDocumentNo}
+              {fillTemplate(sc.receiptNo, { no: viewingInvoice.receiptDocumentNo })}
             </Text>
           ) : null}
         </View>
@@ -2716,24 +2736,24 @@ export function ContractsScreen({
         ) : null}
         {viewingInvoice.invoiceUrl
           ? button(
-              "ดูเอกสาร",
+              sc.viewDocument,
               () =>
                 openDocumentPreview(
-                  `ใบแจ้งหนี้ ${viewingInvoice.documentNo}`,
+                  fillTemplate(sc.invoiceNo, { no: viewingInvoice.documentNo }),
                   viewingInvoice.invoiceUrl!,
                   "invoice",
                 ),
               true,
             )
           : (
-              <Text style={[s.body, muted]}>ยังเปิดเอกสารไม่ได้</Text>
+              <Text style={[s.body, muted]}>{sc.documentUnavailable}</Text>
             )}
         {viewingInvoice.receiptUrl
           ? button(
-              `ดูใบเสร็จ ${viewingInvoice.receiptDocumentNo ?? ""}`.trim(),
+              fillTemplate(sc.viewReceipt, { no: viewingInvoice.receiptDocumentNo ?? "" }).trim(),
               () =>
                 openDocumentPreview(
-                  `ใบเสร็จ ${viewingInvoice.receiptDocumentNo ?? ""}`.trim(),
+                  fillTemplate(sc.receiptNo, { no: viewingInvoice.receiptDocumentNo ?? "" }).trim(),
                   viewingInvoice.receiptUrl!,
                   "receipt",
                 ),
@@ -2775,11 +2795,11 @@ export function ContractsScreen({
               >
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="ปิดเอกสาร"
+                  accessibilityLabel={tc.common.closeDocument}
                   onPress={() => setPreviewDoc(null)}
                   style={{ padding: 8 }}
                 >
-                  <Text style={title}>ปิด</Text>
+                  <Text style={title}>{tc.common.close}</Text>
                 </Pressable>
                 <Text style={[s.sheetTitle, title]}>
                   {previewDoc
@@ -2825,15 +2845,15 @@ export function ContractsScreen({
         <Text
           style={[s.heroTitle, { color: tenant ? theme.textHeading : "#fff" }]}
         >
-          {tenant ? "สัญญาของผู้เช่า" : "ทุกสัญญา จัดการในที่เดียว"}
+          {tenant ? sc.tenantContracts : sc.allContracts}
         </Text>
         <Text
           style={[s.body, { color: tenant ? theme.textSecondary : "#C6D9D0" }]}
         >
-          เตรียมสัญญาเช่า และติดตามสถานะเอกสาร
+          {sc.listHint}
         </Text>
         {button(
-          "＋ สร้างสัญญา",
+          sc.create,
           () => {
             setViewingInvoice(null);
             setChoosingType(true);
@@ -2847,7 +2867,7 @@ export function ContractsScreen({
       {(
         <>
           <Text style={[s.subtitle, title]}>
-            ใบแจ้งหนี้
+            {sc.invoice}
             {!loadingList ? ` (${shownInvoices.length + bookingInvoices.length})` : ""}
           </Text>
           {!loadingList && bookingInvoices.map((contract) => (
@@ -2862,10 +2882,10 @@ export function ContractsScreen({
                 setFocusDocuments(false);
                 try {
                   const latest = await getAgentContract(contract.id);
-                  if (!latest.invoiceUrl) throw new Error("ไม่พบใบแจ้งหนี้ค่าจอง กรุณาโหลดรายการอีกครั้ง");
+                  if (!latest.invoiceUrl) throw new Error(cn.invoiceNotFound);
                   setSelected(latest);
                   setContracts((current) => current.map((item) => item.id === latest.id ? latest : item));
-                  openDocumentPreview(`ใบแจ้งหนี้ค่าจอง ${latest.reservationPayment?.invoiceDocumentNo ?? latest.contractNo}`, latest.invoiceUrl, "invoice");
+                  openDocumentPreview(fillTemplate(sc.bookingInvoiceNo, { no: latest.reservationPayment?.invoiceDocumentNo ?? latest.contractNo }), latest.invoiceUrl, "invoice");
                 } catch (e) {
                   setError(message(e));
                 } finally {
@@ -2879,7 +2899,7 @@ export function ContractsScreen({
               <View key={invoice.id} style={[s.card, card]}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`ดูใบแจ้งหนี้ ${invoice.documentNo}`}
+                  accessibilityLabel={fillTemplate(sc.viewInvoiceA11y, { no: invoice.documentNo })}
                   disabled={busy}
                   onPress={() => {
                     setError("");
@@ -2924,7 +2944,7 @@ export function ContractsScreen({
               </View>
             ))}
           {!loadingList && !shownInvoices.length && !bookingInvoices.length && (
-            <Text style={[s.body, muted]}>ยังไม่มีใบแจ้งหนี้</Text>
+            <Text style={[s.body, muted]}>{sc.noInvoices}</Text>
           )}
           <Text style={[s.subtitle, title]}>
             {docs.commissionConfirmation.list}
@@ -2966,7 +2986,7 @@ export function ContractsScreen({
         </>
       )}
       <Text style={[s.subtitle, title]}>
-        สัญญาที่สร้างแล้ว
+        {sc.created}
         {!loadingList && !listError ? ` (${contracts.length})` : ""}
       </Text>
       {(loadingList || busy) && <ActivityIndicator color={accent} />}
@@ -2975,7 +2995,7 @@ export function ContractsScreen({
           <Text accessibilityRole="alert" style={[s.body, muted]}>
             {listError}
           </Text>
-          {button("ลองโหลดอีกครั้ง", () => setRetry((value) => value + 1))}
+          {button(tc.common.retry, () => setRetry((value) => value + 1))}
         </View>
       )}
       {!loadingList &&
@@ -2984,7 +3004,7 @@ export function ContractsScreen({
           <Pressable
             key={contract.id}
             accessibilityRole="button"
-            accessibilityLabel={`ดู${contract.agreementTypeName} ${contract.contractNo}`}
+            accessibilityLabel={fillTemplate(sc.viewContractA11y, { type: typeLabel(contract), no: contract.contractNo })}
             disabled={busy}
             onPress={async () => {
               setBusy(true);
@@ -3013,7 +3033,7 @@ export function ContractsScreen({
           >
             <View style={s.row}>
               <Text style={[s.subtitle, title]}>
-                {contract.agreementTypeName}
+                {typeLabel(contract)}
               </Text>
               <Text
                 style={[
@@ -3028,35 +3048,35 @@ export function ContractsScreen({
               </Text>
             </View>
             <Text style={[s.small, muted]}>
-              เลขที่สัญญา {contract.contractNo}
+              {fillTemplate(tc.common.contractNo, { no: contract.contractNo })}
             </Text>
             <Text style={[s.body, title]}>
               {contract.property}
-              {contract.room ? ` · ห้อง ${contract.room}` : ""}
+              {roomSuffix(contract.room)}
             </Text>
             <Text style={[s.small, muted]}>
               {contract.formKind === "reservation"
-                ? `วันที่จอง ${date(contract.bookingDate)} · วันที่เข้าอยู่ ${date(contract.moveInDate)}`
+                ? fillTemplate(tc.common.bookingAndMoveIn, { booking: date(contract.bookingDate), moveIn: date(contract.moveInDate) })
                 : contract.formKind === "broker_appointment"
-                  ? `วันที่ออกเอกสาร ${date(contract.startDate)}`
+                  ? fillTemplate(sc.issuedOn, { date: date(contract.startDate) })
                   : `${date(contract.startDate)} – ${date(contract.endDate)}`}
             </Text>
             <View style={s.row}>
               <Text style={[s.body, title]}>
                 {contract.formKind === "reservation"
-                  ? `เงินจอง ${money(contract.reservationFee)}`
+                  ? fillTemplate(tc.common.reservationFee, { amount: money(contract.reservationFee) })
                   : contract.formKind === "broker_appointment"
                     ? contract.monthlyRent
-                      ? `ค่าเช่า ${money(contract.monthlyRent)} / เดือน`
-                      : "แต่งตั้งนายหน้า"
-                    : `${money(contract.monthlyRent)} / เดือน`}
+                      ? fillTemplate(tc.common.rent, { amount: fillTemplate(tc.common.perMonth, { amount: money(contract.monthlyRent) }) })
+                      : tc.common.kinds.broker_appointment
+                    : fillTemplate(tc.common.perMonth, { amount: money(contract.monthlyRent) })}
               </Text>
-              <Text style={[s.small, { color: accent }]}>ดูสัญญา →</Text>
+              <Text style={[s.small, { color: accent }]}>{sc.viewContract}</Text>
             </View>
           </Pressable>
         ))}
       {!loadingList && !listError && !contracts.length && (
-        <Text style={[s.body, muted]}>ยังไม่มีสัญญาที่สร้างไว้</Text>
+        <Text style={[s.body, muted]}>{sc.empty}</Text>
       )}
     </View>
   );

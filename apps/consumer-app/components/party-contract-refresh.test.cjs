@@ -5,6 +5,7 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const { contractsTh, fillTemplate } = require('./test-i18n.cjs');
 
 function deferred() {
   let resolve, reject;
@@ -46,6 +47,11 @@ function harness(party) {
     };
     if (name === './PartyContractDetail') return { PartyContractDetail: props => { detail = props; return React.createElement('span', {}, `${props.contract.invoiceUrl} ${props.contract.receiptUrl ?? ''}`); } };
     if (name === '../lib/party-contracts-api') return { listMyContracts: () => { const request = deferred(); requests.push(request); return request.promise; } };
+    if (name === '@nestyk/i18n') return {
+      useLocale: () => ({ locale: 'th', t: { contracts: contractsTh, mobile: { partyContracts: { loadFailed: 'โหลดสัญญาไม่สำเร็จ' } } } }),
+      fillTemplate,
+      localizedError: (error, fallback) => (error instanceof Error && error.message) || fallback,
+    };
     throw new Error(`Unexpected dependency: ${name}`);
   };
   const loaded = { exports: {} };

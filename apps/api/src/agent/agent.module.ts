@@ -9,8 +9,15 @@ import { AgentContractsService } from './contracts/agent-contracts.service';
 import { ContractDocumentStorageService } from './contracts/contract-document-storage.service';
 import { LeadEntity } from '../entities/lead.entity';
 import { LeadLocationEntity } from '../entities/lead-location.entity';
+import { LeadMatchRunEntity } from '../entities/lead-match-run.entity';
+import { LeadMatchResultEntity } from '../entities/lead-match-result.entity';
 import { AgentLeadsService } from './leads/agent-leads.service';
 import { AgentLeadsController } from './leads/agent-leads.controller';
+import { LeadMatchingService } from './leads/lead-matching.service';
+import { LeadMatchingController } from './leads/lead-matching.controller';
+import { LeadViewingEntity } from '../entities/lead-viewing.entity';
+import { LeadViewingsService } from './leads/lead-viewings.service';
+import { LeadViewingsController } from './leads/lead-viewings.controller';
 import { RoomPhotoStorageService } from './rooms/room-photo-storage.service';
 import { ListingPromoService } from './rooms/listing-promo.service';
 import { Module } from '@nestjs/common';
@@ -56,6 +63,9 @@ import { GeminiModule } from '../gemini/gemini.module';
     TypeOrmModule.forFeature([
       LeadEntity,
       LeadLocationEntity,
+      LeadMatchRunEntity,
+      LeadMatchResultEntity,
+      LeadViewingEntity,
       PropertyEntity,
       MasterPropertyTypeEntity,
       PropertyOwnerEntity,
@@ -78,8 +88,8 @@ import { GeminiModule } from '../gemini/gemini.module';
       RoomShareLinkEntity,
     ]),
   ],
-  controllers: [AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, PublicContractSignController, AgentLeadsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
-  providers: [AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
+  controllers: [AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, PublicContractSignController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
+  providers: [AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
   exports: [AgentRoomsService, AgentListingsService, AgentPlacesService, RoomShareLinksService],
 })
 export class AgentModule {}

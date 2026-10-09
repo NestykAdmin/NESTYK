@@ -14,7 +14,7 @@ import { MobileButton } from '../components/MobileButton';
 import { MobileNestykLogo } from '../components/MobileNestykLogo';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
 import { MobileProfileEditBody } from '../components/MobileProfileEditBody';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -355,7 +355,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
 
   return (
     <Modal visible={mounted} animationType="none" transparent onRequestClose={onClose}>
-      <View style={styles.container}>
+      <GestureHandlerRootView style={styles.container}>
         <Animated.View
           pointerEvents="none"
           style={[styles.overlay, overlayStyle, { backgroundColor: theme.overlay }]}
@@ -661,7 +661,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
             })}
           </ScrollView>
         </MobileBottomSheet>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 };

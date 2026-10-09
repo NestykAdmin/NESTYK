@@ -1,0 +1,2684 @@
+diff -ruN a/apps/api/src/agent/leads/agent-leads.service.ts b/apps/api/src/agent/leads/agent-leads.service.ts
+--- a/apps/api/src/agent/leads/agent-leads.service.ts	2026-10-06 04:58:49.700004085 +0000
++++ b/apps/api/src/agent/leads/agent-leads.service.ts	2026-10-06 04:58:49.701004085 +0000
+@@ -470,5 +470,7 @@
+     desiredRoomTypeId: row.desired_room_type_id, desiredRoomTypeCode: row.desired_room_type?.code ?? null,
+     notes: row.notes ?? null,
+     status: row.status as LeadStatus, lostReason: row.lost_reason ?? null, createdAt: row.created_at,
++    // Set by booking (POST /agent/tenants): the tenant made from this lead and the room it took.
++    tenantId: row.tenant_id ?? null, rentRoomId: row.rent_room_id ?? null,
+   };
+ }
+diff -ruN a/apps/api/src/agent/listings/agent-listings.service.ts b/apps/api/src/agent/listings/agent-listings.service.ts
+--- a/apps/api/src/agent/listings/agent-listings.service.ts	2026-10-06 04:58:49.697004085 +0000
++++ b/apps/api/src/agent/listings/agent-listings.service.ts	2026-10-06 04:58:49.698004085 +0000
+@@ -271,7 +271,7 @@
+   }
+ 
+   /**
+-   * Available scout rooms of the agent inside any of the lat/lng boxes whose starting rent fits the budget,
++   * Available scout rooms of the agent nobody has booked, inside any of the lat/lng boxes, whose starting rent fits the budget,
+    * with just the facts scoring needs. Rooms priced only through the legacy JSON column are kept for the scorer.
+    */
+   async matchCandidates(
+@@ -297,6 +297,8 @@
+       .where('room.is_scout_room = TRUE')
+       .andWhere('room.created_by_user_id = :agentId')
+       .andWhere("roomStatus.code = 'available'")
++      // A room one of the agent's leads has booked is taken, whatever its status code still says.
++      .andWhere("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked')")
+       .andWhere(`(${MIN_PRICE_SUBQUERY} IS NULL OR ${MIN_PRICE_SUBQUERY} <= :maxPrice)`)
+       .andWhere(`(${boxSql.join(' OR ')})`)
+       .setParameters(params)
+diff -ruN a/apps/api/src/agent/tenants/agent-tenants.controller.ts b/apps/api/src/agent/tenants/agent-tenants.controller.ts
+--- a/apps/api/src/agent/tenants/agent-tenants.controller.ts	2026-10-06 04:58:49.694004085 +0000
++++ b/apps/api/src/agent/tenants/agent-tenants.controller.ts	2026-10-06 04:58:49.695004085 +0000
+@@ -17,6 +17,12 @@
+   AuthRequestUser,
+ } from "../../auth/decorators/current-user.decorator";
+ import { AgentTenantsService } from "./agent-tenants.service";
++
++/** Optional numeric query parameter; anything else is ignored. */
++function positiveId(value?: string): number | undefined {
++  const id = Number(value);
++  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
++}
+ @Controller("agent/tenants")
+ @UseGuards(AuthGuard, RolesGuard)
+ @Roles("agent")
+@@ -31,8 +37,13 @@
+   @Get("rooms") rooms(
+     @CurrentUser() u: AuthRequestUser,
+     @Query("q") q?: string,
++    @Query("leadId") leadId?: string,
++    @Query("roomId") roomId?: string,
+   ) {
+-    return this.tenants.roomOptions(u.id, q);
++    return this.tenants.roomOptions(u.id, q, {
++      leadId: positiveId(leadId),
++      roomId: positiveId(roomId),
++    });
+   }
+   @Get() list(@CurrentUser() u: AuthRequestUser) {
+     return this.tenants.list(u.id);
+diff -ruN a/apps/api/src/agent/tenants/agent-tenants.service.ts b/apps/api/src/agent/tenants/agent-tenants.service.ts
+--- a/apps/api/src/agent/tenants/agent-tenants.service.ts	2026-10-06 04:58:49.691004085 +0000
++++ b/apps/api/src/agent/tenants/agent-tenants.service.ts	2026-10-06 04:58:49.693004085 +0000
+@@ -4,7 +4,7 @@
+   Injectable,
+   NotFoundException,
+ } from "@nestjs/common";
+-import { DataSource } from "typeorm";
++import { DataSource, In, Not, QueryFailedError } from "typeorm";
+ import type {
+   AgentTenant,
+   CreateAgentTenant,
+@@ -13,8 +13,23 @@
+ import { TenantEntity } from "../../entities/tenant.entity";
+ import { LeadEntity } from "../../entities/lead.entity";
+ import { RentRoomEntity } from "../../entities/rent-room.entity";
++import { LeadViewingEntity } from "../../entities/lead-viewing.entity";
+ import { AgentContractsService } from "../contracts/agent-contracts.service";
+ 
++const ROOM_ALREADY_BOOKED = "ห้องนี้มีผู้จองแล้ว";
++
++/** Postgres unique violation on `uq_leads_one_booked_per_room`: two bookings of one room raced. */
++function isRoomAlreadyBookedError(error: unknown): boolean {
++  if (!(error instanceof QueryFailedError)) return false;
++  const driver = error.driverError as
++    | { code?: string; constraint?: string }
++    | undefined;
++  return (
++    driver?.code === "23505" &&
++    driver?.constraint === "uq_leads_one_booked_per_room"
++  );
++}
++
+ function parseTenantProfile(input: unknown): UpdateAgentTenant {
+   if (!input || typeof input !== "object" || Array.isArray(input))
+     throw new BadRequestException("กรุณาระบุข้อมูลผู้เช่า");
+@@ -195,28 +210,109 @@
+       nationality: l.nationality,
+     }));
+   }
+-  async roomOptions(agentId: number, q = "") {
+-    const rooms = await this.db
++  async roomOptions(
++    agentId: number,
++    q = "",
++    options: { leadId?: number; roomId?: number } = {},
++  ) {
++    const search = String(q).slice(0, 255);
++    const latest = await this.db
+       .getRepository(RentRoomEntity)
+       .createQueryBuilder("room")
+       .leftJoinAndSelect("room.property", "property")
+       .where("room.created_by_user_id = :agentId", { agentId })
+       .andWhere(
+         "(property.name ILIKE :q OR room.room_id ILIKE :q OR room.listing_title ILIKE :q)",
+-        { q: `%${String(q).slice(0, 255)}%` },
++        { q: `%${search}%` },
+       )
+       .orderBy("room.id", "DESC")
+       .take(30)
+       .getMany();
++    // Rooms the lead has a viewing for, and the room being booked, lead the list even when they
++    // are not among the latest 30.
++    const viewedIds = options.leadId
++      ? await this.viewedRoomIds(agentId, options.leadId)
++      : [];
++    const pinnedIds = [
++      ...new Set([...(options.roomId ? [options.roomId] : []), ...viewedIds]),
++    ];
++    const pinned = await this.roomsById(agentId, pinnedIds, search);
++    const pinnedSet = new Set(pinned.map((r) => r.id));
++    const rooms = [
++      ...pinned,
++      ...latest.filter((r) => !pinnedSet.has(r.id)),
++    ].slice(0, 30);
++    const bookedBy = await this.bookedLeadNames(
++      agentId,
++      rooms.map((r) => r.id),
++    );
++    const viewed = new Set(viewedIds);
+     return rooms.map((r) => ({
+       id: r.id,
+       property: r.property?.name || r.listing_title || "ไม่ระบุโครงการ",
+       room: r.room_id,
++      viewed: viewed.has(r.id),
++      bookedBy: bookedBy.get(r.id) ?? null,
+     }));
+   }
++  /** Rooms this lead has a viewing of that was not cancelled. */
++  private async viewedRoomIds(agentId: number, leadId: number) {
++    const viewings = await this.db.getRepository(LeadViewingEntity).find({
++      where: {
++        lead_id: leadId,
++        created_by_user_id: agentId,
++        status: Not("cancelled"),
++      },
++      select: { id: true, rent_room_id: true },
++    });
++    return [...new Set(viewings.map((v) => v.rent_room_id))];
++  }
++  private async roomsById(agentId: number, ids: number[], search: string) {
++    if (!ids.length) return [];
++    const rooms = await this.db.getRepository(RentRoomEntity).find({
++      where: { id: In(ids), created_by_user_id: agentId },
++      relations: { property: true },
++      order: { id: "DESC" },
++    });
++    const needle = search.trim().toLowerCase();
++    if (!needle) return rooms;
++    return rooms.filter((r) =>
++      [r.property?.name, r.room_id, r.listing_title].some((value) =>
++        (value ?? "").toLowerCase().includes(needle),
++      ),
++    );
++  }
++  /** Room id → name of the agent's lead that booked it. */
++  private async bookedLeadNames(agentId: number, roomIds: number[]) {
++    const names = new Map<number, string>();
++    if (!roomIds.length) return names;
++    const leads = await this.db.getRepository(LeadEntity).find({
++      where: {
++        rent_room_id: In(roomIds),
++        status: "booked",
++        created_by_user_id: agentId,
++      },
++      select: { id: true, name: true, rent_room_id: true },
++    });
++    for (const lead of leads)
++      if (lead.rent_room_id != null) names.set(lead.rent_room_id, lead.name);
++    return names;
++  }
+   async create(agentId: number, input: unknown) {
+     const b = validateTenant(input);
+-    const id = await this.db.transaction(async (manager) => {
++    const id = await this.promote(agentId, b).catch((error: unknown) => {
++      if (isRoomAlreadyBookedError(error))
++        throw new ConflictException({
++          code: "ROOM_ALREADY_BOOKED",
++          message: ROOM_ALREADY_BOOKED,
++        });
++      throw error;
++    });
++    return this.view(agentId, id);
++  }
++  /** The tenant row and the lead's move to `booked`, in one transaction. */
++  private promote(agentId: number, b: CreateAgentTenant): Promise<number> {
++    return this.db.transaction(async (manager) => {
+       const lead = await manager.findOne(LeadEntity, {
+         where: { id: b.leadId, created_by_user_id: agentId },
+         lock: { mode: "pessimistic_write" },
+@@ -231,11 +327,24 @@
+         throw new ConflictException(
+           "Lead ที่ปิดเป็นไม่สำเร็จยังไม่สามารถสร้างผู้เช่าได้",
+         );
+-      const room = await manager.findOneBy(RentRoomEntity, {
+-        id: b.rentRoomId,
+-        created_by_user_id: agentId,
++      // Locked, so two bookings of one room queue up here and the second sees the first below.
++      const room = await manager.findOne(RentRoomEntity, {
++        where: { id: b.rentRoomId, created_by_user_id: agentId },
++        lock: { mode: "pessimistic_write" },
+       });
+       if (!room) throw new NotFoundException("ไม่พบห้องที่คุณมีสิทธิ์จัดการ");
++      // One booked lead per room: say so here, before the unique index does.
++      const taken = await manager.findOne(LeadEntity, {
++        where: { rent_room_id: room.id, status: "booked" },
++      });
++      if (taken && taken.id !== lead.id)
++        throw new ConflictException({
++          code: "ROOM_ALREADY_BOOKED",
++          message:
++            taken.created_by_user_id === agentId
++              ? `${ROOM_ALREADY_BOOKED} (${taken.name})`
++              : ROOM_ALREADY_BOOKED,
++        });
+       const tenant = await manager.save(
+         TenantEntity,
+         manager.create(TenantEntity, {
+@@ -257,7 +366,6 @@
+       await manager.save(LeadEntity, lead);
+       return tenant.id;
+     });
+-    return this.view(agentId, id);
+   }
+   async update(agentId: number, id: number, input: unknown) {
+     const b = validateTenantProfile(input);
+diff -ruN a/apps/api/test/agent-leads.test.cjs b/apps/api/test/agent-leads.test.cjs
+--- a/apps/api/test/agent-leads.test.cjs	2026-10-06 04:58:49.710004085 +0000
++++ b/apps/api/test/agent-leads.test.cjs	2026-10-06 04:58:49.711004085 +0000
+@@ -36,7 +36,7 @@
+  const visas=await fetch(base+'/api/v1/agent/leads/visa-types',{headers:headers(7)});assert.equal(visas.status,200);assert.equal((await visas.json())[0].code,'tourist');
+  assert.equal((await fetch(base+'/api/v1/agent/leads/visa-types',{headers:headers(8)})).status,403);
+  const input={pins:[asok,klongtoei],radiusKm:3,locations:['วัฒนา','คลองเตย'],province:'กรุงเทพมหานคร',name:'Test lead',phone:'TEST',nationality:'Test',budgetMin:10000,budgetMax:15000,preferredLocation:'Test location',moveInPlan:'Next month',hasPets:false,occupation:'Test occupation',visaTypeId:1,leaseDurationMonths:12,usesCar:true,occupantCount:2,isSmoker:false,desiredRoomTypeId:1,notes:'Call after 6pm'};
+- const response=await post({...input,created_by_user_id:9,status:'booked'});assert.equal(response.status,201);const lead=await response.json();for(const [key,value]of Object.entries(input))assert.deepEqual(lead[key],value,key);assert.equal(lead.visaTypeCode,'tourist');assert.equal(lead.status,'new');assert.equal(saved[0].created_by_user_id,7);assert.equal(saved[0].rent_room_id,null);
++ const response=await post({...input,created_by_user_id:9,status:'booked'});assert.equal(response.status,201);const lead=await response.json();for(const [key,value]of Object.entries(input))assert.deepEqual(lead[key],value,key);assert.equal(lead.visaTypeCode,'tourist');assert.equal(lead.status,'new');assert.equal(saved[0].created_by_user_id,7);assert.equal(saved[0].rent_room_id,null);assert.equal(lead.tenantId,null);assert.equal(lead.rentRoomId,null);
+  assert.equal((await fetch(base+'/api/v1/agent/leads/'+lead.id,{headers:headers(9)})).status,404);
+  const firstView=await fetch(base+'/api/v1/agent/leads/'+lead.id,{headers:headers(7)});assert.equal(firstView.status,200);const opened=await firstView.json();assert.equal(opened.status,'new');assert.equal(saved[0].status,'new');assert.equal(opened.nextViewingAt,null);assert.equal(opened.nextViewingRoom,null);
+  const nextAt=new Date(Date.now()+86400000);repo.nextViewings=[{lead_id:lead.id,scheduled_at:nextAt,rent_room_id:5,rent_room:{room_id:'1208',property:{name:'The Line'}}},{lead_id:999,scheduled_at:new Date(),rent_room_id:6,rent_room:null}];
+diff -ruN a/apps/api/test/agent-listings.test.cjs b/apps/api/test/agent-listings.test.cjs
+--- a/apps/api/test/agent-listings.test.cjs	2026-10-06 04:58:49.707004085 +0000
++++ b/apps/api/test/agent-listings.test.cjs	2026-10-06 04:58:49.708004085 +0000
+@@ -153,3 +153,15 @@
+   assert.deepEqual(items.slice(0, 2).map((i) => i.roomTypeCode), ['studio', null]);
+   assert.deepEqual(items.slice(0, 2).map((i) => i.availableFromDate), ['2026-10-15', null]);
+ });
++
++test('match candidates leave out rooms a lead has already booked', async () => {
++  const calls = []; const qb = {};
++  for (const k of ['select', 'leftJoin', 'innerJoin', 'where', 'andWhere', 'setParameters']) qb[k] = (...args) => { calls.push([k, ...args]); return qb; };
++  qb.getRawMany = async () => [];
++  const service = new AgentListingsService({ createQueryBuilder: () => qb });
++  const box = { minLat: 13, maxLat: 14, minLng: 100, maxLng: 101 };
++  assert.deepEqual(await service.matchCandidates(7, { maxPrice: 20000, boxes: [box] }), []);
++  const filters = calls.filter((c) => c[0] === 'andWhere').map((c) => c[1]);
++  assert.ok(filters.includes("roomStatus.code = 'available'"));
++  assert.ok(filters.includes("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked')"));
++});
+diff -ruN a/apps/api/test/agent-tenants.test.cjs b/apps/api/test/agent-tenants.test.cjs
+--- a/apps/api/test/agent-tenants.test.cjs	2026-10-06 04:58:49.703004085 +0000
++++ b/apps/api/test/agent-tenants.test.cjs	2026-10-06 04:58:49.706004085 +0000
+@@ -7,30 +7,46 @@
+ const { AgentTenantsController } = require('../src/agent/tenants/agent-tenants.controller.ts');
+ const { LeadEntity } = require('../src/entities/lead.entity.ts');
+ const { TenantEntity } = require('../src/entities/tenant.entity.ts');
++const { RentRoomEntity } = require('../src/entities/rent-room.entity.ts');
++const { LeadViewingEntity } = require('../src/entities/lead-viewing.entity.ts');
++const { QueryFailedError } = require('typeorm');
+ const { AuthService } = require('../src/auth/auth.service.ts');
+ const { Module } = require('@nestjs/common'); const { NestFactory } = require('@nestjs/core');
+ const valid = { leadId: 1, rentRoomId: 2, name: 'ผู้เช่าทดสอบ', phone: '0812345678', email: 'tenant@example.invalid', note: 'Test', identityNumber: '', nationality: '' };
+ const profile = { name: 'ผู้เช่าทดสอบ', phone: '0812345678', email: 'tenant@example.invalid', note: 'Test', identityNumber: '', nationality: '' };
++// The service splits `name` into given name and surname and returns all three.
++const names = { firstName: 'ผู้เช่าทดสอบ', lastName: '' };
+ 
+ test('validates required identity/contact fields and optional email without accepting spoofed ownership', () => {
+-  assert.deepEqual(validateTenant({ ...valid, name: ' ผู้เช่าทดสอบ ', created_by_user_id: 99 }), valid);
+-  assert.deepEqual(validateTenantProfile({ ...profile, name: ' ผู้เช่าทดสอบ ' }), profile);
++  assert.deepEqual(validateTenant({ ...valid, name: ' ผู้เช่าทดสอบ ', created_by_user_id: 99 }), { ...valid, ...names });
++  assert.deepEqual(validateTenantProfile({ ...profile, name: ' ผู้เช่าทดสอบ ' }), { ...profile, ...names });
+   for (const patch of [{ leadId: 0 }, { rentRoomId: '2' }, { name: '' }, { phone: '' }, { phone: 'hello' }, { phone: '123' }, { email: 'bad@' }, { note: 'a'.repeat(501) }, { identityNumber: 'ab' }, { identityNumber: 'a'.repeat(101) }, { nationality: 'a'.repeat(121) }]) assert.throws(() => validateTenant({ ...valid, ...patch }));
+   assert.equal(validateTenant({ ...valid, email: '', note: undefined }).email, '');
+   assert.equal(validateTenant({ ...valid, identityNumber: '1-2345-67890-12-3', nationality: ' ไทย ' }).identityNumber, '1-2345-67890-12-3');
+   assert.equal(validateTenant({ ...valid, identityNumber: '1-2345-67890-12-3', nationality: ' ไทย ' }).nationality, 'ไทย');
+ });
+ function fixture(options = {}) {
+-  const saved = []; const lead = { id: 1, name: 'Original lead', phone: '0899999999', status: 'inprogress', tenant_id: null, ...options.lead };
++  const saved = []; const reads = []; const lead = { id: 1, name: 'Original lead', phone: '0899999999', status: 'inprogress', tenant_id: null, ...options.lead };
+   const manager = {
+-    findOne: async (_, query) => { assert.equal(query.where.created_by_user_id, 7); assert.equal(query.lock.mode, 'pessimistic_write'); return options.foreignLead ? null : lead; },
+-    findOneBy: async (entity, query) => { if (entity === TenantEntity) return options.existingTenant ? { id: 8 } : null; assert.equal(query.created_by_user_id, 7); return options.foreignRoom ? null : { id: 2 }; },
++    findOne: async (entity, query) => {
++      reads.push(entity === RentRoomEntity ? 'room' : query.where.rent_room_id !== undefined ? 'booked' : 'lead');
++      // The room is locked like the lead, so two bookings of one room cannot both pass the lookup below.
++      if (entity === RentRoomEntity) { assert.equal(query.where.id, 2); assert.equal(query.where.created_by_user_id, 7); assert.equal(query.lock.mode, 'pessimistic_write'); return options.foreignRoom ? null : { id: 2 }; }
++      // The "is this room already booked" lookup; every other findOne is the locked lead read.
++      if (query.where.rent_room_id !== undefined) { assert.equal(query.where.rent_room_id, 2); assert.equal(query.where.status, 'booked'); return options.roomBookedBy ?? null; }
++      assert.equal(query.where.created_by_user_id, 7); assert.equal(query.lock.mode, 'pessimistic_write'); return options.foreignLead ? null : lead;
++    },
++    findOneBy: async (entity) => { assert.equal(entity, TenantEntity); return options.existingTenant ? { id: 8 } : null; },
+     create: (_, value) => value,
+-    save: async (entity, value) => { if (entity === LeadEntity && options.failLeadSave) throw Error('save failed'); const row = { id: 8, ...value }; saved.push(row); return row; },
++    save: async (entity, value) => {
++      if (entity === LeadEntity && options.failLeadSave) throw Error('save failed');
++      if (entity === LeadEntity && options.bookingRace) throw new QueryFailedError('UPDATE leads', [], Object.assign(new Error('duplicate key value'), { code: '23505', constraint: 'uq_leads_one_booked_per_room' }));
++      const row = { id: 8, ...value }; saved.push(row); return row;
++    },
+   };
+   const db = { transaction: async action => { const before = { ...lead }; try { return await action(manager); } catch (e) { saved.length = 0; Object.assign(lead, before); throw e; } } };
+   const service = new AgentTenantsService(db, {}); service.view = async (agent, id) => { assert.equal(agent, 7); return saved.find(t => t.id === id); };
+-  return { service, saved, lead };
++  return { service, saved, lead, reads };
+ }
+ test('promotion links tenant and room, keeps original Lead contact, and does not create a contract', async () => {
+   const f = fixture(); const result = await f.service.create(7, { ...valid, created_by_user_id: 99, user_id: 99 });
+@@ -45,6 +61,44 @@
+ test('failed Lead update rolls back tenant creation', async () => {
+   const f = fixture({ failLeadSave: true }); await assert.rejects(() => f.service.create(7, valid), /save failed/); assert.equal(f.saved.length, 0); assert.equal(f.lead.tenant_id, null); assert.equal(f.lead.status, 'inprogress');
+ });
++test('a room another lead booked is refused with 409 before any write, and the unique-index race gets the same answer', async () => {
++  const booked = e => e.getStatus() === 409 && e.getResponse().code === 'ROOM_ALREADY_BOOKED';
++  const taken = fixture({ roomBookedBy: { id: 5, name: 'Other lead', created_by_user_id: 7 } });
++  await assert.rejects(() => taken.service.create(7, valid), e => booked(e) && e.getResponse().message.includes('Other lead'));
++  assert.deepEqual(taken.reads, ['lead', 'room', 'booked']); // lead and room are locked before the lookup
++  assert.equal(taken.saved.length, 0); assert.equal(taken.lead.status, 'inprogress'); assert.equal(taken.lead.tenant_id, null);
++  const foreign = fixture({ roomBookedBy: { id: 5, name: 'Someone else', created_by_user_id: 9 } });
++  await assert.rejects(() => foreign.service.create(7, valid), e => booked(e) && !e.getResponse().message.includes('Someone else'));
++  const race = fixture({ bookingRace: true });
++  await assert.rejects(() => race.service.create(7, valid), booked);
++  assert.equal(race.saved.length, 0); assert.equal(race.lead.status, 'inprogress'); assert.equal(race.lead.tenant_id, null);
++  // Any other database error still surfaces as it is.
++  const other = fixture({ failLeadSave: true }); await assert.rejects(() => other.service.create(7, valid), /save failed/);
++});
++test('room choices lead with the asked-for room and the rooms the lead viewed, and name who booked a room', async () => {
++  const room = (id, name, number) => ({ id, room_id: number, listing_title: null, property: { name } });
++  const stock = [room(40, 'Forty Tower', '4001'), room(9, 'Nine Place', '901'), room(8, 'Eight Court', '801'), room(2, 'Two Lofts', '201')];
++  const calls = []; const qb = {}; for (const k of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy', 'take']) qb[k] = () => qb;
++  qb.getMany = async () => stock.filter(r => r.id !== 40); // room 40 is older than the latest 30
++  const repos = new Map([
++    [RentRoomEntity, { createQueryBuilder: () => qb, find: async o => { calls.push(['rooms', o.where]); return stock.filter(r => o.where.id.value.includes(r.id)); } }],
++    [LeadViewingEntity, { find: async o => { calls.push(['viewings', o.where]); return [{ rent_room_id: 2 }, { rent_room_id: 2 }]; } }],
++    [LeadEntity, { find: async o => { calls.push(['leads', o.where]); return [{ id: 3, name: 'Booked lead', rent_room_id: 8 }]; } }],
++  ]);
++  const service = new AgentTenantsService({ getRepository: e => repos.get(e) }, {});
++  const rooms = await service.roomOptions(7, '', { leadId: 1, roomId: 40 });
++  assert.deepEqual(rooms.map(r => r.id), [40, 2, 9, 8]);
++  assert.deepEqual(rooms.map(r => r.viewed), [false, true, false, false]);
++  assert.deepEqual(rooms.map(r => r.bookedBy), [null, null, null, 'Booked lead']);
++  assert.deepEqual(rooms[0], { id: 40, property: 'Forty Tower', room: '4001', viewed: false, bookedBy: null });
++  const where = name => calls.find(c => c[0] === name)[1];
++  assert.equal(where('viewings').lead_id, 1); assert.equal(where('viewings').created_by_user_id, 7); assert.equal(where('viewings').status.value, 'cancelled');
++  assert.equal(where('rooms').created_by_user_id, 7); assert.equal(where('leads').created_by_user_id, 7); assert.equal(where('leads').status, 'booked');
++  // A search also narrows the pinned rooms; without a lead or room nothing is pinned.
++  assert.deepEqual((await service.roomOptions(7, 'forty', { leadId: 1, roomId: 40 })).slice(0, 1).map(r => r.id), [40]);
++  assert.ok(!(await service.roomOptions(7, 'nine', { leadId: 1, roomId: 40 })).slice(0, 1).some(r => r.id === 40 || r.id === 2));
++  assert.deepEqual((await service.roomOptions(7)).map(r => r.id), [9, 8, 2]);
++});
+ test('lists tenants without contracts and groups contracts by tenant id, never name', async () => {
+   const calls = []; const qb = {}; for (const k of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[k] = (...args) => { calls.push([k, ...args]); return qb; };
+   qb.getMany = async () => [1, 2].map(id => ({ id, lead_id: id, name: 'Same name', created_at: new Date('2026-09-11'), lead: null })); qb.getOne = async () => null;
+@@ -114,7 +168,7 @@
+     { provide: AgentTenantsService, useValue: {
+       list: async id => [{ agentId: id }],
+       leadOptions: async () => [],
+-      roomOptions: async () => [],
++      roomOptions: async (id, q, options) => (q === undefined ? [] : [{ q, ...options }]),
+       create: async (id, input) => ({ ...validateTenant(input), agentId: id }),
+       update: async (id, tenantId, input) => ({ ...validateTenantProfile(input), agentId: id, id: tenantId }),
+     } },
+@@ -125,10 +179,12 @@
+   assert.equal((await fetch(path)).status, 401); assert.equal((await fetch(path, { headers: headers(8) })).status, 403);
+   assert.deepEqual(await (await fetch(path, { headers: headers(7) })).json(), [{ agentId: 7 }]);
+   for (const suffix of ['/leads', '/rooms']) assert.equal((await fetch(path + suffix, { headers: headers(7) })).status, 200);
++  // leadId / roomId reach the service as numbers; anything that is not a positive whole number is dropped.
++  assert.deepEqual(await (await fetch(`${path}/rooms?q=x&leadId=3&roomId=abc`, { headers: headers(7) })).json(), [{ q: 'x', leadId: 3 }]);
+   assert.equal((await fetch(path, { method: 'POST', headers: headers(7), body: '{}' })).status, 400);
+   const created = await fetch(path, { method: 'POST', headers: headers(7), body: JSON.stringify(valid) }); assert.equal(created.status, 201); assert.equal((await created.json()).agentId, 7);
+   const patched = await fetch(`${path}/8`, { method: 'PATCH', headers: headers(7), body: JSON.stringify(profile) });
+   assert.equal(patched.status, 200);
+-  assert.deepEqual(await patched.json(), { ...profile, agentId: 7, id: 8 });
++  assert.deepEqual(await patched.json(), { ...profile, ...names, agentId: 7, id: 8 });
+   assert.equal((await fetch(`${path}/8`, { method: 'PATCH', headers: headers(8), body: JSON.stringify(profile) })).status, 403);
+ });
+diff -ruN a/apps/consumer-app/app/index.tsx b/apps/consumer-app/app/index.tsx
+--- a/apps/consumer-app/app/index.tsx	2026-10-06 04:58:49.790004085 +0000
++++ b/apps/consumer-app/app/index.tsx	2026-10-06 04:58:49.763004085 +0000
+@@ -3,13 +3,13 @@
+ import { calendarViewingRange, viewingToCalendarEvent } from '../lib/agent-calendar-viewings';
+ import { getAgentLead, listAgentViewings } from '../lib/agent-leads-api';
+ import { useLeadRoomViewing } from '../lib/use-lead-room-viewing';
+-import type { TenantFormInitial } from '../components/TenantForm';
+ import {
+   AgentTenantsScreen,
+   TENANT_DETAIL_CLOSED,
+   TenantEditBar,
+   type TenantDetailActions,
+   type TenantDetailState,
++  type TenantEntry,
+ } from '../components/AgentTenantsScreen';
+ import { PartyContractsScreen } from '../components/PartyContractsScreen';
+ import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
+@@ -176,8 +176,8 @@
+   const [activeMatch, setActiveMatch] = useState<LeadRoomMatch | null>(null);
+   /** Bumped by the header "⋯" on lead pages; the body opens its own actions sheet. */
+   const [leadMenuRequest, setLeadMenuRequest] = useState(0);
+-  /** Set when the create-tenant form was opened from a lead's matched room; back returns there. */
+-  const [tenantInitial, setTenantInitial] = useState<TenantFormInitial | null>(null);
++  /** Tenant page opened from a lead page (just booked, or a booked lead); back returns to `returnTab`. */
++  const [tenantEntry, setTenantEntry] = useState<(TenantEntry & { returnTab: MobileAppTab }) | null>(null);
+   const leadRoomViewing = useLeadRoomViewing(
+     activeTab === 'leadRoom' ? activeLead : null,
+     activeMatch?.room.id ?? null,
+@@ -373,57 +373,60 @@
+     if (activeTab !== 'clients') {
+       setCreatingTenant(false);
+       setCreatedTenant(null);
++      setTenantEntry(null);
+       setTenantDetail(TENANT_DETAIL_CLOSED);
+     }
+   }, [activeTab]);
+ 
+   useEffect(() => {
+-    if (creatingTenant) setCreatedTenant(null);
++    if (creatingTenant) {
++      setCreatedTenant(null);
++      setTenantEntry(null);
++    }
+   }, [creatingTenant]);
+ 
+-  useEffect(() => {
+-    if (!creatingTenant) setTenantInitial(null);
+-  }, [creatingTenant]);
++  /** The open lead booked the room on its matched-room page: show it as booked now, then re-read it. */
++  const handleRoomReserved = useCallback(
++    (tenant: AgentTenant) => {
++      const rentRoomId = activeMatch?.room.id ?? null;
++      setActiveLead((current) =>
++        current?.id === tenant.leadId ? { ...current, status: 'booked', tenantId: tenant.id, rentRoomId } : current,
++      );
++      setLeadsReloadToken((n) => n + 1);
++      getAgentLead(tenant.leadId)
++        .then((lead) => setActiveLead((current) => (current?.id === lead.id ? lead : current)))
++        .catch(() => {});
++    },
++    [activeMatch],
++  );
+ 
+-  const openReserveRoom = useCallback(() => {
+-    if (!activeLead || !activeMatch) return;
+-    const { room } = activeMatch;
+-    setTenantInitial({
+-      lead: {
+-        id: activeLead.id,
+-        name: activeLead.name,
+-        firstName: activeLead.firstName,
+-        lastName: activeLead.lastName,
+-        phone: activeLead.phone,
+-        email: activeLead.email,
+-        nationality: activeLead.nationality,
+-      },
+-      room: { id: room.id, property: room.property?.name || room.listingTitle || `#${room.id}`, room: null },
+-    });
+-    setClientsWorkFilter(null);
+-    setCreatedTenant(null);
+-    setCreatingTenant(true);
+-    setActiveTab('clients');
+-  }, [activeLead, activeMatch]);
++  /** Opens a tenant's page from a lead page; back from it returns to that page. */
++  const openTenantPage = useCallback(
++    (entry: TenantEntry) => {
++      setClientsWorkFilter(null);
++      setCreatingTenant(false);
++      setCreatedTenant(null);
++      setTenantEntry({ ...entry, returnTab: activeTab });
++      setActiveTab('clients');
++    },
++    [activeTab],
++  );
++
++  const handleTenantEntryBack = useCallback(() => {
++    if (tenantEntry) setActiveTab(tenantEntry.returnTab);
++  }, [tenantEntry]);
+ 
+   const handleCreateTenantBack = useCallback(() => {
+     if (createTenantBusy) return;
+     if (createTenantBackRef.current?.()) return;
+     setCreatingTenant(false);
+-    if (tenantInitial) setActiveTab('leadRoom');
+-  }, [createTenantBusy, tenantInitial]);
++  }, [createTenantBusy]);
+ 
+-  const handleTenantCreated = useCallback(
+-    (tenant: AgentTenant) => {
+-      setCreatedTenant(tenant);
+-      if (!tenantInitial) return;
+-      setLeadsReloadToken((n) => n + 1);
+-      getAgentLead(tenantInitial.lead.id)
+-        .then((lead) => setActiveLead((current) => (current?.id === lead.id ? lead : current)))
+-        .catch(() => {});
+-    },
+-    [tenantInitial],
+-  );
++  const handleTenantCreated = useCallback((tenant: AgentTenant) => {
++    setCreatedTenant(tenant);
++    // Its lead is `booked` now.
++    setLeadsReloadToken((n) => n + 1);
++  }, []);
+ 
+   useEffect(() => {
+     if (!creatingTenant) {
+@@ -952,6 +955,7 @@
+             onOpenInfo={() => setActiveTab('leadInfo')}
+             onEditMatching={() => openLeadEdit('matching')}
+             onOpenMatch={openLeadMatch}
++            onOpenTenant={(tenantId) => openTenantPage({ tenantId })}
+             menuRequest={leadMenuRequest}
+           />
+         </Animated.View>
+@@ -1044,9 +1048,10 @@
+             onCreatingChange={setCreatingTenant}
+             onCreateBusy={setCreateTenantBusy}
+             createBackRef={createTenantBackRef}
+-            createInitial={tenantInitial}
+             createdTenant={createdTenant}
+             onTenantCreated={handleTenantCreated}
++            entry={tenantEntry}
++            onEntryBack={handleTenantEntryBack}
+             detailActionsRef={tenantDetailActionsRef}
+             onDetailStateChange={setTenantDetail}
+           />
+@@ -1329,7 +1334,15 @@
+               viewing={leadRoomViewing.viewing}
+               ready={leadRoomViewing.ready}
+               onViewingSaved={leadRoomViewing.onSaved}
+-              onReserve={openReserveRoom}
++              onReserved={handleRoomReserved}
++              onContinue={(tenant, next) =>
++                openTenantPage({
++                  tenantId: tenant.id,
++                  tenant,
++                  startContract: next === 'reservation' ? 'reservation' : null,
++                })
++              }
++              onOpenTenant={(tenantId) => openTenantPage({ tenantId })}
+             />
+           ) : isTenantDetail && tenantDetail.editing ? (
+             <TenantEditBar
+diff -ruN a/apps/consumer-app/components/AgentLeadDetailBody.tsx b/apps/consumer-app/components/AgentLeadDetailBody.tsx
+--- a/apps/consumer-app/components/AgentLeadDetailBody.tsx	2026-10-06 04:58:49.733004085 +0000
++++ b/apps/consumer-app/components/AgentLeadDetailBody.tsx	2026-10-06 04:58:49.733004085 +0000
+@@ -132,6 +132,7 @@
+   onOpenInfo,
+   onEditMatching,
+   onOpenMatch,
++  onOpenTenant,
+   menuRequest = 0,
+ }: {
+   lead: AgentLead;
+@@ -139,6 +140,8 @@
+   onOpenInfo: () => void;
+   onEditMatching: () => void;
+   onOpenMatch?: (match: LeadRoomMatch) => void;
++  /** Opens the tenant page of a booked lead. */
++  onOpenTenant?: (tenantId: number) => void;
+   /** Bumped by the shell header "⋯" button; a change (not the mount value) opens the actions sheet. */
+   menuRequest?: number;
+ }) {
+@@ -390,7 +393,18 @@
+ 
+   const renderMatches = () => {
+     if (booked) {
+-      return <StateCard icon="check" title={c.bookedTitle} />;
++      const tenantId = lead.tenantId;
++      return (
++        <StateCard
++          icon="check"
++          title={c.bookedTitle}
++          action={
++            tenantId && onOpenTenant ? (
++              <MobileButton onPress={() => onOpenTenant(tenantId)}>{c.bookedOpenTenant}</MobileButton>
++            ) : undefined
++          }
++        />
++      );
+     }
+     if (!ready) {
+       return (
+diff -ruN a/apps/consumer-app/components/AgentTenantsScreen.tsx b/apps/consumer-app/components/AgentTenantsScreen.tsx
+--- a/apps/consumer-app/components/AgentTenantsScreen.tsx	2026-10-06 04:58:49.735004085 +0000
++++ b/apps/consumer-app/components/AgentTenantsScreen.tsx	2026-10-06 04:58:49.736004085 +0000
+@@ -22,8 +22,9 @@
+ import type { AgentContract, AgentTenant } from "@nestyk/types";
+ import { useLocale } from "@nestyk/i18n";
+ import { getAgentTenant, listAgentTenants, updateAgentTenant } from "../lib/agent-tenants-api";
+-import { TenantForm, type TenantFormInitial } from "./TenantForm";
++import { TenantForm } from "./TenantForm";
+ import { ContractsScreen } from "./ContractsScreen";
++import type { CreateDocumentKind } from "./ContractTypePicker";
+ 
+ type Filter = "all" | "signing" | "active";
+ const filters: Record<Filter, string> = {
+@@ -92,6 +93,14 @@
+   edit: () => void;
+   save: () => void;
+ };
++/** A tenant whose page opens as soon as the screen mounts, e.g. from a lead that booked a room. */
++export type TenantEntry = {
++  tenantId: number;
++  /** Already at hand (just booked); otherwise the tenant is read by id. */
++  tenant?: AgentTenant;
++  /** Go straight into creating this document for the tenant. */
++  startContract?: CreateDocumentKind | null;
++};
+ 
+ export function AgentTenantsScreen({
+   workFilter = null,
+@@ -99,14 +108,13 @@
+   onCreatingChange,
+   onCreateBusy,
+   createBackRef,
+-  createInitial = null,
+   createdTenant = null,
+   onTenantCreated,
++  entry = null,
++  onEntryBack,
+   detailActionsRef,
+   onDetailStateChange,
+ }: {
+-  /** Lead + room picked before the create form opens (booking from a lead's matched room). */
+-  createInitial?: TenantFormInitial | null;
+   /** Controlled by the shell so its header/back/tab bar switch to the create-tenant layout. */
+   creating?: boolean;
+   onCreatingChange?: (creating: boolean) => void;
+@@ -115,6 +123,10 @@
+   /** The shell remounts this screen when the form closes; reopen the tenant just created. */
+   createdTenant?: AgentTenant | null;
+   onTenantCreated?: (tenant: AgentTenant) => void;
++  /** Read on mount: open this tenant's page instead of the list. */
++  entry?: TenantEntry | null;
++  /** Back from the `entry` tenant's page: return to where the shell came from, not to the list. */
++  onEntryBack?: () => void;
+   detailActionsRef?: React.MutableRefObject<TenantDetailActions | null>;
+   onDetailStateChange?: (state: TenantDetailState) => void;
+   workFilter?:
+@@ -128,13 +140,23 @@
+   const c = t.agent.tenants;
+   const { theme } = useMobileTheme();
+   const [items, setItems] = useState<AgentTenant[]>([]);
+-  const [selected, setSelected] = useState<AgentTenant | null>(createdTenant);
++  const [selected, setSelected] = useState<AgentTenant | null>(
++    entry?.tenant ?? createdTenant,
++  );
+   const [creatingLocal, setCreatingLocal] = useState(false);
+   const creating = creatingProp ?? creatingLocal;
+   const setCreating = onCreatingChange ?? setCreatingLocal;
+-  const [tab, setTab] = useState<"overview" | "contracts">("overview");
++  const [tab, setTab] = useState<"overview" | "contracts">(
++    entry?.startContract ? "contracts" : "overview",
++  );
++  /** Document the contracts tab starts creating when it opens (the reservation letter after a booking). */
++  const [contractStart, setContractStart] = useState<CreateDocumentKind | null>(
++    entry?.startContract ?? null,
++  );
+   const [tabsWidth, setTabsWidth] = useState(0);
+-  const tabPosition = useRef(new Animated.Value(0)).current;
++  const tabPosition = useRef(
++    new Animated.Value(tab === "overview" ? 0 : 1),
++  ).current;
+   useEffect(() => {
+     const animation = Animated.timing(tabPosition, {
+       toValue: tab === "overview" ? 0 : 1,
+@@ -152,7 +174,7 @@
+   const [opening, setOpening] = useState(false);
+   const [error, setError] = useState("");
+   const [notice, setNotice] = useState(
+-    createdTenant ? "สร้างผู้เช่าแล้ว พร้อมเริ่มเตรียมสัญญา" : "",
++    createdTenant && !entry ? c.createdNotice : "",
+   );
+   const [editing, setEditing] = useState(false);
+   const [savingEdit, setSavingEdit] = useState(false);
+@@ -199,6 +221,12 @@
+       refreshVersion.current++;
+     };
+   }, []);
++  // A tenant the shell asks for by id opens the same way as a tap on its row.
++  useEffect(() => {
++    if (entry && !entry.tenant) void open(entry.tenantId);
++    // Read once: the shell mounts this screen for the entry.
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, []);
+   const badge = (t: AgentTenant) => (
+     <Text
+       style={[
+@@ -221,14 +249,14 @@
+       </Text>
+     </View>
+   );
+-  async function open(t: AgentTenant) {
++  async function open(id: number) {
+     if (opening) return;
+     setOpening(true);
+     setError("");
+     setNotice("");
+     setEditing(false);
+     try {
+-      setSelected(await getAgentTenant(t.id));
++      setSelected(await getAgentTenant(id));
+       setTab("overview");
+     } catch (e) {
+       setError(e instanceof Error ? e.message : "โหลดรายละเอียดไม่สำเร็จ");
+@@ -322,6 +350,10 @@
+           setEditing(false);
+           return;
+         }
++        if (onEntryBack && entry && selected?.id === entry.tenantId) {
++          onEntryBack();
++          return;
++        }
+         setSelected(null);
+         setNotice("");
+       },
+@@ -344,7 +376,7 @@
+       <MobileBrandLoader
+         fill
+         size="md"
+-        done={!loading}
++        done={!loading && !opening}
+         onComplete={() => setGateOpen(true)}
+       />
+     );
+@@ -354,7 +386,6 @@
+       <TenantForm
+         onBusy={onCreateBusy}
+         backRef={createBackRef}
+-        initial={createInitial}
+         onCreated={(tenant) => {
+           setItems((current) => [
+             tenant,
+@@ -365,7 +396,7 @@
+           setSelected(tenant);
+           setTab("overview");
+           setError("");
+-          setNotice("สร้างผู้เช่าแล้ว พร้อมเริ่มเตรียมสัญญา");
++          setNotice(c.createdNotice);
+         }}
+       />
+     );
+@@ -440,10 +471,33 @@
+             ]}
+           />
+         </View>
++        {tab === "overview" && !editing && !selected.contracts.length && (
++          <View style={[s.card, panel]}>
++            <Text style={[s.subtitle, title]}>{c.nextStepTitle}</Text>
++            <Text style={[s.body, muted]}>
++              {selected.email ? c.nextStepBody : c.reservedNeedsEmail}
++            </Text>
++            <MobileButton
++              onPress={() => {
++                if (!selected.email) {
++                  beginEdit(selected);
++                  return;
++                }
++                setNotice("");
++                setContractStart("reservation");
++                setTab("contracts");
++              }}
++            >
++              {selected.email ? c.makeReservation : c.addEmail}
++            </MobileButton>
++          </View>
++        )}
+         {tab === "contracts" ? (
+           <ContractsScreen
+             key={selected.id}
+             tenant={selected}
++            startCreate={contractStart}
++            onStartCreateHandled={() => setContractStart(null)}
+             onChanged={() => {
+               void refreshTenant(selected.id);
+             }}
+@@ -588,7 +642,7 @@
+               accessibilityRole="button"
+               accessibilityLabel={`ดูผู้เช่า ${t.name}`}
+               onPress={() => {
+-                void open(t);
++                void open(t.id);
+               }}
+               style={({ pressed }) => [
+                 s.card,
+diff -ruN a/apps/consumer-app/components/ContractsScreen.tsx b/apps/consumer-app/components/ContractsScreen.tsx
+--- a/apps/consumer-app/components/ContractsScreen.tsx	2026-10-06 04:58:49.739004085 +0000
++++ b/apps/consumer-app/components/ContractsScreen.tsx	2026-10-06 04:58:49.740004085 +0000
+@@ -140,10 +140,16 @@
+   tenant,
+   initialContract,
+   onChanged,
++  startCreate = null,
++  onStartCreateHandled,
+ }: {
+   tenant?: AgentTenant;
+   initialContract?: AgentContract | null;
+   onChanged?: () => void;
++  /** Open the create form of this document straight away, skipping the type picker. */
++  startCreate?: CreateDocumentKind | null;
++  /** Called once `startCreate` was taken, so the owner can clear it. */
++  onStartCreateHandled?: () => void;
+ } = {}) {
+   const { theme } = useMobileTheme();
+   const { t } = useLocale();
+@@ -210,6 +216,19 @@
+       listRequest.current++;
+     };
+   }, [tenant?.id, retry]);
++  const startedCreate = useRef(false);
++  useEffect(() => {
++    if (!startCreate) {
++      startedCreate.current = false;
++      return;
++    }
++    if (startedCreate.current) return;
++    startedCreate.current = true;
++    onStartCreateHandled?.();
++    void onCreateKind(startCreate);
++    // One start per request; `onCreateKind` is a new function on every render.
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [startCreate]);
+   const [selected, setSelected] = useState<AgentContract | null>(
+     initialContract ?? null,
+   );
+diff -ruN a/apps/consumer-app/components/LeadRoomActions.tsx b/apps/consumer-app/components/LeadRoomActions.tsx
+--- a/apps/consumer-app/components/LeadRoomActions.tsx	2026-10-06 04:58:49.741004085 +0000
++++ b/apps/consumer-app/components/LeadRoomActions.tsx	2026-10-06 04:58:49.742004085 +0000
+@@ -1,14 +1,16 @@
+ import React, { useState } from 'react';
+ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+-import type { AgentLead, LeadViewing } from '@nestyk/types';
++import type { AgentLead, AgentTenant, LeadViewing, TenantLeadOption, TenantRoomOption } from '@nestyk/types';
+ import { useLocale } from '@nestyk/i18n';
+ import { MobileIcon, tokens, useMobileTheme, type AppIconName } from '@nestyk/ui/native';
+ import type { LeadRoomMatch } from '../lib/lead-match-preview';
+ import { LeadViewingSheet } from './LeadViewingSheet';
++import { ReserveRoomSheet, type ReserveNext } from './ReserveRoomSheet';
+ 
+ /**
+  * Bottom bar of a lead's matched room. Without a viewing: book one. With a viewing (past or
+- * upcoming): edit/cancel it, or book the room for the client.
++ * upcoming): edit/cancel it, or book the room for the client in a confirmation sheet on this page.
++ * Once the lead has booked this room: open its tenant page.
+  */
+ export function LeadRoomActions({
+   lead,
+@@ -16,7 +18,9 @@
+   viewing,
+   ready = true,
+   onViewingSaved,
+-  onReserve,
++  onReserved,
++  onContinue,
++  onOpenTenant,
+ }: {
+   lead: AgentLead;
+   match: LeadRoomMatch;
+@@ -25,19 +29,47 @@
+   /** False while viewings load, so the bar doesn't flip from "book" to "reserve". */
+   ready?: boolean;
+   onViewingSaved: (viewing: LeadViewing) => void;
+-  /** Opens the create-tenant form with this lead and room. */
+-  onReserve: () => void;
++  /** The room was booked: the lead is now `booked` and this is its tenant. */
++  onReserved: (tenant: AgentTenant) => void;
++  /** Chosen after booking: on to the reservation letter, or to the tenant page first. */
++  onContinue: (tenant: AgentTenant, next: ReserveNext) => void;
++  /** Opens the tenant page once this lead has booked this room. */
++  onOpenTenant?: (tenantId: number) => void;
+ }) {
+   const { t } = useLocale();
+   const c = t.agent.leads.viewing;
+   const { theme } = useMobileTheme();
+   const [open, setOpen] = useState(false);
++  const [reserving, setReserving] = useState(false);
+   const closed = lead.status === 'booked' || lead.status === 'lost';
+   const disabled = closed || !ready;
++  const bookedTenantId = lead.status === 'booked' && lead.rentRoomId === match.room.id ? lead.tenantId : null;
++  const reserveLead: TenantLeadOption = {
++    id: lead.id,
++    name: lead.name,
++    firstName: lead.firstName,
++    lastName: lead.lastName,
++    phone: lead.phone,
++    email: lead.email,
++    nationality: lead.nationality,
++  };
++  // The match card has no room number; the sheet reads it, and who booked the room, when it opens.
++  const reserveRoom: TenantRoomOption = {
++    id: match.room.id,
++    property: match.room.property?.name || match.room.listingTitle || '',
++    room: null,
++  };
+ 
+   return (
+     <View style={[styles.bar, { borderTopColor: theme.border }]}>
+-      {viewing ? (
++      {bookedTenantId && onOpenTenant ? (
++        <BarButton
++          icon="file-text"
++          label={t.agent.leads.bookedOpenTenant}
++          disabled={false}
++          onPress={() => onOpenTenant(bookedTenantId)}
++        />
++      ) : viewing ? (
+         <View style={styles.row}>
+           <BarButton
+             icon="pencil"
+@@ -49,7 +81,13 @@
+             surface={theme.surface}
+             inRow
+           />
+-          <BarButton icon="check" label={c.reserve} disabled={disabled} onPress={onReserve} inRow />
++          <BarButton
++            icon="check"
++            label={c.reserve}
++            disabled={disabled}
++            onPress={() => setReserving(true)}
++            inRow
++          />
+         </View>
+       ) : (
+         <BarButton icon="calendar" label={c.book} disabled={disabled} onPress={() => setOpen(true)} />
+@@ -66,6 +104,17 @@
+           onViewingSaved(saved);
+         }}
+       />
++      <ReserveRoomSheet
++        visible={reserving}
++        lead={reserveLead}
++        room={reserveRoom}
++        onClose={() => setReserving(false)}
++        onReserved={onReserved}
++        onContinue={(tenant, next) => {
++          setReserving(false);
++          onContinue(tenant, next);
++        }}
++      />
+     </View>
+   );
+ }
+diff -ruN a/apps/consumer-app/components/ReserveRoomSheet.tsx b/apps/consumer-app/components/ReserveRoomSheet.tsx
+--- a/apps/consumer-app/components/ReserveRoomSheet.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/apps/consumer-app/components/ReserveRoomSheet.tsx	2026-10-06 04:58:49.759004085 +0000
+@@ -0,0 +1,370 @@
++import React, { useEffect, useRef, useState } from 'react';
++import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
++import type { AgentTenant, TenantLeadOption, TenantRoomOption } from '@nestyk/types';
++import { useLocale } from '@nestyk/i18n';
++import { MobileBottomSheet, MobileButton, MobileIcon, MobileInput, tokens, useMobileTheme } from '@nestyk/ui/native';
++import { createAgentTenant, tenantRoomOptions } from '../lib/agent-tenants-api';
++import {
++  TENANT_PROFILE_MAX,
++  tenantProfileBody,
++  tenantProfileFromLead,
++  tenantProfileIssues,
++  type TenantProfileField,
++  type TenantProfileForm,
++  type TenantProfileIssue,
++} from '../lib/tenant-profile';
++import { SheetHeader } from './AgentLeadDetailBody';
++
++/** Where the agent goes from the "booked" state: on to the reservation letter, or to the tenant page first. */
++export type ReserveNext = 'reservation' | 'tenant';
++
++const EMPTY_FORM: TenantProfileForm = {
++  firstName: '',
++  lastName: '',
++  phone: '',
++  email: '',
++  identityNumber: '',
++  nationality: '',
++  note: '',
++};
++
++function SummaryRow({ label, value, detail, divider }: { label: string; value: string; detail?: string; divider?: boolean }) {
++  const { theme } = useMobileTheme();
++  return (
++    <View
++      style={[
++        styles.summaryRow,
++        divider ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border } : null,
++      ]}
++    >
++      <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>{label}</Text>
++      <View style={styles.flex1}>
++        <Text style={[styles.value, { color: theme.textHeading }]} numberOfLines={2}>
++          {value}
++        </Text>
++        {detail ? (
++          <Text style={[styles.muted, { color: theme.textSecondary }]} numberOfLines={1}>
++            {detail}
++          </Text>
++        ) : null}
++      </View>
++    </View>
++  );
++}
++
++function Notice({ tone, text }: { tone: 'warning' | 'danger'; text: string }) {
++  const bg = tone === 'danger' ? tokens.colors.subtle.dangerBg : tokens.colors.subtle.warningBg;
++  const fg = tone === 'danger' ? tokens.colors.subtle.dangerFg : tokens.colors.subtle.warningFg;
++  return (
++    <View style={[styles.notice, { backgroundColor: bg }]} accessibilityRole="alert">
++      <MobileIcon name="warning" size={16} color={fg} />
++      <Text style={[styles.noticeText, { color: fg }]}>{text}</Text>
++    </View>
++  );
++}
++
++/**
++ * Books a room for a lead with one confirmation instead of a form. The lead's contact details become
++ * the tenant's; only what the reservation letter needs later (email, ID number) is asked up front, and
++ * the rest sits behind "edit". Saving creates the tenant and moves the lead to `booked`.
++ */
++export function ReserveRoomSheet({
++  visible,
++  lead,
++  room,
++  onClose,
++  onReserved,
++  onContinue,
++  onBusy,
++  showBookedState = true,
++}: {
++  visible: boolean;
++  /** Who is booking. */
++  lead: TenantLeadOption | null;
++  /** The room being booked; its number and booking state are read again when the sheet opens. */
++  room: TenantRoomOption | null;
++  onClose: () => void;
++  /** The tenant was created and the lead is now booked. */
++  onReserved: (tenant: AgentTenant) => void;
++  /** Chosen on the "booked" state. */
++  onContinue?: (tenant: AgentTenant, next: ReserveNext) => void;
++  onBusy?: (busy: boolean) => void;
++  /** False when the caller closes the sheet on success and shows the result itself. */
++  showBookedState?: boolean;
++}) {
++  const { t } = useLocale();
++  const c = t.agent.tenants;
++  const { theme } = useMobileTheme();
++  const [form, setForm] = useState<TenantProfileForm>(() => (lead ? tenantProfileFromLead(lead) : EMPTY_FORM));
++  const [roomInfo, setRoomInfo] = useState<TenantRoomOption | null>(room);
++  /** True once the room's number and booking state are known, not just its title. */
++  const [roomKnown, setRoomKnown] = useState(() => room?.bookedBy !== undefined);
++  const [issues, setIssues] = useState<Partial<Record<TenantProfileField, TenantProfileIssue>>>({});
++  const [editing, setEditing] = useState(false);
++  const [busy, setBusy] = useState(false);
++  /** Guards the request itself: two taps can land before `busy` re-renders the button. */
++  const saving = useRef(false);
++  const [error, setError] = useState<string | null>(null);
++  const [booked, setBooked] = useState<AgentTenant | null>(null);
++
++  const leadId = lead?.id ?? null;
++  const roomId = room?.id ?? null;
++
++  // Opening the sheet starts a fresh booking of this room for this lead.
++  useEffect(() => {
++    if (!visible || !lead || !room) return;
++    setForm(tenantProfileFromLead(lead));
++    setRoomInfo(room);
++    setRoomKnown(room.bookedBy !== undefined);
++    setIssues({});
++    setEditing(false);
++    setError(null);
++    setBooked(null);
++    let active = true;
++    tenantRoomOptions('', { leadId: lead.id, roomId: room.id })
++      .then((rows) => {
++        const found = rows.find((row) => row.id === room.id);
++        if (!active || !found) return;
++        setRoomInfo(found);
++        setRoomKnown(true);
++      })
++      .catch(() => {});
++    return () => {
++      active = false;
++    };
++    // Keyed on the ids: a refreshed lead object must not restart a booking in progress.
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [visible, leadId, roomId]);
++
++  useEffect(() => {
++    onBusy?.(busy);
++  }, [busy, onBusy]);
++
++  const issueText: Record<TenantProfileIssue, string> = {
++    required: c.errorRequired,
++    phone: c.errorPhone,
++    email: c.errorEmail,
++    identity: c.errorIdentity,
++  };
++  const fieldError = (key: TenantProfileField) => {
++    const issue = issues[key];
++    return issue ? issueText[issue] : undefined;
++  };
++  const setField = (key: TenantProfileField, value: string) => {
++    setForm((current) => ({ ...current, [key]: value }));
++    setIssues((current) => {
++      if (!current[key]) return current;
++      const next = { ...current };
++      delete next[key];
++      return next;
++    });
++    setError(null);
++  };
++
++  const roomNumber = roomInfo?.room ? t.agent.leads.viewing.roomNumber.replace('{number}', roomInfo.room) : null;
++  const roomLine = [roomInfo?.property, roomNumber].filter(Boolean).join(' · ');
++  const customerName = [form.firstName.trim(), form.lastName.trim()].filter(Boolean).join(' ') || lead?.name || '';
++  const takenBy = roomInfo?.bookedBy ?? null;
++
++  const close = () => {
++    if (!busy) onClose();
++  };
++
++  const confirm = async () => {
++    if (saving.current || !lead || !room || takenBy) return;
++    const found = tenantProfileIssues(form);
++    setIssues(found);
++    if (Object.keys(found).length) {
++      // Name and phone sit behind "edit": open it so the message is visible.
++      if (found.firstName || found.phone) setEditing(true);
++      return;
++    }
++    saving.current = true;
++    setBusy(true);
++    setError(null);
++    try {
++      const tenant = await createAgentTenant({ leadId: lead.id, rentRoomId: room.id, ...tenantProfileBody(form) });
++      if (showBookedState) setBooked(tenant);
++      onReserved(tenant);
++    } catch (err) {
++      setError(err instanceof Error ? err.message : String(err));
++    } finally {
++      saving.current = false;
++      setBusy(false);
++    }
++  };
++
++  return (
++    <MobileBottomSheet visible={visible && !!lead && !!room} onClose={close} maxHeight="90%" avoidKeyboard>
++      {booked ? (
++        <>
++          <SheetHeader title={c.reservedTitle} onClose={close} />
++          <View style={styles.body}>
++            <View style={styles.bookedRow}>
++              <View style={[styles.bookedIcon, { backgroundColor: tokens.colors.subtle.successBg }]}>
++                <MobileIcon name="check" size={22} color={tokens.colors.subtle.successFg} />
++              </View>
++              <View style={styles.flex1}>
++                <Text style={[styles.value, { color: theme.textHeading }]} numberOfLines={2}>
++                  {booked.name}
++                </Text>
++                {roomLine ? (
++                  <Text style={[styles.muted, { color: theme.textSecondary }]} numberOfLines={2}>
++                    {roomLine}
++                  </Text>
++                ) : null}
++              </View>
++            </View>
++            {booked.email ? (
++              <Text style={[styles.muted, { color: theme.textSecondary }]}>{c.reservedNext}</Text>
++            ) : (
++              <Notice tone="warning" text={c.reservedNeedsEmail} />
++            )}
++            <MobileButton onPress={() => onContinue?.(booked, booked.email ? 'reservation' : 'tenant')}>
++              {booked.email ? c.continueToLetter : c.openTenant}
++            </MobileButton>
++            <MobileButton variant="outline" onPress={close}>
++              {c.later}
++            </MobileButton>
++          </View>
++        </>
++      ) : (
++        <>
++          <SheetHeader title={c.reserveTitle} onClose={close} />
++          <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
++            <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>
++              <SummaryRow label={c.reserveCustomer} value={customerName} detail={form.phone.trim()} />
++              <SummaryRow
++                label={c.reserveRoom}
++                value={roomInfo?.property ?? ''}
++                detail={roomNumber ?? (roomKnown ? c.roomNoNumber : undefined)}
++                divider
++              />
++            </View>
++            {takenBy ? <Notice tone="danger" text={c.reserveTaken.replace('{name}', takenBy)} /> : null}
++
++            <MobileInput
++              label={c.reserveEmail}
++              value={form.email}
++              onChangeText={(value) => setField('email', value)}
++              placeholder="name@example.com"
++              keyboardType="email-address"
++              autoCapitalize="none"
++              maxLength={TENANT_PROFILE_MAX.email}
++              editable={!busy}
++              error={fieldError('email')}
++              helperText={form.email.trim() ? c.reserveEmailHint : c.reserveEmailMissing}
++            />
++            <MobileInput
++              label={c.reserveIdentity}
++              value={form.identityNumber}
++              onChangeText={(value) => setField('identityNumber', value)}
++              placeholder={c.reserveIdentityPlaceholder}
++              autoCapitalize="none"
++              maxLength={TENANT_PROFILE_MAX.identityNumber}
++              editable={!busy}
++              error={fieldError('identityNumber')}
++            />
++
++            <Pressable
++              onPress={() => setEditing((open) => !open)}
++              disabled={busy}
++              hitSlop={8}
++              accessibilityRole="button"
++              accessibilityState={{ expanded: editing }}
++              style={({ pressed }) => [styles.toggle, pressed && Platform.OS === 'ios' ? { opacity: 0.75 } : null]}
++              {...(Platform.OS === 'android' ? { android_ripple: { color: 'rgba(33,30,30,0.08)' } } : {})}
++            >
++              <Text style={[styles.link, { color: theme.textHeading }]}>
++                {editing ? c.reserveHideProfile : c.reserveEditProfile}
++              </Text>
++              <MobileIcon name={editing ? 'chevron-down' : 'chevron-right'} size={16} color={theme.textSecondary} />
++            </Pressable>
++            {editing ? (
++              <>
++                <MobileInput
++                  label={c.fieldFirstName}
++                  required
++                  value={form.firstName}
++                  onChangeText={(value) => setField('firstName', value)}
++                  maxLength={TENANT_PROFILE_MAX.firstName}
++                  editable={!busy}
++                  error={fieldError('firstName')}
++                />
++                <MobileInput
++                  label={c.fieldLastName}
++                  value={form.lastName}
++                  onChangeText={(value) => setField('lastName', value)}
++                  maxLength={TENANT_PROFILE_MAX.lastName}
++                  editable={!busy}
++                />
++                <MobileInput
++                  label={c.fieldPhone}
++                  required
++                  value={form.phone}
++                  onChangeText={(value) => setField('phone', value)}
++                  keyboardType="phone-pad"
++                  maxLength={TENANT_PROFILE_MAX.phone}
++                  editable={!busy}
++                  error={fieldError('phone')}
++                />
++                <MobileInput
++                  label={c.fieldNationality}
++                  value={form.nationality}
++                  onChangeText={(value) => setField('nationality', value)}
++                  maxLength={TENANT_PROFILE_MAX.nationality}
++                  editable={!busy}
++                />
++                <MobileInput
++                  label={c.fieldNote}
++                  value={form.note}
++                  onChangeText={(value) => setField('note', value)}
++                  maxLength={TENANT_PROFILE_MAX.note}
++                  editable={!busy}
++                />
++              </>
++            ) : null}
++
++            <Text style={[styles.muted, { color: theme.textSecondary }]}>{c.reserveInfo}</Text>
++            {error ? (
++              <Text accessibilityRole="alert" style={[styles.error, { color: tokens.colors.danger }]}>
++                {error}
++              </Text>
++            ) : null}
++            <MobileButton onPress={() => void confirm()} isLoading={busy} disabled={!!takenBy}>
++              {c.reserveConfirm}
++            </MobileButton>
++          </ScrollView>
++        </>
++      )}
++    </MobileBottomSheet>
++  );
++}
++
++const styles = StyleSheet.create({
++  scroll: { flexGrow: 0 },
++  body: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12, gap: 12 },
++  flex1: { flex: 1 },
++  group: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
++  summaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
++  summaryLabel: { width: 64, fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 22 },
++  value: { fontFamily: tokens.typography.native.bodyBold, fontSize: 15, lineHeight: 22 },
++  muted: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 19 },
++  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
++  noticeText: { flex: 1, fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 19 },
++  toggle: {
++    flexDirection: 'row',
++    alignItems: 'center',
++    alignSelf: 'flex-start',
++    gap: 4,
++    minHeight: 32,
++    paddingVertical: 4,
++    paddingRight: 8,
++    borderRadius: 8,
++    overflow: 'hidden',
++  },
++  link: { fontFamily: tokens.typography.native.bodyBold, fontSize: 13, lineHeight: 19 },
++  error: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 19 },
++  bookedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
++  bookedIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
++});
+diff -ruN a/apps/consumer-app/components/TenantForm.tsx b/apps/consumer-app/components/TenantForm.tsx
+--- a/apps/consumer-app/components/TenantForm.tsx	2026-10-06 04:58:49.743004085 +0000
++++ b/apps/consumer-app/components/TenantForm.tsx	2026-10-06 04:58:49.744004085 +0000
+@@ -14,6 +14,7 @@
+   MobileButton,
+   MobileIcon,
+   MobileInput,
++  MobileStatusPill,
+   tokens,
+   useMobileTheme,
+ } from "@nestyk/ui/native";
+@@ -23,89 +24,64 @@
+   TenantRoomOption,
+ } from "@nestyk/types";
+ import {
+-  createAgentTenant,
+   tenantLeadOptions,
+   tenantRoomOptions,
+ } from "../lib/agent-tenants-api";
++import { ReserveRoomSheet } from "./ReserveRoomSheet";
+ 
+-export type TenantFormInitial = { lead: TenantLeadOption; room: TenantRoomOption };
+-
+-function formFromLead(l: TenantLeadOption) {
+-  return {
+-    firstName: l.firstName || l.name.trim().split(/\s+/)[0] || "",
+-    lastName: l.lastName || l.name.trim().split(/\s+/).slice(1).join(" "),
+-    phone: l.phone,
+-    email: l.email || "",
+-    note: "",
+-    identityNumber: "",
+-    nationality: l.nationality || "",
+-  };
+-}
+-
++/**
++ * Booking a room from the Clients menu, for the cases a lead's matched-room page cannot reach:
++ * pick the lead, pick the room, then confirm in the same sheet that page uses. The tenant's
++ * details are filled in from the lead there, so nothing is typed here.
++ */
+ export function TenantForm({
+   onCreated,
+   onBusy,
+   backRef,
+-  initial,
+ }: {
+   onCreated: (tenant: AgentTenant) => void;
+   onBusy?: (busy: boolean) => void;
+   /** Shell header / hardware back: returns true when it stepped back, false on the first step. */
+   backRef?: React.MutableRefObject<(() => boolean) | null>;
+-  /** Booking from a lead's matched room: lead and room are picked, the form opens on the profile step. */
+-  initial?: TenantFormInitial | null;
+ }) {
+   const { t } = useLocale();
+   const c = t.agent.tenants;
++  const viewing = t.agent.leads.viewing;
+   const { theme } = useMobileTheme();
+-  const firstStep = initial ? 2 : 1;
+-  const [step, setStep] = useState(firstStep);
++  const [step, setStep] = useState(1);
+   const scroll = useRef<ScrollView>(null);
+-  const [lead, setLead] = useState<TenantLeadOption | null>(initial?.lead ?? null);
+-  const [room, setRoom] = useState<TenantRoomOption | null>(initial?.room ?? null);
++  const [lead, setLead] = useState<TenantLeadOption | null>(null);
++  const [room, setRoom] = useState<TenantRoomOption | null>(null);
+   const [leads, setLeads] = useState<TenantLeadOption[]>([]);
+   const [rooms, setRooms] = useState<TenantRoomOption[]>([]);
+   const [search, setSearch] = useState("");
+   const [roomSearch, setRoomSearch] = useState("");
+   const [retry, setRetry] = useState(0);
+   const [loading, setLoading] = useState(false);
+-  const [loadError, setLoadError] = useState("");
+-  const [error, setError] = useState("");
+-  const [busy, setBusy] = useState(false);
+-  const saving = useRef(false);
+-  const [form, setForm] = useState(() =>
+-    initial
+-      ? formFromLead(initial.lead)
+-      : {
+-          firstName: "",
+-          lastName: "",
+-          phone: "",
+-          email: "",
+-          note: "",
+-          identityNumber: "",
+-          nationality: "",
+-        },
+-  );
++  /** null = loaded; a message (or "" for an unknown failure) = the list could not be read. */
++  const [loadError, setLoadError] = useState<string | null>(null);
++  const [confirming, setConfirming] = useState(false);
++  const leadId = lead?.id ?? null;
+   const title = { color: theme.textHeading };
+   const muted = { color: theme.textSecondary };
+   const panel = { backgroundColor: theme.surface, borderColor: theme.border };
+   useEffect(() => {
+-    if (step === 3) return;
+     let cancelled = false;
+     setLoading(true);
+-    setLoadError("");
++    setLoadError(null);
+     const timer = setTimeout(async () => {
+       try {
+         if (step === 1) {
+           const data = await tenantLeadOptions(search);
+           if (!cancelled) setLeads(data);
+         } else {
+-          const data = await tenantRoomOptions(roomSearch);
++          const data = await tenantRoomOptions(roomSearch, {
++            leadId: leadId ?? undefined,
++          });
+           if (!cancelled) setRooms(data);
+         }
+       } catch (e) {
+-        if (!cancelled)
+-          setLoadError(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
++        if (!cancelled) setLoadError(e instanceof Error ? e.message : "");
+       } finally {
+         if (!cancelled) setLoading(false);
+       }
+@@ -114,105 +90,45 @@
+       cancelled = true;
+       clearTimeout(timer);
+     };
+-  }, [step, search, roomSearch, retry]);
++  }, [step, search, roomSearch, retry, leadId]);
++  // A reloaded list carries the latest number and booking state of the room already picked.
+   useEffect(() => {
+-    setRoom((current) => (current && rooms.find((r) => r.id === current.id)) || current);
++    setRoom(
++      (current) => (current && rooms.find((r) => r.id === current.id)) || current,
++    );
+   }, [rooms]);
+   useEffect(() => {
+     scroll.current?.scrollTo({ y: 0, animated: false });
+   }, [step]);
+   useEffect(() => {
+-    onBusy?.(busy);
+-  }, [busy, onBusy]);
+-  useEffect(() => {
+     if (!backRef) return;
+     backRef.current = () => {
+-      if (saving.current) return true;
+-      if (step <= firstStep) return false;
+-      setError("");
++      if (step <= 1) return false;
+       setStep(step - 1);
+       return true;
+     };
+     return () => {
+       backRef.current = null;
+     };
+-  }, [backRef, step, firstStep]);
+-  const goToStep = (next: number) => {
+-    setError("");
+-    setStep(next);
+-  };
+-  function review() {
+-    if (!form.firstName.trim() || !form.phone.trim() || !room) {
+-      setError("กรุณากรอกชื่อ เบอร์โทร และเลือกห้องที่เช่า");
+-      return;
+-    }
+-    const digits = form.phone.replace(/\D/g, "");
+-    if (
+-      !/^[+\d\s().-]+$/.test(form.phone) ||
+-      digits.length < 7 ||
+-      digits.length > 15
+-    ) {
+-      setError("กรุณาตรวจสอบเบอร์โทร");
+-      return;
+-    }
+-    if (
+-      form.email.trim() &&
+-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+-    ) {
+-      setError("กรุณาตรวจสอบอีเมล");
+-      return;
++  }, [backRef, step]);
++  function pickLead(next: TenantLeadOption) {
++    if (lead?.id !== next.id) {
++      setLead(next);
++      setRoom(null);
++      setRooms([]);
++      setRoomSearch("");
+     }
+-    setError("");
+-    setStep(3);
++    setStep(2);
+   }
+-  async function save() {
+-    if (saving.current || !lead || !room) return;
+-    saving.current = true;
+-    setBusy(true);
+-    setError("");
+-    try {
+-      onCreated(
+-        await createAgentTenant({
+-          leadId: lead.id,
+-          rentRoomId: room.id,
+-          name: [form.firstName.trim(), form.lastName.trim()].filter(Boolean).join(" "),
+-          firstName: form.firstName.trim(),
+-          lastName: form.lastName.trim(),
+-          phone: form.phone,
+-          email: form.email,
+-          note: form.note,
+-          identityNumber: form.identityNumber,
+-          nationality: form.nationality,
+-        }),
+-      );
+-    } catch (e) {
+-      setError(
+-        e instanceof Error ? e.message : "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง",
+-      );
+-    } finally {
+-      saving.current = false;
+-      setBusy(false);
+-    }
++  function pickRoom(next: TenantRoomOption) {
++    if (next.bookedBy) return;
++    setRoom(next);
++    setConfirming(true);
+   }
+-  const pinnedRoom = !roomSearch.trim() && initial?.room && !rooms.some((r) => r.id === initial.room.id) ? initial.room : null;
+-  const roomChoices = pinnedRoom ? [pinnedRoom, ...rooms] : rooms;
+-  const steps = [c.stepLead, c.stepProfile, c.stepReview];
+-  const primary =
+-    step === 1
+-      ? {
+-          label: c.next,
+-          onPress: () => goToStep(2),
+-          disabled: !lead || loading || !!loadError,
+-        }
+-      : step === 2
+-        ? { label: c.review, onPress: review, disabled: false }
+-        : {
+-            label: c.confirmCreate,
+-            onPress: () => {
+-              void save();
+-            },
+-            disabled: false,
+-          };
++  const roomLabel = (r: TenantRoomOption) =>
++    r.room ? viewing.roomNumber.replace("{number}", r.room) : c.roomNoNumber;
++  const steps = [c.stepLead, c.stepRoom];
++  const failed = loadError !== null;
+   return (
+     <KeyboardAvoidingView
+       style={s.fill}
+@@ -232,8 +148,8 @@
+                 key={label}
+                 accessibilityRole="tab"
+                 accessibilityState={{ selected: on, disabled: !done }}
+-                disabled={!done || busy}
+-                onPress={() => goToStep(n)}
++                disabled={!done}
++                onPress={() => setStep(n)}
+                 android_ripple={{ color: tokens.colors.brand[100], borderless: false }}
+                 style={({ pressed }) => [
+                   s.tab,
+@@ -267,17 +183,19 @@
+         keyboardShouldPersistTaps="handled"
+         contentContainerStyle={s.form}
+       >
+-      <Text style={[s.body, muted]}>{c.createIntro}</Text>
+-      {step !== 3 && !!loadError && (
++      <Text style={[s.body, muted]}>
++        {step === 2 && lead ? c.roomFor.replace("{name}", lead.name) : c.pickIntro}
++      </Text>
++      {failed && (
+         <View style={[s.panel, panel]}>
+           <Text
+             accessibilityRole="alert"
+             style={[s.body, { color: tokens.colors.danger }]}
+           >
+-            {loadError}
++            {loadError || c.loadError}
+           </Text>
+           <MobileButton variant="outline" onPress={() => setRetry((n) => n + 1)}>
+-            ลองโหลดอีกครั้ง
++            {c.retry}
+           </MobileButton>
+         </View>
+       )}
+@@ -286,35 +204,30 @@
+           <MobileInput
+             value={search}
+             onChangeText={setSearch}
+-            placeholder="ค้นหาชื่อหรือเบอร์โทรของ Lead"
++            placeholder={c.leadSearch}
+           />
+-          <Text style={[s.small, muted]}>
+-            แสดงสูงสุด 30 รายการ · เฉพาะ Lead
+-            ที่ยังไม่ได้เป็นผู้เช่าและยังไม่ปิดเป็นไม่สำเร็จ
+-          </Text>
++          <Text style={[s.small, muted]}>{c.leadListHint}</Text>
+           {loading ? (
+             <ActivityIndicator />
+           ) : (
+-            !loadError && (
++            !failed && (
+               <>
+                 {leads.map((l) => (
+                   <Pressable
+                     key={l.id}
+                     accessibilityRole="radio"
+                     accessibilityState={{ checked: lead?.id === l.id }}
+-                    onPress={() => {
+-                      if (lead?.id !== l.id) {
+-                        setLead(l);
+-                        setForm(formFromLead(l));
+-                      }
+-                    }}
+-                    style={[
++                    onPress={() => pickLead(l)}
++                    android_ripple={{ color: tokens.colors.brand[100], borderless: false }}
++                    style={({ pressed }) => [
+                       s.panel,
++                      s.row,
+                       panel,
+                       lead?.id === l.id && {
+                         borderColor: "#FFBF19",
+                         borderWidth: 2,
+                       },
++                      pressed && Platform.OS === "ios" && s.rowPressed,
+                     ]}
+                   >
+                     <Text style={[s.subtitle, title]}>
+@@ -326,159 +239,66 @@
+                 ))}
+                 {!leads.length && (
+                   <Text style={[s.body, muted]}>
+-                    {search
+-                      ? "ไม่พบ Lead ที่ตรงกับคำค้นหา"
+-                      : "ยังไม่มี Lead ให้เลือก กรุณาสร้าง Lead ในเมนู Leads ก่อน"}
++                    {search ? c.leadNoMatch : c.leadEmpty}
+                   </Text>
+                 )}
+               </>
+             )
+           )}
+-          {lead && <Text style={[s.small, muted]}>เลือกแล้ว: {lead.name}</Text>}
+         </>
+       )}
+       {step === 2 && (
+         <>
+-          <View style={[s.panel, panel]}>
+-            <Text style={[s.subtitle, title]}>ข้อมูลติดต่อ</Text>
+-            <Text style={[s.small, muted]}>
+-              ดึงจาก {lead?.name} · แก้ไขข้อมูลผู้เช่าได้โดยข้อมูล Lead
+-              เดิมยังอยู่
+-            </Text>
+-            {(
+-              [
+-                ["firstName", "ชื่อ *", "ชื่อ"],
+-                ["lastName", "นามสกุล", "ไม่บังคับ"],
+-                ["phone", "เบอร์โทร *", "เบอร์โทรที่ติดต่อได้"],
+-                ["email", "อีเมล", "name@example.com"],
+-                [
+-                  "identityNumber",
+-                  "เลขบัตรประชาชน / พาสปอร์ต",
+-                  "เช่น 1-2345-67890-12-3 หรือ A1234567",
+-                ],
+-                ["nationality", "สัญชาติ", "เช่น ไทย"],
+-                ["note", "หมายเหตุ", "ข้อมูลเพิ่มเติมเกี่ยวกับผู้เช่า"],
+-              ] as const
+-            ).map(([key, label, placeholder]) => (
+-              <View key={key} style={{ gap: 6 }}>
+-                <Text style={[s.body, title]}>{label}</Text>
+-                <MobileInput
+-                  accessibilityLabel={label}
+-                  value={form[key]}
+-                  onChangeText={(value) =>
+-                    setForm((current) => ({ ...current, [key]: value }))
+-                  }
+-                  placeholder={placeholder}
+-                  maxLength={
+-                    key === "note"
+-                      ? 500
+-                      : key === "phone"
+-                        ? 50
+-                        : key === "identityNumber"
+-                          ? 100
+-                          : key === "nationality"
+-                            ? 120
+-                            : 255
+-                  }
+-                  keyboardType={
+-                    key === "phone"
+-                      ? "phone-pad"
+-                      : key === "email"
+-                        ? "email-address"
+-                        : "default"
+-                  }
+-                  autoCapitalize={
+-                    key === "email" || key === "identityNumber"
+-                      ? "none"
+-                      : "sentences"
+-                  }
+-                />
+-              </View>
+-            ))}
+-          </View>
+-          <View style={[s.panel, panel]}>
+-            <Text style={[s.subtitle, title]}>ห้องที่เลือกเช่า *</Text>
+-            <MobileInput
+-              value={roomSearch}
+-              onChangeText={setRoomSearch}
+-              placeholder="ค้นหาโครงการหรือเลขห้อง"
+-            />
+-            <Text style={[s.small, muted]}>
+-              แสดงสูงสุด 30 ห้อง · ค้นหาเพื่อเลือกห้องอื่น
+-            </Text>
+-            {loading ? (
+-              <ActivityIndicator />
+-            ) : (
+-              !loadError &&
+-              roomChoices.map((r) => (
+-                <Pressable
+-                  key={r.id}
+-                  accessibilityRole="radio"
+-                  accessibilityState={{ checked: room?.id === r.id }}
+-                  onPress={() => setRoom(r)}
+-                  style={[
+-                    s.room,
+-                    {
+-                      borderColor: room?.id === r.id ? "#FFBF19" : theme.border,
+-                    },
+-                  ]}
+-                >
+-                  <Text style={[s.body, title]}>
+-                    {room?.id === r.id ? "● " : "○ "}
+-                    {r.property}
+-                  </Text>
+-                  <Text style={[s.small, muted]}>
+-                    {r.room ? `ห้อง ${r.room}` : `รายการห้อง #${r.id}`}
+-                  </Text>
+-                </Pressable>
+-              ))
+-            )}
+-            {!loading && !loadError && !roomChoices.length && (
+-              <Text style={[s.body, muted]}>
+-                ไม่พบห้อง ลองเปลี่ยนคำค้นหาหรือเพิ่มห้องในเมนูห้องก่อน
+-              </Text>
+-            )}
+-            {room && (
+-              <Text style={[s.small, muted]}>
+-                เลือกแล้ว: {room.property} · {room.room || `#${room.id}`}
+-              </Text>
+-            )}
+-          </View>
+-        </>
+-      )}
+-      {step === 3 && (
+-        <>
+-          <View style={[s.panel, panel]}>
+-            <Text style={[s.subtitle, title]}>ตรวจสอบก่อนสร้างผู้เช่า</Text>
+-            {(
+-              [
+-                ["Lead ต้นทาง", lead?.name],
+-                ["ชื่อ", form.firstName],
+-                ["นามสกุล", form.lastName || "ไม่ระบุ"],
+-                ["เบอร์โทร", form.phone],
+-                ["อีเมล", form.email || "ไม่ระบุ"],
+-                [
+-                  "เลขบัตรประชาชน / พาสปอร์ต",
+-                  form.identityNumber || "ไม่ระบุ",
+-                ],
+-                ["สัญชาติ", form.nationality || "ไม่ระบุ"],
+-                [
+-                  "ห้องที่เลือก",
+-                  `${room?.property} · ${room?.room || `#${room?.id}`}`,
+-                ],
+-                ["หมายเหตุ", form.note || "ไม่ระบุ"],
+-              ] as const
+-            ).map(([label, value]) => (
+-              <View key={label} style={{ gap: 3 }}>
+-                <Text style={[s.small, muted]}>{label}</Text>
+-                <Text style={[s.body, title]}>{value}</Text>
+-              </View>
+-            ))}
+-          </View>
+-          <Text style={[s.small, muted]}>
+-            เมื่อบันทึก Lead จะเป็นสถานะจองแล้ว และเชื่อมกับผู้เช่าคนนี้
+-            คุณสามารถสร้างสัญญาในขั้นถัดไปได้
+-          </Text>
++          <MobileInput
++            value={roomSearch}
++            onChangeText={setRoomSearch}
++            placeholder={c.roomSearch}
++          />
++          <Text style={[s.small, muted]}>{c.roomListHint}</Text>
++          {loading ? (
++            <ActivityIndicator />
++          ) : (
++            !failed &&
++            rooms.map((r) => (
++              <Pressable
++                key={r.id}
++                accessibilityRole="radio"
++                accessibilityState={{
++                  checked: room?.id === r.id,
++                  disabled: !!r.bookedBy,
++                }}
++                disabled={!!r.bookedBy}
++                onPress={() => pickRoom(r)}
++                android_ripple={{ color: tokens.colors.brand[100], borderless: false }}
++                style={({ pressed }) => [
++                  s.room,
++                  s.row,
++                  panel,
++                  room?.id === r.id && { borderColor: "#FFBF19", borderWidth: 2 },
++                  !!r.bookedBy && s.roomTaken,
++                  pressed && Platform.OS === "ios" && s.rowPressed,
++                ]}
++              >
++                <Text style={[s.body, title]}>
++                  {room?.id === r.id ? "● " : "○ "}
++                  {r.property}
++                </Text>
++                <Text style={[s.small, muted]}>{roomLabel(r)}</Text>
++                {r.bookedBy ? (
++                  <MobileStatusPill
++                    label={c.roomBookedBy.replace("{name}", r.bookedBy)}
++                    tone="red"
++                    style={s.pill}
++                  />
++                ) : r.viewed ? (
++                  <MobileStatusPill label={c.roomViewed} tone="purple" />
++                ) : null}
++              </Pressable>
++            ))
++          )}
++          {!loading && !failed && !rooms.length && (
++            <Text style={[s.body, muted]}>{c.roomEmpty}</Text>
++          )}
+         </>
+       )}
+       </ScrollView>
+@@ -488,40 +308,50 @@
+           { backgroundColor: theme.surface, borderTopColor: theme.border },
+         ]}
+       >
+-        {!!error && (
+-          <Text
+-            accessibilityRole="alert"
+-            style={[s.footerError, { color: tokens.colors.danger }]}
+-          >
+-            {error}
+-          </Text>
+-        )}
+         <View style={s.footerRow}>
+           {step > 1 && (
+             <MobileButton
+               variant="outline"
+-              onPress={() => goToStep(step - 1)}
+-              disabled={busy}
++              onPress={() => setStep(step - 1)}
+               style={s.backButton}
+             >
+               {c.back}
+             </MobileButton>
+           )}
+-          <MobileButton
+-            onPress={primary.onPress}
+-            disabled={primary.disabled || busy}
+-            isLoading={busy}
+-            style={s.primaryButton}
+-          >
+-            <View style={s.primaryInner}>
+-              {step === 3 && (
++          {step === 1 ? (
++            <MobileButton
++              onPress={() => setStep(2)}
++              disabled={!lead}
++              style={s.primaryButton}
++            >
++              <Text style={s.primaryText}>{c.next}</Text>
++            </MobileButton>
++          ) : (
++            <MobileButton
++              onPress={() => setConfirming(true)}
++              disabled={!room || !!room.bookedBy}
++              style={s.primaryButton}
++            >
++              <View style={s.primaryInner}>
+                 <MobileIcon name="check" size={18} color={tokens.colors.primary} />
+-              )}
+-              <Text style={s.primaryText}>{primary.label}</Text>
+-            </View>
+-          </MobileButton>
++                <Text style={s.primaryText}>{viewing.reserve}</Text>
++              </View>
++            </MobileButton>
++          )}
+         </View>
+       </View>
++      <ReserveRoomSheet
++        visible={confirming}
++        lead={lead}
++        room={room}
++        showBookedState={false}
++        onBusy={onBusy}
++        onClose={() => setConfirming(false)}
++        onReserved={(tenant) => {
++          setConfirming(false);
++          onCreated(tenant);
++        }}
++      />
+     </KeyboardAvoidingView>
+   );
+ }
+@@ -579,6 +409,11 @@
+   },
+   panel: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14 },
+   room: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
++  roomTaken: { opacity: 0.6 },
++  // Rows are pressable: clip the Android ripple to the rounded card, dim on iOS.
++  row: { overflow: "hidden" },
++  rowPressed: { opacity: 0.7 },
++  pill: { maxWidth: 240 },
+   footer: {
+     borderTopWidth: 1,
+     paddingHorizontal: 16,
+@@ -586,11 +421,6 @@
+     paddingBottom: 14,
+     gap: 8,
+   },
+-  footerError: {
+-    fontFamily: tokens.typography.native.body,
+-    fontSize: 12,
+-    lineHeight: 18,
+-  },
+   footerRow: { flexDirection: "row", gap: 10 },
+   backButton: { flex: 1, minHeight: 50, borderRadius: 12 },
+   primaryButton: { flex: 2, minHeight: 50, borderRadius: 12 },
+diff -ruN a/apps/consumer-app/components/reserve-room-sheet.test.cjs b/apps/consumer-app/components/reserve-room-sheet.test.cjs
+--- a/apps/consumer-app/components/reserve-room-sheet.test.cjs	1970-01-01 00:00:00.000000000 +0000
++++ b/apps/consumer-app/components/reserve-room-sheet.test.cjs	2026-10-06 04:58:49.760004085 +0000
+@@ -0,0 +1,106 @@
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const ts = require('typescript');
++const React = require('react');
++const { renderToStaticMarkup } = require('react-dom/server');
++
++const el = React.createElement;
++// React Native primitives as plain elements; native-only props are dropped.
++const host = tag => ({ children, accessibilityRole }) => el(tag, accessibilityRole ? { role: accessibilityRole } : null, children);
++// Relative imports load for real; everything in `mocks` (keyed by the import as written) is replaced.
++const modules = new Map();
++const load = (file, mocks = {}) => {
++  if (modules.has(file)) return modules.get(file).exports;
++  const loaded = { exports: {} };
++  modules.set(file, loaded);
++  const js = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
++  const localRequire = name => {
++    if (name in mocks) return mocks[name];
++    if (!name.startsWith('.')) throw new Error(`Unexpected dependency: ${name}`);
++    const base = path.resolve(path.dirname(file), name);
++    return load([`${base}.ts`, `${base}.tsx`].find(candidate => fs.existsSync(candidate)), mocks);
++  };
++  new Function('require', 'module', 'exports', js)(localRequire, loaded, loaded.exports);
++  return loaded.exports;
++};
++// Real wording and real rules: the sheet is checked against what the user reads and what the API accepts.
++const { th } = load(path.join(__dirname, '../../../packages/i18n/src/locales/th.ts'));
++const c = th.agent.tenants;
++const mocks = {
++  react: React,
++  'react-native': { View: host('section'), Text: host('span'), ScrollView: host('div'), Pressable: host('div'), StyleSheet: { create: styles => styles, hairlineWidth: 1 }, Platform: { OS: 'ios' } },
++  '@nestyk/i18n': { useLocale: () => ({ t: th }) },
++  '@nestyk/ui/native': {
++    useMobileTheme: () => ({ theme: {} }),
++    tokens: { typography: { native: {} }, colors: { subtle: {}, danger: '#c43d4c' } },
++    MobileBottomSheet: ({ visible, children }) => (visible ? el('aside', null, children) : null),
++    MobileButton: ({ children, disabled, isLoading }) => el('button', { disabled: !!(disabled || isLoading) }, children),
++    MobileIcon: () => null,
++    MobileInput: ({ label, value, error, helperText }) => el('label', null, label, el('input', { 'aria-label': label, value, onChange() {} }), el('small', null, error || helperText)),
++  },
++  '../lib/agent-tenants-api': { createAgentTenant: async () => { throw new Error('not reached in a static render'); }, tenantRoomOptions: async () => [] },
++  './AgentLeadDetailBody': { SheetHeader: ({ title }) => el('h2', null, title) },
++};
++const { ReserveRoomSheet } = load(path.join(__dirname, 'ReserveRoomSheet.tsx'), mocks);
++const profile = load(path.join(__dirname, '../lib/tenant-profile.ts'), mocks);
++
++const lead = { id: 7, name: 'สมหญิง ใจดี', firstName: 'สมหญิง', lastName: 'ใจดี', phone: '081-234-5678', email: 'somying@example.com', nationality: 'ไทย' };
++const room = { id: 42, property: 'The Nest Sukhumvit', room: '12A', bookedBy: null };
++const render = props => renderToStaticMarkup(el(ReserveRoomSheet, { visible: true, lead, room, onClose() {}, onReserved() {}, ...props }));
++const form = values => ({ ...profile.tenantProfileFromLead(lead), ...values });
++
++test('the sheet names the customer and the room, and asks only for what the reservation letter needs', () => {
++  const markup = render();
++  for (const text of [c.reserveTitle, 'สมหญิง ใจดี', '081-234-5678', 'The Nest Sukhumvit', 'ห้อง 12A', c.reserveEmailHint, c.reserveInfo]) assert.ok(markup.includes(text), `Missing: ${text}`);
++  assert.deepEqual([...markup.matchAll(/aria-label="([^"]+)"/g)].map(match => match[1]), [c.reserveEmail, c.reserveIdentity]);
++  assert.match(markup, /<input[^>]*value="somying@example.com"/);
++  assert.match(markup, new RegExp(`<button>${c.reserveConfirm}</button>`));
++});
++
++test('a lead without an email can still be booked, with a warning that the letter needs one', () => {
++  const markup = render({ lead: { ...lead, email: null } });
++  assert.ok(markup.includes(c.reserveEmailMissing));
++  assert.ok(!markup.includes(c.reserveEmailHint));
++  assert.match(markup, new RegExp(`<button>${c.reserveConfirm}</button>`));
++});
++
++test('a room another lead has booked says who booked it and cannot be confirmed', () => {
++  const markup = render({ room: { ...room, bookedBy: 'สมชาย' } });
++  assert.ok(markup.includes(c.reserveTaken.replace('{name}', 'สมชาย')));
++  assert.match(markup, new RegExp(`<button disabled="">${c.reserveConfirm}</button>`));
++});
++
++test('a room without a number says so instead of showing an internal id', () => {
++  const markup = render({ room: { ...room, room: null } });
++  assert.ok(markup.includes(c.roomNoNumber));
++  assert.doesNotMatch(markup, /#42/);
++});
++
++test('nothing is rendered while closed or without a lead and a room', () => {
++  assert.equal(render({ visible: false }), '');
++  assert.equal(render({ lead: null }), '');
++  assert.equal(render({ room: null }), '');
++});
++
++test('the tenant starts as a copy of the lead, splitting a single name when needed', () => {
++  assert.deepEqual(profile.tenantProfileFromLead(lead), { firstName: 'สมหญิง', lastName: 'ใจดี', phone: '081-234-5678', email: 'somying@example.com', identityNumber: '', nationality: 'ไทย', note: '' });
++  assert.deepEqual(profile.tenantProfileFromLead({ ...lead, name: 'John  Ronald Doe', firstName: '', lastName: '', email: null, nationality: null }), { firstName: 'John', lastName: 'Ronald Doe', phone: '081-234-5678', email: '', identityNumber: '', nationality: '', note: '' });
++});
++
++// Same rules as `parseTenantProfile` in apps/api/src/agent/tenants/agent-tenants.service.ts.
++test('profile rules: name and phone required, email and ID number checked only when filled in', () => {
++  assert.deepEqual(profile.tenantProfileIssues(form({})), {});
++  assert.deepEqual(profile.tenantProfileIssues(form({ email: '', identityNumber: '', lastName: '' })), {});
++  assert.deepEqual(profile.tenantProfileIssues(form({ firstName: '  ', phone: ' ' })), { firstName: 'required', phone: 'required' });
++  for (const phone of ['123456', '1234567890123456', '08x-123-4567']) assert.deepEqual(profile.tenantProfileIssues(form({ phone })), { phone: 'phone' }, phone);
++  for (const phone of ['1234567', '+66 (0)81-234.5678', '123456789012345']) assert.deepEqual(profile.tenantProfileIssues(form({ phone })), {}, phone);
++  for (const email of ['a@b', 'a b@c.d', '@c.d']) assert.deepEqual(profile.tenantProfileIssues(form({ email })), { email: 'email' }, email);
++  for (const identityNumber of ['A123', '-12345', 'เลขบัตร']) assert.deepEqual(profile.tenantProfileIssues(form({ identityNumber })), { identityNumber: 'identity' }, identityNumber);
++  for (const identityNumber of ['A1234', '1-2345-67890-12-3', 'AB 1234567']) assert.deepEqual(profile.tenantProfileIssues(form({ identityNumber })), {}, identityNumber);
++});
++
++test('the request body is trimmed and carries the display name', () => {
++  assert.deepEqual(profile.tenantProfileBody(form({ firstName: ' สมหญิง ', lastName: '', phone: ' 0812345678 ', email: ' a@b.co ', identityNumber: ' A1234567 ', note: ' vip ' })), { name: 'สมหญิง', firstName: 'สมหญิง', lastName: '', phone: '0812345678', email: 'a@b.co', note: 'vip', identityNumber: 'A1234567', nationality: 'ไทย' });
++});
+diff -ruN a/apps/consumer-app/lib/agent-tenants-api.ts b/apps/consumer-app/lib/agent-tenants-api.ts
+--- a/apps/consumer-app/lib/agent-tenants-api.ts	2026-10-06 04:58:49.745004085 +0000
++++ b/apps/consumer-app/lib/agent-tenants-api.ts	2026-10-06 04:58:49.746004085 +0000
+@@ -21,11 +21,19 @@
+   await ensureAgentSession();
+   return apiGet(`/agent/tenants/leads?q=${encodeURIComponent(q)}`);
+ }
++/**
++ * Rooms to book. `leadId` puts the rooms that lead has a viewing for first; `roomId` makes sure
++ * that one room is in the answer even when it is not among the latest 30.
++ */
+ export async function tenantRoomOptions(
+   q: string,
++  options: { leadId?: number; roomId?: number } = {},
+ ): Promise<TenantRoomOption[]> {
+   await ensureAgentSession();
+-  return apiGet(`/agent/tenants/rooms?q=${encodeURIComponent(q)}`);
++  const params = [`q=${encodeURIComponent(q)}`];
++  if (options.leadId) params.push(`leadId=${options.leadId}`);
++  if (options.roomId) params.push(`roomId=${options.roomId}`);
++  return apiGet(`/agent/tenants/rooms?${params.join("&")}`);
+ }
+ export async function createAgentTenant(
+   body: CreateAgentTenant,
+diff -ruN a/apps/consumer-app/lib/tenant-profile.ts b/apps/consumer-app/lib/tenant-profile.ts
+--- a/apps/consumer-app/lib/tenant-profile.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/apps/consumer-app/lib/tenant-profile.ts	2026-10-06 04:58:49.761004085 +0000
+@@ -0,0 +1,88 @@
++import type { TenantLeadOption, UpdateAgentTenant } from "@nestyk/types";
++
++/** A tenant's contact details as typed when a room is booked. */
++export type TenantProfileForm = {
++  firstName: string;
++  lastName: string;
++  phone: string;
++  email: string;
++  identityNumber: string;
++  nationality: string;
++  note: string;
++};
++
++export type TenantProfileField = keyof TenantProfileForm;
++
++/** Why a field was refused; the screen turns it into a message. */
++export type TenantProfileIssue = "required" | "phone" | "email" | "identity";
++
++/** Longest value the API accepts per field. */
++export const TENANT_PROFILE_MAX: Record<TenantProfileField, number> = {
++  firstName: 255,
++  lastName: 255,
++  phone: 50,
++  email: 255,
++  identityNumber: 100,
++  nationality: 120,
++  note: 500,
++};
++
++/** A new tenant starts as a copy of the lead's contact details. */
++export function tenantProfileFromLead(
++  lead: TenantLeadOption,
++): TenantProfileForm {
++  const parts = lead.name.trim().split(/\s+/);
++  return {
++    firstName: lead.firstName || parts[0] || "",
++    lastName: lead.lastName || parts.slice(1).join(" "),
++    phone: lead.phone,
++    email: lead.email || "",
++    identityNumber: "",
++    nationality: lead.nationality || "",
++    note: "",
++  };
++}
++
++/**
++ * The API's rules (`parseTenantProfile` in apps/api agent-tenants.service.ts), checked here first
++ * so the message shows beside the field instead of after the request. One rule is stricter: a
++ * first name is required, where the API would take a lone last name as the first name.
++ */
++export function tenantProfileIssues(
++  form: TenantProfileForm,
++): Partial<Record<TenantProfileField, TenantProfileIssue>> {
++  const issues: Partial<Record<TenantProfileField, TenantProfileIssue>> = {};
++  if (!form.firstName.trim()) issues.firstName = "required";
++  const phone = form.phone.trim();
++  const digits = phone.replace(/\D/g, "");
++  if (!phone) issues.phone = "required";
++  else if (
++    !/^[+\d\s().-]+$/.test(phone) ||
++    digits.length < 7 ||
++    digits.length > 15
++  )
++    issues.phone = "phone";
++  const email = form.email.trim();
++  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
++    issues.email = "email";
++  const identity = form.identityNumber.trim();
++  if (identity && !/^[A-Za-z0-9][A-Za-z0-9\s/-]{4,99}$/.test(identity))
++    issues.identityNumber = "identity";
++  return issues;
++}
++
++/** Request body for POST / PATCH /agent/tenants. */
++export function tenantProfileBody(form: TenantProfileForm): UpdateAgentTenant {
++  const firstName = form.firstName.trim();
++  const lastName = form.lastName.trim();
++  return {
++    name: [firstName, lastName].filter(Boolean).join(" "),
++    firstName,
++    lastName,
++    phone: form.phone.trim(),
++    email: form.email.trim(),
++    note: form.note.trim(),
++    identityNumber: form.identityNumber.trim(),
++    nationality: form.nationality.trim(),
++  };
++}
+diff -ruN a/docs/new-project/agent/contracts/README.md b/docs/new-project/agent/contracts/README.md
+--- a/docs/new-project/agent/contracts/README.md	2026-10-06 04:58:49.757004085 +0000
++++ b/docs/new-project/agent/contracts/README.md	2026-10-06 04:58:49.758004085 +0000
+@@ -66,19 +66,30 @@
+ search/status filters, and show active contracts ending within 30 days. Detail has
+ Overview and Contracts tabs. Payment data is not available and is not simulated.
+ 
+-Create tenant: select an eligible Lead → confirm name, phone, optional email/note,
+-and select a managed room → review → save. Saving creates the tenant and links
+-`leads.tenant_id`, `leads.rent_room_id`, and `leads.status = booked` atomically.
++Create tenant (booking a room): on the Clients tab select an eligible Lead → select a
++managed room, or press "จองห้องนี้" on a Lead's matched-room page. Both open the same
++confirmation sheet (`ReserveRoomSheet`): it shows the Lead and the room, asks for the
++email and ID number the reservation letter needs, and keeps name, phone, nationality
++and note (copied from the Lead) behind an edit link. Confirming creates the tenant and
++links `leads.tenant_id`, `leads.rent_room_id`, and `leads.status = booked` atomically.
+ Original Lead contact fields are preserved. Duplicate promotions are rejected under
+-a Lead row lock. This does not create a contract or activate occupancy.
++a Lead row lock, and a room another Lead has booked is rejected with 409
++`ROOM_ALREADY_BOOKED` (checked in the transaction; the `uq_leads_one_booked_per_room`
++index catches a race). This does not create a contract or activate occupancy. While
++the tenant has no contract, the tenant page offers "ทำหนังสือจอง" as the next step,
++which opens the reservation letter form directly.
+ 
+ Tenant API (agent-authenticated and scoped to the current agent):
+ - `GET /agent/tenants`: tenant cards and their contracts.
+ - `GET /agent/tenants/:id`: tenant detail.
+ - `GET /agent/tenants/leads?q=`: up to 30 searchable eligible leads; excludes lost
+   leads and leads already linked to tenants.
+-- `GET /agent/tenants/rooms?q=`: up to 30 searchable rooms managed by this agent.
+-- `POST /agent/tenants`: `{leadId, rentRoomId, name, phone, email?, note?}`.
++- `GET /agent/tenants/rooms?q=&leadId=&roomId=`: up to 30 searchable rooms managed by
++  this agent, each with `viewed` and `bookedBy` (name of the Lead that booked it, or
++  null). `leadId` lists the rooms that Lead has a non-cancelled viewing for first;
++  `roomId` includes that room even when it is not among the latest 30.
++- `POST /agent/tenants`: `{leadId, rentRoomId, name, phone, email?, note?}`; 409
++  `ROOM_ALREADY_BOOKED` when another Lead has already booked the room.
+ 
+ Contracts are created inside tenant detail using `GET /agent/contracts`,
+ `GET /agent/contracts/:id`, and `POST /agent/contracts`. The form uses the selected
+diff -ruN a/docs/new-project/agent/contracts/flow.md b/docs/new-project/agent/contracts/flow.md
+--- a/docs/new-project/agent/contracts/flow.md	2026-10-06 04:58:49.754004085 +0000
++++ b/docs/new-project/agent/contracts/flow.md	2026-10-06 04:58:49.755004085 +0000
+@@ -12,11 +12,14 @@
+ 
+ 10 คนมาดูห้อง → [leads](../leads/flow.md) 10 แถว (`new` … `inprogress`)
+ 
+-Agent เลือก 1 คน → **`POST /agent/leads/:id/book`**
++Agent เลือก 1 คนกับห้องที่จะเช่า → **`POST /agent/tenants`** (`{ leadId, rentRoomId, … }`)
+ 
+ - `leads.status = booked`
+-- สร้าง **`tenants`** (ชื่อ/เบอร์จาก lead)
+-- `leads.tenant_id = tenants.id`
++- สร้าง **`tenants`** (ชื่อ/เบอร์จาก lead แก้ได้ตอนยืนยัน)
++- `leads.tenant_id = tenants.id` · `leads.rent_room_id` = ห้องที่จอง
++- ห้องหนึ่งมี lead `booked` ได้คนเดียว — จองซ้ำได้ 409 `ROOM_ALREADY_BOOKED`
++
++ในแอปคือปุ่ม **จองห้องนี้** ในหน้าห้องที่จับคู่ของ lead หรือปุ่ม + ในเมนูลูกค้า ([leads/viewings.md](../leads/viewings.md)) · endpoint `POST /agent/leads/:id/book` ในแบบร่างเดิมไม่ได้ถูกสร้าง ([README](./README.md))
+ 
+ **Lead แถวนั้นยังอยู่** — ไม่ลบ · มีชื่อ + status booked
+ 
+diff -ruN a/docs/new-project/agent/leads/flow.md b/docs/new-project/agent/leads/flow.md
+--- a/docs/new-project/agent/leads/flow.md	2026-10-06 04:58:49.749004085 +0000
++++ b/docs/new-project/agent/leads/flow.md	2026-10-06 04:58:49.750004085 +0000
+@@ -76,6 +76,8 @@
+ 
+ Lead อีก 9 คน → คงเป็น `inprogress` / `lost` — **ไม่มี** แถวใน `tenants`
+ 
++ในแอป การจองคือ `POST /agent/tenants` ผ่านแผ่นยืนยันเดียวกัน (`ReserveRoomSheet`) สองทาง: ปุ่ม **จองห้องนี้** ในหน้าห้องที่จับคู่ของลีด ([viewings.md](./viewings.md)) และปุ่ม + ในเมนูลูกค้า (เลือกลีด → เลือกห้อง) · ทุก response ของลีดมี `tenantId` และ `rentRoomId` (`null` จนกว่าจะจอง) · หน้ารายละเอียดลีดที่ `booked` มีปุ่ม **ดูผู้เช่าและสัญญา** ไปหน้าผู้เช่า
++
+ ---
+ 
+ ## 4. Lead อื่นในห้องเดียวกัน
+@@ -84,6 +86,7 @@
+ 
+ - Lead คนอื่น → แนะนำตั้งเป็น `lost` (optional bulk / manual)
+ - ห้องมี tenant active ได้คนเดียว (ดู contracts pack)
++- ห้องหนึ่งมีลีด `booked` ได้คนเดียว (index `uq_leads_one_booked_per_room`): จองซ้ำ `POST /agent/tenants` ตอบ 409 `ROOM_ALREADY_BOOKED` · รายการเลือกห้องบอกชื่อผู้จองและกดไม่ได้ · ห้องที่จองแล้วไม่ถูกนำมาจับคู่ให้ลีดอื่น (`matchCandidates`)
+ 
+ ---
+ 
+diff -ruN a/docs/new-project/agent/leads/matching.md b/docs/new-project/agent/leads/matching.md
+--- a/docs/new-project/agent/leads/matching.md	2026-10-06 04:58:49.751004085 +0000
++++ b/docs/new-project/agent/leads/matching.md	2026-10-06 04:58:49.752004085 +0000
+@@ -146,7 +146,7 @@
+ 
+ สูตรอยู่ที่เดียวใน `apps/api/src/agent/leads/lead-matching.ts` (คัดห้อง + เทียบรายเกณฑ์ + คะแนนรวม) แอปแสดง `comparison` ที่ server ส่งมาทั้งในการ์ดห้องของ Lead detail และหน้าเทียบห้อง คะแนนจึงตรงกันทุกจุด (`apps/consumer-app/lib/lead-room-compare.ts` เหลือเฉพาะ type และตัวช่วยแสดงผล)
+ 
+-- **ห้องที่นำมาคิด:** ห้อง `available` ของ agent ที่อยู่ในกรอบพิกัดรอบหมุด (2× รัศมี) และราคาเริ่มต้นไม่เกินงบ — คัดด้วย SQL ใน `AgentListingsService.matchCandidates` ไม่มีเพดาน 200 ห้องแบบเดิม
++- **ห้องที่นำมาคิด:** ห้อง `available` ของ agent ที่ยังไม่มีลีดจอง (`leads.status = booked`) อยู่ในกรอบพิกัดรอบหมุด (2× รัศมี) และราคาเริ่มต้นไม่เกินงบ — คัดด้วย SQL ใน `AgentListingsService.matchCandidates` ไม่มีเพดาน 200 ห้องแบบเดิม
+ - **Hard filter (คัดกรองเบื้องต้น):** มีพิกัด (ห้องหรือตึก) · ราคาไม่เกิน `budget_max` (ใช้ราคาตาม `lease_duration_months` ถ้าห้องมีราคานั้น ไม่งั้นใช้ราคาถูกสุด) · อยู่ภายใน 2× รัศมีจากหมุดใดหมุดหนึ่ง — **ระยะสัญญาไม่ใช่ตัวกรองแล้ว** ห้องที่ไม่มีระยะสัญญาตรงยังแสดง แต่เสียคะแนนข้อนี้
+ 
+ ### กติกาเกณฑ์: ใช้เฉพาะช่องในแท็บ “จับคู่ห้อง”
+diff -ruN a/docs/new-project/agent/leads/viewings.md b/docs/new-project/agent/leads/viewings.md
+--- a/docs/new-project/agent/leads/viewings.md	2026-10-06 04:58:49.747004085 +0000
++++ b/docs/new-project/agent/leads/viewings.md	2026-10-06 04:58:49.748004085 +0000
+@@ -17,9 +17,14 @@
+ | มีนัด | "นัดดูห้องแล้ว · 5 ต.ค. 14:00" (พื้นม่วงอ่อน เตือนอย่างเดียว กดไม่ได้) | **แก้ไข/ยกเลิกนัด** (ขอบเหลือง) + **จองห้องนี้** (พื้นเหลือง) |
+ 
+ - **แก้ไข/ยกเลิกนัด** เปิดแผ่นเดิมเพื่อเลื่อนนัด หรือยกเลิก (ยืนยันในแผ่น) · ยกเลิกแล้ว banner หาย ปุ่มกลับเป็นนัดดูห้อง
+-- **จองห้องนี้** ไปเมนูลูกค้า เปิดฟอร์มสร้างผู้เช่า (`TenantForm` prop `initial`) โดยเลือกลีดและห้องนี้ไว้แล้ว เริ่มที่ขั้น "ข้อมูล" (ดึงชื่อ เบอร์ อีเมล สัญชาติจากลีด) · ย้อนกลับจากขั้นนี้กลับมาหน้าห้อง · บันทึกแล้วลีดเป็น `booked` (API สร้างผู้เช่าทำให้เอง)
++- **จองห้องนี้** เปิดแผ่นยืนยันในหน้าเดิม (`ReserveRoomSheet`) ไม่สลับเมนู
++  - แผ่นแสดงลูกค้ากับห้อง · เลขห้องและสถานะจองอ่านจาก `GET /agent/tenants/rooms?leadId=&roomId=` ตอนเปิด
++  - ถามสองช่อง: อีเมล (ดึงจากลีด ไม่บังคับ ถ้าว่างจะเตือนว่าต้องใช้ตอนทำหนังสือจอง) และเลขบัตร/พาสปอร์ต · ชื่อ เบอร์ สัญชาติ หมายเหตุ ดึงจากลีด อยู่หลังลิงก์ "แก้ไขชื่อ เบอร์โทร และข้อมูลอื่น" · ข้อความผิดพลาดขึ้นใต้ช่อง ตรวจด้วยกฎของ API (`lib/tenant-profile.ts`)
++  - **ยืนยันจอง** เรียก `POST /agent/tenants` · ลีดเป็น `booked` (API สร้างผู้เช่าทำให้เอง)
++  - จองแล้วแผ่นเปลี่ยนเป็น "จองแล้ว": **ทำหนังสือจองต่อ** ไปหน้าผู้เช่าและเปิดฟอร์มหนังสือจองทันที (ยังไม่มีอีเมล ปุ่มเป็น **ไปหน้าข้อมูลผู้เช่า**) · **ไว้ทีหลัง** ปิดแผ่น · ย้อนกลับจากหน้าผู้เช่ากลับมาหน้าห้องนี้
++  - ห้องที่ลีดอื่นจองแล้ว: แผ่นบอกชื่อผู้จองและยืนยันไม่ได้ · จองชนกัน API ตอบ 409 `ROOM_ALREADY_BOOKED`
+ - banner กับแถบปุ่มใช้ข้อมูลชุดเดียวกัน (`useLeadRoomViewing` ใน shell) แก้หรือยกเลิกนัดแล้วอัปเดตทั้งคู่ทันที · ระหว่างโหลดนัด ปุ่มถูกปิดไว้ก่อน
+-- ลีดที่ `booked` หรือ `lost` ปุ่มถูกปิด
++- ลีดที่ `booked` หรือ `lost` ปุ่มถูกปิด · ลีดที่จองห้องนี้เอง แถบปุ่มเหลือปุ่มเดียว **ดูผู้เช่าและสัญญา** (ไปหน้าผู้เช่า ย้อนกลับแล้วกลับมาหน้านี้)
+ - ดูรายละเอียดห้องยังทำได้จากการแตะรูป และเมนู ⋯ (เปิด modal เต็มจอ)
+ 
+ **แผ่นเลือกเวลา** (ไล่จากบนลงล่าง):
+@@ -34,7 +39,7 @@
+ 
+ นัดใหม่เริ่มที่ชั่วโมงเต็มถัดไป (เช่น ตอนนี้ 17:20 → 18:00) · เลื่อนนัดเริ่มที่เวลาเดิม
+ 
+-ไฟล์: `LeadRoomActions.tsx` · `LeadRoomViewingBanner.tsx` · `lib/use-lead-room-viewing.ts` · `LeadViewingSheet.tsx` · `ViewingTimeField.tsx` / `.web.tsx`
++ไฟล์: `LeadRoomActions.tsx` · `LeadRoomViewingBanner.tsx` · `lib/use-lead-room-viewing.ts` · `LeadViewingSheet.tsx` · `ViewingTimeField.tsx` / `.web.tsx` · `ReserveRoomSheet.tsx` · `lib/tenant-profile.ts`
+ 
+ ---
+ 
+diff -ruN a/packages/i18n/src/locales/en.ts b/packages/i18n/src/locales/en.ts
+--- a/packages/i18n/src/locales/en.ts	2026-10-06 04:58:49.724004085 +0000
++++ b/packages/i18n/src/locales/en.ts	2026-10-06 04:58:49.725004085 +0000
+@@ -317,6 +317,54 @@
+       clearFilters: 'Clear filters',
+       search: 'Search tenants, projects or contract numbers',
+       clearSearch: 'Clear search',
++      stepRoom: 'Choose room',
++      pickIntro: 'Pick the lead who is taking a room, then the room to book',
++      leadSearch: 'Search leads by name or phone',
++      leadListHint: 'Up to 30 shown · only leads that are not tenants yet and not marked lost',
++      leadNoMatch: 'No leads match your search',
++      leadEmpty: 'No leads to choose yet. Create one in the Leads menu first.',
++      roomFor: 'Choose a room for {name}',
++      roomSearch: 'Search by project or room number',
++      roomListHint: 'Up to 30 rooms · rooms this lead has a viewing for come first',
++      roomEmpty: 'No rooms found. Try another search or add the room in the Rooms menu first.',
++      roomNoNumber: 'No room number',
++      roomViewed: 'Viewing booked',
++      roomBookedBy: 'Booked · {name}',
++      loadError: 'Could not load data',
++      retry: 'Try again',
++      reserveTitle: 'Confirm booking',
++      reserveCustomer: 'Customer',
++      reserveRoom: 'Room',
++      reserveEmail: 'Tenant email',
++      reserveEmailHint: 'Needed for the reservation letter',
++      reserveEmailMissing: 'No email yet. You can book now, but add one before making the reservation letter.',
++      reserveIdentity: 'ID card / passport number',
++      reserveIdentityPlaceholder: 'e.g. 1-2345-67890-12-3 or A1234567',
++      reserveEditProfile: 'Edit name, phone and other details',
++      reserveHideProfile: 'Hide details',
++      fieldFirstName: 'First name',
++      fieldLastName: 'Last name',
++      fieldPhone: 'Phone',
++      fieldNationality: 'Nationality',
++      fieldNote: 'Note',
++      errorRequired: 'This field is required',
++      errorPhone: 'Check the phone number',
++      errorEmail: 'Enter a valid email address',
++      errorIdentity: 'Use at least 5 letters or digits',
++      reserveInfo: 'Confirming marks the lead as booked and creates the tenant from these details.',
++      reserveConfirm: 'Confirm booking',
++      reserveTaken: 'This room is already booked ({name})',
++      reservedTitle: 'Booked',
++      reservedNext: 'Next: make the reservation letter',
++      reservedNeedsEmail: 'Add the tenant email before making the reservation letter.',
++      continueToLetter: 'Continue to reservation letter',
++      openTenant: 'Open tenant page',
++      later: 'Later',
++      createdNotice: 'Room booked. The tenant has been created.',
++      nextStepTitle: 'Next step: reservation letter',
++      nextStepBody: 'Tenant and room details are ready and will be filled into the letter for you.',
++      makeReservation: 'Make reservation letter',
++      addEmail: 'Add tenant email',
+     },
+     leads: {
+       mapSearchHint: 'Search a place, e.g. BTS Asok or a condo',
+@@ -614,6 +662,7 @@
+         summary: '≥ {score}%',
+       },
+       bookedTitle: 'This lead has booked a room',
++      bookedOpenTenant: 'View tenant and contracts',
+       roomDistance: '{km} km',
+       scoreCriteria: 'Scoring criteria',
+       scoreCriteriaTitle: 'Scoring',
+diff -ruN a/packages/i18n/src/locales/ja.ts b/packages/i18n/src/locales/ja.ts
+--- a/packages/i18n/src/locales/ja.ts	2026-10-06 04:58:49.730004085 +0000
++++ b/packages/i18n/src/locales/ja.ts	2026-10-06 04:58:49.730004085 +0000
+@@ -317,6 +317,54 @@
+       clearFilters: '絞り込みを解除',
+       search: '入居者・物件・契約番号で検索',
+       clearSearch: '検索をクリア',
++      stepRoom: '部屋を選択',
++      pickIntro: '契約するリードを選び、予約する部屋を選択します',
++      leadSearch: 'リードを名前・電話番号で検索',
++      leadListHint: '最大30件 · 入居者になっておらず、失注でもないリードのみ',
++      leadNoMatch: '検索に一致するリードがありません',
++      leadEmpty: '選択できるリードがありません。先にリードメニューで作成してください',
++      roomFor: '{name} の部屋を選択',
++      roomSearch: '物件名・部屋番号で検索',
++      roomListHint: '最大30室 · このリードが内見を予約した部屋を先頭に表示',
++      roomEmpty: '部屋が見つかりません。検索語を変えるか、先に部屋メニューで追加してください',
++      roomNoNumber: '部屋番号未設定',
++      roomViewed: '内見予約あり',
++      roomBookedBy: '予約済み · {name}',
++      loadError: '読み込みに失敗しました',
++      retry: '再読み込み',
++      reserveTitle: '予約の確認',
++      reserveCustomer: 'お客様',
++      reserveRoom: '部屋',
++      reserveEmail: '入居者のメール',
++      reserveEmailHint: '予約書の作成に必要です',
++      reserveEmailMissing: 'メール未登録です。予約はできますが、予約書の作成前に追加してください。',
++      reserveIdentity: '身分証 / パスポート番号',
++      reserveIdentityPlaceholder: '例: 1-2345-67890-12-3 または A1234567',
++      reserveEditProfile: '氏名・電話番号などを編集',
++      reserveHideProfile: '詳細を閉じる',
++      fieldFirstName: '名',
++      fieldLastName: '姓',
++      fieldPhone: '電話番号',
++      fieldNationality: '国籍',
++      fieldNote: 'メモ',
++      errorRequired: '入力してください',
++      errorPhone: '電話番号を確認してください',
++      errorEmail: 'メールアドレスの形式が正しくありません',
++      errorIdentity: '5文字以上の英数字で入力してください',
++      reserveInfo: '確定するとリードは「成約」になり、この内容で入居者が作成されます。',
++      reserveConfirm: '予約を確定',
++      reserveTaken: 'この部屋は予約済みです（{name}）',
++      reservedTitle: '予約しました',
++      reservedNext: '次は予約書の作成です',
++      reservedNeedsEmail: '予約書を作成する前に、入居者のメールを追加してください。',
++      continueToLetter: '予約書を作成',
++      openTenant: '入居者ページを開く',
++      later: 'あとで',
++      createdNotice: '部屋を予約し、入居者を作成しました。',
++      nextStepTitle: '次のステップ：予約書',
++      nextStepBody: '入居者と部屋の情報は予約書に自動で入力されます。',
++      makeReservation: '予約書を作成',
++      addEmail: '入居者のメールを追加',
+     },
+     leads: {
+       mapSearchHint: '駅やコンドミニアムを検索',
+@@ -614,6 +662,7 @@
+         summary: '≥ {score}%',
+       },
+       bookedTitle: 'このリードは予約済みです',
++      bookedOpenTenant: '入居者と契約を見る',
+       roomDistance: '{km} km',
+       scoreCriteria: 'スコア基準を見る',
+       scoreCriteriaTitle: 'スコア基準',
+diff -ruN a/packages/i18n/src/locales/th.ts b/packages/i18n/src/locales/th.ts
+--- a/packages/i18n/src/locales/th.ts	2026-10-06 04:58:49.722004085 +0000
++++ b/packages/i18n/src/locales/th.ts	2026-10-06 04:58:49.723004085 +0000
+@@ -317,6 +317,54 @@
+       clearFilters: 'ล้างตัวกรอง',
+       search: 'ค้นหาผู้เช่า โครงการ หรือเลขสัญญา',
+       clearSearch: 'ล้างคำค้นหา',
++      stepRoom: 'เลือกห้อง',
++      pickIntro: 'เลือก Lead ที่ตกลงเช่า แล้วเลือกห้องที่จะจอง',
++      leadSearch: 'ค้นหาชื่อหรือเบอร์โทรของ Lead',
++      leadListHint: 'แสดงสูงสุด 30 รายการ · เฉพาะ Lead ที่ยังไม่ได้เป็นผู้เช่าและยังไม่ปิดเป็นไม่สำเร็จ',
++      leadNoMatch: 'ไม่พบ Lead ที่ตรงกับคำค้นหา',
++      leadEmpty: 'ยังไม่มี Lead ให้เลือก กรุณาสร้าง Lead ในเมนูลีดก่อน',
++      roomFor: 'เลือกห้องให้ {name}',
++      roomSearch: 'ค้นหาโครงการหรือเลขห้อง',
++      roomListHint: 'แสดงสูงสุด 30 ห้อง · ห้องที่ Lead คนนี้มีนัดดูอยู่บนสุด',
++      roomEmpty: 'ไม่พบห้อง ลองเปลี่ยนคำค้นหาหรือเพิ่มห้องในเมนูห้องก่อน',
++      roomNoNumber: 'ยังไม่ระบุเลขห้อง',
++      roomViewed: 'มีนัดดูห้อง',
++      roomBookedBy: 'จองแล้ว · {name}',
++      loadError: 'โหลดข้อมูลไม่สำเร็จ',
++      retry: 'ลองโหลดอีกครั้ง',
++      reserveTitle: 'ยืนยันการจองห้อง',
++      reserveCustomer: 'ลูกค้า',
++      reserveRoom: 'ห้อง',
++      reserveEmail: 'อีเมลผู้เช่า',
++      reserveEmailHint: 'ใช้ตอนทำหนังสือจอง',
++      reserveEmailMissing: 'ยังไม่มีอีเมล จองได้ แต่ต้องเพิ่มก่อนทำหนังสือจอง',
++      reserveIdentity: 'เลขบัตรประชาชน / พาสปอร์ต',
++      reserveIdentityPlaceholder: 'เช่น 1-2345-67890-12-3 หรือ A1234567',
++      reserveEditProfile: 'แก้ไขชื่อ เบอร์โทร และข้อมูลอื่น',
++      reserveHideProfile: 'ซ่อนข้อมูลเพิ่มเติม',
++      fieldFirstName: 'ชื่อ',
++      fieldLastName: 'นามสกุล',
++      fieldPhone: 'เบอร์โทร',
++      fieldNationality: 'สัญชาติ',
++      fieldNote: 'หมายเหตุ',
++      errorRequired: 'กรุณากรอกข้อมูลนี้',
++      errorPhone: 'กรุณาตรวจสอบเบอร์โทร',
++      errorEmail: 'รูปแบบอีเมลไม่ถูกต้อง',
++      errorIdentity: 'ใช้ตัวอักษรหรือตัวเลขอย่างน้อย 5 ตัว',
++      reserveInfo: 'เมื่อยืนยัน ลีดจะเป็นสถานะจองแล้ว และระบบสร้างผู้เช่าจากข้อมูลนี้',
++      reserveConfirm: 'ยืนยันจอง',
++      reserveTaken: 'ห้องนี้มีผู้จองแล้ว ({name})',
++      reservedTitle: 'จองแล้ว',
++      reservedNext: 'ขั้นถัดไปคือทำหนังสือจอง',
++      reservedNeedsEmail: 'ต้องเพิ่มอีเมลผู้เช่าก่อน จึงจะทำหนังสือจองได้',
++      continueToLetter: 'ทำหนังสือจองต่อ',
++      openTenant: 'ไปหน้าข้อมูลผู้เช่า',
++      later: 'ไว้ทีหลัง',
++      createdNotice: 'จองห้องแล้ว สร้างผู้เช่าเรียบร้อย',
++      nextStepTitle: 'ขั้นถัดไป: ทำหนังสือจอง',
++      nextStepBody: 'ข้อมูลผู้เช่าและห้องพร้อมแล้ว ระบบจะดึงไปใส่ในหนังสือจองให้',
++      makeReservation: 'ทำหนังสือจอง',
++      addEmail: 'เพิ่มอีเมลผู้เช่า',
+     },
+     leads: {
+       mapSearchHint: 'ค้นหาสถานที่ เช่น BTS อโศก หรือชื่อคอนโด',
+@@ -614,6 +662,7 @@
+         summary: '≥ {score}%',
+       },
+       bookedTitle: 'ลีดนี้จองห้องแล้ว',
++      bookedOpenTenant: 'ดูผู้เช่าและสัญญา',
+       roomDistance: '{km} กม.',
+       scoreCriteria: 'ดูเกณฑ์คะแนน',
+       scoreCriteriaTitle: 'เกณฑ์คะแนน',
+diff -ruN a/packages/i18n/src/locales/zh.ts b/packages/i18n/src/locales/zh.ts
+--- a/packages/i18n/src/locales/zh.ts	2026-10-06 04:58:49.727004085 +0000
++++ b/packages/i18n/src/locales/zh.ts	2026-10-06 04:58:49.728004085 +0000
+@@ -316,6 +316,54 @@
+       clearFilters: '清除筛选',
+       search: '搜索租户、项目或合同编号',
+       clearSearch: '清除搜索',
++      stepRoom: '选择房间',
++      pickIntro: '选择确定租房的潜在客户，再选择要预订的房间',
++      leadSearch: '按姓名或电话搜索潜在客户',
++      leadListHint: '最多显示 30 条 · 仅限尚未成为租客且未标记为流失的潜在客户',
++      leadNoMatch: '没有符合搜索条件的潜在客户',
++      leadEmpty: '暂无可选的潜在客户，请先在“线索”菜单中创建',
++      roomFor: '为 {name} 选择房间',
++      roomSearch: '按项目或房号搜索',
++      roomListHint: '最多显示 30 间 · 该潜在客户预约看过的房间排在最前',
++      roomEmpty: '未找到房间，请更换搜索词或先在“房间”菜单中添加',
++      roomNoNumber: '未填写房号',
++      roomViewed: '已预约看房',
++      roomBookedBy: '已预订 · {name}',
++      loadError: '加载失败',
++      retry: '重试',
++      reserveTitle: '确认预订',
++      reserveCustomer: '客户',
++      reserveRoom: '房间',
++      reserveEmail: '租客邮箱',
++      reserveEmailHint: '制作预订书时需要',
++      reserveEmailMissing: '尚无邮箱。现在可以预订，但制作预订书前需要补充。',
++      reserveIdentity: '身份证 / 护照号码',
++      reserveIdentityPlaceholder: '例如 1-2345-67890-12-3 或 A1234567',
++      reserveEditProfile: '修改姓名、电话等信息',
++      reserveHideProfile: '收起详细信息',
++      fieldFirstName: '名',
++      fieldLastName: '姓',
++      fieldPhone: '电话',
++      fieldNationality: '国籍',
++      fieldNote: '备注',
++      errorRequired: '此项为必填',
++      errorPhone: '请检查电话号码',
++      errorEmail: '邮箱格式不正确',
++      errorIdentity: '请输入至少 5 位字母或数字',
++      reserveInfo: '确认后，该潜在客户将变为“已预订”，并按此信息创建租客。',
++      reserveConfirm: '确认预订',
++      reserveTaken: '该房间已被预订（{name}）',
++      reservedTitle: '已预订',
++      reservedNext: '下一步：制作预订书',
++      reservedNeedsEmail: '请先补充租客邮箱，才能制作预订书。',
++      continueToLetter: '继续制作预订书',
++      openTenant: '前往租客页面',
++      later: '稍后',
++      createdNotice: '已预订房间，租客已创建。',
++      nextStepTitle: '下一步：预订书',
++      nextStepBody: '租客和房间信息已就绪，将自动填入预订书。',
++      makeReservation: '制作预订书',
++      addEmail: '添加租客邮箱',
+     },
+     leads: {
+       mapSearchHint: '搜索车站、公寓等地点',
+@@ -613,6 +661,7 @@
+         summary: '≥ {score}%',
+       },
+       bookedTitle: '该线索已预订房间',
++      bookedOpenTenant: '查看租客与合同',
+       roomDistance: '{km} 公里',
+       scoreCriteria: '查看评分标准',
+       scoreCriteriaTitle: '评分标准',
+diff -ruN a/packages/i18n/src/types.ts b/packages/i18n/src/types.ts
+--- a/packages/i18n/src/types.ts	2026-10-06 04:58:49.719004085 +0000
++++ b/packages/i18n/src/types.ts	2026-10-06 04:58:49.720004085 +0000
+@@ -309,6 +309,54 @@
+       clearFilters: string;
+       search: string;
+       clearSearch: string;
++      stepRoom: string;
++      pickIntro: string;
++      leadSearch: string;
++      leadListHint: string;
++      leadNoMatch: string;
++      leadEmpty: string;
++      roomFor: string;
++      roomSearch: string;
++      roomListHint: string;
++      roomEmpty: string;
++      roomNoNumber: string;
++      roomViewed: string;
++      roomBookedBy: string;
++      loadError: string;
++      retry: string;
++      reserveTitle: string;
++      reserveCustomer: string;
++      reserveRoom: string;
++      reserveEmail: string;
++      reserveEmailHint: string;
++      reserveEmailMissing: string;
++      reserveIdentity: string;
++      reserveIdentityPlaceholder: string;
++      reserveEditProfile: string;
++      reserveHideProfile: string;
++      fieldFirstName: string;
++      fieldLastName: string;
++      fieldPhone: string;
++      fieldNationality: string;
++      fieldNote: string;
++      errorRequired: string;
++      errorPhone: string;
++      errorEmail: string;
++      errorIdentity: string;
++      reserveInfo: string;
++      reserveConfirm: string;
++      reserveTaken: string;
++      reservedTitle: string;
++      reservedNext: string;
++      reservedNeedsEmail: string;
++      continueToLetter: string;
++      openTenant: string;
++      later: string;
++      createdNotice: string;
++      nextStepTitle: string;
++      nextStepBody: string;
++      makeReservation: string;
++      addEmail: string;
+     };
+     leads: {
+       mapSearchHint: string;
+@@ -619,6 +667,7 @@
+         summary: string;
+       };
+       bookedTitle: string;
++      bookedOpenTenant: string;
+       roomDistance: string;
+       scoreCriteria: string;
+       scoreCriteriaTitle: string;
+diff -ruN a/packages/types/src/agent-tenants.ts b/packages/types/src/agent-tenants.ts
+--- a/packages/types/src/agent-tenants.ts	2026-10-06 04:58:49.713004085 +0000
++++ b/packages/types/src/agent-tenants.ts	2026-10-06 04:58:49.714004085 +0000
+@@ -29,6 +29,10 @@
+   id: number;
+   property: string;
+   room: string | null;
++  /** The lead asked about (`leadId`) has a viewing of this room that was not cancelled. */
++  viewed?: boolean;
++  /** Name of the lead that already booked this room; null while it is free. */
++  bookedBy?: string | null;
+ }
+ export interface UpdateAgentTenant {
+   name: string;
+diff -ruN a/packages/types/src/leads.ts b/packages/types/src/leads.ts
+--- a/packages/types/src/leads.ts	2026-10-06 04:58:49.715004085 +0000
++++ b/packages/types/src/leads.ts	2026-10-06 04:58:49.717004085 +0000
+@@ -78,6 +78,10 @@
+   nextViewingAt?: string | null;
+   /** Room of that viewing, "title · room number". */
+   nextViewingRoom?: string | null;
++  /** Set once the lead is booked: the tenant created from it. */
++  tenantId?: number | null;
++  /** Set once the lead is booked: the room it took. */
++  rentRoomId?: number | null;
+ };
+ 
+ /** Per-lead room-matching preferences (docs/new-project/agent/leads/match-settings.md). */

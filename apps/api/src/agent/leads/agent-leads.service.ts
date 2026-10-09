@@ -3,14 +3,20 @@ import { canonicalProvince, canonicalArea, leadProvinces } from './lead-location
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
-import type { CreateLeadInput, LeadContact, LeadContactChannel, LeadPin, LeadPinInput, LeadStatus, AgentLeadsSort } from '@nestyk/types';
+import type { CreateLeadInput, LeadContact, LeadContactChannel, LeadDisplayStatus, LeadPin, LeadPinInput, LeadStatus, AgentLeadsSort } from '@nestyk/types';
 import { LeadEntity } from '../../entities/lead.entity';
 import { LeadLocationEntity } from '../../entities/lead-location.entity';
 import { MasterRoomTypeEntity } from '../../entities/master-room-type.entity';
 import { MasterVisaTypeEntity } from '../../entities/master-visa-type.entity';
 import { MasterContractTypeEntity } from '../../entities/master-contract-type.entity';
+import { loadLastMatches } from './lead-matching.service';
+import { loadNextViewings, type NextViewing } from './lead-viewings.service';
 
 const LEAD_MAX_PINS = 3;
+
+function nextViewingFields(next: NextViewing | undefined) {
+  return { nextViewingAt: next?.at ?? null, nextViewingRoom: next?.room ?? null };
+}
 const LEAD_RADII_KM = [1, 3, 5];
 const LEAD_CONTACT_CHANNELS: LeadContactChannel[] = ['line', 'whatsapp', 'wechat', 'facebook', 'telegram', 'other'];
 const LEAD_MAX_CONTACTS = 5;
@@ -208,7 +214,7 @@ export class AgentLeadsService {
       await replacePins(em, row.id, b.pins ?? []);
       return row.id;
     });
-    return toLead(await this.requireLead(agentId, id));
+    return { ...toLead(await this.requireLead(agentId, id)), ...nextViewingFields(undefined) };
   }
 
   private async validateReferences(b: CreateLeadInput) {
@@ -237,11 +243,12 @@ export class AgentLeadsService {
       await em.getRepository(LeadEntity).update({ id, created_by_user_id: agentId }, leadColumns(b));
       await replacePins(em, id, b.pins ?? []);
     });
-    return toLead(await this.requireLead(agentId, id));
+    return this.present(await this.requireLead(agentId, id));
   }
 
-  async list(agentId: number, query: { q?: string; page?: string; limit?: string; province?: string; locations?: string; includeUnspecified?: string; sort?: string }) {
-    if ([query.q, query.province, query.locations, query.page, query.limit, query.includeUnspecified, query.sort].some((v) => v != null && typeof v !== 'string')) throw new BadRequestException('Invalid query parameters');
+  async list(agentId: number, query: { q?: string; page?: string; limit?: string; province?: string; locations?: string; includeUnspecified?: string; sort?: string; status?: string }) {
+    if ([query.q, query.province, query.locations, query.page, query.limit, query.includeUnspecified, query.sort, query.status].some((v) => v != null && typeof v !== 'string')) throw new BadRequestException('Invalid query parameters');
+    const status = normalizeLeadStatusFilter(query.status);
     const province = query.province ? canonicalProvince(query.province) : null;
     if (query.province && !province) throw new BadRequestException('Invalid province');
     let locations: string[] = [];
@@ -269,27 +276,45 @@ export class AgentLeadsService {
         phoneDigits: phoneDigits.map((d) => `%${d}%`),
       });
     }
+    const countsQb = qb.clone();
+    if (status) qb.andWhere(`(${DISPLAY_STATUS_SQL}) = :status`, { status });
     applyLeadSort(qb, sort);
-    const [rows, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
-    if (rows.length) {
-      const pins = await this.leads.manager.getRepository(LeadLocationEntity).find({ where: { lead_id: In(rows.map((r) => r.id)) }, order: { rank: 'ASC' } });
-      for (const row of rows) row.pins = pins.filter((p) => p.lead_id === row.id);
-    }
-    return { items: rows.map(toLead), total, page, limit };
+    const [[rows, total], statusCounts] = await Promise.all([
+      qb.skip((page - 1) * limit).take(limit).getManyAndCount(),
+      countByDisplayStatus(countsQb),
+    ]);
+    if (!rows.length) return { items: [], total, page, limit, statusCounts };
+    const pins = await this.leads.manager.getRepository(LeadLocationEntity).find({ where: { lead_id: In(rows.map((r) => r.id)) }, order: { rank: 'ASC' } });
+    for (const row of rows) row.pins = pins.filter((p) => p.lead_id === row.id);
+    const [lastMatches, nextViewings] = await Promise.all([
+      loadLastMatches(this.leads.manager, rows),
+      loadNextViewings(this.leads.manager, rows.map((row) => row.id)),
+    ]);
+    return {
+      items: rows.map((row) => ({
+        ...toLead(row),
+        lastMatch: lastMatches.get(row.id) ?? null,
+        ...nextViewingFields(nextViewings.get(row.id)),
+      })),
+      total,
+      page,
+      limit,
+      statusCounts,
+    };
   }
 
   async view(agentId: number, id: number) {
-    return toLead(await this.requireLead(agentId, id));
+    return this.present(await this.requireLead(agentId, id));
   }
 
   async markInProgress(agentId: number, id: number) {
     const row = await this.requireLead(agentId, id);
     if (row.status === 'booked') throw new ConflictException('Booked leads cannot move to in progress');
-    if (row.status === 'inprogress') return toLead(row);
+    if (row.status === 'inprogress') return this.present(row);
     row.status = 'inprogress';
     row.lost_reason = null;
     await this.leads.save(row);
-    return toLead(row);
+    return this.present(row);
   }
 
   async markLost(agentId: number, id: number, input: unknown) {
@@ -299,7 +324,12 @@ export class AgentLeadsService {
     row.status = 'lost';
     row.lost_reason = reason;
     await this.leads.save(row);
-    return toLead(row);
+    return this.present(row);
+  }
+
+  private async present(row: LeadEntity) {
+    const nextViewings = await loadNextViewings(this.leads.manager, [row.id]);
+    return { ...toLead(row), ...nextViewingFields(nextViewings.get(row.id)) };
   }
 
   private async requireLead(agentId: number, id: number) {
@@ -358,8 +388,34 @@ const STATUS_RANK_SQL =
 
 const BUDGET_SORT_SQL = 'COALESCE(lead.budget_min, lead.budget_max)';
 
+const DISPLAY_STATUSES: LeadDisplayStatus[] = ['new', 'inprogress', 'viewing', 'booked', 'lost'];
+
+/** Same rule as `loadNextViewings` and the app's `leadDisplayStatus`. */
+const UPCOMING_VIEWING_SQL =
+  "EXISTS (SELECT 1 FROM lead_viewings viewing WHERE viewing.lead_id = lead.id AND viewing.status = 'scheduled' AND viewing.scheduled_at > now())";
+const DISPLAY_STATUS_SQL = `CASE WHEN lead.status IN ('new', 'inprogress') AND ${UPCOMING_VIEWING_SQL} THEN 'viewing' ELSE lead.status END`;
+
+export function normalizeLeadStatusFilter(value?: string): LeadDisplayStatus | null {
+  if (value == null || value === '') return null;
+  if ((DISPLAY_STATUSES as string[]).includes(value)) return value as LeadDisplayStatus;
+  throw new BadRequestException('Invalid status');
+}
+
+async function countByDisplayStatus(qb: SelectQueryBuilder<LeadEntity>): Promise<Record<LeadDisplayStatus, number>> {
+  const counts = Object.fromEntries(DISPLAY_STATUSES.map((s) => [s, 0])) as Record<LeadDisplayStatus, number>;
+  const rows: Array<{ status: string; count: string | number }> = await qb
+    .select(DISPLAY_STATUS_SQL, 'status')
+    .addSelect('COUNT(*)', 'count')
+    .groupBy(DISPLAY_STATUS_SQL)
+    .getRawMany();
+  for (const row of rows) {
+    if ((DISPLAY_STATUSES as string[]).includes(row.status)) counts[row.status as LeadDisplayStatus] = Number(row.count);
+  }
+  return counts;
+}
+
 export function normalizeLeadSort(value?: string): AgentLeadsSort {
-  if (value == null || value === '') return 'created_desc';
+  if (value == null || value === '') return 'updated_desc';
   if ((LEAD_SORTS as string[]).includes(value)) return value as AgentLeadsSort;
   throw new BadRequestException('Invalid sort');
 }
@@ -414,5 +470,7 @@ function toLead(row: LeadEntity) {
     desiredRoomTypeId: row.desired_room_type_id, desiredRoomTypeCode: row.desired_room_type?.code ?? null,
     notes: row.notes ?? null,
     status: row.status as LeadStatus, lostReason: row.lost_reason ?? null, createdAt: row.created_at,
+    // Set by booking (POST /agent/tenants): the tenant made from this lead and the room it took.
+    tenantId: row.tenant_id ?? null, rentRoomId: row.rent_room_id ?? null,
   };
 }

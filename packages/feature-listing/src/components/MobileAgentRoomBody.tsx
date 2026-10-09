@@ -22,6 +22,7 @@ export function MobileAgentRoomBody({
   previewing: previewingProp,
   onPreviewChange,
   hidePreviewBanner = false,
+  initialPreview,
 }: {
   room: AgentRoomDetail;
   mapsApiKey?: string;
@@ -32,6 +33,8 @@ export function MobileAgentRoomBody({
   onPreviewChange?: (previewing: boolean) => void;
   /** When true, parent renders the preview chrome (e.g. replaces modal header). */
   hidePreviewBanner?: boolean;
+  /** Sections and contact for a preview requested before this body mounted (e.g. from another screen's share sheet). */
+  initialPreview?: { visibility: RoomShareVisibility; contactId: number | null };
 }) {
   const [shareOpen, setShareOpen] = useState(false);
   const [previewingInternal, setPreviewingInternal] = useState(false);
@@ -41,9 +44,9 @@ export function MobileAgentRoomBody({
     onPreviewChange?.(next);
   };
   const [previewVisibility, setPreviewVisibility] = useState<RoomShareVisibility>(
-    DEFAULT_ROOM_SHARE_VISIBILITY,
+    initialPreview?.visibility ?? DEFAULT_ROOM_SHARE_VISIBILITY,
   );
-  const [previewContactId, setPreviewContactId] = useState<number | null>(null);
+  const [previewContactId, setPreviewContactId] = useState<number | null>(initialPreview?.contactId ?? null);
 
   useEffect(() => {
     if (previewingProp === false) setPreviewingInternal(false);

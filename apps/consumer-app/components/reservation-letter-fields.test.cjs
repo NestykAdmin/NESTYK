@@ -5,6 +5,7 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const { i18nMock, contractsTh, fillTemplate, leadFormat } = require('./test-i18n.cjs');
 const loaded = { exports: {} };
 const source = fs.readFileSync(path.join(__dirname, 'ReservationLetterFields.tsx'), 'utf8');
 const mockRequire = name => {
@@ -16,6 +17,8 @@ const mockRequire = name => {
     MobileInput: ({ label, value, editable, required, error }) => React.createElement('input', { 'aria-label': label, value, onChange() {}, readOnly: !editable, required, 'data-error': error }),
   };
   if (name === '../lib/agent-contracts-api') return { searchOwnerUsers: async () => [] };
+  if (name === '@nestyk/i18n') return i18nMock();
+  if (name === '../lib/lead-format') return leadFormat;
   throw new Error(`Unexpected dependency: ${name}`);
 };
 new Function('require', 'module', 'exports', ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);
@@ -60,7 +63,7 @@ test('payment allocation supports both independent choices and every existing pa
 
 test('required-field rules do not expand with the redesign', () => {
   const value = { ...emptyReservationLetterForm(), tenantFirstName: 'Tenant', tenantPhone: '0800000000', tenantEmail: 'tenant@example.com', landlordFirstName: 'Owner', landlordPhone: '0800000001', landlordEmail: 'owner@example.com', project: 'Nest', reservationPayment: '5000' };
-  assert.deepEqual(reservationLetterFieldErrors(value), {});
-  const invalid = reservationLetterFieldErrors({ ...value, tenantEmail: 'invalid', project: '', termFrom: '15/10/2026' });
+  assert.deepEqual(reservationLetterFieldErrors(value, contractsTh.validation), {});
+  const invalid = reservationLetterFieldErrors({ ...value, tenantEmail: 'invalid', project: '', termFrom: '15/10/2026' }, contractsTh.validation);
   assert.deepEqual(Object.keys(invalid).sort(), ['project', 'tenantEmail', 'termFrom']);
 });

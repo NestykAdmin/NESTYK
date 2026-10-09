@@ -28,20 +28,14 @@ import {
   reuseAgreementAttachment,
   uploadAgreementAttachment,
 } from "../lib/agent-contracts-api";
+import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
-
-const subjects: Record<AgreementDocumentSubject, string> = {
-  tenant: "ผู้เช่า",
-  owner: "ผู้ให้เช่า",
-  property: "ห้อง / ทรัพย์สิน",
-  representative: "ผู้รับมอบอำนาจ",
-};
 
 const EXTRA_SLOTS = [
   {
     code: "other",
-    label: "อื่นๆ",
-    hint: "เอกสารประกอบเพิ่มเติมตามดีล",
+    label: "other",
+    hint: "otherHint",
     defaultSubject: "tenant" as AgreementDocumentSubject,
   },
 ] as const;
@@ -49,14 +43,14 @@ const EXTRA_SLOTS = [
 const LEASE_EXTRA_SLOTS = [
   {
     code: "lease_annex_1",
-    label: "เอกสารแนบท้าย 1",
-    hint: "ไม่บังคับ — แนบเอกสารแนบท้ายสัญญาเช่าฉบับที่ 1",
+    label: "annex1",
+    hint: "annex1Hint",
     defaultSubject: "property" as AgreementDocumentSubject,
   },
   {
     code: "lease_annex_2",
-    label: "เอกสารแนบท้าย 2",
-    hint: "ไม่บังคับ — แนบเอกสารแนบท้ายสัญญาเช่าฉบับที่ 2",
+    label: "annex2",
+    hint: "annex2Hint",
     defaultSubject: "property" as AgreementDocumentSubject,
   },
 ] as const;
@@ -165,6 +159,11 @@ export function AgreementAttachments({
   onReadinessChange?: (value: { contractId: number; ready: boolean }) => void;
 }) {
   const { theme } = useMobileTheme();
+  const { t, locale } = useLocale();
+  const cn = t.agent.contracts.notice;
+  const tc = t.contracts;
+  const ac = tc.attachments;
+  const subjects = ac.subjects;
   const [state, setState] = useState<AgreementAttachmentChecklist | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -227,7 +226,7 @@ export function AgreementAttachments({
       if (n === request.current) setState(next);
     } catch (e) {
       if (n === request.current)
-        setError(e instanceof Error ? e.message : "โหลดเอกสารไม่สำเร็จ");
+        setError(localizedError(e, cn.loadAttachmentsFailed, locale));
     } finally {
       if (n === request.current) setBusy(false);
     }
@@ -252,7 +251,7 @@ export function AgreementAttachments({
     try {
       await action();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ดำเนินการไม่สำเร็จ");
+      setError(localizedError(e, cn.actionFailed, locale));
     } finally {
       running.current = false;
       setBusy(false);
@@ -273,7 +272,7 @@ export function AgreementAttachments({
       if (result.canceled) return;
       const file = result.assets[0];
       if (file.size && file.size > 10 * 1024 * 1024)
-        throw new Error("ไฟล์ต้องไม่เกิน 10 MB");
+        throw new Error(t.common.fileTooLarge.replace("{size}", "10"));
       setState(
         await uploadAgreementAttachment(
           contractId,
@@ -347,7 +346,7 @@ export function AgreementAttachments({
             void openDoc(document);
           }}
         >
-          ดู
+          {tc.common.view}
         </MobileButton>
       </View>
     );
@@ -358,7 +357,7 @@ export function AgreementAttachments({
     const doc = currentDocForRequirement(requirement, state.documents);
     const options = requirement.documentTypeCodes
       .map((code) => typeName(code, state.documentTypes))
-      .join(" หรือ ");
+      .join(tc.common.or);
     const complete = !!doc;
     const statusColor = complete ? "#198460" : theme.textSecondary;
 
@@ -405,14 +404,14 @@ export function AgreementAttachments({
         ) : (
           <>
             <Text style={[s.requirementHint, muted]}>
-              ยังไม่ได้แนบเอกสารสำหรับรายการนี้
+              {tc.common.notAttached}
             </Text>
             {state.editable && (
               <MobileButton
                 disabled={busy}
                 onPress={() => startUploadForRequirement(requirement)}
               >
-                แนบเอกสาร
+                {tc.common.attach}
               </MobileButton>
             )}
           </>
@@ -430,11 +429,11 @@ export function AgreementAttachments({
         ]}
       >
         <View style={s.header}>
-          <Text style={[s.heading, ink]}>เอกสารที่จำเป็น</Text>
+          <Text style={[s.heading, ink]}>{ac.required}</Text>
           {progress && (
             <View style={[s.progressPill, { backgroundColor: "#FFE29A" }]}>
               <Text style={s.progressText}>
-                {progress.done}/{progress.total} แนบแล้ว
+                {fillTemplate(ac.progress, { done: progress.done, total: progress.total })}
               </Text>
             </View>
           )}
@@ -455,33 +454,33 @@ export function AgreementAttachments({
               void load();
             }}
           >
-            โหลดเอกสารอีกครั้ง
+            {ac.reload}
           </MobileButton>
         ) : (
           <>
             <Text style={[s.summary, muted]}>
               {!state.editable
                 ? state.requirements.length
-                  ? "สร้างเอกสารแล้ว จึงแนบหรือแก้ไขไม่ได้ สามารถเปิดดูไฟล์ที่แนบไว้ได้"
-                  : "แม่แบบนี้ไม่มีเอกสารบังคับ"
+                  ? ac.locked
+                  : ac.noRequired
                 : state.readyToSign
-                  ? "เอกสารที่จำเป็นครบแล้ว พร้อมลงนาม"
+                  ? ac.ready
                   : state.requirements.length
-                    ? "แนบเอกสารที่จำเป็นให้ครบก่อนลงนาม"
-                    : "แม่แบบนี้ไม่บังคับเอกสารประกอบ"}
+                    ? ac.attachBeforeSigning
+                    : ac.notRequired}
             </Text>
             {state.requirements.length === 0 ? (
               <Text style={[s.requirementHint, muted]}>
-                ไม่มีรายการเอกสารบังคับสำหรับแม่แบบนี้
+                {ac.noRequiredItems}
               </Text>
             ) : (
               state.requirements.map(renderRequirement)
             )}
             {state.editable && state.reusableDocuments.length > 0 && (
               <View style={s.section}>
-                <Text style={[s.sectionTitle, ink]}>ใช้จากสัญญาก่อนหน้า</Text>
+                <Text style={[s.sectionTitle, ink]}>{ac.reuseTitle}</Text>
                 <Text style={[s.requirementHint, muted]}>
-                  เลือกเอกสารที่ยังเป็นปัจจุบันเพื่อแนบในสัญญานี้
+                  {ac.reuseHint}
                 </Text>
                 {state.reusableDocuments.map((document) => (
                   <View
@@ -502,7 +501,7 @@ export function AgreementAttachments({
                       disabled={busy}
                       onPress={() => setSheet({ kind: "reuse", document })}
                     >
-                      ใช้เอกสารนี้
+                      {ac.reuse}
                     </MobileButton>
                   </View>
                 ))}
@@ -520,12 +519,12 @@ export function AgreementAttachments({
           ]}
         >
           <View style={s.header}>
-            <Text style={[s.heading, ink]}>เอกสารเพิ่มเติม</Text>
+            <Text style={[s.heading, ink]}>{ac.extra}</Text>
           </View>
           <Text style={[s.summary, muted]}>
             {!state.editable
-              ? "สร้างเอกสารแล้ว จึงแนบหรือแก้ไขไม่ได้ สามารถเปิดดูไฟล์ที่แนบไว้ได้"
-              : "ไม่บังคับ — แนบได้จนกว่าจะกดสร้างเอกสาร"}
+              ? ac.locked
+              : ac.extraHint}
           </Text>
           {extraSlots.map((slot) => {
             const files = docsForExtraSlot(slot.code);
@@ -554,8 +553,8 @@ export function AgreementAttachments({
                     </Text>
                   </View>
                   <View style={s.requirementCopy}>
-                    <Text style={[s.requirementTitle, ink]}>{slot.label}</Text>
-                    <Text style={[s.requirementHint, muted]}>{slot.hint}</Text>
+                    <Text style={[s.requirementTitle, ink]}>{ac[slot.label]}</Text>
+                    <Text style={[s.requirementHint, muted]}>{ac[slot.hint]}</Text>
                   </View>
                 </View>
                 {files.length > 0 ? (
@@ -579,12 +578,12 @@ export function AgreementAttachments({
                             void openDoc(document);
                           }}
                         >
-                          ดู
+                          {tc.common.view}
                         </MobileButton>
                         {state.editable && (
                           <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={`เอาไฟล์ ${document.fileName} ออก`}
+                            accessibilityLabel={fillTemplate(ac.removeFile, { name: document.fileName })}
                             disabled={busy}
                             style={({ pressed }) => [
                               s.removeFileButton,
@@ -616,7 +615,7 @@ export function AgreementAttachments({
                   ))
                 ) : (
                   <Text style={[s.requirementHint, muted]}>
-                    ยังไม่ได้แนบ
+                    {ac.notAttachedShort}
                   </Text>
                 )}
                 {state.editable && typeAvailable && (
@@ -625,7 +624,7 @@ export function AgreementAttachments({
                     disabled={busy}
                     onPress={() => openExtraUpload(slot.code)}
                   >
-                    แนบเอกสาร
+                    {tc.common.attach}
                   </MobileButton>
                 )}
               </View>
@@ -639,7 +638,7 @@ export function AgreementAttachments({
         onClose={() => setSheet(null)}
       >
         <View style={s.sheet}>
-          <Text style={[s.sheetTitle, ink]}>เลือกประเภทเอกสาร</Text>
+          <Text style={[s.sheetTitle, ink]}>{ac.pickType}</Text>
           <Text style={[s.requirementHint, muted]}>
             {sheet?.kind === "pickType" ? sheet.requirement.label : ""}
           </Text>
@@ -666,7 +665,7 @@ export function AgreementAttachments({
               </MobileButton>
             ))}
           <MobileButton variant="outline" onPress={() => setSheet(null)}>
-            ยกเลิก
+            {tc.common.cancel}
           </MobileButton>
         </View>
       </MobileBottomSheet>
@@ -677,12 +676,15 @@ export function AgreementAttachments({
       >
         <ScrollView style={s.sheet} contentContainerStyle={{ gap: 12 }}>
           <Text style={[s.sheetTitle, ink]}>
-            {sheet?.kind === "extraUpload"
-              ? extraSlots.find((row) => row.code === sheet.slot)?.label ??
-                "แนบเอกสารเพิ่ม"
-              : "แนบเอกสารเพิ่ม"}
+            {(() => {
+              const slot =
+                sheet?.kind === "extraUpload"
+                  ? extraSlots.find((row) => row.code === sheet.slot)
+                  : undefined;
+              return slot ? ac[slot.label] : ac.attachMore;
+            })()}
           </Text>
-          <Text style={[s.requirementHint, muted]}>เอกสารของ</Text>
+          <Text style={[s.requirementHint, muted]}>{ac.ownerOf}</Text>
           <View style={s.chips}>
             {(Object.keys(subjects) as AgreementDocumentSubject[]).map(
               (value) => (
@@ -697,7 +699,7 @@ export function AgreementAttachments({
           </View>
           {sheet?.kind === "extraUpload" && sheet.slot === "other" ? (
             <>
-              <Text style={[s.requirementHint, muted]}>ประเภทเอกสาร</Text>
+              <Text style={[s.requirementHint, muted]}>{ac.documentType}</Text>
               <View style={s.chips}>
                 {(state?.documentTypes ?? [])
                   .filter(
@@ -718,7 +720,7 @@ export function AgreementAttachments({
             </>
           ) : (
             <Text style={[s.requirementHint, muted]}>
-              ประเภท:{" "}
+              {ac.typeLabel}{" "}
               {typeName(
                 sheet?.kind === "extraUpload" ? sheet.slot : extraType,
                 state?.documentTypes ?? [],
@@ -726,7 +728,7 @@ export function AgreementAttachments({
             </Text>
           )}
           <Text style={[s.requirementHint, muted]}>
-            PDF, JPEG หรือ PNG · ไม่เกิน 10 MB
+            {ac.fileRule}
           </Text>
           <MobileButton
             disabled={busy}
@@ -743,10 +745,10 @@ export function AgreementAttachments({
               );
             }}
           >
-            เลือกไฟล์และแนบ
+            {ac.pickAndAttach}
           </MobileButton>
           <MobileButton variant="outline" onPress={() => setSheet(null)}>
-            ยกเลิก
+            {tc.common.cancel}
           </MobileButton>
         </ScrollView>
       </MobileBottomSheet>
@@ -757,7 +759,7 @@ export function AgreementAttachments({
       >
         <View style={s.sheet}>
           <Text style={[s.sheetTitle, ink]}>
-            ใช้เอกสารจากสัญญาก่อนหน้า
+            {ac.reuseSheetTitle}
           </Text>
           {sheet?.kind === "reuse" && (
             <Text style={[s.requirementHint, muted]}>
@@ -765,7 +767,7 @@ export function AgreementAttachments({
             </Text>
           )}
           <Text style={[s.requirementHint, muted]}>
-            ยืนยันว่าเอกสารนี้ยังเป็นปัจจุบันเพื่อแนบสำเนาในสัญญานี้
+            {ac.reuseConfirmHint}
           </Text>
           <MobileButton
             disabled={busy}
@@ -782,10 +784,10 @@ export function AgreementAttachments({
               });
             }}
           >
-            ยืนยันใช้เอกสาร
+            {ac.confirmReuse}
           </MobileButton>
           <MobileButton variant="outline" onPress={() => setSheet(null)}>
-            ยกเลิก
+            {tc.common.cancel}
           </MobileButton>
         </View>
       </MobileBottomSheet>
@@ -798,7 +800,7 @@ export function AgreementAttachments({
         <View style={[s.modal, { backgroundColor: theme.surface }]}>
           <Text style={[s.heading, ink]}>{preview?.name}</Text>
           <MobileButton variant="outline" onPress={() => setPreview(null)}>
-            ปิดเอกสาร
+            {tc.common.closeDocument}
           </MobileButton>
           {preview && <ContractDocumentPreview url={preview.url} />}
           {preview && state?.editable && preview.document.isCurrent && (
@@ -820,7 +822,7 @@ export function AgreementAttachments({
                 }, 400);
               }}
             >
-              อัพโหลดใหม่
+              {tc.common.reupload}
             </MobileButton>
           )}
         </View>

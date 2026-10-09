@@ -21,11 +21,19 @@ export async function tenantLeadOptions(
   await ensureAgentSession();
   return apiGet(`/agent/tenants/leads?q=${encodeURIComponent(q)}`);
 }
+/**
+ * Rooms to book. `leadId` puts the rooms that lead has a viewing for first; `roomId` makes sure
+ * that one room is in the answer even when it is not among the latest 30.
+ */
 export async function tenantRoomOptions(
   q: string,
+  options: { leadId?: number; roomId?: number } = {},
 ): Promise<TenantRoomOption[]> {
   await ensureAgentSession();
-  return apiGet(`/agent/tenants/rooms?q=${encodeURIComponent(q)}`);
+  const params = [`q=${encodeURIComponent(q)}`];
+  if (options.leadId) params.push(`leadId=${options.leadId}`);
+  if (options.roomId) params.push(`roomId=${options.roomId}`);
+  return apiGet(`/agent/tenants/rooms?${params.join("&")}`);
 }
 export async function createAgentTenant(
   body: CreateAgentTenant,
