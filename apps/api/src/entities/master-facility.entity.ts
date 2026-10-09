@@ -1,7 +1,8 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Unique } from "typeorm";
 import { SerialEntity } from './base.entity';
 import { MasterFacilitiesGroupEntity } from './master-facilities-group.entity';
 
+@Unique("master_facilities_group_id_code_key", ["group_id", "code"])
 @Entity({ name: 'master_facilities' })
 export class MasterFacilityEntity extends SerialEntity {
   @Column({ type: 'int', default: 100 })
@@ -19,6 +20,6 @@ export class MasterFacilityEntity extends SerialEntity {
   @ManyToOne(() => MasterFacilitiesGroupEntity, (g) => g.facilities, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'group_id' })
+  @JoinColumn({ name: "group_id", foreignKeyConstraintName: "master_facilities_group_id_fkey" })
   group: MasterFacilitiesGroupEntity;
 }

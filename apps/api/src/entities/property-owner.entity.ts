@@ -1,7 +1,9 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index, Unique } from "typeorm";
 import { SerialCreatedEntity } from './base.entity';
 import { UserEntity } from './user.entity';
 
+@Unique("uq_property_owners_agent_phone", ["created_by_user_id", "phone"])
+@Index("idx_property_owners_created_by_user_id", ["created_by_user_id"])
 @Entity({ name: 'property_owners' })
 export class PropertyOwnerEntity extends SerialCreatedEntity {
   @Column({ type: 'varchar', length: 255 })
@@ -23,10 +25,10 @@ export class PropertyOwnerEntity extends SerialCreatedEntity {
   user_id: number | null;
 
   @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'created_by_user_id' })
+  @JoinColumn({ name: "created_by_user_id", foreignKeyConstraintName: "property_owners_created_by_user_id_fkey" })
   created_by: UserEntity;
 
   @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn({ name: "user_id", foreignKeyConstraintName: "property_owners_user_id_fkey" })
   user: UserEntity | null;
 }

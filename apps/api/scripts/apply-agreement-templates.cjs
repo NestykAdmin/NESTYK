@@ -13,7 +13,7 @@ async function main() {
     await db.query("SET LOCAL lock_timeout = '5s'");
     await db.query("SET LOCAL statement_timeout = '30s'");
     await db.query('SELECT set_config($1, $2, true)', ['search_path', '"' + schema.replace(/"/g, '""') + '"']);
-    await db.query(fs.readFileSync(path.resolve(__dirname, '../migrations/20260915-agreement-templates-renewals.sql'), 'utf8'));
+    await db.query(fs.readFileSync(path.resolve(__dirname, '../migrations/20260915-00-agreement-templates-renewals.sql'), 'utf8'));
     const rows = await db.query('SELECT id, agreement_type_code, version, form_kind FROM agreement_templates ORDER BY id');
     if (process.argv.includes('--check')) { await db.query('ROLLBACK'); console.log('Migration validated and rolled back.'); }
     else { await db.query('COMMIT'); console.log('Migration applied.'); }

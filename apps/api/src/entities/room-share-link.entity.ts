@@ -1,4 +1,4 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from "typeorm";
 import { SerialCreatedEntity } from './base.entity';
 import { RentRoomEntity } from './rent-room.entity';
 import { UserEntity } from './user.entity';
@@ -12,6 +12,7 @@ export type RoomShareSections = {
   contact: boolean;
 };
 
+@Unique("uq_room_share_links_token_hash", ["token_hash"])
 @Entity({ name: 'room_share_links' })
 export class RoomShareLinkEntity extends SerialCreatedEntity {
   @Index('idx_room_share_links_rent_room')
@@ -19,17 +20,17 @@ export class RoomShareLinkEntity extends SerialCreatedEntity {
   rent_room_id: number;
 
   @ManyToOne(() => RentRoomEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'rent_room_id' })
+  @JoinColumn({ name: "rent_room_id", foreignKeyConstraintName: "room_share_links_rent_room_id_fkey" })
   rent_room: RentRoomEntity;
 
   @Column({ type: 'int' })
   created_by_user_id: number;
 
   @ManyToOne(() => UserEntity, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'created_by_user_id' })
+  @JoinColumn({ name: "created_by_user_id", foreignKeyConstraintName: "room_share_links_created_by_user_id_fkey" })
   created_by: UserEntity;
 
-  @Column({ type: 'char', length: 64, unique: true })
+  @Column({ type: 'char', length: 64 })
   token_hash: string;
 
   @Column({ type: 'timestamptz' })
@@ -45,6 +46,6 @@ export class RoomShareLinkEntity extends SerialCreatedEntity {
   contact_id: number | null;
 
   @ManyToOne(() => ContactEntity, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'contact_id' })
+  @JoinColumn({ name: "contact_id", foreignKeyConstraintName: "room_share_links_contact_id_fkey" })
   contact: ContactEntity | null;
 }
