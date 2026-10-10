@@ -17,8 +17,13 @@
  *   ตัวขับเทียบค่ากับ testID ของชิ้นส่วน ถ้าชิ้นส่วนไม่มี testID จึงเทียบกับข้อความกำกับ
  *   (ที่มา: WebDriverAgent 16.13.6 ไฟล์ XCUIElement+FBFind.m ส่วน Search by Accessibility Id)
  *   และเป็นวิธีที่ใช้ได้ผลแล้วบนเครื่องที่ใช้เทส (ขั้นที่ 24) ส่วนวิธีแบบเงื่อนไข (predicate) ยังให้ผลไม่แน่นอนบนเครื่องนั้น
+ *
+ * การหาจากโครงสร้างหน้าจอที่อ่านมาแล้ว (nodesInSource, shownInSource) ใช้ลำดับเดียวกัน ชิ้นที่หาเจอถูกนับใน lookupReport เหมือนกัน
+ *   ใช้เมื่อต้องดูทุกชิ้นที่ชื่อตรงในครั้งเดียว เช่น traits ของแท็บ หรือการตรวจว่าข้อความ "ไม่มี" บนจอ (ชุด session)
+ *   ส่วนชิ้นที่หาด้วยข้อความแล้วไม่เคยเจอ (neverFoundByLabel) ตอนนี้พิมพ์เฉพาะในชุด session (wdio.session.conf.ts) เพราะชุดหลักยังไม่ใช้การหาแบบนี้
  */
 import { env } from '../config/env';
+import type { ScreenNode } from '../support/page-source';
 
 export interface ElementSpec {
   /** คำเรียกชิ้นส่วนนี้ ใช้ในข้อความเมื่อเทสหาไม่เจอ */
@@ -57,6 +62,19 @@ export function lookupReport(): { byTestId: string[]; byLabel: string[] } {
   return { byTestId: byTestId.sort(), byLabel: byLabel.sort() };
 }
 
+/** testId ของชิ้นส่วนที่ nodesInSource หาด้วยข้อความแล้วไม่เจอ (ดู neverFoundByLabel) */
+const searchedByLabel = new Set<string>();
+
+/**
+ * ชิ้นส่วนที่รอบนี้หาจากโครงสร้างหน้าจอด้วยข้อความกำกับ แล้วไม่เคยเจอเลย (ไม่เจอทั้งด้วย testID และข้อความ)
+ * ในรอบที่ผ่าน ส่วนใหญ่คือชิ้นส่วนที่เทสตรวจว่า "ไม่แสดง" เช่น ข้อความโหลดไม่สำเร็จ ส่วนในรอบที่ไม่ผ่าน อาจมีชิ้นส่วนที่เทสรอแล้วไม่ขึ้นด้วย
+ * ชิ้นส่วนกลุ่มนี้ไม่อยู่ใน lookupReport เพราะยังบอกไม่ได้ว่าแอปมี testID ของมันหรือไม่
+ * ก่อนลบทางสำรอง (หาด้วยข้อความ) ต้องยืนยัน testID ของชิ้นส่วนกลุ่มนี้จากโค้ดของแอปก่อน ไม่อย่างนั้นการตรวจว่า "ไม่แสดง" จะผ่านเสมอ
+ */
+export function neverFoundByLabel(): string[] {
+  return [...searchedByLabel].filter((testId) => !foundBy.has(testId)).sort();
+}
+
 function describeLocator(spec: ElementSpec): string {
   const labels = spec.labels.map((label) => `"${label}"`).join(' หรือ ');
   const typeNote = spec.types ? ` ชนิด ${spec.types.join(' หรือ ')}` : '';
@@ -88,6 +106,33 @@ export async function findElement(spec: ElementSpec): Promise<WebdriverIO.Elemen
     }
   }
   return undefined;
+}
+
+/**
+ * หาชิ้นส่วนตาม spec ในโครงสร้างหน้าจอที่อ่านมาแล้ว (readScreen ใน src/support/page-source.ts) ลำดับเดียวกับ findElement: testID ก่อน แล้วจึงข้อความกำกับ
+ * คืนทุกชิ้นที่ตรง ทั้งที่มองเห็นและมองไม่เห็น (ต่างจาก findElement ที่คืนชิ้นแรกชิ้นเดียว)
+ * matchesLabel: ใช้แทนการเทียบข้อความกำกับแบบตรงตัว เมื่อค่าที่หาไม่ใช่ข้อความคงที่ (เช่น อีเมลของบัญชี) ส่วน spec.types ยังใช้เหมือนเดิม
+ */
+export function nodesInSource(nodes: readonly ScreenNode[], spec: ElementSpec, matchesLabel?: (node: ScreenNode) => boolean): ScreenNode[] {
+  // 1) testID: ชิ้นส่วนที่มี testID มีค่า name เป็น testID (WebDriverAgent ใช้ accessibilityIdentifier เป็น name ถ้ามี)
+  const byTestId = nodes.filter((node) => node.name === spec.testId);
+  if (byTestId.length > 0) {
+    foundBy.set(spec.testId, 'testID');
+    return byTestId;
+  }
+
+  // 2) ข้อความกำกับ (ชั่วคราว) ชนิดในโครงสร้างหน้าจอไม่มีคำนำหน้า XCUIElementType
+  const types = spec.types?.map((type) => type.replace(/^XCUIElementType/, ''));
+  const matches = matchesLabel ?? ((node: ScreenNode) => spec.labels.includes(node.label) || spec.labels.includes(node.name));
+  const byLabel = nodes.filter((node) => (types === undefined || types.includes(node.type)) && matches(node));
+  if (byLabel.length > 0) foundBy.set(spec.testId, 'label');
+  else searchedByLabel.add(spec.testId);
+  return byLabel;
+}
+
+/** เหมือน nodesInSource แต่คืนเฉพาะชิ้นที่มองเห็น */
+export function shownInSource(nodes: readonly ScreenNode[], spec: ElementSpec, matchesLabel?: (node: ScreenNode) => boolean): ScreenNode[] {
+  return nodesInSource(nodes, spec, matchesLabel).filter((node) => node.visible);
 }
 
 /**
@@ -196,6 +241,61 @@ export async function waitUntilSteady(spec: ElementSpec, timeoutMs: number = env
 /** แตะชิ้นส่วน โดยรอให้ชิ้นส่วนแสดงและหยุดเคลื่อนที่ก่อน */
 export async function tap(spec: ElementSpec, timeoutMs: number = env.waitMs): Promise<void> {
   await (await waitUntilSteady(spec, timeoutMs)).click();
+}
+
+/**
+ * รอจนชิ้นส่วนมีอยู่ในโครงสร้างหน้าจอ และตำแหน่งกับขนาดเท่ากัน 2 ครั้งติดกัน (มองเห็นหรือไม่ก็ได้) แล้วคืนชิ้นส่วนนั้น
+ * ใช้กับชิ้นส่วนที่อาจอยู่นอกจอ เช่น รอให้แผงที่เลื่อนเข้ามาจากข้างจอหยุดเลื่อน ก่อนอ่านหรือเลื่อนจอ
+ * ชิ้นส่วนที่ไม่หยุดเคลื่อนที่เลยจะหมดเวลาที่นี่
+ */
+export async function waitUntilPlaced(spec: ElementSpec, timeoutMs: number = env.waitMs): Promise<WebdriverIO.Element> {
+  const result: { element?: WebdriverIO.Element } = {};
+  let previousRect: string | undefined;
+  await browser.waitUntil(
+    async () => {
+      try {
+        const element = await findElement(spec);
+        if (element === undefined) {
+          previousRect = undefined;
+          return false;
+        }
+        const rect = JSON.stringify(await browser.getElementRect(element.elementId));
+        const steady = rect === previousRect;
+        previousRect = rect;
+        if (steady) result.element = element;
+        return steady;
+      } catch (error) {
+        // หน้าจอกำลังเปลี่ยน ให้เริ่มเทียบใหม่ในรอบถัดไป
+        if (!isScreenChangingError(error)) throw error;
+        previousRect = undefined;
+        return false;
+      }
+    },
+    {
+      timeout: timeoutMs,
+      interval: POLL_INTERVAL_MS,
+      timeoutMsg: `ไม่พบ${spec.description}ในโครงสร้างหน้าจอในตำแหน่งที่นิ่ง ภายใน ${timeoutMs / 1000} วินาที (หาด้วย ${describeLocator(spec)})`,
+    },
+  );
+  if (result.element === undefined) throw new Error(`รอ${spec.description}จบแล้วแต่ไม่ได้ชิ้นส่วนกลับมา (ไม่ควรเกิด)`);
+  return result.element;
+}
+
+/**
+ * เลื่อนจอจนเห็นชิ้นส่วนที่มีอยู่ในโครงสร้างหน้าจอแต่อยู่นอกจอ แล้วคืนชิ้นส่วนที่มองเห็นและหยุดเคลื่อนที่ ใช้ก่อนแตะชิ้นส่วนในรายการที่เลื่อนได้
+ * ตัวอย่าง: ปุ่มออกจากระบบท้ายแผงตั้งค่าแอปอยู่ที่ y=1018 ขณะที่จอสูง 874 จุด (ขั้นที่ 34) ต้องเลื่อนก่อนจึงแตะได้
+ * ลำดับ
+ *   1) รอจนชิ้นส่วนอยู่นิ่งในโครงสร้างหน้าจอ (waitUntilPlaced) เพราะแผงที่เลื่อนเข้ามาจากข้างจอยังขยับอยู่ช่วงหนึ่ง ถ้าสั่งเลื่อนจอตอนนั้น ผลจะไม่แน่นอน
+ *   2) ถ้ายังมองไม่เห็น สั่งเลื่อนจอด้วย mobile: scroll แบบ toVisible ของตัวขับ xcuitest (ใช้ได้ผลบนเครื่องที่ใช้เทสในขั้นที่ 34)
+ *   3) รอจนมองเห็นและหยุดเคลื่อนที่ (waitUntilSteady) ถ้าเลื่อนแล้วยังมองไม่เห็น จะหมดเวลาที่ขั้นนี้
+ */
+export async function scrollIntoView(spec: ElementSpec, timeoutMs: number = env.waitMs): Promise<WebdriverIO.Element> {
+  const element = await waitUntilPlaced(spec, timeoutMs);
+  if (!(await element.isDisplayed())) {
+    // mobile: scroll แบบ toVisible = ให้ตัวขับเลื่อนรายการที่ชิ้นส่วนนี้อยู่ จนชิ้นส่วนเข้ามาอยู่ในจอ
+    await browser.execute('mobile: scroll', { elementId: element.elementId, toVisible: true });
+  }
+  return waitUntilSteady(spec, timeoutMs);
 }
 
 /**

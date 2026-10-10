@@ -51,6 +51,12 @@ export const env = {
   /** อีเมลของบัญชีนักพัฒนาที่แอปเติมให้ ที่มา: ค่าเริ่มต้นใน apps/consumer-app/lib/auth/dev-auth.ts */
   devLoginEmail: process.env.E2E_DEV_LOGIN_EMAIL?.trim() || 'admin@jitsamrit.com',
 
+  /**
+   * ที่อยู่ของ API ที่แอปที่ใช้เทสเรียก (ไม่มี / ปิดท้าย) ชุด session ใช้ตรวจว่า API เปิดอยู่ก่อนเริ่ม (src/support/api-health.ts)
+   * ต้องตรงกับ EXPO_PUBLIC_API_URL ตอน build แอป ค่าเริ่มต้นเท่ากับค่าใน .env.example บรรทัด 13 ของ repo
+   */
+  apiUrl: (process.env.E2E_API_URL?.trim() || 'http://localhost:4000/api/v1').replace(/\/+$/, ''),
+
   /** พอร์ตของ Appium ในเครื่องนี้ */
   appiumPort: readNumber('E2E_APPIUM_PORT', 4723),
 

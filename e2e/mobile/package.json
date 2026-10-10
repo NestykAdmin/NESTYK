@@ -8,6 +8,7 @@
     "test": "wdio run ./wdio.conf.ts",
     "test:smoke": "wdio run ./wdio.conf.ts --mochaOpts.grep @smoke",
     "test:known-bugs": "wdio run ./wdio.conf.ts --mochaOpts.grep @known-bug",
+    "test:session": "wdio run ./wdio.session.conf.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
