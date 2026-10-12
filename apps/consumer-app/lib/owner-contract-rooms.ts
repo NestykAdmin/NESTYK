@@ -33,7 +33,7 @@ export function ownerMustSign(row: PartyContract) {
 function awaitingAgent(row: PartyContract) {
   if (row.status === "active" || CLOSED.has(row.status)) return false;
   if (row.status === "awaiting_agent_review") return true;
-  if (row.formKind === "lease") return false;
+  if (row.formKind === "lease" || row.formKind === "renewal") return false;
   return Boolean(row.ownerSignedAt) && !row.agentSignedAt;
 }
 
@@ -46,9 +46,15 @@ function actionKind(row: PartyContract): OwnerRoomAction {
 
 /** One card summary for an owner's room, from the contracts already on that room. */
 export function ownerContractRoomCard(contracts: PartyContract[]): OwnerRoomCard {
-  const active = contracts.some((row) => row.formKind === "lease" && row.status === "active");
+  const active = contracts.some(
+    (row) =>
+      (row.formKind === "lease" || row.formKind === "renewal") &&
+      row.status === "active",
+  );
   const historyRounds = contracts.filter(
-    (row) => row.formKind === "lease" && CLOSED.has(row.status),
+    (row) =>
+      (row.formKind === "lease" || row.formKind === "renewal") &&
+      CLOSED.has(row.status),
   ).length;
   const pending = contracts.filter((row) => OPEN.has(row.status));
   const signable = [...pending.filter(ownerMustSign)].sort((a, b) => {
@@ -78,17 +84,28 @@ export function ownerContractRoomCard(contracts: PartyContract[]): OwnerRoomCard
 export function ownerTenantStayDates(
   contracts: Array<Pick<PartyContract, "formKind" | "status" | "startDate" | "endDate" | "moveInDate">>,
 ): { moveIn: string; moveOut: string } {
-  const leases = contracts.filter((row) => row.formKind === "lease" && row.status !== "cancelled");
-  const open = leases.length ? leases : contracts.filter((row) => row.status !== "cancelled");
+  const stays = contracts.filter(
+    (row) =>
+      (row.formKind === "lease" || row.formKind === "renewal") &&
+      row.status !== "cancelled",
+  );
+  const open = stays.length ? stays : contracts.filter((row) => row.status !== "cancelled");
   const dated = open.length ? open : contracts;
   const moveIn = dated.reduce((min, row) => {
     const value = row.moveInDate?.trim() || row.startDate?.trim() || "";
     if (!value) return min;
     return !min || value < min ? value : min;
   }, "");
-  const active = dated.find((row) => row.formKind === "lease" && row.status === "active");
-  const moveOut = active
-    ? active.endDate?.trim() || ""
+  const activeEnds = dated.flatMap((row) => {
+    const value = row.endDate?.trim() || "";
+    return (row.formKind === "lease" || row.formKind === "renewal") &&
+      row.status === "active" &&
+      value
+      ? [value]
+      : [];
+  });
+  const moveOut = activeEnds.length
+    ? activeEnds.reduce((max, value) => (value > max ? value : max), "")
     : dated.reduce((max, row) => {
         const value = row.endDate?.trim() || "";
         return value > max ? value : max;

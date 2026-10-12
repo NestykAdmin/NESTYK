@@ -38,6 +38,7 @@ import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
 const CONTRACT_ICON: Record<PartyContract["formKind"], AppIconName> = {
   reservation: "calendar",
   lease: "key",
+  renewal: "file-text",
   broker_appointment: "handshake",
 };
 
@@ -50,7 +51,7 @@ function statusColor(status: PartyContract["status"]) {
 }
 
 function signerKeys(row: PartyContract): SignerKey[] {
-  if (row.formKind === "lease") return ["owner", "tenant"];
+  if (row.formKind === "lease" || row.formKind === "renewal") return ["owner", "tenant"];
   if (row.formKind === "broker_appointment") return ["owner", "agent"];
   return ["owner", "tenant", "agent"];
 }
@@ -346,7 +347,7 @@ export function PartyContractDetail({
           {locale === "th" ? contract.agreementTypeName : tc.common.kinds[contract.formKind]}
           {contract.formKind === "reservation"
             ? ` · ${fillTemplate(tc.common.reservationFee, { amount: money(contract.reservationFee) })}`
-            : contract.formKind === "lease"
+            : contract.formKind === "lease" || contract.formKind === "renewal"
               ? ` · ${fillTemplate(tc.common.rent, { amount: money(contract.monthlyRent) })}`
               : ""}
         </Text>

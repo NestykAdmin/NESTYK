@@ -116,6 +116,21 @@ test("stay dates span the first move-in through the current lease end", () => {
   assert.equal(dates.moveOut, "2025-12-31");
 });
 
+test("an active renewal extends the move-out past the original lease", () => {
+  const dates = ownerTenantStayDates([
+    row({ startDate: "2026-12-25", endDate: "2027-12-24", moveInDate: "2026-12-25", status: "active" }),
+    row({
+      formKind: "renewal",
+      startDate: "2027-12-25",
+      endDate: "2028-12-24",
+      moveInDate: null,
+      status: "active",
+    }),
+  ]);
+  assert.equal(dates.moveIn, "2026-12-25");
+  assert.equal(dates.moveOut, "2028-12-24");
+});
+
 test("a past stay uses the lease start and end when there is no move-in date", () => {
   const dates = ownerTenantStayDates([
     row({ startDate: "2023-06-01", endDate: "2024-05-31", moveInDate: null, status: "terminated" }),

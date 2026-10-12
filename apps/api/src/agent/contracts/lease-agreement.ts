@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import { isIsoDate, leaseTermEnd } from "./lease-term";
 import type { LeaseAgreementInput } from "@nestyk/types";
 
 const TEXT = [
@@ -177,11 +178,19 @@ export function validateLeaseAgreement(input: unknown): LeaseAgreementInput {
       throw new BadRequestException("กรุณากรอกข้อมูลที่จำเป็นให้ครบ");
   }
   for (const key of ["issueDate", "termFrom", "termTo"] as const) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(out[key]))
+    if (!isIsoDate(out[key]))
       throw new BadRequestException("รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)");
   }
   if (out.termTo <= out.termFrom)
     throw new BadRequestException("วันสิ้นสุดต้องอยู่หลังวันเริ่มเช่า");
+  const termMonths = Number(out.termMonths);
+  if (/^\d{1,3}$/.test(out.termMonths) && termMonths > 0) {
+    const termEnd = leaseTermEnd(out.termFrom, termMonths);
+    if (out.termTo !== termEnd)
+      throw new BadRequestException(
+        "วันสิ้นสุดต้องเป็นวันก่อนครบรอบตามจำนวนเดือน เช่น เริ่ม 25 ธ.ค. ต่อ 12 เดือน สิ้นสุด 24 ธ.ค. ปีถัดไป",
+      );
+  }
   out.landlordSignName = out.landlordName;
   out.tenantSignName = out.tenantName;
   if (!out.witnessSignName) out.witnessSignName = out.agentContact;

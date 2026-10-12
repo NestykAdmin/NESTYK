@@ -85,10 +85,14 @@ export function TenantContractList({
       });
     }
   }
+  const isStay = (row: PartyContract) => row.formKind === "lease" || row.formKind === "renewal";
   const staying = (contracts: PartyContract[]) =>
-    contracts.some((row) => row.formKind === "lease" && row.status === "active");
+    contracts.some((row) => isStay(row) && row.status === "active");
   const occupant = (contracts: PartyContract[]) =>
-    contracts.find((row) => row.formKind === "lease" && row.status === "active")?.tenant?.trim() || "";
+    contracts
+      .filter((row) => isStay(row) && row.status === "active")
+      .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.id - a.id)[0]
+      ?.tenant?.trim() || "";
   const roleAccent = mode === "owner" ? tokens.colors.roles.owner : tokens.colors.roles.tenant;
   const roleTint = mode === "owner" ? "rgba(0, 85, 218, 0.12)" : "rgba(0, 198, 141, 0.14)";
   const latestStart = (contracts: PartyContract[]) =>
@@ -519,13 +523,14 @@ export function TenantContractList({
       : group.contracts
     : group.contracts;
   const leases = visibleContracts
-    .filter((row) => row.formKind === "lease")
+    .filter(isStay)
     .sort(
       (a, b) =>
         Number(b.status === "active") - Number(a.status === "active") ||
-        b.startDate.localeCompare(a.startDate),
+        b.startDate.localeCompare(a.startDate) ||
+        b.id - a.id,
     );
-  const documents = visibleContracts.filter((row) => row.formKind !== "lease");
+  const documents = visibleContracts.filter((row) => !isStay(row));
   return (
     <View style={s.root}>
       <View style={[s.room, surface]}>
@@ -545,12 +550,17 @@ export function TenantContractList({
           <View key={row.id} style={[s.contract, surface]}>
             <View style={s.header}>
               <Text style={[s.caption, muted, s.flex]}>
-                {row.status === "active" ? copy.currentContract : copy.lease}
+                {row.id === leases.find((item) => item.status === "active")?.id
+                  ? copy.currentContract
+                  : row.formKind === "renewal"
+                    ? copy.renewal
+                    : copy.lease}
               </Text>
               {badge(row)}
             </View>
             <Text style={[s.contractTitle, ink]}>
-              {row.agreementTypeName || copy.lease}
+              {row.agreementTypeName ||
+                (row.formKind === "renewal" ? copy.renewal : copy.lease)}
             </Text>
             <Text style={[s.caption, muted]}>
               {copy.contractNo} {row.contractNo}
@@ -648,7 +658,9 @@ export function TenantContractList({
                 <Text style={[s.body, ink]}>
                   {row.formKind === "reservation"
                     ? copy.reservation
-                    : copy.broker}
+                    : row.formKind === "renewal"
+                      ? copy.renewal
+                      : copy.broker}
                 </Text>
                 <Text style={[s.caption, muted]}>{row.contractNo}</Text>
                 {badge(row)}

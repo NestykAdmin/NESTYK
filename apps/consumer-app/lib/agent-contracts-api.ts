@@ -75,6 +75,18 @@ export async function previewAgentLeaseAgreement(
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/lease-preview`, {});
 }
+export async function previewAgentLeaseRenewal(
+  id: number,
+): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/lease-renewal-preview`, {});
+}
+export async function generateAgentLeaseRenewal(
+  id: number,
+): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/generate-lease-renewal`, {});
+}
 export async function generateAgentLeaseAgreement(
   id: number,
 ): Promise<AgentContract> {

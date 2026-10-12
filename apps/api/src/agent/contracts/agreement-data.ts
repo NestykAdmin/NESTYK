@@ -11,7 +11,7 @@ export function validateAgreementData(
   schema: Record<string, unknown>,
   input: unknown,
   contract: CreateAgentContract,
-  formKind: "reservation" | "lease" | "broker_appointment",
+  formKind: "reservation" | "lease" | "broker_appointment" | "renewal",
 ): Record<string, unknown> {
   if (input != null && (typeof input !== "object" || Array.isArray(input)))
     throw new BadRequestException("ข้อมูลเฉพาะสัญญาต้องเป็น object");
@@ -23,7 +23,7 @@ export function validateAgreementData(
           moveInDate: contract.moveInDate,
           reservationFee: contract.reservationFee,
         }
-      : formKind === "lease"
+      : formKind === "lease" || formKind === "renewal"
         ? {
             endDate: contract.endDate,
             monthlyRent: contract.monthlyRent,

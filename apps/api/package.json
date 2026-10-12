@@ -17,8 +17,8 @@
     "test:agent-leads": "node --test test/agent-leads.test.cjs test/lead-matching.test.cjs test/lead-viewings.test.cjs",
     "test:tenant-bills": "node --test test/tenant-bills.test.cjs",
     "test:room-details": "node --test test/room-update.test.cjs test/nearby-places.test.cjs test/agent-listings.test.cjs",
-    "test:agent-contracts": "node --test test/agent-contracts.test.cjs test/agent-contract-documents.test.cjs test/agent-contract-sign.test.cjs test/agreement-attachments.test.cjs test/agreement-sign-invites.test.cjs test/financial-documents.test.cjs test/contract-delivery.test.cjs test/reservation-payments.test.cjs",
-    "test:agent-tenants": "node --test test/agent-tenants.test.cjs test/agent-contracts.test.cjs test/agent-contract-documents.test.cjs test/agent-contract-sign.test.cjs test/agreement-attachments.test.cjs test/agreement-sign-invites.test.cjs test/financial-documents.test.cjs test/contract-delivery.test.cjs test/reservation-payments.test.cjs"
+    "test:agent-contracts": "node --test test/agent-contracts.test.cjs test/lease-term.test.cjs test/lease-renewal.test.cjs test/agent-contract-documents.test.cjs test/agent-contract-sign.test.cjs test/agreement-attachments.test.cjs test/agreement-sign-invites.test.cjs test/financial-documents.test.cjs test/contract-delivery.test.cjs test/reservation-payments.test.cjs",
+    "test:agent-tenants": "node --test test/agent-tenants.test.cjs test/agent-contracts.test.cjs test/lease-term.test.cjs test/lease-renewal.test.cjs test/agent-contract-documents.test.cjs test/agent-contract-sign.test.cjs test/agreement-attachments.test.cjs test/agreement-sign-invites.test.cjs test/financial-documents.test.cjs test/contract-delivery.test.cjs test/reservation-payments.test.cjs"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",

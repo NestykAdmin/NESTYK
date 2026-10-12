@@ -28,7 +28,26 @@ type LeaseFormData = {
 
 function leaseForm(c: LeaseContractEntity): LeaseFormData {
   const saved = c.data?.leaseAgreement;
-  return saved && typeof saved === "object" ? (saved as LeaseFormData) : {};
+  const base = saved && typeof saved === "object" ? (saved as LeaseFormData) : {};
+  const renewal = c.data?.leaseRenewal;
+  if (!renewal || typeof renewal !== "object") return base;
+  const form = renewal as { dueDay?: unknown; bankAccount?: unknown };
+  const bank = typeof form.bankAccount === "string" ? form.bankAccount.trim() : "";
+  return {
+    ...base,
+    rentDueDay: form.dueDay || base.rentDueDay,
+    accountNo: bank || base.accountNo,
+  };
+}
+
+/** Once a renewal term has started, rent follows that contract and the one it extends stops. */
+export function currentRentContracts(rows: LeaseContractEntity[], today: string) {
+  const covered = new Set(
+    rows
+      .filter((row) => row.previous_agreement_id != null && row.start_date.slice(0, 10) <= today)
+      .map((row) => row.previous_agreement_id as number),
+  );
+  return rows.filter((row) => !covered.has(row.id));
 }
 
 function text(value: unknown) {
@@ -103,11 +122,11 @@ export class TenantBillingService {
       .leftJoin("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.tenant", "tenant")
       .where("c.status = 'active'")
-      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) = 'lease'");
+      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')");
   }
 
   private async insertBills(leases: LeaseContractEntity[], today: string) {
-    const rows = leases.flatMap((c) => openRentBills(c, today));
+    const rows = currentRentContracts(leases, today).flatMap((c) => openRentBills(c, today));
     if (!rows.length) return 0;
     const result = await this.db
       .createQueryBuilder()
@@ -226,7 +245,7 @@ export class TenantBillingService {
       .leftJoinAndSelect("room.property", "property")
       .andWhere("tenant.user_id = :userId", { userId })
       .getMany();
-    const next = leases
+    const next = currentRentContracts(leases, today)
       .map((c) => ({ c, period: upcomingRentPeriod(c, today) }))
       .filter((row): row is { c: LeaseContractEntity; period: NonNullable<typeof row.period> } => !!row.period)
       .sort((a, b) => a.period.dueDate.localeCompare(b.period.dueDate))[0];
@@ -332,7 +351,7 @@ export class TenantBillingService {
       .leftJoin("c.template", "template")
       .leftJoin("c.agreement_type", "agreementType")
       .where("(c.created_by_user_id = :agentId OR tenant.created_by_user_id = :agentId)", { agentId })
-      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) = 'lease'");
+      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')");
   }
 
   private async forAgent(agentId: number, id: number) {

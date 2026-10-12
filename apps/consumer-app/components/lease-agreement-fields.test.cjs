@@ -14,6 +14,12 @@ const mockRequire = name => {
   if (name === '@nestyk/ui/native') return { MobileInput: Input, useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { brand: { 50: '#fff9e8' } } } };
   if (name === '@nestyk/i18n') return i18nMock();
   if (name === '../lib/lead-format') return leadFormat;
+  if (name === '../lib/lease-term') {
+    const termLoaded = { exports: {} };
+    const termSource = fs.readFileSync(path.join(__dirname, '../lib/lease-term.ts'), 'utf8');
+    new Function('require', 'module', 'exports', ts.transpileModule(termSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(require, termLoaded, termLoaded.exports);
+    return termLoaded.exports;
+  }
   throw new Error(`Unexpected dependency: ${name}`);
 };
 new Function('require', 'module', 'exports', ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);
@@ -32,11 +38,12 @@ test('every existing lease input remains editable exactly once across the four s
   Object.keys(value).forEach(key => value[key] = `value_${key}`);
   const inputs = [0, 1, 2, 3].flatMap(step => nodes(form(value, step))).filter(node => node.type === Input);
   const derived = new Set(['documentNo', 'landlordName', 'tenantName', 'landlordSignName', 'tenantSignName', 'witnessSignName', 'landlordSignaturePng', 'tenantSignaturePng']);
+  const calculated = new Set(['termTo']);
   for (const key of Object.keys(value)) {
     if (derived.has(key)) continue;
     const matches = inputs.filter(node => node.props.value === value[key]);
     assert.equal(matches.length, 1, key);
-    assert.equal(matches[0].props.editable, true, key);
+    assert.equal(matches[0].props.editable, !calculated.has(key), key);
   }
   assert.equal(inputs.length, 42);
 });
@@ -75,6 +82,12 @@ test('required fields and date validation remain unchanged and errors point to t
   assert.equal(leaseAgreementFieldStep('depositAmount'), 2);
   assert.equal(leaseAgreementFieldStep('additionalTerms'), 3);
   assert.ok(leaseAgreementFieldErrors({ ...value, termFrom: '2026-10-15', termTo: '2026-10-14' }, contractsTh.validation).termTo);
+  const year = { ...value, termMonths: '12', termFrom: '2026-12-25' };
+  assert.equal(leaseAgreementFieldErrors({ ...year, termTo: '2027-12-25' }, contractsTh.validation).termTo, contractsTh.validation.termEndsBeforeAnniversary);
+  assert.equal(leaseAgreementFieldErrors({ ...year, termTo: '2027-12-24' }, contractsTh.validation).termTo, undefined);
+  assert.equal(leaseAgreementFieldErrors({ ...value, issueDate: '2026-02-30' }, contractsTh.validation).issueDate, contractsTh.validation.dateFormat);
+  const monthEnd = { ...value, termFrom: '2026-01-31', termMonths: '1', termTo: '2026-02-28' };
+  assert.equal(leaseAgreementFieldErrors(monthEnd, contractsTh.validation).termTo, undefined);
 });
 
 test('review displays current values and edit links navigate to their original sections', () => {

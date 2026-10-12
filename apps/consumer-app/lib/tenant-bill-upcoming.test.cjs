@@ -14,6 +14,7 @@ function contract(patch = {}) {
   return {
     id: 11, formKind: 'lease', status: 'active', myParties: ['tenant'],
     property: 'Project', room: '1208', monthlyRent: 18000,
+    startDate: '2026-01-01', endDate: '2027-12-31', previousAgreementId: null,
     nextRentBill: { period: '2026-11', issueDate: '2026-11-05', dueDate: '2026-11-10', graceUntil: '2026-11-15' },
     ...patch,
   };
@@ -28,6 +29,23 @@ test('selects the earliest future rent issue date across tenant leases without c
     ...earlier.nextRentBill, billId: null, leaseContractId: 12, property: 'Other project', room: '502', amount: 12000, status: 'upcoming',
   });
   assert.deepEqual(contracts, before);
+});
+
+test('independent rooms keep their earliest bill even when another lease started later', () => {
+  const earlier = contract({ id: 12, startDate: '2026-01-01', nextRentBill: { period: '2026-11', issueDate: '2026-10-31', dueDate: '2026-11-05', graceUntil: '2026-11-10' } });
+  const later = contract({ id: 13, startDate: '2026-09-01' });
+  assert.equal(upcomingTenantBill([later, earlier]).leaseContractId, earlier.id);
+});
+
+test('renewal replaces its predecessor only after it starts, including when it has no next bill', () => {
+  const current = contract();
+  const future = contract({ id: 12, formKind: 'renewal', previousAgreementId: current.id, startDate: '2099-01-01', nextRentBill: { ...current.nextRentBill, issueDate: '2099-01-02' } });
+  assert.equal(upcomingTenantBill([current, future]).leaseContractId, current.id);
+  const started = { ...future, startDate: '2026-01-01', nextRentBill: null };
+  assert.equal(upcomingTenantBill([current, started]), null);
+  const otherRoom = contract({ id: 14, property: 'Other', startDate: '2025-01-01' });
+  assert.equal(upcomingTenantBill([current, started, otherRoom]).leaseContractId, otherRoom.id);
+  assert.equal(upcomingTenantBill([current, { ...started, status: 'cancelled' }]).leaseContractId, current.id);
 });
 
 test('does not invent a next bill for ended leases, unsigned contracts, owner-only contracts, or absent schedules', () => {

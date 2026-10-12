@@ -24,7 +24,7 @@ export function contractSignatures(contract: AgentContract): { signed: number; r
   const parties =
     contract.formKind === "broker_appointment"
       ? [contract.ownerSignedAt, contract.agentSignedAt]
-      : contract.formKind === "lease"
+      : contract.formKind === "lease" || contract.formKind === "renewal"
         ? [contract.ownerSignedAt, contract.tenantSignedAt]
         : [contract.ownerSignedAt, contract.tenantSignedAt, contract.agentSignedAt];
   return { signed: parties.filter(Boolean).length, required: parties.length };
@@ -32,7 +32,7 @@ export function contractSignatures(contract: AgentContract): { signed: number; r
 
 /** Days until the active lease ends, or null when there is no active lease with an end date. */
 export function leaseDaysLeft(tenant: AgentTenant, today = new Date()): number | null {
-  const lease = tenantLease(tenant);
+  const lease = tenantLease(tenant, today);
   if (!lease || lease.status !== "active" || !lease.endDate) return null;
   return dayNumber(lease.endDate) - dayNumber(dateKey(today));
 }
@@ -52,8 +52,11 @@ export function tenantWorkItems(tenants: AgentTenant[], slips: TenantBill[], tod
       }
     }
     const daysLeft = leaseDaysLeft(tenant, today);
-    const lease = tenantLease(tenant);
-    if (lease && daysLeft != null && daysLeft >= 0 && daysLeft <= RENEWAL_WINDOW_DAYS) {
+    const lease = tenantLease(tenant, today);
+    const hasSuccessor = lease && tenant.contracts.some(
+      (row) => row.previousAgreementId === lease.id && row.status !== "cancelled",
+    );
+    if (lease && !hasSuccessor && daysLeft != null && daysLeft >= 0 && daysLeft <= RENEWAL_WINDOW_DAYS) {
       items.push({ kind: "renewal", tenant, contract: lease, daysLeft });
     }
   }

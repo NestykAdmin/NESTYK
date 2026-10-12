@@ -216,12 +216,12 @@ test('reservation drafts persist their master code and booking fee without month
   assert.equal(f.uploads.length, 1);
   assert.ok(c.invoice_url);
   assert.equal(c.agreement_type_code, 'reservation'); assert.equal(c.reservation_fee, '5000.00'); assert.equal(c.monthly_rent, null); assert.equal(c.deposit, null);
-  assert.ok(f.calls.some(call => call[2]?.formKind === 'reservation'));
+  assert.ok(f.calls.some(call => call[2]?.formKinds?.includes('reservation')));
 });
-test('overlap checks only the same form kind so reservation does not block lease or broker', async () => {
+test('overlap groups lease and renewal while reservation and broker can coexist', async () => {
   const f = fixture(); await f.service.create(7, valid);
-  const clause = f.calls.find(call => call[1]?.includes?.('= :formKind') && call[2]?.formKind === 'lease');
-  assert.ok(clause);
+  const clause = f.calls.find(call => call[1]?.includes?.('IN (:...formKinds)'));
+  assert.deepEqual(clause[2].formKinds, ['lease', 'renewal']);
   assert.equal(f.calls.some(call => call[2]?.isLease != null), false);
 });
 test('a new lease requires a generated reservation letter for the same lead and room', async () => {
