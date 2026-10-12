@@ -1,9 +1,12 @@
 import { test as base, expect, type APIRequestContext } from '@playwright/test';
 import { ApiClient } from '../api/api-client';
 import { AuthApi } from '../api/auth.api';
+import { ContractsApi } from '../api/contracts.api';
 import { HealthApi } from '../api/health.api';
 import { LeadsApi } from '../api/leads.api';
 import { ListingsApi } from '../api/listings.api';
+import { PartyContractsApi, PublicContractSignApi } from '../api/party-contracts.api';
+import { TenantsApi } from '../api/tenants.api';
 import { devToken, env } from '../config/env';
 
 /** ชุดตัวเรียก API ของผู้เรียก 1 คน แยกตามเรื่อง */
@@ -14,6 +17,12 @@ export interface ApiSession {
   auth: AuthApi;
   listings: ListingsApi;
   leads: LeadsApi;
+  tenants: TenantsApi;
+  contracts: ContractsApi;
+  /** สัญญาในฐานะคู่สัญญา (ผู้เช่าหรือเจ้าของห้อง) */
+  partyContracts: PartyContractsApi;
+  /** ลิงก์ลงนามที่เปิดได้โดยไม่ต้องล็อกอิน */
+  publicContractSign: PublicContractSignApi;
 }
 
 function createSession(request: APIRequestContext): ApiSession {
@@ -24,6 +33,10 @@ function createSession(request: APIRequestContext): ApiSession {
     auth: new AuthApi(client),
     listings: new ListingsApi(client),
     leads: new LeadsApi(client),
+    tenants: new TenantsApi(client),
+    contracts: new ContractsApi(client),
+    partyContracts: new PartyContractsApi(client),
+    publicContractSign: new PublicContractSignApi(client),
   };
 }
 

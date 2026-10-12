@@ -21,6 +21,10 @@ export class ApiClient {
   post(path: string, body?: unknown): Promise<APIResponse> {
     return this.request.post(relativePath(path), body === undefined ? {} : { data: body });
   }
+
+  patch(path: string, body?: unknown): Promise<APIResponse> {
+    return this.request.patch(relativePath(path), body === undefined ? {} : { data: body });
+  }
 }
 
 /**

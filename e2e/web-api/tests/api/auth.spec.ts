@@ -15,6 +15,9 @@ const protectedEndpoints: { name: string; call: (session: ApiSession) => Promise
   { name: 'GET /agent/listings', call: (session) => session.listings.list() },
   { name: 'GET /agent/leads', call: (session) => session.leads.list() },
   { name: 'GET /agent/leads/visa-types', call: (session) => session.leads.visaTypes() },
+  { name: 'GET /agent/tenants', call: (session) => session.tenants.list() },
+  { name: 'GET /agent/contracts', call: (session) => session.contracts.list() },
+  { name: 'GET /contracts/mine', call: (session) => session.partyContracts.mine() },
   { name: 'POST /auth/sync', call: (session) => session.auth.sync() },
 ];
 
