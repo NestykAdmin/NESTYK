@@ -286,7 +286,7 @@ export function TenantContractList({
               >
                 <View style={s.hubTop}>
                   <View style={[s.hubIcon, { backgroundColor: roleTint }]}>
-                    <MobileIcon name="file-text" size={20} color={roleAccent} />
+                    <MobileIcon name="home" size={20} color={roleAccent} />
                   </View>
                   <View style={s.flex}>
                     <Text style={[s.roomTitle, ink]} numberOfLines={1}>
@@ -296,6 +296,7 @@ export function TenantContractList({
                   <MobileIcon name="chevron-right" size={18} color={tokens.colors.divider} />
                 </View>
                 <View style={s.hubMid}>
+                  <MobileIcon name="key" size={14} color={theme.textSecondary} />
                   <Text style={[s.caption, muted, s.flex]} numberOfLines={1}>
                     {copy.unitNo} {room.room || "-"}
                   </Text>

@@ -1389,7 +1389,11 @@ export default function AppHomeScreen() {
                       : t.roles[partyRole]
               }
               accentColor={tokens.colors.roles[partyRole]}
-              leading={selectedPartyRoom || contractHistory ? "back" : "menu"}
+              leading={
+                selectedPartyRoom || (contractHistory && partyRole !== "owner")
+                  ? "back"
+                  : "menu"
+              }
               onBackPress={() => {
                 setOpenedPartyContract(null);
                 if (selectedPartyRoom?.tenant && !contractHistory) {
