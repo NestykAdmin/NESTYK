@@ -64,6 +64,17 @@ const WORKSPACE_LABEL: ElementSpec = {
   labels: sessionInEveryLanguage((labels) => labels.workspaceLabel),
 };
 
+/**
+ * เทียบข้อความของป้ายพื้นที่ทำงานโดยไม่สนตัวพิมพ์เล็กใหญ่ (ใช้เมื่อแอปยังไม่มี testID ของป้ายนี้)
+ *   แอปแสดงป้ายนี้เป็นตัวพิมพ์ใหญ่ด้วย style textTransform: 'uppercase'
+ *   (packages/ui/src/components/MobileWorkspaceHeader.tsx บรรทัด 115 และ MobileSectionHeader.tsx บรรทัด 243 ที่ commit f9b9bea)
+ *   iOS จึงรายงานชื่อเป็น "AGENT WORKSPACE" ทั้งที่ข้อความใน en.ts คือ "Agent workspace"
+ *   (เห็นบนเครื่องจริงในขั้นที่ 35 รอบภาษาอังกฤษ 12 ต.ค. 2026 10:41 น.) อักษรไทยไม่มีตัวพิมพ์ใหญ่เล็ก รอบภาษาไทยจึงเทียบเหมือนเดิม
+ */
+const WORKSPACE_LABEL_TEXTS = WORKSPACE_LABEL.labels.map((text) => text.toLowerCase());
+const isWorkspaceLabel = (node: ScreenNode): boolean =>
+  WORKSPACE_LABEL_TEXTS.includes(node.label.toLowerCase()) || WORKSPACE_LABEL_TEXTS.includes(node.name.toLowerCase());
+
 const LOADER: ElementSpec = {
   description: 'ตัวโหลดของหน้า',
   testId: 'common.loader',
@@ -179,7 +190,7 @@ export class AgentHomeScreen {
 
   /** ป้ายพื้นที่ทำงานนายหน้าแสดงอยู่หรือไม่ (แสดงบนแท็บภาพรวม ห้อง ลีด และเพิ่มเติม ไม่แสดงบนแท็บผู้เช่า) */
   async workspaceLabelShown(): Promise<boolean> {
-    return shownInSource(await readScreen(), WORKSPACE_LABEL).length > 0;
+    return shownInSource(await readScreen(), WORKSPACE_LABEL, isWorkspaceLabel).length > 0;
   }
 
   /** แท็บที่ผู้ใช้เห็นชัด (มองเห็นและหาได้ชิ้นเดียว) เรียงตามแถบแท็บ */
