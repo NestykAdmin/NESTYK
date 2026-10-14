@@ -37,6 +37,11 @@ export class PartyContractsController {
     return this.contracts.listForUser(user.id);
   }
 
+  @Get("mine/rooms")
+  ownedRooms(@CurrentUser() user: AuthRequestUser) {
+    return this.contracts.listOwnedRooms(user.id);
+  }
+
   @Get("mine/:id/attachments")
   async listAttachments(
     @CurrentUser() user: AuthRequestUser,

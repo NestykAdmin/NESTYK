@@ -1,5 +1,13 @@
 import { MasterDocumentTypeEntity, AgreementDocumentRequirementEntity, AgreementDocumentEntity } from "./agreement-document.entity";
 import { AgreementTemplateEntity } from "./agreement-template.entity";
+import { MasterContractEndReasonEntity } from "./master-contract-end-reason.entity";
+import { ContractDepositSettlementEntity } from "./contract-deposit-settlement.entity";
+import { DepositDeductionItemEntity } from "./deposit-deduction-item.entity";
+import { ContractDepositTransferEntity } from "./contract-deposit-transfer.entity";
+export * from "./master-contract-end-reason.entity";
+export * from "./contract-deposit-settlement.entity";
+export * from "./deposit-deduction-item.entity";
+export * from "./contract-deposit-transfer.entity";
 export * from "./agreement-template.entity";
 export * from "./agreement-sign-invite.entity";
 export * from "./room-share-link.entity";
@@ -77,6 +85,10 @@ export * from './tenant-bill.entity';
  * update the entity in the same change as any migration that adds or renames one.
  */
 export const ALL_ENTITIES = [
+  MasterContractEndReasonEntity,
+  ContractDepositSettlementEntity,
+  DepositDeductionItemEntity,
+  ContractDepositTransferEntity,
   MasterDocumentTypeEntity, AgreementDocumentRequirementEntity, AgreementDocumentEntity,
   AgreementTemplateEntity,
   AgreementSignInviteEntity,

@@ -35,8 +35,14 @@ export interface TenantBill {
   graceUntil: string;
   amount: number;
   status: TenantBillStatus;
+  /** The lease that issued this bill is still the tenant's current stay. */
+  leaseActive: boolean;
   paidAt: string | null;
   hasPaymentSlip: boolean;
+  /** True after the tenant confirms and the slip is waiting for the agent. */
+  slipSubmitted: boolean;
+  /** Agent's return note. `invalid_image` is the legacy fixed reason. Cleared after a new upload. */
+  slipReturnReason: string | null;
   payTo: { bankName: string; accountName: string; accountNo: string } | null;
 }
 

@@ -55,6 +55,14 @@ export class TenantBillEntity extends SerialTimestampEntity {
   @Column({ type: "text", nullable: true })
   invoice_path: string | null;
 
+  /** Agent's return reason. Legacy rows may still store `invalid_image`. Cleared on the next upload. */
+  @Column({ type: "text", nullable: true })
+  slip_return_note: string | null;
+
+  /** Set when the tenant sends the current slip to the agent. Locks further uploads. */
+  @Column({ type: "timestamptz", nullable: true })
+  slip_submitted_at: Date | null;
+
   @Column({ type: "timestamptz", nullable: true })
   paid_at: Date | null;
 }

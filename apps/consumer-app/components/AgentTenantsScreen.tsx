@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, SlideInRight } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import {
   MobileBottomSheet,
   MobileBrandLoader,
@@ -16,7 +16,7 @@ import { localizedError, useLocale } from "@nestyk/i18n";
 import { getAgentTenant, listAgentTenants, updateAgentTenant } from "../lib/agent-tenants-api";
 import { nextIdentityNumberDraft } from "../lib/identity-number";
 import { billFormatters } from "../lib/bill-format";
-import { confirmAgentRentSlip, listAgentRentSlips, openAgentRentSlip } from "../lib/tenant-bills-api";
+import { confirmAgentRentSlip, listAgentRentSlips, openAgentRentSlip, returnAgentRentSlip } from "../lib/tenant-bills-api";
 import { TENANT_BILLING_DEMO, demoTenantBilling } from "../lib/tenant-billing-demo";
 import {
   confirmBill,
@@ -432,7 +432,7 @@ export function AgentTenantsScreen({
       }
     };
     const confirmSlip = async (bill: AgentTenantBill) => {
-      if (confirmingId != null) return;
+      if (confirmingId != null) return false;
       setConfirmingId(bill.id);
       setError("");
       setPaymentNotice("");
@@ -441,8 +441,27 @@ export function AgentTenantsScreen({
         setSlips((current) => current.filter((row) => row.id !== bill.id));
         setBilling((current) => (current ? confirmBill(current, bill.id) : current));
         setPaymentNotice(d.confirmedNotice.replace("{month}", fmt.month(bill.period)));
+        return true;
       } catch (e) {
         setError(localizedError(e, d.slipConfirmFailed, locale));
+        return false;
+      } finally {
+        setConfirmingId(null);
+      }
+    };
+    const rejectSlip = async (bill: AgentTenantBill, reason: string) => {
+      if (confirmingId != null) return false;
+      setConfirmingId(bill.id);
+      setError("");
+      setPaymentNotice("");
+      try {
+        await returnAgentRentSlip(bill.id, reason);
+        setSlips((current) => current.filter((row) => row.id !== bill.id));
+        setPaymentNotice(d.rejectedNotice);
+        return true;
+      } catch (e) {
+        setError(localizedError(e, d.rejectFailed, locale));
+        return false;
       } finally {
         setConfirmingId(null);
       }
@@ -476,7 +495,7 @@ export function AgentTenantsScreen({
         )}
         <Animated.View
           key={section ?? "hub"}
-          entering={section ? SlideInRight.duration(200) : FadeIn.duration(150)}
+          entering={FadeIn.duration(150)}
           style={s.section}
         >
         {section === null ? (
@@ -507,7 +526,8 @@ export function AgentTenantsScreen({
             demo={TENANT_BILLING_DEMO}
             notice={paymentNotice}
             confirmingId={confirmingId}
-            onConfirm={(bill) => void confirmSlip(bill)}
+            onConfirm={confirmSlip}
+            onReject={rejectSlip}
             onViewSlip={(bill) => void viewSlip(bill)}
           />
         ) : section === "attachments" ? (

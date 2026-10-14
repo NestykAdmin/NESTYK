@@ -57,4 +57,13 @@ export class TenantBillsController {
   ) {
     return this.billing.uploadPaymentSlip(user.id, id, file);
   }
+
+  @Post("mine/:id/confirm")
+  @HttpCode(HttpStatus.OK)
+  confirm(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", ParseIntPipe) id: number,
+  ) {
+    return this.billing.submitForTenant(user.id, id);
+  }
 }

@@ -20,6 +20,7 @@ export type MobileFilterChipProps = {
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  disabled?: boolean;
 };
 
 /**
@@ -36,6 +37,7 @@ export function MobileFilterChip({
   accessibilityLabel,
   style,
   testID,
+  disabled = false,
 }: MobileFilterChipProps) {
   const { theme } = useMobileTheme();
   const colors = typeof tone === 'string' ? STATUS_PILL_TONES[tone] : tone;
@@ -50,24 +52,26 @@ export function MobileFilterChip({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
       accessibilityLabel={accessibilityLabel ?? (count == null ? label : `${label} ${count}`)}
-      android_ripple={{ color: 'rgba(33,30,30,0.12)' }}
+      android_ripple={disabled ? undefined : { color: 'rgba(33,30,30,0.12)' }}
       testID={testID}
       style={({ pressed }) => [
         styles.chip,
         fill,
-        pressed && Platform.OS === 'ios' ? styles.pressed : null,
+        disabled ? styles.disabled : null,
+        pressed && !disabled && Platform.OS === 'ios' ? styles.pressed : null,
         style,
       ]}
     >
       {dot ? <View style={[styles.dot, { backgroundColor: dot }]} /> : null}
-      <Text style={[styles.label, { color: ink }]} numberOfLines={1}>
+      <Text style={[styles.label, { color: disabled ? tokens.colors.divider : ink }]} numberOfLines={1}>
         {label}
       </Text>
-      {count != null ? <Text style={[styles.count, { color: countInk }]}>{count}</Text> : null}
+      {count != null ? <Text style={[styles.count, { color: disabled ? tokens.colors.divider : countInk }]}>{count}</Text> : null}
     </Pressable>
   );
 }
@@ -85,6 +89,7 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.7 },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  disabled: { backgroundColor: tokens.colors.slate[50], borderColor: tokens.colors.slate[200] },
   label: { fontFamily: tokens.typography.native.bodyBold, fontSize: 13, lineHeight: 20 },
   count: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18 },
 });

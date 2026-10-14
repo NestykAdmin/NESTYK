@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import type { TenantBill, TenantNextBill } from "@nestyk/types";
+import { ensureAgentSession } from "./agent-session";
 import { apiGet, apiPost, apiRequest } from "./api";
 
 export function listMyBills(): Promise<TenantBill[]> {
@@ -22,16 +23,28 @@ export function openReceivedBillSlip(id: number): Promise<{ url: string }> {
   return apiGet(`/bills/received/${id}/payment-slip`);
 }
 
-export function listAgentRentSlips(): Promise<TenantBill[]> {
+export async function listAgentRentSlips(): Promise<TenantBill[]> {
+  await ensureAgentSession();
   return apiGet("/bills/agent");
 }
 
-export function openAgentRentSlip(id: number): Promise<{ url: string }> {
+export async function openAgentRentSlip(id: number): Promise<{ url: string }> {
+  await ensureAgentSession();
   return apiGet(`/bills/agent/${id}/payment-slip`);
 }
 
-export function confirmAgentRentSlip(id: number): Promise<TenantBill> {
+export async function confirmAgentRentSlip(id: number): Promise<TenantBill> {
+  await ensureAgentSession();
   return apiPost(`/bills/agent/${id}/confirm`, {});
+}
+
+export async function returnAgentRentSlip(id: number, reason: string): Promise<TenantBill> {
+  await ensureAgentSession();
+  return apiPost(`/bills/agent/${id}/return`, { reason });
+}
+
+export function submitMyBillSlip(id: number): Promise<TenantBill> {
+  return apiPost(`/bills/mine/${id}/confirm`, {});
 }
 
 export async function uploadMyBillSlip(

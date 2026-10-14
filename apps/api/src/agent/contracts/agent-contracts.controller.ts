@@ -196,6 +196,22 @@ export class AgentContractsController {
   ) {
     return this.contracts.brokerAppointmentPdf(user.id, id, true);
   }
+  @Post(":id/lease-renewal-preview")
+  @HttpCode(HttpStatus.OK)
+  leaseRenewalPreview(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", ParseIntPipe) id: number,
+  ) {
+    return this.contracts.leaseRenewalPdf(user.id, id, false);
+  }
+  @Post(":id/generate-lease-renewal")
+  @HttpCode(HttpStatus.OK)
+  generateLeaseRenewal(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", ParseIntPipe) id: number,
+  ) {
+    return this.contracts.leaseRenewalPdf(user.id, id, true);
+  }
   @Post(":id/lease-preview")
   @HttpCode(HttpStatus.OK)
   leasePreview(

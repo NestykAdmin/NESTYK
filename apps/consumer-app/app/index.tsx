@@ -14,6 +14,7 @@ import {
 } from '../components/AgentTenantsScreen';
 import { PartyContractsScreen, type PartyContractRoom } from '../components/PartyContractsScreen';
 import { TenantBillsScreen } from '../components/TenantBillsScreen';
+import { tenantWorkspaceCopy } from '../lib/tenant-workspace-copy';
 import { TenantNextBillCard } from '../components/TenantNextBillCard';
 import { OwnerConfirmedRent } from '../components/OwnerConfirmedRent';
 import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
@@ -150,6 +151,9 @@ export default function AppHomeScreen() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [partyInbox, setPartyInbox] = useState(false);
   const [selectedPartyRoom, setSelectedPartyRoom] = useState<PartyContractRoom | null>(null);
+  const [contractHistory, setContractHistory] = useState(false);
+  const [billHistory, setBillHistory] = useState(false);
+  const [selectedBillRoom, setSelectedBillRoom] = useState<{ property: string; room: string | null } | null>(null);
   const [openedPartyContract, setOpenedPartyContract] = useState<PartyContract | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
@@ -481,13 +485,39 @@ export default function AppHomeScreen() {
   }, [isTenantDetail]);
 
   useEffect(() => {
-    if (!partyInbox || !selectedPartyRoom || openedPartyContract) return;
+    if (!partyInbox) setContractHistory(false);
+  }, [partyInbox]);
+
+  useEffect(() => {
+    if (activeRole === 'tenant' && activeTab === 'bills') return;
+    setBillHistory(false);
+    setSelectedBillRoom(null);
+  }, [activeRole, activeTab]);
+
+  useEffect(() => {
+    if (activeRole !== 'tenant' || activeTab !== 'bills' || (!billHistory && !selectedBillRoom)) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setSelectedPartyRoom(null);
+      if (selectedBillRoom) setSelectedBillRoom(null);
+      else setBillHistory(false);
       return true;
     });
     return () => sub.remove();
-  }, [partyInbox, selectedPartyRoom, openedPartyContract]);
+  }, [activeRole, activeTab, billHistory, selectedBillRoom]);
+
+  useEffect(() => {
+    if (!partyInbox || openedPartyContract || (!selectedPartyRoom && !contractHistory)) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selectedPartyRoom?.tenant && !contractHistory) {
+        setSelectedPartyRoom({ ...selectedPartyRoom, tenant: null });
+      } else if (selectedPartyRoom) setSelectedPartyRoom(null);
+      else if (contractHistory && activeRole !== 'tenant') {
+        setContractHistory(false);
+        setPartyInbox(false);
+      } else setContractHistory(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [partyInbox, selectedPartyRoom, openedPartyContract, contractHistory, activeRole]);
 
   const handleRoleChange = (role: UserRole) => {
     if (roleRequiresAuth(role) && !isAuthenticated) {
@@ -541,8 +571,9 @@ export default function AppHomeScreen() {
   const headingText = { color: theme.textHeading };
   const secondaryText = { color: theme.textSecondary };
 
+  const isTenantWorkspace = activeRole === 'tenant' && (partyInbox || activeTab === 'bills');
   const screenTitle =
-    activeRole === 'agent' || partyInbox
+    activeRole === 'agent' || partyInbox || isTenantWorkspace
       ? undefined
       : getScreenTitle(activeTab, t);
   const partyRole = activeRole === 'tenant' ? 'tenant' : 'owner';
@@ -857,7 +888,13 @@ export default function AppHomeScreen() {
 
   const renderBillsBody = () => (
     <View style={styles.bodyContainer}>
-      <TenantBillsScreen reloadToken={billsReloadToken} onReloadSettled={finishPageRefresh} />
+      <TenantBillsScreen
+        reloadToken={billsReloadToken}
+        onReloadSettled={finishPageRefresh}
+        roomHistory={billHistory}
+        selectedRoom={selectedBillRoom}
+        onSelectRoom={setSelectedBillRoom}
+      />
     </View>
   );
 
@@ -1308,11 +1345,12 @@ export default function AppHomeScreen() {
     <>
       <MobileModePage
         role={activeRole}
+        backgroundColor={isTenantWorkspace ? theme.surface : undefined}
         screenTitle={screenTitle}
         scrollable={partyInbox || !isWizardTab}
         refreshing={pageRefreshing}
         onRefresh={
-          (partyInbox && activeRole !== 'agent') ||
+          isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
           (!partyInbox && !isWizardTab && activeRole === 'agent' &&
           ['dashboard', 'listingLead', 'listingRoom'].includes(activeTab))
             ? handlePageRefresh : undefined
@@ -1323,22 +1361,103 @@ export default function AppHomeScreen() {
           ) : partyInbox ? (
             <MobileSectionHeader
               title={
-                selectedPartyRoom
+                selectedPartyRoom?.tenant
+                  ? selectedPartyRoom.tenant
+                  : selectedPartyRoom
                   ? (selectedPartyRoom.room
                       ? t.mobile.partyContracts.room.replace('{room}', selectedPartyRoom.room)
                       : selectedPartyRoom.property)
-                  : t.mobile.partyContracts.title
+                  : contractHistory
+                    ? tenantWorkspaceCopy(locale)[partyRole === 'owner' ? 'tenantHistory' : 'roomHistory']
+                    : partyRole === 'owner'
+                      ? tenantWorkspaceCopy(locale).contractsAndTenants
+                      : tenantWorkspaceCopy(locale).myContracts
               }
               workspaceLabel={
-                selectedPartyRoom?.room ? selectedPartyRoom.property : t.roles[partyRole]
+                selectedPartyRoom?.tenant
+                  ? [selectedPartyRoom.property, selectedPartyRoom.room
+                      ? t.mobile.partyContracts.room.replace('{room}', selectedPartyRoom.room)
+                      : null].filter(Boolean).join(' · ')
+                  : selectedPartyRoom?.room
+                  ? selectedPartyRoom.property
+                  : contractHistory
+                    ? partyRole === 'owner'
+                      ? tenantWorkspaceCopy(locale).ownerWorkspace
+                      : tenantWorkspaceCopy(locale).myContracts
+                    : partyRole === 'owner'
+                      ? tenantWorkspaceCopy(locale).ownerWorkspace
+                      : t.roles[partyRole]
               }
               accentColor={tokens.colors.roles[partyRole]}
-              leading={selectedPartyRoom ? "back" : "menu"}
+              leading={
+                selectedPartyRoom || (contractHistory && partyRole !== "owner")
+                  ? "back"
+                  : "menu"
+              }
               onBackPress={() => {
                 setOpenedPartyContract(null);
-                setSelectedPartyRoom(null);
+                if (selectedPartyRoom?.tenant && !contractHistory) {
+                  setSelectedPartyRoom({ ...selectedPartyRoom, tenant: null });
+                } else if (selectedPartyRoom) setSelectedPartyRoom(null);
+                else if (contractHistory && partyRole === 'owner') {
+                  setContractHistory(false);
+                  setPartyInbox(false);
+                } else setContractHistory(false);
               }}
               onMenuPress={() => setDrawerOpen(true)}
+              onActionPress={
+                partyRole === 'tenant' && !selectedPartyRoom && !contractHistory
+                  ? () => {
+                      setOpenedPartyContract(null);
+                      setSelectedPartyRoom(null);
+                      setContractHistory(true);
+                    }
+                  : undefined
+              }
+              actionLabel={
+                partyRole === 'tenant' && !selectedPartyRoom && !contractHistory
+                  ? tenantWorkspaceCopy(locale).roomHistory
+                  : undefined
+              }
+              actionIcon="archive"
+              actionVariant="icon"
+            />
+          ) : isTenantWorkspace ? (
+            <MobileSectionHeader
+              title={
+                selectedBillRoom
+                  ? (selectedBillRoom.room
+                      ? t.mobile.partyContracts.room.replace('{room}', selectedBillRoom.room)
+                      : selectedBillRoom.property)
+                  : billHistory
+                    ? tenantWorkspaceCopy(locale).paymentHistory
+                    : t.mobile.tabs.bills
+              }
+              workspaceLabel={
+                selectedBillRoom?.room
+                  ? selectedBillRoom.property
+                  : billHistory
+                    ? t.mobile.tabs.bills
+                    : t.roles.tenant
+              }
+              accentColor={tokens.colors.roles.tenant}
+              leading={billHistory || selectedBillRoom ? 'back' : 'menu'}
+              onBackPress={() => {
+                if (selectedBillRoom) setSelectedBillRoom(null);
+                else setBillHistory(false);
+              }}
+              onMenuPress={() => setDrawerOpen(true)}
+              onActionPress={
+                !billHistory && !selectedBillRoom
+                  ? () => {
+                      setSelectedBillRoom(null);
+                      setBillHistory(true);
+                    }
+                  : undefined
+              }
+              actionLabel={!billHistory && !selectedBillRoom ? tenantWorkspaceCopy(locale).paymentHistory : undefined}
+              actionIcon="archive"
+              actionVariant="icon"
             />
           ) : (
             <MobileHeaderActions
@@ -1383,10 +1502,10 @@ export default function AppHomeScreen() {
           isTenantDetail ? null : (
             <MobileBottomTabBar
               activeRole={activeRole}
-              activeTab={activeTab}
+              activeTab={activeRole === 'tenant' && partyInbox ? 'menu' : activeTab}
               onTabPress={handleTabPress}
               accentColor={accentColor}
-              {...(activeRole === 'agent'
+              {...(activeRole === 'agent' || isTenantWorkspace
                 ? {
                     activeTintColor: theme.screenTitle,
                     indicatorColor: tokens.colors.brand[500],
@@ -1399,10 +1518,12 @@ export default function AppHomeScreen() {
         <React.Fragment key={`${activeRole}-${activeTab}-${partyInbox ? 'inbox' : 'tab'}`}>
           {partyInbox ? (
             <PartyContractsScreen
+              mode={partyRole}
               opened={openedPartyContract}
               onOpenedChange={setOpenedPartyContract}
               selectedRoom={selectedPartyRoom}
               onSelectedRoomChange={setSelectedPartyRoom}
+              history={contractHistory}
               accentColor={tokens.colors.roles[partyRole]}
               reloadToken={partyContractsReloadToken}
               onReloadSettled={finishPageRefresh}
@@ -1435,10 +1556,19 @@ export default function AppHomeScreen() {
             return;
           }
           if (action.type === 'route') {
+            if (action.path === '/owner/tenants') {
+              setDrawerOpen(false);
+              setOpenedPartyContract(null);
+              setSelectedPartyRoom(null);
+              setContractHistory(true);
+              setPartyInbox(true);
+              return;
+            }
             if (action.path === '/tenant/contract' || action.path === '/owner/contracts') {
               setDrawerOpen(false);
               setOpenedPartyContract(null);
               setSelectedPartyRoom(null);
+              setContractHistory(false);
               setPartyInbox(true);
               return;
             }

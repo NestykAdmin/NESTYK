@@ -144,6 +144,10 @@ null rows are backfilled by the migration script above.
 
 ## Versioned templates and renewals (2026-09-15)
 
+Contract ending reasons, deposit reconciliation and renewal carries are documented
+in [contract-end-deposits.md](./contract-end-deposits.md), including the migration
+and verification commands. This supplements the existing renewal chain below.
+
 Current implementation supersedes the older blueprint descriptions above.
 
 - `master_agreement_types` remains the type catalog. `agreement_templates` stores

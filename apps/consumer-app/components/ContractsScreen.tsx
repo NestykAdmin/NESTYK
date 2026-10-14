@@ -21,6 +21,11 @@ import {
   leaseAgreementFieldStep,
 } from "./LeaseAgreementFields";
 import {
+  LeaseRenewalFields,
+  emptyLeaseRenewalForm,
+  leaseRenewalFieldErrors,
+} from "./LeaseRenewalFields";
+import {
   ContractTypePicker,
   type CreateDocumentKind,
 } from "./ContractTypePicker";
@@ -68,6 +73,7 @@ import type {
   ReservationLetterInput,
   BrokerAppointmentInput,
   LeaseAgreementInput,
+  LeaseRenewalInput,
 } from "@nestyk/types";
 import {
   listAgentContracts,
@@ -93,6 +99,8 @@ import {
   generateAgentBrokerAppointment,
   previewAgentLeaseAgreement,
   generateAgentLeaseAgreement,
+  previewAgentLeaseRenewal,
+  generateAgentLeaseRenewal,
   generateFinancialDocument,
 } from "../lib/agent-contracts-api";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
@@ -103,6 +111,8 @@ import {
   ContractSignaturePad,
   type ContractSignaturePadHandle,
 } from "./ContractSignaturePad";
+import { bangkokDateKey, isIsoDate, leaseTermEnd, positiveMonths, shiftIsoDate } from "../lib/lease-term";
+import { renewalCandidates, renewalClosedMessage } from "../lib/contract-renewal";
 
 const color = (status: AgentContractStatus) =>
   status === "active"
@@ -110,6 +120,91 @@ const color = (status: AgentContractStatus) =>
     : status.startsWith("awaiting")
       ? "#BB7914"
       : "#788193";
+
+const bangkokToday = bangkokDateKey;
+
+function firstContractOf(rows: AgentContract[], source: AgentContract) {
+  const rootId = source.rootAgreementId || source.id;
+  return rows.find((row) => row.id === rootId) ?? source;
+}
+
+function issuedOn(row: AgentContract) {
+  const data = row.data ?? {};
+  const lease =
+    data.leaseAgreement && typeof data.leaseAgreement === "object"
+      ? (data.leaseAgreement as { issueDate?: string })
+      : {};
+  const renewal =
+    data.leaseRenewal && typeof data.leaseRenewal === "object"
+      ? (data.leaseRenewal as { issueDate?: string })
+      : {};
+  const issue = lease.issueDate || renewal.issueDate || "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(issue) ? issue : row.startDate;
+}
+
+function firstLeaseFieldsFrom(root: AgentContract) {
+  return {
+    firstLeaseNo: root.contractNo,
+    firstLeaseDate: issuedOn(root),
+    firstLeaseStart: root.startDate,
+    firstLeaseEnd: root.endDate ?? "",
+  };
+}
+
+function renewalDraftFromLease(
+  source: AgentContract,
+  root: AgentContract,
+): LeaseRenewalInput {
+  const leaseOf = (row: AgentContract) =>
+    row.data?.leaseAgreement && typeof row.data.leaseAgreement === "object"
+      ? (row.data.leaseAgreement as Partial<LeaseAgreementInput>)
+      : {};
+  const prior =
+    source.data?.leaseRenewal && typeof source.data.leaseRenewal === "object"
+      ? (source.data.leaseRenewal as Partial<LeaseRenewalInput>)
+      : {};
+  const lease = Object.keys(leaseOf(source)).length ? leaseOf(source) : leaseOf(root);
+  const landlord =
+    prior.landlordName ||
+    [lease.landlordFirstName, lease.landlordLastName].filter(Boolean).join(" ") ||
+    lease.landlordName ||
+    "";
+  const tenantName =
+    prior.tenantName ||
+    [lease.tenantFirstName, lease.tenantLastName].filter(Boolean).join(" ") ||
+    lease.tenantName ||
+    source.tenant;
+  const propertyLine =
+    prior.propertyLine ||
+    [lease.project, lease.houseNo, source.room, lease.propertyAddress || source.property]
+      .filter(Boolean)
+      .join(" ");
+  const bankAccount =
+    prior.bankAccount ||
+    [lease.bankName, lease.accountName, lease.accountNo].filter(Boolean).join(" / ");
+  return {
+    ...emptyLeaseRenewalForm(),
+    issueDate: bangkokToday(),
+    landlordName: landlord,
+    tenantName,
+    propertyLine,
+    ...firstLeaseFieldsFrom(root),
+    originalLeaseNo: source.contractNo,
+    originalLeaseDate: issuedOn(source),
+    originalExpiryDate: source.endDate ?? lease.termTo ?? "",
+    renewMonths: "12",
+    startDate: shiftIsoDate(source.endDate ?? lease.termTo ?? "", 1),
+    endDate: leaseTermEnd(shiftIsoDate(source.endDate ?? lease.termTo ?? "", 1), 12),
+    monthlyRent:
+      source.monthlyRent == null ? lease.monthlyRent ?? "" : String(source.monthlyRent),
+    dueDay: prior.dueDay || lease.rentDueDay || "",
+    bankAccount,
+    depositCarried:
+      source.deposit == null ? lease.depositAmount ?? "" : String(source.deposit),
+    landlordSignName: landlord,
+    tenantSignName: tenantName,
+  };
+}
 
 export function ContractsScreen({
   tenant,
@@ -219,13 +314,14 @@ export function ContractsScreen({
       startedCreate.current = false;
       return;
     }
+    if (loadingList) return;
     if (startedCreate.current) return;
     startedCreate.current = true;
     onStartCreateHandled?.();
     void onCreateKind(startCreate);
     // One start per request; `onCreateKind` is a new function on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startCreate]);
+  }, [startCreate, loadingList]);
   const [selected, setSelected] = useState<AgentContract | null>(
     initialContract ?? null,
   );
@@ -238,6 +334,7 @@ export function ContractsScreen({
   const reservation = agreementType?.formKind === "reservation";
   const broker = agreementType?.formKind === "broker_appointment";
   const lease = agreementType?.formKind === "lease";
+  const renewal = agreementType?.formKind === "renewal";
   const standardFields = new Set([
     "startDate",
     "endDate",
@@ -255,6 +352,7 @@ export function ContractsScreen({
   const [choosingType, setChoosingType] = useState(false);
   const [menuCreate, setMenuCreate] = useState<CreateDocumentKind | null>(null);
   const [creating, setCreating] = useState(false);
+  const [confirmingSave, setConfirmingSave] = useState(false);
   const [creationStep, setCreationStep] = useState(0);
   const creationAnchorRef = useRef<View>(null);
   const steppedCreation = reservation || lease;
@@ -394,6 +492,12 @@ export function ContractsScreen({
   const [leaseErrors, setLeaseErrors] = useState<
     Partial<Record<string, string>>
   >({});
+  const [renewalForm, setRenewalForm] = useState<LeaseRenewalInput>(
+    emptyLeaseRenewalForm(),
+  );
+  const [renewalErrors, setRenewalErrors] = useState<
+    Partial<Record<string, string>>
+  >({});
   const accent =
     creating && steppedCreation
       ? tokens.colors.brand[500]
@@ -462,7 +566,15 @@ export function ContractsScreen({
     name: string;
     url: string | null;
   }> =>
-    contract.formKind === "lease"
+    contract.formKind === "renewal"
+      ? [
+          {
+            kind: "lease_agreement",
+            name: tc.renewalForm.title,
+            url: contract.leaseDocumentUrl,
+          },
+        ]
+      : contract.formKind === "lease"
       ? [
           {
             kind: "lease_agreement",
@@ -678,7 +790,7 @@ export function ContractsScreen({
     ];
     return contract.formKind === "broker_appointment"
       ? all.filter((row) => row.key !== "tenant")
-      : contract.formKind === "lease"
+      : contract.formKind === "lease" || contract.formKind === "renewal"
         ? all.filter((row) => row.key !== "agent")
         : all;
   };
@@ -865,8 +977,15 @@ export function ContractsScreen({
     setPdfAction(generate ? "generate" : "preview");
     setError("");
     try {
+      const renewingDoc = selected.formKind === "renewal";
       const latest = await (
-        generate ? generateAgentLeaseAgreement : previewAgentLeaseAgreement
+        generate
+          ? renewingDoc
+            ? generateAgentLeaseRenewal
+            : generateAgentLeaseAgreement
+          : renewingDoc
+            ? previewAgentLeaseRenewal
+            : previewAgentLeaseAgreement
       )(selected.id);
       setSelected(latest);
       setContracts((current) =>
@@ -875,7 +994,7 @@ export function ContractsScreen({
       if (!latest.leaseDocumentUrl)
         throw new Error(cn.openDocumentFailed);
       openDocumentPreview(
-        docs.leaseAgreement,
+        renewingDoc ? tc.renewalForm.title : docs.leaseAgreement,
         latest.leaseDocumentUrl,
         "lease_agreement",
       );
@@ -954,11 +1073,7 @@ export function ContractsScreen({
     setBusy(true);
     setLeadId(source?.leadId ?? tenant?.leadId ?? null);
     let nextStart = "";
-    if (source?.endDate) {
-      const day = new Date(`${source.endDate}T00:00:00Z`);
-      day.setUTCDate(day.getUTCDate() + 1);
-      nextStart = day.toISOString().slice(0, 10);
-    }
+    if (source?.endDate) nextStart = shiftIsoDate(source.endDate, 1);
     setForm({
       startDate: nextStart,
       endDate: "",
@@ -975,6 +1090,12 @@ export function ContractsScreen({
     setBrokerErrors({});
     setLeaseForm(emptyLeaseAgreementForm());
     setLeaseErrors({});
+    setRenewalForm(
+      type.formKind === "renewal" && source
+        ? renewalDraftFromLease(source, firstContractOf(contracts, source))
+        : emptyLeaseRenewalForm(),
+    );
+    setRenewalErrors({});
     try {
       const [available, people] = await Promise.all([
         listAgreementTemplates(type.code),
@@ -1130,9 +1251,26 @@ export function ContractsScreen({
           (latest.data.leaseAgreement as Partial<LeaseAgreementInput>) ?? {},
         ),
       );
+      setRenewalForm(() => {
+        const saved = {
+          ...emptyLeaseRenewalForm(),
+          ...((latest.data.leaseRenewal as Partial<LeaseRenewalInput>) ?? {}),
+        };
+        const root = contracts.find(
+          (row) => row.id === (latest.rootAgreementId || latest.id),
+        );
+        if (root) Object.assign(saved, firstLeaseFieldsFrom(root));
+        if (isIsoDate(saved.originalExpiryDate)) {
+          saved.startDate = shiftIsoDate(saved.originalExpiryDate, 1);
+          const months = positiveMonths(saved.renewMonths);
+          if (months) saved.endDate = leaseTermEnd(saved.startDate, months);
+        }
+        return saved;
+      });
       setLetterErrors({});
       setBrokerErrors({});
       setLeaseErrors({});
+      setRenewalErrors({});
       setExtraFields(
         Object.fromEntries(
           Object.keys((draftTemplate.dataSchema.properties ?? {}) as object)
@@ -1174,7 +1312,7 @@ export function ContractsScreen({
       setBusy(false);
     }
   }
-  async function save() {
+  async function save(confirmed = false) {
     if (saving.current || busy) return;
     if (!template) {
       setError(cn.templateRequired);
@@ -1242,6 +1380,28 @@ export function ContractsScreen({
         return;
       }
       setLeaseErrors({});
+    } else if (renewal) {
+      if (!leadId || (!renewing && !editingDraft)) {
+        setError(cn.selectTenant);
+        return;
+      }
+      const fieldErrors = leaseRenewalFieldErrors(renewalForm, tc.validation);
+      const expiry = renewalForm.originalExpiryDate.trim();
+      const months = positiveMonths(renewalForm.renewMonths);
+      if (isIsoDate(expiry)) {
+        const nextStart = shiftIsoDate(expiry, 1);
+        if (renewalForm.startDate.trim() !== nextStart)
+          fieldErrors.startDate = tc.renewalForm.startsOnExpiry;
+        if (months && renewalForm.endDate.trim() !== leaseTermEnd(nextStart, months))
+          fieldErrors.endDate = tc.validation.termEndsBeforeAnniversary;
+      }
+      if (!months) fieldErrors.renewMonths = tc.validation.required;
+      if (Object.keys(fieldErrors).length) {
+        setRenewalErrors(fieldErrors);
+        setError(cn.leaseRequired);
+        return;
+      }
+      setRenewalErrors({});
     } else if (
       !leadId ||
       !form.startDate ||
@@ -1258,6 +1418,7 @@ export function ContractsScreen({
           key !== "reservationLetter" &&
           key !== "brokerAppointment" &&
           key !== "leaseAgreement" &&
+          key !== "leaseRenewal" &&
           !["string", "number", "integer", "boolean"].includes(
             field.type ?? "",
           ),
@@ -1266,6 +1427,11 @@ export function ContractsScreen({
       setError(cn.unsupportedFields);
       return;
     }
+    if (!confirmed) {
+      setConfirmingSave(true);
+      return;
+    }
+    setConfirmingSave(false);
     saving.current = true;
     setBusy(true);
     setError("");
@@ -1277,6 +1443,7 @@ export function ContractsScreen({
               key !== "reservationLetter" &&
               key !== "brokerAppointment" &&
               key !== "leaseAgreement" &&
+              key !== "leaseRenewal" &&
               extraFields[key] != null &&
               extraFields[key] !== "",
           )
@@ -1295,7 +1462,9 @@ export function ContractsScreen({
           ? brokerForm.issueDate.trim()
           : lease
             ? leaseForm.termFrom.trim()
-            : form.startDate.trim();
+            : renewal
+              ? renewalForm.startDate.trim()
+              : form.startDate.trim();
       const moveInDate = reservation
         ? (reservationLetter.termFrom || reservationLetter.issueDate).trim()
         : undefined;
@@ -1304,10 +1473,14 @@ export function ContractsScreen({
         : undefined;
       const leaseRent = lease
         ? Number(String(leaseForm.monthlyRent).replace(/,/g, ""))
-        : Number(form.monthlyRent);
+        : renewal
+          ? Number(String(renewalForm.monthlyRent).replace(/,/g, ""))
+          : Number(form.monthlyRent);
       const leaseDeposit = lease
         ? Number(String(leaseForm.depositAmount).replace(/,/g, ""))
-        : Number(form.deposit);
+        : renewal
+          ? Number(String(renewalForm.depositCarried).replace(/,/g, ""))
+          : Number(form.deposit);
       const persist = editingDraft ? (input: Parameters<typeof createAgentContract>[0]) => updateAgentContractDraft(editingDraft.id, input, editingDraft.data.draftRevision ?? null) : createAgentContract;
       const contract = await persist({
         leadId,
@@ -1319,7 +1492,9 @@ export function ContractsScreen({
             : {
                 endDate: lease
                   ? leaseForm.termTo.trim()
-                  : form.endDate.trim(),
+                  : renewal
+                    ? renewalForm.endDate.trim()
+                    : form.endDate.trim(),
                 monthlyRent: leaseRent,
                 deposit: leaseDeposit,
               }),
@@ -1331,6 +1506,7 @@ export function ContractsScreen({
           ...(reservation ? { reservationLetter } : {}),
           ...(broker ? { brokerAppointment: brokerForm } : {}),
           ...(lease ? { leaseAgreement: leaseForm } : {}),
+          ...(renewal ? { leaseRenewal: renewalForm } : {}),
         },
         notes: form.notes,
       });
@@ -1354,6 +1530,8 @@ export function ContractsScreen({
       setBrokerErrors({});
       setLeaseForm(emptyLeaseAgreementForm());
       setLeaseErrors({});
+      setRenewalForm(emptyLeaseRenewalForm());
+      setRenewalErrors({});
       setForm({
         startDate: "",
         endDate: "",
@@ -1393,7 +1571,7 @@ export function ContractsScreen({
     );
   }
 
-  async function onCreateKind(kind: CreateDocumentKind) {
+  async function onCreateKind(kind: CreateDocumentKind, selectedSource?: AgentContract) {
     setError("");
     setNotice("");
     if (
@@ -1404,15 +1582,41 @@ export function ContractsScreen({
       setError(cn.leaseRequiresReservation);
       return;
     }
-    if (kind === "reservation" || kind === "lease" || kind === "broker_appointment") {
+    if (
+      kind === "reservation" ||
+      kind === "lease" ||
+      kind === "broker_appointment" ||
+      kind === "renewal"
+    ) {
       setBusy(true);
       try {
         const types = await listAgreementTypes();
-        const type = types.find((row) => row.formKind === kind || row.code === kind);
+        const type =
+          kind === "renewal"
+            ? types.find(
+                (row) => row.formKind === "renewal" || row.code === "lease_renewal",
+              )
+            : types.find((row) => row.formKind === kind || row.code === kind);
         if (!type) throw new Error(cn.typeNotFound);
+        const sources = kind === "renewal"
+          ? renewalCandidates(contracts).filter((row) =>
+              !renewalClosedMessage(contracts, tc.renewalForm, row.id))
+          : [];
+        const source = kind === "renewal" ? selectedSource ?? sources[0] ?? null : null;
+        if (kind === "renewal") {
+          const closed = renewalClosedMessage(contracts, tc.renewalForm, selectedSource?.id);
+          if (closed) {
+            setError(closed);
+            return;
+          }
+        }
         setChoosingType(false);
+        if (kind === "renewal" && !selectedSource && sources.length > 1) {
+          setMenuCreate("renewal");
+          return;
+        }
         setMenuCreate(null);
-        await beginContract(type);
+        await beginContract(type, source);
       } catch (e) {
         setError(message(e));
       } finally {
@@ -1428,6 +1632,12 @@ export function ContractsScreen({
     return (
       <ContractTypePicker
         message={error}
+        disabledKinds={
+          renewalClosedMessage(contracts, tc.renewalForm) ? ["renewal"] : []
+        }
+        disabledHint={
+          renewalClosedMessage(contracts, tc.renewalForm) || undefined
+        }
         onBack={() => {
           setChoosingType(false);
           setError("");
@@ -1436,6 +1646,27 @@ export function ContractsScreen({
           void onCreateKind(kind);
         }}
       />
+    );
+  if (menuCreate === "renewal")
+    return (
+      <View style={s.root}>
+        {button(sc.backToTypes, () => {
+          setMenuCreate(null);
+          setChoosingType(true);
+        })}
+        <Text style={[s.subtitle, title]}>{sc.tenantAndRoom}</Text>
+        {errorView}
+        {renewalCandidates(contracts)
+          .filter((row) => !renewalClosedMessage(contracts, tc.renewalForm, row.id))
+          .map((row) => (
+            <View key={row.id} style={[s.card, card]}>
+              <Text style={[s.body, muted]}>{`${row.tenant} • ${row.property} ${row.room ?? ""}`}</Text>
+              {button(fillTemplate(sc.renewFrom, { no: row.contractNo }), () => {
+                void onCreateKind("renewal", row);
+              })}
+            </View>
+          ))}
+      </View>
     );
   if (menuCreate === "agent_commission")
     return (
@@ -1502,6 +1733,7 @@ export function ContractsScreen({
           renewing || editingDraft ? sc.backToOriginal : sc.backToTypes,
           () => {
             if (busy) return;
+            setConfirmingSave(false);
             setCreating(false);
             if (!renewing && !editingDraft) setChoosingType(true);
             setEditingDraft(null);
@@ -1725,8 +1957,10 @@ export function ContractsScreen({
                 ? sc.reservationDetails
                 : broker
                   ? tc.broker.details
-                  : lease
-                    ? sc.leaseDetails
+                : lease
+                  ? sc.leaseDetails
+                  : renewal
+                    ? tc.renewalForm.title
                     : sc.rentalTerms}
             </Text>
           )}
@@ -1779,6 +2013,24 @@ export function ContractsScreen({
                   placeholder={sc.notesPlaceholder}
                 />
               </View>
+            </>
+          ) : renewal ? (
+            <>
+              {!!renewing && (
+                <Text style={[s.body, muted]}>
+                  {fillTemplate(tc.renewalForm.source, { no: renewing.contractNo })}
+                </Text>
+              )}
+              <LeaseRenewalFields
+                value={renewalForm}
+                onChange={(next) => {
+                  setRenewalForm(next);
+                  if (Object.keys(renewalErrors).length)
+                    setRenewalErrors(leaseRenewalFieldErrors(next, tc.validation));
+                }}
+                disabled={busy}
+                errors={renewalErrors}
+              />
             </>
           ) : lease ? (
             <>
@@ -1925,6 +2177,45 @@ export function ContractsScreen({
             </Text>
           )}
         </View>
+        <MobileBottomSheet
+          visible={confirmingSave}
+          onClose={() => {
+            if (!busy) setConfirmingSave(false);
+          }}
+        >
+          <View style={s.saveConfirm}>
+            <Text style={[s.subtitle, title]}>
+              บันทึก{agreementType?.nameTh || "สัญญา"}นี้?
+            </Text>
+            <Text style={[s.body, muted]}>
+              {editingDraft
+                ? "หลังบันทึก การแก้ไขจะแทนที่ฉบับร่างเดิม และคู่สัญญาที่มีบัญชีจะเห็นข้อมูลล่าสุด"
+                : reservation
+                  ? "บันทึกเป็นฉบับร่างและสร้างใบแจ้งหนี้ค่าจอง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที"
+                  : "บันทึกเป็นฉบับร่าง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที"}
+            </Text>
+            <View style={s.saveConfirmActions}>
+              <MobileButton
+                style={s.saveConfirmButton}
+                variant="outline"
+                disabled={busy}
+                onPress={() => setConfirmingSave(false)}
+              >
+                ยกเลิก
+              </MobileButton>
+              <MobileButton
+                style={s.saveConfirmButton}
+                disabled={busy}
+                isLoading={busy}
+                onPress={() => {
+                  void save(true);
+                }}
+              >
+                บันทึกฉบับร่าง
+              </MobileButton>
+            </View>
+          </View>
+        </MobileBottomSheet>
       </View>
     );
   if (selected && financialKind && !draftCancelled && !["expired", "terminated"].includes(selected.status))
@@ -1988,7 +2279,7 @@ export function ContractsScreen({
                     : selected.monthlyRent,
                 )}
           </Text>
-          {selected.formKind === "lease" && (
+          {(selected.formKind === "lease" || selected.formKind === "renewal") && (
             <Text style={[s.body, muted]}>
               {fillTemplate(sc.deposit, { amount: money(selected.deposit) })}
             </Text>
@@ -2033,29 +2324,45 @@ export function ContractsScreen({
               })}
             </Text>
           )}
-          {selected.formKind === "lease" &&
+          {(selected.formKind === "lease" || selected.formKind === "renewal") &&
             ["active", "expired"].includes(selected.status) &&
+            renewalCandidates(contracts).some((row) => row.id === selected.id) &&
             button(sc.renew, () => {
-              void beginContract(
-                {
-                  code: selected.agreementTypeCode,
-                  nameTh: selected.agreementTypeName,
-                  nameEn: selected.agreementTypeName,
-                  icon: "key",
-                  formKind: "lease",
-                },
-                selected,
-              );
+              void (async () => {
+                setBusy(true);
+                setError("");
+                try {
+                  const types = await listAgreementTypes();
+                  const type = types.find(
+                    (row) =>
+                      row.formKind === "renewal" || row.code === "lease_renewal",
+                  );
+                  if (!type) throw new Error(cn.typeNotFound);
+                  const closed = renewalClosedMessage(contracts, tc.renewalForm, selected.id);
+                  if (closed) {
+                    setError(closed);
+                    return;
+                  }
+                  await beginContract(type, selected);
+                } catch (e) {
+                  setError(message(e));
+                } finally {
+                  setBusy(false);
+                }
+              })();
             })}
 
         </View>
         )}
         {(selected.formKind === "reservation" ||
           selected.formKind === "lease" ||
+          selected.formKind === "renewal" ||
           selected.formKind === "broker_appointment") && (
           <View ref={documentsAnchorRef} collapsable={false} style={[s.card, card]}>
             <Text style={[s.subtitle, title]}>
-              {selected.formKind === "lease"
+              {selected.formKind === "renewal"
+                ? tc.renewalForm.title
+                : selected.formKind === "lease"
                 ? docs.leaseDocuments
                 : docs.documents}
             </Text>
@@ -2134,7 +2441,8 @@ export function ContractsScreen({
               if (slot.kind === "lease_agreement") {
                 if (
                   selected.leaseAgreementStatus != null ||
-                  selected.data?.leaseAgreement != null
+                  selected.data?.leaseAgreement != null ||
+                  selected.data?.leaseRenewal != null
                 ) {
                   const complete =
                     selected.leaseAgreementStatus === "ready_to_generate" ||
@@ -2185,14 +2493,18 @@ export function ContractsScreen({
                         isLoading={pdfAction === "preview"}
                         onPress={() => void openLeaseAgreement(false)}
                       >
-                        {sc.viewLease}
+                        {selected.formKind === "renewal"
+                          ? tc.renewalForm.view
+                          : sc.viewLease}
                       </MobileButton>
                       <Text style={[s.small, muted]}>
                         {generated
                           ? sc.lockedSigned
                           : complete
                             ? sc.allSigned
-                            : sc.previewLease}
+                            : selected.formKind === "renewal"
+                              ? tc.renewalForm.preview
+                              : sc.previewLease}
                       </Text>
                     </View>
                   );
@@ -2411,13 +2723,15 @@ export function ContractsScreen({
             )}
           </View>
         )}
-        {selected.formKind === "lease" &&
+        {(selected.formKind === "lease" || selected.formKind === "renewal") &&
           selected.leaseAgreementStatus != null && (
           <View style={[s.card, card]}>
             {selected.leaseAgreementStatus === "ready" ? (
               <>
                 <Text style={[s.small, muted]}>
-                  {sc.leaseGenerated}
+                  {selected.formKind === "renewal"
+                    ? tc.renewalForm.generated
+                    : sc.leaseGenerated}
                 </Text>
                 <MobileButton
                   disabled={busy}
@@ -2430,7 +2744,9 @@ export function ContractsScreen({
             ) : (
               <>
                 <Text style={[s.small, muted]}>
-                  {sc.leaseGenerateHint}
+                  {selected.formKind === "renewal"
+                    ? tc.renewalForm.preview
+                    : sc.leaseGenerateHint}
                 </Text>
                 <MobileButton
                   disabled={
@@ -3089,6 +3405,9 @@ const s = StyleSheet.create({
     fontSize: 25,
     lineHeight: 37,
   },
+  saveConfirm: { paddingHorizontal: 20, paddingBottom: 8, gap: 12 },
+  saveConfirmActions: { flexDirection: "row", gap: 8 },
+  saveConfirmButton: { flexGrow: 1, flexBasis: 120 },
   heading: {
     fontFamily: tokens.typography.native.headingTh,
     fontSize: 22,

@@ -4,6 +4,7 @@ const ts = require('typescript');
 require('reflect-metadata');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(require('node:fs').readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
 const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
+const rentSchedule = require('../src/billing/rent-schedule.ts');
 
 const png = Buffer.concat([
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -53,11 +54,11 @@ function contract(overrides = {}) {
   };
 }
 
-function serviceFor(current) {
+function serviceFor(current, inboxRows = [current]) {
   const qb = {};
   for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
   qb.getOne = async () => current;
-  qb.getMany = async () => [current];
+  qb.getMany = async () => inboxRows;
   const updates = [];
   const documents = {
     uploadSignature: async () => ({ path: '7/11/signatures/sig.png' }),
@@ -166,4 +167,31 @@ test('delivered owner can sign a reservation while tenant payment is pending', a
   await f.service.signAsParty(9, 11, { party: 'owner', signaturePng });
   assert.ok(f.current.owner_signed_at);
   assert.equal(f.current.tenant_signed_at, null);
+});
+
+test('contract inbox includes each active lease next issue date, respecting advance rent and contract end', async (t) => {
+  t.mock.method(rentSchedule, 'bangkokToday', () => '2026-10-07');
+  const first = contract({
+    status: 'active', tenant_delivered_at: new Date(), start_date: '2026-10-15',
+    data: { leaseAgreement: { advanceMonths: '2' } },
+  });
+  const rows = [
+    first,
+    contract({ id: 12, status: 'active', tenant_delivered_at: new Date(),
+      start_date: '2026-01-15', data: { leaseAgreement: { rentDueDay: '5', advanceMonths: '1' } } }),
+    contract({ id: 13, status: 'active', end_date: '2026-10-15' }),
+    contract({ id: 14, status: 'draft' }),
+    contract({ id: 15, status: 'active', template: { form_kind: 'reservation' } }),
+    contract({ id: 16, status: 'active', monthly_rent: '0' }),
+  ];
+  const f = serviceFor(first, rows);
+  const inbox = await f.service.listForUser(8);
+  assert.deepEqual(inbox[0].nextRentBill, {
+    period: '2026-12', issueDate: '2026-12-10', dueDate: '2026-12-15', graceUntil: '2026-12-20',
+  });
+  assert.deepEqual(inbox[1].nextRentBill, {
+    period: '2026-11', issueDate: '2026-10-31', dueDate: '2026-11-05', graceUntil: '2026-11-10',
+  });
+  for (const row of inbox.slice(2)) assert.equal(row.nextRentBill, null);
+  assert.equal(f.updates.length, 0);
 });

@@ -8,6 +8,7 @@ import { TenantEntity } from "./tenant.entity";
 import { LeadEntity } from "./lead.entity";
 import { PropertyOwnerEntity } from "./property-owner.entity";
 import { UserEntity } from "./user.entity";
+import { MasterContractEndReasonEntity } from "./master-contract-end-reason.entity";
 
 export type LeaseContractStatus =
   | "draft"
@@ -36,6 +37,7 @@ export type LeaseContractStatus =
 @Check("chk_agreement_lineage", "((((agreement_kind)::text = 'new'::text) AND (previous_agreement_id IS NULL)) OR (((agreement_kind)::text = 'renewal'::text) AND (previous_agreement_id IS NOT NULL) AND (root_agreement_id IS NOT NULL) AND (previous_agreement_id <> id) AND (root_agreement_id <> id)))")
 @Check("chk_lease_contracts_status", "((status)::text = ANY ((ARRAY['draft'::character varying, 'awaiting_signatures'::character varying, 'awaiting_agent_review'::character varying, 'awaiting_payment'::character varying, 'awaiting_payment_verification'::character varying, 'active'::character varying, 'cancelled'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))")
 @Check("chk_reservation_fee_nonnegative", "(reservation_fee >= (0)::numeric)")
+@Index("idx_contract_end_reason", ["end_reason_id"])
 @Entity({ name: "lease_contracts" })
 export class LeaseContractEntity extends SerialTimestampEntity {
   @Column({ type: "int" }) template_id: number;
@@ -169,6 +171,16 @@ export class LeaseContractEntity extends SerialTimestampEntity {
 
   @Column({ type: "timestamptz", nullable: true })
   terminated_at: Date | null;
+
+  @Column({ type: "int", nullable: true }) end_reason_id: number | null;
+  @ManyToOne(() => MasterContractEndReasonEntity, { onDelete: "RESTRICT", nullable: true })
+  @JoinColumn({ name: "end_reason_id", foreignKeyConstraintName: "lease_contracts_end_reason_id_fkey" }) end_reason: MasterContractEndReasonEntity | null;
+  @Column({ type: "text", nullable: true }) end_reason_note: string | null;
+  @Column({ type: "date", nullable: true }) effective_end_date: string | null;
+  @Column({ type: "timestamptz", nullable: true }) end_recorded_at: Date | null;
+  @Column({ type: "int", nullable: true }) end_recorded_by_user_id: number | null;
+  @ManyToOne(() => UserEntity, { onDelete: "RESTRICT", nullable: true })
+  @JoinColumn({ name: "end_recorded_by_user_id", foreignKeyConstraintName: "lease_contracts_end_recorded_by_user_id_fkey" }) end_recorded_by: UserEntity | null;
 
   @Column({ type: "text", nullable: true })
   notes: string | null;

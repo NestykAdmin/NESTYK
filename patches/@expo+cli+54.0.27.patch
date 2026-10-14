@@ -97,11 +97,54 @@ index 886f915..8affaad 100644
                  'simctl',
                  'help'
 diff --git a/node_modules/@expo/cli/build/src/start/platforms/ios/AppleDeviceManager.js b/node_modules/@expo/cli/build/src/start/platforms/ios/AppleDeviceManager.js
-index 725db8a..6090eaf 100644
+index 725db8a..8dc6946 100644
 --- a/node_modules/@expo/cli/build/src/start/platforms/ios/AppleDeviceManager.js
 +++ b/node_modules/@expo/cli/build/src/start/platforms/ios/AppleDeviceManager.js
-@@ -268,8 +268,18 @@ class AppleDeviceManager extends _DeviceManager.DeviceManager {
+@@ -51,6 +51,7 @@ function _path() {
+     };
+     return data;
+ }
++const _log = /*#__PURE__*/ _interop_require_wildcard(require("../../../log"));
+ const _assertSystemRequirements = require("./assertSystemRequirements");
+ const _ensureSimulatorAppRunning = require("./ensureSimulatorAppRunning");
+ const _getBestSimulator = require("./getBestSimulator");
+@@ -254,6 +255,9 @@ class AppleDeviceManager extends _DeviceManager.DeviceManager {
+                 url,
+                 appId: options.appId
+             });
++            // Reserve this simulator's window before opening the others.
++            await (0, _ensureSimulatorAppRunning.revealDeviceHubWindowAsync)(this.device);
++            await this.openUrlOnOtherBootedSimulatorsAsync(url, options);
+         } catch (error) {
+             // 194 means the device does not conform to a given URL, in this case we'll assume that the desired app is not installed.
+             if (error.status === 194) {
+@@ -266,10 +270,43 @@ class AppleDeviceManager extends _DeviceManager.DeviceManager {
+             throw error;
+         }
      }
++    async openUrlOnOtherBootedSimulatorsAsync(url, options = {}) {
++        let booted = [];
++        try {
++            booted = await _simctl.getBootedSimulatorsAsync();
++        } catch  {
++            return;
++        }
++        for (const device of booted){
++            if (!device?.udid || device.udid === this.device.udid || device.osType && device.osType !== 'iOS') {
++                continue;
++            }
++            try {
++                await (0, _ensureSimulatorAppRunning.revealDeviceHubWindowAsync)(device);
++                await _simctl.openUrlAsync(device, {
++                    url,
++                    appId: options.appId
++                });
++                _log.log(`\u203A Opened on ${device.name} in Device Hub`);
++            } catch (error) {
++                _log.warn(`Could not open on ${device.name}: ${error?.message ?? error}`);
++            }
++        }
++    }
      async activateWindowAsync() {
          await (0, _ensureSimulatorAppRunning.ensureSimulatorAppRunningAsync)(this.device);
 -        // TODO: Focus the individual window
@@ -122,10 +165,23 @@ index 725db8a..6090eaf 100644
      getExpoGoAppId() {
          return EXPO_GO_BUNDLE_IDENTIFIER;
 diff --git a/node_modules/@expo/cli/build/src/start/platforms/ios/ensureSimulatorAppRunning.js b/node_modules/@expo/cli/build/src/start/platforms/ios/ensureSimulatorAppRunning.js
-index 31296bc..47e6cdc 100644
+index 31296bc..a75cd19 100644
 --- a/node_modules/@expo/cli/build/src/start/platforms/ios/ensureSimulatorAppRunning.js
 +++ b/node_modules/@expo/cli/build/src/start/platforms/ios/ensureSimulatorAppRunning.js
-@@ -22,6 +22,13 @@ function _spawnasync() {
+@@ -8,6 +8,12 @@ Object.defineProperty(exports, "ensureSimulatorAppRunningAsync", {
+         return ensureSimulatorAppRunningAsync;
+     }
+ });
++Object.defineProperty(exports, "revealDeviceHubWindowAsync", {
++    enumerable: true,
++    get: function() {
++        return revealDeviceHubWindowAsync;
++    }
++});
+ function _osascript() {
+     const data = /*#__PURE__*/ _interop_require_wildcard(require("@expo/osascript"));
+     _osascript = function() {
+@@ -22,9 +28,20 @@ function _spawnasync() {
      };
      return data;
  }
@@ -139,8 +195,22 @@ index 31296bc..47e6cdc 100644
  const _log = /*#__PURE__*/ _interop_require_wildcard(require("../../../log"));
  const _delay = require("../../../utils/delay");
  const _errors = require("../../../utils/errors");
-@@ -75,14 +82,12 @@ async function ensureSimulatorAppRunningAsync(device, { maxWaitTime } = {}) {
++const _plist = require("../../../utils/plist");
++// UDIDs that already have a Device Hub window this session. Seeded from Simulator prefs.
++const revealedDeviceHubUdids = new Set();
++let revealedDeviceHubUdidsSeed = null;
+ function _interop_require_default(obj) {
+     return obj && obj.__esModule ? obj : {
+         default: obj
+@@ -73,16 +90,110 @@ function _interop_require_wildcard(obj, nodeInterop) {
+ }
+ async function ensureSimulatorAppRunningAsync(device, { maxWaitTime } = {}) {
      if (await isSimulatorAppRunningAsync()) {
++        // Device Hub stays open for the first simulator. Still show this device,
++        // in its own window when another simulator is already on screen.
++        if (device?.udid) {
++            await revealDeviceHubWindowAsync(device);
++        }
          return;
      }
 -    _log.log(`\u203A Opening the iOS simulator, this might take a moment.`);
@@ -153,10 +223,101 @@ index 31296bc..47e6cdc 100644
      })) {
 -        throw new _errors.CommandError('SIMULATOR_TIMEOUT', `Simulator app did not open fast enough. Try opening Simulator first, then running your app.`);
 +        throw new _errors.CommandError('SIMULATOR_TIMEOUT', `Device Hub did not open fast enough. Try opening Device Hub first, then running your app.`);
++    }
++}
++async function revealDeviceHubWindowAsync(device) {
++    if (!device?.udid) {
++        return;
++    }
++    await seedRevealedDeviceHubUdidsAsync();
++    // A window for this simulator is already open. Re-sending the URL would
++    // replace whichever Device Hub window is in front.
++    if (revealedDeviceHubUdids.has(device.udid)) {
++        return;
++    }
++    const geometryCount = revealedDeviceHubUdids.size;
++    const contentWindows = await countDeviceHubContentWindowsAsync();
++    // An extra Device Hub window (from a previous launch) can take this device
++    // without opening yet another one. Simulator prefs only remember one compact window.
++    const needsNewWindow = geometryCount > 0 && contentWindows <= geometryCount;
++    revealedDeviceHubUdids.add(device.udid);
++    if (needsNewWindow) {
++        await openNewDeviceHubWindowAsync();
++    }
++    await openDeviceHubDeviceAsync(device.udid);
++}
++async function seedRevealedDeviceHubUdidsAsync() {
++    if (!revealedDeviceHubUdidsSeed) {
++        revealedDeviceHubUdidsSeed = (async ()=>{
++            for (const udid of await getShownSimulatorUdidsAsync()){
++                revealedDeviceHubUdids.add(udid);
++            }
++        })();
++    }
++    await revealedDeviceHubUdidsSeed;
++}
++async function getShownSimulatorUdidsAsync() {
++    try {
++        const { stdout } = await (0, _spawnasync().default)('defaults', [
++            'export',
++            'com.apple.iphonesimulator',
++            '-'
++        ]);
++        const prefs = (0, _plist.parsePlistBuffer)(Buffer.from(stdout));
++        const devices = prefs?.DevicePreferences ?? {};
++        return Object.entries(devices).filter(([, value])=>value && typeof value === 'object' && value.SimulatorWindowGeometry).map(([udid])=>udid);
++    } catch  {
++        return [];
++    }
++}
++async function openNewDeviceHubWindowAsync() {
++    // File > New Window (⇧⌘N). keystroke "n" misses on a Thai keyboard, so send the N key code.
++    const script = [
++        'tell application "DeviceHub" to activate',
++        'delay 0.3',
++        'tell application "System Events" to key code 45 using {command down, shift down}'
++    ].join('\n');
++    try {
++        await _osascript().execAsync(script);
++        await (0, _delay.delayAsync)(500);
++    } catch (error) {
++        _log.warn(`Could not open another Device Hub window (${error?.message ?? error}). Allow Accessibility for this terminal, or press Shift-Command-N in Device Hub.`);
++    }
++}
++async function openDeviceHubDeviceAsync(udid) {
++    try {
++        await (0, _spawnasync().default)('open', [
++            `devices:///manage/select?id=${encodeURIComponent(udid)}`
++        ]);
++        return true;
++    } catch  {
++        return false;
++    }
++}
++async function countDeviceHubContentWindowsAsync() {
++    try {
++        const { stdout } = await (0, _spawnasync().default)('swift', [
++            '-e',
++            `import CoreGraphics
++let info = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
++var count = 0
++for w in info {
++  let owner = (w[kCGWindowOwnerName as String] as? String) ?? ""
++  guard owner == "Device Hub", let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { continue }
++  let h = b["Height"] ?? 0
++  let width = b["Width"] ?? 0
++  if h >= 640 && width >= 280 && width <= 1800 { count += 1 }
++}
++print(count)`
++        ]);
++        const count = Number.parseInt(stdout.trim(), 10);
++        return Number.isFinite(count) ? count : 0;
++    } catch  {
++        return 0;
      }
  }
  async function waitForSimulatorAppToStart({ maxWaitTime } = {}) {
-@@ -92,10 +97,9 @@ async function waitForSimulatorAppToStart({ maxWaitTime } = {}) {
+@@ -92,10 +203,9 @@ async function waitForSimulatorAppToStart({ maxWaitTime } = {}) {
          action: isSimulatorAppRunningAsync
      });
  }
@@ -168,7 +329,7 @@ index 31296bc..47e6cdc 100644
          if (zeroMeansNo === '0') {
              return false;
          }
-@@ -107,13 +111,53 @@ async function isSimulatorAppRunningAsync() {
+@@ -107,13 +217,47 @@ async function isSimulatorAppRunningAsync() {
      }
      return true;
  }
@@ -184,15 +345,9 @@ index 31296bc..47e6cdc 100644
 +}
  async function openSimulatorAppAsync(device) {
 +    // Xcode 27+: Device Hub replaces Simulator.app. Prefer Device Hub.
-+    if (device.udid) {
-+        try {
-+            await (0, _spawnasync().default)('open', [
-+                `devices://device/open?id=${device.udid}`
-+            ]);
-+            return;
-+        } catch  {
-+        // Fall through to open Device Hub / Simulator.
-+        }
++    if (device.udid && await openDeviceHubDeviceAsync(device.udid)) {
++        revealedDeviceHubUdids.add(device.udid);
++        return;
 +    }
 +    try {
 +        await (0, _spawnasync().default)('open', [

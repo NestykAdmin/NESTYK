@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../auth/guards/auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -31,5 +31,15 @@ export class AgentBillsController {
     @Param("id", ParseIntPipe) id: number,
   ) {
     return this.billing.confirmForAgent(user.id, id);
+  }
+
+  @Post("agent/:id/return")
+  @HttpCode(HttpStatus.OK)
+  returnSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", ParseIntPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.billing.returnForAgent(user.id, id, body);
   }
 }
