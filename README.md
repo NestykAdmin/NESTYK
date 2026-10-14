@@ -74,6 +74,27 @@ npm run dev --filter=@nestyk/api
 npm run dev --filter=@nestyk/consumer-app
 ```
 
+### ฐานข้อมูล Supabase (schema + seed)
+
+`DATABASE_URL` ใน `.env.api` ของ Supabase จริงต้องเป็น Session pooler (`postgres.<project-ref>@aws-0-<region>.pooler.supabase.com:5432`) เพราะ host ตรง `db.<project-ref>.supabase.co` ใช้ได้เฉพาะ IPv6
+
+```bash
+# นำ migration ใน supabase/migrations ที่ยังไม่ได้รันขึ้นฐานข้อมูล (บันทึกใน supabase_migrations.schema_migrations)
+npm run db:push -w @nestyk/api -- --check   # ลองรันแล้ว rollback
+npm run db:push -w @nestyk/api
+
+# ใส่ข้อมูลตั้งต้นใน schema ว่าง: masters = master catalog + แม่แบบสัญญา, demo = ข้อมูลทดสอบ (dev เท่านั้น)
+npm run db:seed -w @nestyk/api -- masters demo
+
+# ตรวจว่า entity ตรงกับฐานข้อมูล
+npm run db:check -w @nestyk/api -- --check
+```
+
+* ทั้งสองสคริปต์ใช้ `.env.api` เป็นค่าเริ่มต้น ระบุไฟล์อื่นด้วย `--env=.env.api.docker`
+* docker ที่มี schema อยู่แล้ว ใช้ `db:push -- --mark-applied` เพื่อบันทึกว่า baseline รันแล้วโดยไม่รันซ้ำ
+* migration ใหม่ให้ตั้งชื่อ `supabase/migrations/<YYYYMMDDHHMMSS>_<ชื่อ>.sql`
+* ผู้ใช้ใน `demo` ใช้ UUID สมมติ เข้าได้เฉพาะ dev token (`ALLOW_DEV_AUTH=true`) เช่น `dev|00000000-0000-4000-8000-000000000001|admin@jitsamrit.com`
+
 ---
 
 ## 🎨 Design Tokens & UI Architecture

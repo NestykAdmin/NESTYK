@@ -9,6 +9,8 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "db:check": "node scripts/check-schema.cjs",
+    "db:push": "node scripts/db-push.cjs",
+    "db:seed": "node scripts/db-seed.cjs",
     "db:contract-deposits": "node scripts/apply-contract-end-deposits.cjs",
     "test:contract-deposits": "node --test test/contract-end-deposits.integration.cjs",
     "test:schema": "node --test test/schema-drift.test.cjs",
