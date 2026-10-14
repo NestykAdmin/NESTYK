@@ -31,7 +31,7 @@ function serviceFixture(extra = []) {
       const params = {}; const clauses = [];
       const qb = {};
       for (const name of ['where', 'andWhere', 'leftJoin', 'orderBy']) qb[name] = (sql, args) => { clauses.push(sql); Object.assign(params, args); return qb; };
-      qb.getCount = async () => clauses.includes('c.previous_agreement_id = :previousId') ? 0 : extra.filter(c => !params.closed.includes(c.status) && params.formKinds.includes(c.formKind) && c.start_date <= params.end && c.end_date >= params.start).length;
+      qb.getCount = async () => clauses.includes('c.previous_agreement_id = :previousId') ? 0 : extra.filter(c => !params.closed.includes(c.status) && params.formKinds.includes(c.formKind) && c.start_date <= params.end && (c.effective_end_date ?? c.end_date ?? '9999-12-31') >= params.start).length;
       qb.getMany = async () => [{ status: 'active', document_url: '7/1/generated/reservation_letter/letter-v1/booked.pdf' }];
       qb.getOne = async () => null;
       return qb;
@@ -114,4 +114,23 @@ test('signed renewal keeps current rent until its term and switches to its own r
   assert.deepEqual(currentRentContracts([old,next], '2026-11-01').map(c=>c.id), [2]);
   assert.deepEqual(openRentBills(next, '2026-10-12'), []);
   assert.equal(openRentBills(next, '2026-11-01')[0].amount, '17000.00');
+});
+
+
+test('rebooking cannot backdate a lease into an ended stay, but may begin after its actual end', async () => {
+  const old = { formKind: 'lease', status: 'terminated', start_date: '2026-09-01', end_date: '2027-08-31', effective_end_date: '2026-10-12' };
+  const input = { leadId: 1, startDate: '2026-10-01', endDate: '2027-09-30', monthlyRent: 15000, deposit: 30000 };
+  await assert.rejects(() => serviceFixture([old]).create(7, input), e => e.getStatus() === 409);
+  assert.equal((await serviceFixture([old]).create(7, { ...input, startDate: '2026-10-13' })).status, 'draft');
+  assert.equal((await serviceFixture([{ ...old, status: 'cancelled' }]).create(7, input)).status, 'draft');
+  await assert.rejects(() => serviceFixture([{ ...old, status: 'expired', effective_end_date: '2026-10-12' }]).create(7, input), e => e.getStatus() === 409);
+});
+
+
+test('renewal rejects corrupt money and day-of-month values instead of persisting inconsistent documents', async () => {
+  for (const patch of [{ monthlyRent: '-1' }, { monthlyRent: 'NaN' }, { monthlyRent: 'Infinity' }, { monthlyRent: '10000000000' }, { depositCarried: '-1' }, { dueDay: '00' }, { dueDay: '99' }]) {
+    await assert.rejects(() => createRenewal(serviceFixture(), patch), e => e.getStatus() === 400);
+  }
+  const c = await createRenewal(serviceFixture(), { monthlyRent: '15,500.50', depositCarried: '0', dueDay: '31' });
+  assert.equal(c.monthly_rent, '15500.50'); assert.equal(c.deposit, '0.00');
 });

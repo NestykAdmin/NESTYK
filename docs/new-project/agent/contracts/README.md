@@ -293,3 +293,9 @@ file as removed after checking agent ownership and locking the agreement. Requir
 checklist files use replacement instead. Removed files cannot be opened, reused,
 reviewed or used to satisfy a checklist, and removing a replacement never revives
 its older file. Revision records remain stored internally.
+
+## API ปิดสัญญา (2026-10-14)
+
+ดู [api-close.md](./api-close.md) สำหรับเหตุผล, endpoint, นโยบายเก็บบิลเดิม, booking release, migration และ tests ดู [ผลตรวจ flow](./flow-audit-2026-10-14.md) สำหรับรายการบัคที่แก้และที่ยังเหลือ
+
+ผลแก้บัคและตรวจ API/flow ล่าสุด: [14 ตุลาคม 2026](../../../api-audits/2026-10-14-role-api-fixes.md)

@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import type { TenantBill, TenantNextBill } from "@nestyk/types";
+import type { AgentTenantBilling, TenantBill, TenantNextBill } from "@nestyk/types";
 import { ensureAgentSession } from "./agent-session";
 import { apiGet, apiPost, apiRequest } from "./api";
 
@@ -26,6 +26,11 @@ export function openReceivedBillSlip(id: number): Promise<{ url: string }> {
 export async function listAgentRentSlips(): Promise<TenantBill[]> {
   await ensureAgentSession();
   return apiGet("/bills/agent");
+}
+
+export async function getAgentTenantBilling(tenantId: number): Promise<AgentTenantBilling> {
+  await ensureAgentSession();
+  return apiGet(`/bills/agent/tenants/${tenantId}`);
 }
 
 export async function openAgentRentSlip(id: number): Promise<{ url: string }> {

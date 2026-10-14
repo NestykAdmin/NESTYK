@@ -52,6 +52,7 @@ export function ContractTypePicker({
   const { theme } = useMobileTheme();
   const { t } = useLocale();
   const pc = t.contracts.picker;
+  const library = t.contracts.screen.library;
   return (
     <View style={styles.root}>
       <MobileButton variant="outline" onPress={onBack}>
@@ -70,39 +71,25 @@ export function ContractTypePicker({
           </Text>
         )}
       </View>
-      <View style={styles.grid}>
-        {CREATE_OPTIONS.map((option) => {
-          const label = option.label
-            ? pc[option.label]
-            : t.agent.contracts.commissionConfirmation.menu;
+      {([
+        { title: library.rental, kinds: ["reservation", "lease", "renewal"] },
+        { title: library.finance, kinds: ["invoice"] },
+        { title: library.brokerage, kinds: ["broker_appointment", "agent_commission"] },
+      ]).map(group => <View key={group.title} style={styles.group}>
+        <Text style={[styles.groupTitle, { color: theme.textHeading }]}>{group.title}</Text>
+        {CREATE_OPTIONS.filter(option => group.kinds.includes(option.kind)).map(option => {
+          const label = option.label ? pc[option.label] : t.agent.contracts.commissionConfirmation.menu;
           const disabled = disabledKinds.includes(option.kind);
-          return (
-          <Pressable
-            key={option.kind}
-            accessibilityRole="button"
-            accessibilityState={{ disabled }}
-            accessibilityLabel={fillTemplate(pc.createA11y, { label })}
-            disabled={disabled}
-            onPress={() => onSelect(option.kind)}
-            style={({ pressed }) => [
-              styles.tile,
-              disabled && styles.tileDisabled,
-              { opacity: disabled ? 1 : pressed ? 0.75 : 1 },
-            ]}
-          >
-            <MobileIcon
-              name={option.icon}
-              size={30}
-              color={disabled ? "#64748B" : "#FFFFFF"}
-              weight="regular"
-            />
-            <Text style={[styles.label, disabled && styles.labelDisabled]}>
-              {label}
-            </Text>
-          </Pressable>
-          );
+          return <Pressable key={option.kind} accessibilityRole="button" accessibilityState={{ disabled }}
+            accessibilityLabel={fillTemplate(pc.createA11y, { label })} disabled={disabled}
+            onPress={() => onSelect(option.kind)} style={({ pressed }) => [styles.tile, disabled && styles.tileDisabled, { opacity: disabled ? 0.65 : pressed ? 0.75 : 1 }]}>
+            <View style={styles.icon}><MobileIcon name={option.icon} size={23} color={disabled ? "#64748B" : "#A66B00"} weight="regular" /></View>
+            <Text style={[styles.label, disabled && styles.labelDisabled]}>{label}</Text>
+            <MobileIcon name="chevron-right" size={18} color="#64748B" />
+          </Pressable>;
         })}
-      </View>
+        {group.title === library.finance && <Text style={[styles.description, { color: theme.textSecondary }]}>{library.autoFinanceHint}</Text>}
+      </View>)}
       {!!disabledHint && (
         <Text style={[styles.description, { color: theme.textSecondary }]}>
           {disabledHint}
@@ -113,7 +100,7 @@ export function ContractTypePicker({
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 22, paddingBottom: 24 },
+  root: { gap: 22, paddingBottom: 24, backgroundColor: "#FFFFFF" },
   heading: { gap: 6 },
   title: {
     fontFamily: tokens.typography.native.headingTh,
@@ -131,25 +118,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: "#C74747",
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  group: { gap: 10 },
+  groupTitle: { fontFamily: tokens.typography.native.headingTh, fontSize: 17, lineHeight: 26 },
   tile: {
-    width: "31%",
-    maxWidth: 160,
-    aspectRatio: 1,
-    borderRadius: 20,
-    backgroundColor: "#008CC4",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 10,
-    gap: 10,
+    flexDirection: "row", alignItems: "center", gap: 12, padding: 14,
+    borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 16, backgroundColor: "#FFFFFF",
   },
-  label: {
-    fontFamily: tokens.typography.native.headingTh,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: "center",
-    color: "#FFFFFF",
-  },
-  tileDisabled: { backgroundColor: "#E5E7EB" },
+  icon: { backgroundColor: "#FFF6DC", padding: 10, borderRadius: 12 },
+  label: { flex: 1, fontFamily: tokens.typography.native.headingTh, fontSize: 14, lineHeight: 22, color: "#334155" },
+  tileDisabled: { backgroundColor: "#F8FAFC" },
   labelDisabled: { color: "#64748B" },
 });

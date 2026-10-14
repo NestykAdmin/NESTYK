@@ -6,10 +6,7 @@ require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
 const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
 const rentSchedule = require('../src/billing/rent-schedule.ts');
 
-const png = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.alloc(40, 1),
-]);
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEElEQVQImWNgYGD4D8UQBgAd9AP9JAD7OgAAAABJRU5ErkJggg==', 'base64');
 const signaturePng = `data:image/png;base64,${png.toString('base64')}`;
 
 function contract(overrides = {}) {
@@ -194,4 +191,14 @@ test('contract inbox includes each active lease next issue date, respecting adva
   });
   for (const row of inbox.slice(2)) assert.equal(row.nextRentBill, null);
   assert.equal(f.updates.length, 0);
+});
+
+
+test('a delivered party cannot commit a corrupt PNG and can retry with a readable signature', async () => {
+  const f = serviceFor(contract({ tenant_delivered_at: new Date() }));
+  const invalid = Buffer.concat([png.subarray(0, 8), Buffer.alloc(40, 1)]).toString('base64');
+  await assert.rejects(() => f.service.signAsParty(8, 11, { party: 'tenant', signaturePng: invalid }), e => e.getStatus() === 400);
+  assert.equal(f.updates.length, 0); assert.equal(f.current.tenant_signed_at, null);
+  await f.service.signAsParty(8, 11, { party: 'tenant', signaturePng });
+  assert.ok(f.current.tenant_signed_at);
 });

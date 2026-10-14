@@ -1,10 +1,10 @@
+import { DatabaseIdPipe } from '../common/database-id.pipe';
 import {
   Controller,
   Get,
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Post,
   UploadedFile,
   UseGuards,
@@ -40,7 +40,7 @@ export class TenantBillsController {
   @Get("mine/:id/payment-slip")
   paymentSlipUrl(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.billing.paymentSlipUrl(user.id, id);
   }
@@ -52,7 +52,7 @@ export class TenantBillsController {
   }))
   uploadPaymentSlip(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
   ) {
     return this.billing.uploadPaymentSlip(user.id, id, file);
@@ -62,7 +62,7 @@ export class TenantBillsController {
   @HttpCode(HttpStatus.OK)
   confirm(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.billing.submitForTenant(user.id, id);
   }

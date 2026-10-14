@@ -16,14 +16,10 @@ import { localizedError, useLocale } from "@nestyk/i18n";
 import { getAgentTenant, listAgentTenants, updateAgentTenant } from "../lib/agent-tenants-api";
 import { nextIdentityNumberDraft } from "../lib/identity-number";
 import { billFormatters } from "../lib/bill-format";
-import { confirmAgentRentSlip, listAgentRentSlips, openAgentRentSlip, returnAgentRentSlip } from "../lib/tenant-bills-api";
-import { TENANT_BILLING_DEMO, demoTenantBilling } from "../lib/tenant-billing-demo";
+import { confirmAgentRentSlip, getAgentTenantBilling, listAgentRentSlips, openAgentRentSlip, returnAgentRentSlip } from "../lib/tenant-bills-api";
 import {
-  confirmBill,
   tenantLease,
   tenantNextAction,
-  tenantSlips,
-  withLiveSlips,
   type TenantNextAction,
   type TenantSection,
 } from "../lib/tenant-detail";
@@ -150,18 +146,27 @@ export function AgentTenantsScreen({
   /** Rent slips waiting for this agent's review, across all tenants (`GET /bills/agent`). */
   const [slips, setSlips] = useState<TenantBill[]>([]);
   const [billing, setBilling] = useState<AgentTenantBilling | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingReload, setBillingReload] = useState(0);
   const [paymentNotice, setPaymentNotice] = useState("");
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const [slipPreview, setSlipPreview] = useState<{ url: string; title: string } | null>(null);
   useEffect(() => {
+    let cancelled = false;
+    setBilling(null);
+    setBillingLoading(Boolean(selected));
     if (!selected) {
-      setBilling(null);
       return;
     }
-    setBilling(
-      withLiveSlips(TENANT_BILLING_DEMO ? demoTenantBilling(selected) : null, tenantSlips(selected, slips)),
-    );
-  }, [selected, slips]);
+    void getAgentTenantBilling(selected.id).then(data => {
+      if (!cancelled) setBilling(data);
+    }).catch(e => {
+      if (!cancelled) setError(localizedError(e, c.list.slipsLoadError, locale));
+    }).finally(() => {
+      if (!cancelled) setBillingLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [selected, billingReload, reloadToken]);
   useEffect(() => setPaymentNotice(""), [section, selected?.id]);
   /** Null until the agent picks a tab: then it follows whether there is open work. */
   const [view, setView] = useState<TenantListView | null>(null);
@@ -439,7 +444,7 @@ export function AgentTenantsScreen({
       try {
         await confirmAgentRentSlip(bill.id);
         setSlips((current) => current.filter((row) => row.id !== bill.id));
-        setBilling((current) => (current ? confirmBill(current, bill.id) : current));
+        setBillingReload(current => current + 1);
         setPaymentNotice(d.confirmedNotice.replace("{month}", fmt.month(bill.period)));
         return true;
       } catch (e) {
@@ -457,6 +462,7 @@ export function AgentTenantsScreen({
       try {
         await returnAgentRentSlip(bill.id, reason);
         setSlips((current) => current.filter((row) => row.id !== bill.id));
+        setBillingReload(current => current + 1);
         setPaymentNotice(d.rejectedNotice);
         return true;
       } catch (e) {
@@ -498,11 +504,13 @@ export function AgentTenantsScreen({
           entering={FadeIn.duration(150)}
           style={s.section}
         >
-        {section === null ? (
+        {(section === null || section === 'bills' || section === 'payments') && billingLoading ? (
+          <ActivityIndicator size="small" color={theme.textHeading} />
+        ) : section === null ? (
           <TenantDetailHub
             tenant={selected}
             billing={billing}
-            demo={TENANT_BILLING_DEMO}
+            demo={false}
             nextAction={tenantNextAction(selected, billing)}
             onOpen={(next) => {
               setNotice("");
@@ -517,13 +525,13 @@ export function AgentTenantsScreen({
           <TenantBillsBody
             billing={billing}
             leaseActive={tenantLease(selected)?.status === "active"}
-            demo={TENANT_BILLING_DEMO}
+            demo={false}
             onReview={() => setSection("payments")}
           />
         ) : section === "payments" ? (
           <TenantPaymentsBody
             billing={billing}
-            demo={TENANT_BILLING_DEMO}
+            demo={false}
             notice={paymentNotice}
             confirmingId={confirmingId}
             onConfirm={confirmSlip}

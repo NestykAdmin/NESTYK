@@ -1,4 +1,5 @@
 import { validateNearbyPlaces, validCoordinates, distanceMeters } from '../places/nearby-places';
+import { validateRoomInput } from './room-input';
 import type { NearbyPlace } from '@nestyk/types';
 import { RoomPhotoStorageService } from './room-photo-storage.service';
 import {
@@ -412,6 +413,7 @@ export class AgentRoomsService {
   }
 
   private validateCreateBody(body: CreateRoomBody) {
+    validateRoomInput(body);
     if (body.nearbyPlaces !== undefined) validateNearbyPlaces(body.nearbyPlaces);
     if ((body.latitude !== undefined || body.longitude !== undefined) && !validCoordinates(body.latitude, body.longitude)) throw new BadRequestException('Valid latitude and longitude required');
     if (body.listingDescription !== undefined && (typeof body.listingDescription !== 'string' || body.listingDescription.length > 10000)) {

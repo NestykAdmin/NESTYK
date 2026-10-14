@@ -1,3 +1,5 @@
+import { SingleQueryPipe } from '../../common/single-query.pipe';
+import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import {
   BadRequestException,
   Body,
@@ -6,7 +8,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Post,
   Query,
   UploadedFile,
@@ -45,6 +46,15 @@ function receiptPayload(body: unknown): unknown {
 @Roles("agent")
 export class AgentContractsController {
   constructor(private readonly contracts: AgentContractsService) {}
+  @Get("end-reasons")
+  endReasons() {
+    return this.contracts.endReasons();
+  }
+  @Post(":id/close")
+  @HttpCode(HttpStatus.OK)
+  close(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Body() body: unknown) {
+    return this.contracts.close(user.id, id, body);
+  }
   @Get("types") types() {
     return this.contracts.types();
   }
@@ -53,7 +63,7 @@ export class AgentContractsController {
   }
   @Get(":id/history") history(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.history(user.id, id);
   }
@@ -61,24 +71,24 @@ export class AgentContractsController {
     return this.contracts.candidates(user.id);
   }
   @Get("owner-users")
-  ownerUsers(@Query("q") q?: string) {
+  ownerUsers(@Query("q", SingleQueryPipe) q?: string) {
     return this.contracts.searchOwnerUsers(q ?? "");
   }
   @Get("reservation-defaults/:leadId") reservationDefaults(
     @CurrentUser() user: AuthRequestUser,
-    @Param("leadId", ParseIntPipe) leadId: number,
+    @Param("leadId", DatabaseIdPipe) leadId: number,
   ) {
     return this.contracts.reservationDefaults(user.id, leadId);
   }
   @Get("broker-appointment-defaults/:leadId") brokerAppointmentDefaults(
     @CurrentUser() user: AuthRequestUser,
-    @Param("leadId", ParseIntPipe) leadId: number,
+    @Param("leadId", DatabaseIdPipe) leadId: number,
   ) {
     return this.contracts.brokerAppointmentDefaults(user.id, leadId);
   }
   @Get("lease-defaults/:leadId") leaseDefaults(
     @CurrentUser() user: AuthRequestUser,
-    @Param("leadId", ParseIntPipe) leadId: number,
+    @Param("leadId", DatabaseIdPipe) leadId: number,
   ) {
     return this.contracts.leaseDefaults(user.id, leadId);
   }
@@ -117,7 +127,7 @@ export class AgentContractsController {
   @Get("invoices/:invoiceId/receipt-defaults")
   receiptDefaults(
     @CurrentUser() user: AuthRequestUser,
-    @Param("invoiceId", ParseIntPipe) invoiceId: number,
+    @Param("invoiceId", DatabaseIdPipe) invoiceId: number,
   ) {
     return this.contracts.receiptDefaults(user.id, invoiceId);
   }
@@ -130,7 +140,7 @@ export class AgentContractsController {
   )
   createReceipt(
     @CurrentUser() user: AuthRequestUser,
-    @Param("invoiceId", ParseIntPipe) invoiceId: number,
+    @Param("invoiceId", DatabaseIdPipe) invoiceId: number,
     @UploadedFile() file: { buffer: Buffer; size: number } | undefined,
     @Body() body: unknown,
   ) {
@@ -143,7 +153,7 @@ export class AgentContractsController {
   }
   @Get(":id") view(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.view(user.id, id);
   }
@@ -151,24 +161,24 @@ export class AgentContractsController {
     return this.contracts.create(user.id, body);
   }
   @Get(":id/draft-template")
-  draftTemplate(@CurrentUser() user: AuthRequestUser, @Param("id", ParseIntPipe) id: number) {
+  draftTemplate(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number) {
     return this.contracts.draftTemplate(user.id, id);
   }
   @Post(":id/draft")
   @HttpCode(HttpStatus.OK)
-  updateDraft(@CurrentUser() user: AuthRequestUser, @Param("id", ParseIntPipe) id: number, @Body() body: unknown) {
+  updateDraft(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Body() body: unknown) {
     return this.contracts.updateDraft(user.id, id, body);
   }
   @Post(":id/cancel-draft")
   @HttpCode(HttpStatus.OK)
-  cancelDraft(@CurrentUser() user: AuthRequestUser, @Param("id", ParseIntPipe) id: number, @Body() body: unknown) {
+  cancelDraft(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Body() body: unknown) {
     return this.contracts.cancelDraft(user.id, id, body);
   }
   @Post(":id/reservation-preview")
   @HttpCode(HttpStatus.OK)
   reservationPreview(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.reservationPdf(user.id, id, false);
   }
@@ -176,7 +186,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   generateReservation(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.reservationPdf(user.id, id, true);
   }
@@ -184,7 +194,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   brokerAppointmentPreview(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.brokerAppointmentPdf(user.id, id, false);
   }
@@ -192,7 +202,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   generateBrokerAppointment(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.brokerAppointmentPdf(user.id, id, true);
   }
@@ -200,7 +210,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   leaseRenewalPreview(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.leaseRenewalPdf(user.id, id, false);
   }
@@ -208,7 +218,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   generateLeaseRenewal(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.leaseRenewalPdf(user.id, id, true);
   }
@@ -216,7 +226,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   leasePreview(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.leaseAgreementPdf(user.id, id, false);
   }
@@ -224,7 +234,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   generateLease(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.leaseAgreementPdf(user.id, id, true);
   }
@@ -232,7 +242,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   sign(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() body: unknown,
   ) {
     return this.contracts.sign(user.id, id, body);
@@ -241,7 +251,7 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   deliver(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() body: unknown,
   ) {
     return this.contracts.deliverToParty(user.id, id, body);
@@ -250,18 +260,18 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   createSignInvite(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() body: unknown,
   ) {
     return this.contracts.createSignInvite(user.id, id, body);
   }
   @Get(":id/financial-documents/:kind")
-  financialDefaults(@CurrentUser() user: AuthRequestUser, @Param("id", ParseIntPipe) id: number, @Param("kind") kind: string) {
+  financialDefaults(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Param("kind") kind: string) {
     return this.contracts.financialDocumentDefaults(user.id, id, kind);
   }
   @Post(":id/financial-documents/:kind")
   @HttpCode(HttpStatus.OK)
-  generateFinancial(@CurrentUser() user: AuthRequestUser, @Param("id", ParseIntPipe) id: number, @Param("kind") kind: string, @Body() body: unknown) {
+  generateFinancial(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Param("kind") kind: string, @Body() body: unknown) {
     return this.contracts.generateFinancialDocument(user.id, id, kind, body);
   }
   @Post(":id/documents/:kind")
@@ -273,7 +283,7 @@ export class AgentContractsController {
   )
   uploadDocument(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Param("kind") kind: string,
     @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
   ) {

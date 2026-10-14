@@ -1,3 +1,4 @@
+import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MAX_ROOM_PHOTO_BYTES, RoomPhotoStorageService } from './room-photo-storage.service';
 import {
@@ -12,7 +13,6 @@ import {
   Post,
   Patch,
   Param,
-  ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../../auth/guards/auth.guard';
@@ -94,7 +94,7 @@ export class AgentRoomsController {
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: AuthRequestUser, @Param('id', ParseIntPipe) id: number,
+  update(@CurrentUser() user: AuthRequestUser, @Param('id', DatabaseIdPipe) id: number,
     @Body() body: CreateRoomBody, @Req() request: { protocol: string; get(name: string): string }) {
     return this.roomsService.createScoutRoom(user, body, `${request.protocol}://${request.get('host')}`, id);
   }

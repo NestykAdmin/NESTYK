@@ -1,0 +1,1179 @@
+{
+  "mode": "read_only_database_synthetic_identity",
+  "routeCount": 119,
+  "checkedCount": 55,
+  "routes": [
+    {
+      "controller": "AgentContractsController",
+      "handler": "endReasons",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/end-reasons",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "endReasons"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "types",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "types"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "templates",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/types/:code/templates",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "templates"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "history",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/history",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "history"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "candidates",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/candidates",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "candidates"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "ownerUsers",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/owner-users",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "ownerUsers"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "reservationDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/reservation-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "reservationDefaults"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "brokerAppointmentDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/broker-appointment-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "brokerAppointmentDefaults"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "leaseDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/lease-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "leaseDefaults"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "list"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "nextInvoiceNumber",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/invoices/next-number",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "nextInvoiceNumber"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "listInvoices",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/invoices",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "listInvoices"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "nextCommissionNumber",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/commission-confirmations/next-number",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "nextCommissionNumber"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "listCommissionConfirmations",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/commission-confirmations",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "listCommissionConfirmations"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "receiptDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/invoices/:invoiceId/receipt-defaults",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "receiptDefaults"
+          },
+          "message": "ไม่พบใบแจ้งหนี้"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "view"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "draftTemplate",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/draft-template",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "draftTemplate"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "financialDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/financial-documents/:kind",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "financialDefaults"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "list"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "brokerAppointmentDefaults",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments/broker-appointment/defaults",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "brokerAppointmentDefaults"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "url",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments/:documentId/url",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "url"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "mine",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "mine"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "mine"
+          }
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "ownedRooms",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/rooms",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "ownedRooms"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "ownedRooms"
+          }
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "listAttachments",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/attachments",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 404,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "listAttachments"
+          },
+          "message": "ไม่พบสัญญา"
+        },
+        "owner": {
+          "status": 404,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "listAttachments"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "attachmentUrl",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/attachments/:documentId/url",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 404,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "attachmentUrl"
+          },
+          "message": "ไม่พบสัญญา"
+        },
+        "owner": {
+          "status": 404,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "attachmentUrl"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "financialDocument",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/financial-documents/:kind",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 404,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "financialDocument"
+          },
+          "message": "ไม่พบสัญญา"
+        },
+        "owner": {
+          "status": 404,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "financialDocument"
+          },
+          "message": "ไม่พบสัญญา"
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "locations",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/locations",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "locations"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "visaTypes",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/visa-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "visaTypes"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "list"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "view"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "settings",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/match-settings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "LeadMatchingController",
+            "handler": "settings"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "latest",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/match-runs/latest",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "LeadMatchingController",
+            "handler": "latest"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "LeadViewingsController",
+      "handler": "listForLead",
+      "file": "apps/api/src/agent/leads/lead-viewings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/viewings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "LeadViewingsController",
+            "handler": "listForLead"
+          },
+          "message": "Lead not found"
+        }
+      }
+    },
+    {
+      "controller": "LeadViewingsController",
+      "handler": "range",
+      "file": "apps/api/src/agent/leads/lead-viewings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/viewings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "LeadViewingsController",
+            "handler": "range"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentListingsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/listings/agent-listings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentListingsController",
+            "handler": "view"
+          },
+          "message": "Room not found"
+        }
+      }
+    },
+    {
+      "controller": "AgentListingsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/listings/agent-listings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentListingsController",
+            "handler": "list"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomShareLinksController",
+      "handler": "list",
+      "file": "apps/api/src/agent/listings/room-share-links.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings/:id/share-links",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentRoomShareLinksController",
+            "handler": "list"
+          },
+          "message": "Room not found"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listProperties",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/properties",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listProperties"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listPropertyTypes",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/property-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listPropertyTypes"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listContractTypes",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/contract-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listContractTypes"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listRoomTypes",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/room-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listRoomTypes"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listFacilities",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/facilities",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listFacilities"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listContacts",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/contacts",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listContacts"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listPropertyOwners",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/property-owners",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listPropertyOwners"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "leads",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants/leads",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "leads"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "rooms",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants/rooms",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "rooms"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "list"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 500,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "view"
+          },
+          "message": "Internal server error"
+        }
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "awaiting",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/agent",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentBillsController",
+            "handler": "awaiting"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/agent/:id/payment-slip",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 404,
+          "handler": {
+            "controller": "AgentBillsController",
+            "handler": "paymentSlipUrl"
+          },
+          "message": "ไม่พบบิล"
+        }
+      }
+    },
+    {
+      "controller": "OwnerBillsController",
+      "handler": "received",
+      "file": "apps/api/src/billing/owner-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/received",
+      "roles": [
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "OwnerBillsController",
+            "handler": "received"
+          }
+        }
+      }
+    },
+    {
+      "controller": "OwnerBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/owner-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/received/:id/payment-slip",
+      "roles": [
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "owner": {
+          "status": 404,
+          "handler": {
+            "controller": "OwnerBillsController",
+            "handler": "paymentSlipUrl"
+          },
+          "message": "ไม่พบบิล"
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "mine",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/mine",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "mine"
+          }
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "next",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/mine/next",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "next"
+          }
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/mine/:id/payment-slip",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 404,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "paymentSlipUrl"
+          },
+          "message": "ไม่พบบิล"
+        }
+      }
+    }
+  ]
+}

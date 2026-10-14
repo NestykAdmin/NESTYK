@@ -17,6 +17,15 @@ export async function getAgentContract(id: number): Promise<AgentContract> {
   await ensureAgentSession();
   return apiGet(`/agent/contracts/${id}`);
 }
+export async function listContractEndReasons(): Promise<import("@nestyk/types").ContractEndReason[]> {
+  await ensureAgentSession();
+  return apiGet("/agent/contracts/end-reasons");
+}
+export async function closeAgentContract(id: number, input: import("@nestyk/types").CloseAgentContract):
+  Promise<import("@nestyk/types").CloseAgentContractResult> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/close`, input);
+}
 export async function listContractCandidates(): Promise<ContractCandidate[]> {
   await ensureAgentSession();
   return apiGet("/agent/contracts/candidates");

@@ -1,3 +1,4 @@
+import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import {
   Body,
   Controller,
@@ -5,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Post,
   UploadedFile,
   UseGuards,
@@ -45,7 +45,7 @@ export class PartyContractsController {
   @Get("mine/:id/attachments")
   async listAttachments(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     const { contract } = await this.contracts.contractForParty(user.id, id);
     return this.attachments.checklistForContract(contract);
@@ -54,8 +54,8 @@ export class PartyContractsController {
   @Get("mine/:id/attachments/:documentId/url")
   async attachmentUrl(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
-    @Param("documentId", ParseIntPipe) documentId: number,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("documentId", DatabaseIdPipe) documentId: number,
   ) {
     const { contract } = await this.contracts.contractForParty(user.id, id);
     return this.attachments.urlForContract(contract, documentId);
@@ -74,7 +74,7 @@ export class PartyContractsController {
   )
   async uploadAttachment(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() input: unknown,
     @UploadedFile()
     file: { buffer: Buffer; size: number; originalname?: string } | undefined,
@@ -96,7 +96,7 @@ export class PartyContractsController {
   @HttpCode(HttpStatus.OK)
   document(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.documentForParty(user.id, id);
   }
@@ -104,7 +104,7 @@ export class PartyContractsController {
   @Get("mine/:id/financial-documents/:kind")
   financialDocument(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Param("kind") kind: string,
   ) {
     return this.contracts.financialDocumentForParty(user.id, id, kind);
@@ -117,7 +117,7 @@ export class PartyContractsController {
   }))
   paymentSlip(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
   ) {
     return this.contracts.uploadReservationPaymentSlip(user.id, id, file);
@@ -127,7 +127,7 @@ export class PartyContractsController {
   @HttpCode(HttpStatus.OK)
   sign(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() body: unknown,
   ) {
     return this.contracts.signAsParty(user.id, id, body);

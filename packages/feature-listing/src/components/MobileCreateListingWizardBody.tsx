@@ -362,6 +362,9 @@ export const MobileCreateListingWizardBody: React.FC<
   );
   const [promoLocaleTouched, setPromoLocaleTouched] = useState(false);
   const promoAbortRef = useRef<AbortController | null>(null);
+  const [propertyName, setPropertyName] = useState('');
+  const [address, setAddress] = useState('');
+  const [district, setDistrict] = useState('');
   const loadFacilities = async () => {
     if (!listFacilities) return;
     setFacilitiesLoading(true); setFacilityError('');
@@ -405,9 +408,6 @@ export const MobileCreateListingWizardBody: React.FC<
   ]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const [propertyName, setPropertyName] = useState('');
-  const [address, setAddress] = useState('');
-  const [district, setDistrict] = useState('');
   const [province, setProvince] = useState('');
   const [subdistrict, setSubdistrict] = useState('');
   const [postalCode, setPostalCode] = useState('');

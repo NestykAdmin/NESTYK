@@ -1,3 +1,4 @@
+import { validateSignaturePng } from './signature-image';
 import { financialKind, validateFinancialDocument, buildReceiptFromInvoice, financialTotals } from "./financial-document";
 import { createFinancialPdf } from "./financial-pdf";
 import { reservationInvoice } from "./reservation-invoice";
@@ -73,6 +74,7 @@ import { asIsoDate, isIsoDate, leaseTermEnd, shiftIsoDate } from "./lease-term";
 import { validateReservationLetter, emptyReservationLetter, stampReservationDocumentHeader, bangkokDate } from "./reservation-letter";
 import { ensurePartyLogin } from "./party-login";
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
+import { closeLeaseContract, contractEndReasons } from "./contract-closure";
 import { bangkokToday } from "../../billing/rent-schedule";
 import type {
   AgentContract,
@@ -217,7 +219,7 @@ export async function invoicePayer(
 ) {
   if (tenantId == null || tenantId === "") return null;
   const id = Number(tenantId);
-  if (!Number.isSafeInteger(id) || id < 1)
+  if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647)
     throw new BadRequestException("ไม่พบผู้เช่า");
   const tenant = await manager.findOne(TenantEntity, {
     where: { id, created_by_user_id: agentId },
@@ -314,10 +316,10 @@ export async function nextContractNo(
   return formatContractNo(prefix, year, lastSeq + 1);
 }
 
-export function validateSign(input: unknown): {
+export async function validateSign(input: unknown): Promise<{
   parties: AgentContractSignParty[];
   png: Buffer;
-} {
+}> {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new BadRequestException("กรุณาระบุข้อมูลลายเซ็น");
   const b = input as Record<string, unknown>;
@@ -346,7 +348,7 @@ export function validateSign(input: unknown): {
     png.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a"
   )
     throw new BadRequestException("ลายเซ็นต้องเป็นไฟล์ PNG");
-  return { parties, png };
+  return { parties, png: await validateSignaturePng(png) };
 }
 
 export function validateContract(
@@ -554,8 +556,7 @@ export class AgentContractsService {
   }
   /** After a stamped letter exists, the agreement is view-only. */
   private assertDocumentMutable(c: LeaseContractEntity) {
-    if (c.status === "cancelled")
-      throw new BadRequestException("ยกเลิกสัญญาแล้ว ไม่สามารถแก้ไขเอกสารได้");
+    this.assertNotEnded(c);
     if (
       this.reservationDocument(c)?.status === "ready" ||
       reservationLetterFinalized(c)
@@ -587,6 +588,11 @@ export class AgentContractsService {
       )
     )
       throw new BadRequestException("สร้างหนังสือต่อสัญญาแล้ว แก้ไขไม่ได้");
+  }
+
+  private assertNotEnded(c: LeaseContractEntity) {
+    if (["cancelled", "expired", "terminated"].includes(c.status))
+      throw new BadRequestException("สัญญานี้สิ้นสุดแล้ว ไม่สามารถสร้างหรือแก้ไขเอกสารใหม่ได้");
   }
 
   private serialize(
@@ -779,6 +785,7 @@ export class AgentContractsService {
         "ยังไม่ได้ตั้งค่าที่เก็บเอกสารสัญญา",
       );
     if (state.status === "ready") return this.view(agentId, id);
+    this.assertNotEnded(c);
     // Always rebuild from the current letter fields so 「ดูหนังสือจอง」
     // shows the filled template, not a stale blank/mock preview.
     const serialized = this.serialize(c);
@@ -883,6 +890,7 @@ export class AgentContractsService {
         "ยังไม่ได้ตั้งค่าที่เก็บเอกสารสัญญา",
       );
     if (state.status === "ready") return this.view(agentId, id);
+    this.assertNotEnded(c);
     const saved = (c.data?.brokerAppointment ?? null) as
       | BrokerAppointmentInput
       | null;
@@ -967,6 +975,7 @@ export class AgentContractsService {
     if (!this.documents)
       throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสารสัญญา");
     if (state.status === "ready") return this.view(agentId, id);
+    this.assertNotEnded(c);
     const data = this.renewalPreviewInput(c);
     const base = await createLeaseRenewalPdf(data);
     let pdf = base;
@@ -1042,6 +1051,7 @@ export class AgentContractsService {
         "ยังไม่ได้ตั้งค่าที่เก็บเอกสารสัญญา",
       );
     if (state.status === "ready") return this.view(agentId, id);
+    this.assertNotEnded(c);
     const saved = (c.data?.leaseAgreement ?? null) as LeaseAgreementInput | null;
     if (!saved)
       throw new BadRequestException("ไม่พบข้อมูลฟอร์มสัญญาเช่า");
@@ -1278,7 +1288,7 @@ export class AgentContractsService {
         let tenantId: number | null = null;
         if (body.tenantId != null && body.tenantId !== "") {
           const id = Number(body.tenantId);
-          if (!Number.isSafeInteger(id) || id < 1)
+          if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647)
             throw new BadRequestException("ไม่พบผู้เช่า");
           const tenant = await manager.findOne(TenantEntity, {
             where: { id, created_by_user_id: agentId },
@@ -1573,17 +1583,26 @@ export class AgentContractsService {
       documentKind,
       file,
     );
-    await this.db
-      .getRepository(LeaseContractEntity)
-      .update(
-        { id: c.id, created_by_user_id: agentId },
-        {
-          [DOCUMENT_COLUMNS[documentKind]]: stored.path,
-          ...(file?.originalname ? {
-            data: () => `COALESCE(data, '{}'::jsonb) || jsonb_build_object('documentFileNames', COALESCE(data->'documentFileNames', '{}'::jsonb) || ${"'" + JSON.stringify({ [documentKind]: file.originalname }).replace(/'/g, "''") + "'"}::jsonb)`,
-          } : {}),
-        },
-      );
+    try {
+      const result = await this.db
+        .getRepository(LeaseContractEntity)
+        .update(
+          { id: c.id, created_by_user_id: agentId, status: c.status,
+            [DOCUMENT_COLUMNS[documentKind]]: c[DOCUMENT_COLUMNS[documentKind]] ?? IsNull(),
+            data: Raw(alias => `${alias} = :expectedData`, { expectedData: JSON.stringify(c.data ?? {}) }),
+          },
+          {
+            [DOCUMENT_COLUMNS[documentKind]]: stored.path,
+            ...(file?.originalname ? {
+              data: () => `COALESCE(data, '{}'::jsonb) || jsonb_build_object('documentFileNames', COALESCE(data->'documentFileNames', '{}'::jsonb) || ${"'" + JSON.stringify({ [documentKind]: file.originalname }).replace(/'/g, "''") + "'"}::jsonb)`,
+            } : {}),
+          },
+        );
+      if (result.affected !== 1) throw new ConflictException("สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนอัปโหลด");
+    } catch (error) {
+      await this.documents.remove(stored.path).catch(() => undefined);
+      throw error;
+    }
     return this.view(agentId, c.id);
   }
   private reservationSigningBlockedReason(c: LeaseContractEntity, parties: AgentContractSignParty[]) {
@@ -1597,7 +1616,7 @@ export class AgentContractsService {
     if (reason) throw new BadRequestException(reason);
   }
   async sign(agentId: number, id: number, input: unknown) {
-    const { parties, png } = validateSign(input);
+    const { parties, png } = await validateSign(input);
     const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
     if (!c) throw new NotFoundException("ไม่พบสัญญา");
     this.assertDocumentMutable(c);
@@ -1990,7 +2009,7 @@ export class AgentContractsService {
     this.assertReservationPaidForSigning(c, [party]);
     if (this.attachments)
       await this.attachments.assertReadyForSubject(c, party);
-    const { png } = validateSign({
+    const { png } = await validateSign({
       parties: [party],
       signaturePng:
         input &&
@@ -2147,7 +2166,7 @@ export class AgentContractsService {
       throw new BadRequestException("ฝ่ายนี้ลงนามแล้ว");
     this.assertReservationPaidForSigning(c, [invite.party]);
     if (this.attachments) await this.attachments.assertReady(c);
-    const { png } = validateSign({
+    const { png } = await validateSign({
       parties: [invite.party],
       signaturePng:
         input &&
@@ -2238,6 +2257,7 @@ export class AgentContractsService {
       .leftJoinAndSelect("room.property", "property")
       .where("lead.created_by_user_id = :agentId", { agentId })
       .andWhere("lead.status = :status", { status: "booked" })
+      .andWhere("lead.booking_released_at IS NULL")
       .andWhere(
         "tenant.lead_id = lead.id AND tenant.created_by_user_id = :agentId",
         { agentId },
@@ -2480,23 +2500,38 @@ export class AgentContractsService {
     const room = lead?.rent_room;
     const tenant = lead?.tenant;
     const property = room?.property;
-    const { monthlyRent, termMonths, advanceMonths, depositMonths } =
-      pickLeaseRentFromRoom(room, lead?.lease_duration_months);
+    const defaults = pickLeaseRentFromRoom(room, lead?.lease_duration_months);
+    const reservations = await this.query(agentId).andWhere('c.lead_id = :leadId', { leadId })
+      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) = 'reservation'")
+      .andWhere("c.status NOT IN ('cancelled', 'expired', 'terminated')")
+      .orderBy('c.id', 'DESC').getMany();
+    const booked = reservations.find(reservationLetterFinalized);
+    const letter = booked?.data?.reservationLetter as Partial<ReservationLetterInput> | undefined;
+    const moneyText = (value: unknown, fallback: string) => {
+      const amount = Number(typeof value === 'string' ? value.replace(/,/g, '') : value);
+      return value != null && value !== '' && Number.isFinite(amount) && amount >= 0 ? String(amount) : fallback;
+    };
+    const monthlyRent = moneyText(booked?.monthly_rent ?? letter?.monthlyRent, defaults.monthlyRent);
+    const termMonths = letter?.termMonths || defaults.termMonths;
+    const advanceMonths = letter?.advanceMonths || defaults.advanceMonths;
+    const depositMonths = letter?.depositMonths || defaults.depositMonths;
+    const bookedMoveIn = asIsoDate(booked?.move_in_date), plannedMoveIn = asIsoDate(lead?.move_in_plan);
+    const termFrom = isIsoDate(bookedMoveIn) ? bookedMoveIn : isIsoDate(plannedMoveIn) ? plannedMoveIn : base.issueDate;
     const rentNum = Number(String(monthlyRent).replace(/,/g, ""));
     const advanceNum =
       Number.isFinite(rentNum) && advanceMonths
         ? rentNum * Number(advanceMonths)
-        : NaN;
+        : advanceMonths === '0' ? 0 : NaN;
     const depositNum =
       Number.isFinite(rentNum) && depositMonths
         ? rentNum * Number(depositMonths)
-        : NaN;
+        : depositMonths === '0' ? 0 : NaN;
     const months = Number(termMonths);
     const termTo =
-      /^\d{4}-\d{2}-\d{2}$/.test(base.issueDate) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(termFrom) &&
       Number.isInteger(months) &&
       months > 0
-        ? leaseTermEnd(base.issueDate, months)
+        ? leaseTermEnd(termFrom, months)
         : "";
     const floor =
       room?.layout_values?.find((row) => row.layout?.code === "floor")
@@ -2534,13 +2569,13 @@ export class AgentContractsService {
       floor,
       area,
       termMonths,
-      termFrom: base.issueDate,
+      termFrom,
       termTo,
       monthlyRent,
       advanceMonths,
-      advanceAmount: Number.isFinite(advanceNum) ? String(advanceNum) : "",
+      advanceAmount: moneyText(letter?.advanceAmount, Number.isFinite(advanceNum) ? String(advanceNum) : ""),
       depositMonths,
-      depositAmount: Number.isFinite(depositNum) ? String(depositNum) : "",
+      depositAmount: moneyText(booked?.deposit ?? letter?.depositAmount, Number.isFinite(depositNum) ? String(depositNum) : ""),
       bankName: room?.owner_bank_name ?? "",
       accountName: base.landlordName,
       accountNo: room?.owner_bank_account ?? "",
@@ -2576,15 +2611,29 @@ export class AgentContractsService {
       { revoked_at: new Date() });
   }
 
+  endReasons() {
+    return contractEndReasons(this.db);
+  }
+
+  async close(agentId: number, id: number, input: unknown) {
+    const billing = await closeLeaseContract(this.db, agentId, id, input);
+    return { contract: await this.view(agentId, id), billing };
+  }
+
   async cancelDraft(agentId: number, id: number, input: unknown) {
     const reason = input && typeof input === "object" ? (input as { reason?: unknown }).reason : null;
     if (typeof reason !== "string" || !reason.trim() || reason.trim().length > 1000)
       throw new BadRequestException("กรุณาระบุเหตุผลยกเลิกไม่เกิน 1,000 ตัวอักษร");
+    const initial = await this.db.getRepository(LeaseContractEntity).findOneBy({ id, created_by_user_id: agentId });
+    if (!initial) throw new NotFoundException('ไม่พบสัญญา');
     await this.db.transaction(async manager => {
+      const lead = await manager.findOne(LeadEntity, { where: { id: initial.lead_id, created_by_user_id: agentId }, lock: { mode: 'pessimistic_write' } });
+      const room = await manager.findOne(RentRoomEntity, { where: { id: initial.rent_room_id, created_by_user_id: agentId }, lock: { mode: 'pessimistic_write' } });
       const c = await manager.findOne(LeaseContractEntity, {
         where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
       });
-      if (!c) throw new NotFoundException("ไม่พบสัญญา");
+      if (!c || !lead || !room) throw new NotFoundException("ไม่พบสัญญา");
+      if (c.lead_id !== initial.lead_id || c.rent_room_id !== initial.rent_room_id) throw new ConflictException('ข้อมูลสัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่');
       this.assertDraft(c);
       const endReason = await manager.findOneBy(MasterContractEndReasonEntity, {
         code: "draft_cancelled", is_active: true,
@@ -2601,6 +2650,23 @@ export class AgentContractsService {
         data: { ...c.data, draftCancellation: { reason: reason.trim(), at: cancelledAt.toISOString(), by: agentId } },
       });
       await this.revokeDraftInvites(manager, id);
+      const template = c.template_id == null ? null : await manager.findOneBy(AgreementTemplateEntity, { id: c.template_id });
+      const formKind = template?.form_kind ?? (c.agreement_type_code
+        ? (await manager.findOneBy(MasterAgreementTypeEntity, { code: c.agreement_type_code }))?.form_kind : undefined);
+      const remaining = await manager.getRepository(LeaseContractEntity).createQueryBuilder('other')
+        .leftJoin('other.template', 'template').leftJoin('other.agreement_type', 'agreementType')
+        .where('other.lead_id = :leadId AND other.rent_room_id = :roomId', { leadId: c.lead_id, roomId: c.rent_room_id })
+        .andWhere('other.id <> :id', { id })
+        // A predecessor's booking letter is historical when cancelling its renewal.
+        // An active predecessor still holds the room through the lease/renewal branches.
+        .andWhere('COALESCE(template.form_kind, agreementType.form_kind) IN (:...rentalForms)', {
+          rentalForms: c.previous_agreement_id ? ['lease', 'renewal'] : ['reservation', 'lease', 'renewal'],
+        })
+        .andWhere("other.status NOT IN ('cancelled', 'expired', 'terminated')").getCount();
+      if (formKind && ['reservation', 'lease', 'renewal'].includes(formKind) && !remaining && lead.status === 'booked' && lead.rent_room_id === c.rent_room_id && lead.tenant_id === c.tenant_id) {
+        await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: cancelledAt });
+        if (c.room_tenancy_id) await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, created_by_user_id: agentId, status: 'prospect' }, { status: 'moved_out' });
+      }
     });
     return this.view(agentId, id);
   }
@@ -2765,8 +2831,8 @@ export class AgentContractsService {
         ...b,
         startDate: leaseAgreement.termFrom || b.startDate,
         endDate: leaseAgreement.termTo || b.endDate,
-        monthlyRent: Number.isFinite(rent) && rent > 0 ? rent : b.monthlyRent,
-        deposit: Number.isFinite(deposit) && deposit >= 0 ? deposit : b.deposit,
+        monthlyRent: rent,
+        deposit: deposit,
       };
     }
     if (leaseRenewal) {
@@ -2778,8 +2844,8 @@ export class AgentContractsService {
         ...b,
         startDate: leaseRenewal.startDate || b.startDate,
         endDate: leaseRenewal.endDate || b.endDate,
-        monthlyRent: Number.isFinite(rent) && rent > 0 ? rent : b.monthlyRent,
-        deposit: Number.isFinite(deposit) && deposit >= 0 ? deposit : b.deposit,
+        monthlyRent: rent,
+        deposit: deposit,
       };
     }
     // Overlay fields become the persisted terms; validate those exact values too.
@@ -2819,6 +2885,16 @@ export class AgentContractsService {
       });
       if (!tenant || !room)
         throw new NotFoundException("ไม่พบผู้เช่าหรือห้องที่คุณมีสิทธิ์จัดการ");
+      if (lead.booking_released_at) {
+        if (!raw.previousAgreementId || existing)
+          throw new ConflictException("การจองนี้สิ้นสุดแล้ว ไม่สามารถสร้างหรือแก้ไขฉบับร่างใหม่ได้");
+        const taken = await manager.findOne(LeadEntity, {
+          where: { rent_room_id: room.id, status: "booked", booking_released_at: IsNull() },
+        });
+        if (taken && taken.id !== lead.id)
+          throw new ConflictException("ห้องนี้มีผู้จองใหม่แล้ว ไม่สามารถต่อสัญญาเดิมได้");
+        await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: null });
+      }
       if (reservationParties) {
         tenant.user_id = reservationParties.tenantUserId;
         await manager.save(tenant);
@@ -3002,10 +3078,12 @@ export class AgentContractsService {
               ? ["lease", "renewal"] : [type.form_kind] },
         )
         .andWhere("c.status NOT IN (:...closed)", {
-          closed: ["cancelled", "expired", "terminated"],
+          // Ended stays still occupied their historical interval; only cancellation erases occupancy.
+          closed: ["lease", "renewal"].includes(type.form_kind)
+            ? ["cancelled"] : ["cancelled", "expired", "terminated"],
         })
         .andWhere(
-          "(CAST(:end AS date) IS NULL OR (CASE WHEN COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' THEN COALESCE(c.move_in_date, c.start_date) ELSE c.start_date END) <= :end) AND (COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' OR c.end_date IS NULL OR c.end_date >= :start)",
+          "(CAST(:end AS date) IS NULL OR (CASE WHEN COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' THEN COALESCE(c.move_in_date, c.start_date) ELSE c.start_date END) <= :end) AND (COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' OR COALESCE(c.effective_end_date, c.end_date) IS NULL OR COALESCE(c.effective_end_date, c.end_date) >= :start)",
           {
             start:
               type.form_kind === "reservation"

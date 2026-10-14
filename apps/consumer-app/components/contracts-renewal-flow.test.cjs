@@ -18,7 +18,7 @@ const renewalHelpers = load('../lib/contract-renewal.ts', id => id === './lease-
 const blankRenewal = () => Object.fromEntries(['documentNo','issueDate','landlordName','tenantName','propertyLine','firstLeaseNo','firstLeaseDate','firstLeaseStart','firstLeaseEnd','originalLeaseNo','originalLeaseDate','originalExpiryDate','renewMonths','startDate','endDate','monthlyRent','dueDay','bankAccount','depositCarried','additionalChanges','landlordSignName','tenantSignName'].map(key=>[key,'']));
 const row = (patch={}) => ({ id:1, tenantId:1, leadId:1, formKind:'lease', status:'active', contractNo:'LS202600001', agreementTypeName:'Lease', rootAgreementId:1, startDate:'2025-11-01', endDate:'2026-10-31', tenant:'Tenant A', property:'Project A', room:'101', monthlyRent:15000, deposit:30000, data:{ leaseAgreement:{ issueDate:'2025-10-20', landlordName:'Owner', tenantName:'Tenant A' } }, ...patch });
 function nodes(node) { return !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node,...nodes(node.props?.children)]; }
-function harness(rows) {
+function harness(rows, options = {}) {
   const states=[],refs=[],effectDeps=[],effects=[]; let stateIndex=0,refIndex=0,effectIndex=0,resolveList,handled=0;
   const list = new Promise(resolve=>{resolveList=resolve;});
   const hookedReact={ ...React,
@@ -31,13 +31,14 @@ function harness(rows) {
     react:hookedReact,
     'react-native':{View:'section',Text:'span',Pressable:'button',StyleSheet:{create:s=>s},ActivityIndicator:'progress',Modal:'aside',Linking:{},Alert:{}},
     'react-native-safe-area-context':{SafeAreaProvider:'section',SafeAreaView:'section'},
-    '@nestyk/ui/native':{tokens:{colors:{brand:{500:'#ff0'},roles:{agent:'#ff0'},onBrand:'#000'},typography:{native:{}}},useMobileTheme:()=>({theme:{}}),MobileIcon:'i',MobileButton:'button',MobileInput:'input',MobileBottomSheet:'aside'},
+    '@nestyk/ui/native':{tokens:{colors:{brand:{500:'#ff0'},roles:{agent:'#ff0'},onBrand:'#000'},typography:{native:{}}},useMobileTheme:()=>({theme:{}}),MobileThemeProvider:'light-theme',MobileIcon:'i',MobileButton:'button',MobileInput:'input',MobileBottomSheet:'aside'},
     '@nestyk/i18n':i18nMock({agent:thai.th.agent}), '../lib/lead-format':leadFormat,
     '../lib/lease-term':term, '../lib/contract-renewal':renewalHelpers,
     '../lib/contract-signing':{bookingPaymentBlocksSigning:()=>false},
     './BookingInvoiceListCard':{bookingInvoicesForTenant:()=>[],BookingInvoiceListCard:()=>null},
     '../lib/agent-contracts-api':{
-      listAgentContracts:()=>list,listStandaloneInvoices:async()=>[],listCommissionConfirmations:async()=>[],
+      listAgentContracts:()=>list,listStandaloneInvoices:async()=>options.invoices ?? [],listCommissionConfirmations:async()=>options.commissions ?? [],
+      getAgentContract:async id=>rows.find(row=>row.id===id),
       listAgreementTypes:async()=>[{code:'lease_renewal',formKind:'renewal'}],
       listAgreementTemplates:async()=>[{id:2,dataSchema:{type:'object'}}],
     },
@@ -46,12 +47,14 @@ function harness(rows) {
     './LeaseAgreementFields':{LeaseAgreementFields:'lease-fields',emptyLeaseAgreementForm:()=>({})},
     './LeaseRenewalFields':{LeaseRenewalFields:'renewal-fields',emptyLeaseRenewalForm:blankRenewal},
     './ContractTypePicker':{ContractTypePicker:'type-picker'},
+    './AgentContractLibrary':{AgentContractLibrary:'contract-library'},
+    '../lib/agent-contract-library':load('../lib/agent-contract-library.ts'),
   };
   for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ReservationPaymentCard','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
   for (const name of ['expo-document-picker','expo-image-picker','expo-image']) dependencies[name]={};
   const screen=load('ContractsScreen.tsx',id=>{if (!(id in dependencies)) throw new Error(`Unexpected dependency: ${id}`);return dependencies[id];});
-  const props={startCreate:'renewal',onStartCreateHandled:()=>{handled++;}};
-  const render=()=>{stateIndex=refIndex=effectIndex=0;const tree=screen.ContractsScreen(props);effects.splice(0).forEach(fn=>fn());return tree;};
+  const props={startCreate:'renewal',onStartCreateHandled:()=>{handled++;},...options.props};
+  const render=()=>{stateIndex=refIndex=effectIndex=0;const wrapper=screen.ContractsScreen(props);assert.equal(wrapper.props.defaultMode,"light");const tree=wrapper.props.children.type(wrapper.props.children.props);effects.splice(0).forEach(fn=>fn());return tree;};
   const tick=()=>new Promise(resolve=>setImmediate(resolve));
   return {render,tick,resolve:()=>resolveList(rows),get handled(){return handled;}};
 }
@@ -82,3 +85,35 @@ test('global renewal flow lets the agent select between eligible tenants before 
   assert.equal(form.props.value.originalLeaseNo,b.contractNo);
   assert.equal(form.props.value.startDate,'2026-10-21');
 }));
+
+test('commission opens a visible library preview and closing it preserves folder filters', async () => {
+  const h=harness([], {props:{startCreate:null},commissions:[{id:9,documentNo:'COM009',pdfUrl:'commission.pdf'}]});
+  h.render(); h.resolve(); await h.tick();
+  let tree=h.render();
+  let library=nodes(tree).find(n=>n.type==='contract-library');
+  const view={folder:'brokerage',type:'agent_commission',status:'active',query:'COM009'};
+  library.props.onViewChange(view);
+  tree=h.render(); library=nodes(tree).find(n=>n.type==='contract-library');
+  library.props.onOpen({kind:'commission',value:library.props.commissions[0]});
+  tree=h.render();
+  const modal=nodes(tree).find(n=>n.type==='aside' && n.props.visible);
+  assert.ok(modal); assert.ok(nodes(modal).some(n=>n.props?.url==='commission.pdf'));
+  modal.props.onRequestClose(); tree=h.render();
+  assert.deepEqual(nodes(tree).find(n=>n.type==='contract-library').props.view,view);
+});
+
+test('standalone receipt opens the source invoice preview and returning retains finance filters', async () => {
+  const invoice={id:9,documentNo:'INV009',receiptDocumentNo:'REC009',receiptUrl:'receipt.pdf',invoiceUrl:'invoice.pdf',customerName:'Tenant',issueDate:'2026-10-14',total:1000};
+  const h=harness([], {props:{startCreate:null},invoices:[invoice]});
+  h.render(); h.resolve(); await h.tick();
+  let library=nodes(h.render()).find(n=>n.type==='contract-library');
+  const view={folder:'finance',type:'receipt',status:'all',query:'REC009'};
+  library.props.onViewChange(view); library=nodes(h.render()).find(n=>n.type==='contract-library');
+  library.props.onOpen({kind:'receipt',value:invoice});
+  const tree=h.render();
+  const modal=nodes(tree).find(n=>n.type==='aside' && n.props.visible);
+  assert.ok(nodes(modal).some(n=>n.props?.url==='receipt.pdf'));
+  const back=nodes(tree).find(n=>n.type==='button' && nodes(n).some(child=>child.type==='span' && child.props.children===contractsTh.common.back));
+  assert.ok(back); back.props.onPress();
+  assert.deepEqual(nodes(h.render()).find(n=>n.type==='contract-library').props.view,view);
+});

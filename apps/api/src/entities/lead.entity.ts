@@ -16,6 +16,10 @@ export class LeadEntity extends SerialTimestampEntity {
   @Column({ type: 'int', nullable: true })
   rent_room_id: number | null;
 
+  /** Release the room without erasing the lead's historical room/tenant link. */
+  @Column({ type: 'timestamptz', nullable: true })
+  booking_released_at: Date | null;
+
   @Column({ type: 'varchar', length: 255 })
   name: string;
 

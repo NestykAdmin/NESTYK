@@ -55,7 +55,7 @@ export class AuthController {
     @Body() body: { avatarUrl?: string },
   ) {
     this.requireUser(user);
-    if (!body.avatarUrl) {
+    if (!body?.avatarUrl) {
       throw new BadRequestException('avatarUrl is required');
     }
     return this.authService.updateAvatar(user.id, body.avatarUrl);
@@ -68,7 +68,7 @@ export class AuthController {
     @Body() body: { role?: string },
   ) {
     this.requireUser(user);
-    if (!body.role) {
+    if (!body?.role) {
       throw new BadRequestException('role is required');
     }
     return this.authService.grantDevRole(user.id, body.role);
@@ -81,7 +81,7 @@ export class AuthController {
     @Body() body: { role?: string },
   ) {
     this.requireUser(user);
-    if (!body.role) {
+    if (!body?.role) {
       throw new BadRequestException('role is required');
     }
     return this.authService.revokeDevRole(user.id, body.role);

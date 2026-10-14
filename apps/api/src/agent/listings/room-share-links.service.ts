@@ -113,7 +113,7 @@ export class RoomShareLinksService {
     if (input.contactId != null || input.contact_id != null) {
       const raw = input.contactId ?? input.contact_id;
       const id = typeof raw === 'number' ? raw : Number(raw);
-      if (!Number.isInteger(id) || id <= 0) {
+      if (!Number.isInteger(id) || id <= 0 || id > 2147483647) {
         throw new BadRequestException('Invalid contactId');
       }
       await this.assertRoomContact(agentId, roomId, id);

@@ -163,5 +163,5 @@ test('match candidates leave out rooms a lead has already booked', async () => {
   assert.deepEqual(await service.matchCandidates(7, { maxPrice: 20000, boxes: [box] }), []);
   const filters = calls.filter((c) => c[0] === 'andWhere').map((c) => c[1]);
   assert.ok(filters.includes("roomStatus.code = 'available'"));
-  assert.ok(filters.includes("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked')"));
+  assert.ok(filters.includes("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked' AND booked.booking_released_at IS NULL)"));
 });

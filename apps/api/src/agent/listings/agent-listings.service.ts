@@ -298,7 +298,7 @@ export class AgentListingsService {
       .andWhere('room.created_by_user_id = :agentId')
       .andWhere("roomStatus.code = 'available'")
       // A room one of the agent's leads has booked is taken, whatever its status code still says.
-      .andWhere("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked')")
+      .andWhere("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked' AND booked.booking_released_at IS NULL)")
       .andWhere(`(${MIN_PRICE_SUBQUERY} IS NULL OR ${MIN_PRICE_SUBQUERY} <= :maxPrice)`)
       .andWhere(`(${boxSql.join(' OR ')})`)
       .setParameters(params)

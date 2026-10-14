@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import { contractAmount } from './contract-money';
 import { isIsoDate, leaseTermEnd } from "./lease-term";
 import type { LeaseAgreementInput } from "@nestyk/types";
 
@@ -183,6 +184,17 @@ export function validateLeaseAgreement(input: unknown): LeaseAgreementInput {
   }
   if (out.termTo <= out.termFrom)
     throw new BadRequestException("วันสิ้นสุดต้องอยู่หลังวันเริ่มเช่า");
+  contractAmount(out.monthlyRent, 'ค่าเช่า', true);
+  contractAmount(out.depositAmount, 'เงินประกัน');
+  for (const key of ['advanceAmount', 'latePenalty'] as const) {
+    if (out[key]) contractAmount(out[key], key);
+  }
+  for (const key of ['rentDueDay', 'graceDay'] as const) {
+    if (out[key] && (!/^\d{1,2}$/.test(out[key]) || Number(out[key]) < 1 || Number(out[key]) > 31)) throw new BadRequestException(`${key}ต้องเป็นวันที่ 1–31`);
+  }
+  for (const key of ['advanceMonths', 'depositMonths'] as const) {
+    if (out[key] && (!/^\d{1,2}$/.test(out[key]) || Number(out[key]) > 12)) throw new BadRequestException(`${key}ต้องเป็นจำนวนเดือน 0–12`);
+  }
   const termMonths = Number(out.termMonths);
   if (/^\d{1,3}$/.test(out.termMonths) && termMonths > 0) {
     const termEnd = leaseTermEnd(out.termFrom, termMonths);

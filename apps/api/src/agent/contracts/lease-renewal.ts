@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import { contractAmount } from './contract-money';
 import type { LeaseRenewalInput } from "@nestyk/types";
 import { asIsoDate, isIsoDate, leaseTermEnd, shiftIsoDate } from "./lease-term";
 
@@ -31,6 +32,7 @@ const TEXT: Array<[keyof LeaseRenewalInput, number]> = [
 export const RENEWAL_ADVANCE_DAYS = 30;
 
 function text(value: unknown, max: number, label: string) {
+  if (value != null && typeof value !== "string") throw new BadRequestException(`${label}ต้องเป็นข้อความ`);
   const clean = typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : "";
   if (clean.length > max) throw new BadRequestException(`${label}ต้องไม่เกิน ${max} ตัวอักษร`);
   return clean;
@@ -107,8 +109,10 @@ export function validateLeaseRenewal(input: unknown): LeaseRenewalInput {
     );
   out.monthlyRent = requireText(out.monthlyRent, 40, "ค่าเช่า");
   out.depositCarried = requireText(out.depositCarried, 40, "เงินประกันที่ยกยอด");
-  if (out.dueDay && !/^\d{1,2}$/.test(out.dueDay))
-    throw new BadRequestException("วันครบกำหนดชำระต้องเป็นตัวเลข");
+  contractAmount(out.monthlyRent, 'ค่าเช่า', true);
+  contractAmount(out.depositCarried, 'เงินประกันที่ยกยอด');
+  if (out.dueDay && (!/^\d{1,2}$/.test(out.dueDay) || Number(out.dueDay) < 1 || Number(out.dueDay) > 31))
+    throw new BadRequestException("วันครบกำหนดชำระต้องเป็นวันที่ 1–31");
   out.landlordSignName = out.landlordSignName || out.landlordName;
   out.tenantSignName = out.tenantSignName || out.tenantName;
   return out;

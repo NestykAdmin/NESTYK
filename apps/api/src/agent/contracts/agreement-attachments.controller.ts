@@ -1,10 +1,10 @@
+import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import {
   Body,
   Controller,
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Post,
   UploadedFile,
   UseGuards,
@@ -27,27 +27,27 @@ export class AgreementAttachmentsController {
   constructor(private readonly attachments: AgreementAttachmentsService) {}
   @Get() list(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.attachments.list(user.id, id);
   }
   @Get("broker-appointment/defaults") brokerAppointmentDefaults(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.attachments.brokerAppointmentDefaults(user.id, id);
   }
   @Post("broker-appointment") generateBrokerAppointment(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() body: unknown,
   ) {
     return this.attachments.generateBrokerAppointment(user.id, id, body);
   }
   @Get(":documentId/url") url(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
-    @Param("documentId", ParseIntPipe) documentId: number,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("documentId", DatabaseIdPipe) documentId: number,
   ) {
     return this.attachments.url(user.id, id, documentId);
   }
@@ -64,7 +64,7 @@ export class AgreementAttachmentsController {
   )
   upload(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() input: unknown,
     @UploadedFile()
     file: { buffer: Buffer; size: number; originalname?: string } | undefined,
@@ -73,22 +73,22 @@ export class AgreementAttachmentsController {
   }
   @Delete(":documentId") remove(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
-    @Param("documentId", ParseIntPipe) documentId: number,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("documentId", DatabaseIdPipe) documentId: number,
   ) {
     return this.attachments.remove(user.id, id, documentId);
   }
   @Post(":documentId/review") review(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
-    @Param("documentId", ParseIntPipe) documentId: number,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("documentId", DatabaseIdPipe) documentId: number,
     @Body() input: unknown,
   ) {
     return this.attachments.review(user.id, id, documentId, input);
   }
   @Post("reuse") reuse(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() input: unknown,
   ) {
     return this.attachments.reuse(user.id, id, input);

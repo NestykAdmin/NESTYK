@@ -1,0 +1,6194 @@
+{
+  "mode": "controllers_real_guards_mocked_services",
+  "routeCount": 120,
+  "checkedCount": 120,
+  "routes": [
+    {
+      "controller": "AgentContractsController",
+      "handler": "endReasons",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/end-reasons",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "endReasons"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "endReasons"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "close",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/close",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "close"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "types",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "types"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "types"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "templates",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/types/:code/templates",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "templates"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "templates"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "history",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/history",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "history"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "history"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "candidates",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/candidates",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "candidates"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "candidates"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "ownerUsers",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/owner-users",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "ownerUsers"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "q must be a single string"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "reservationDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/reservation-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "reservationDefaults"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "reservationDefaults"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "brokerAppointmentDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/broker-appointment-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "brokerAppointmentDefaults"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "brokerAppointmentDefaults"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "leaseDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/lease-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "leaseDefaults"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "leaseDefaults"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "list"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "list"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "nextInvoiceNumber",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/invoices/next-number",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "nextInvoiceNumber"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "nextInvoiceNumber"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "listInvoices",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/invoices",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "listInvoices"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "listInvoices"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "createInvoice",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/invoices",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "createInvoice"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "nextCommissionNumber",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/commission-confirmations/next-number",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "nextCommissionNumber"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "nextCommissionNumber"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "listCommissionConfirmations",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/commission-confirmations",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "listCommissionConfirmations"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "listCommissionConfirmations"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "createCommissionConfirmation",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/commission-confirmations",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "createCommissionConfirmation"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "receiptDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/invoices/:invoiceId/receipt-defaults",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "receiptDefaults"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "receiptDefaults"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "createReceipt",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/invoices/:invoiceId/receipt",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "createReceipt"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "view"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "view"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "create",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "create"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "draftTemplate",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/draft-template",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "draftTemplate"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "draftTemplate"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "updateDraft",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/draft",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "updateDraft"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "cancelDraft",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/cancel-draft",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "cancelDraft"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "reservationPreview",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/reservation-preview",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "reservationPreview"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "generateReservation",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/generate-reservation",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "generateReservation"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "brokerAppointmentPreview",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/broker-appointment-preview",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "brokerAppointmentPreview"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "generateBrokerAppointment",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/generate-broker-appointment",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "generateBrokerAppointment"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "leaseRenewalPreview",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/lease-renewal-preview",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "leaseRenewalPreview"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "generateLeaseRenewal",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/generate-lease-renewal",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "generateLeaseRenewal"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "leasePreview",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/lease-preview",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "leasePreview"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "generateLease",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/generate-lease",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "generateLease"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "sign",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/sign",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "sign"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "deliver",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/deliveries",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "deliver"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "createSignInvite",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/sign-invites",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "createSignInvite"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "financialDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/financial-documents/:kind",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "financialDefaults"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentContractsController",
+          "handler": "financialDefaults"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "generateFinancial",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/financial-documents/:kind",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "generateFinancial"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "uploadDocument",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/documents/:kind",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentContractsController",
+            "handler": "uploadDocument"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "list"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgreementAttachmentsController",
+          "handler": "list"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "brokerAppointmentDefaults",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments/broker-appointment/defaults",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "brokerAppointmentDefaults"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgreementAttachmentsController",
+          "handler": "brokerAppointmentDefaults"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "generateBrokerAppointment",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/attachments/broker-appointment",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "generateBrokerAppointment"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "url",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments/:documentId/url",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "url"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgreementAttachmentsController",
+          "handler": "url"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "upload",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/attachments",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "upload"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "remove",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "DELETE",
+      "path": "/api/v1/agent/contracts/:id/attachments/:documentId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "remove"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "review",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/attachments/:documentId/review",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "review"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "reuse",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/contracts/:id/attachments/reuse",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgreementAttachmentsController",
+            "handler": "reuse"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "mine",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "mine"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "mine"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "PartyContractsController",
+          "handler": "mine"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "ownedRooms",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/rooms",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "ownedRooms"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "ownedRooms"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "PartyContractsController",
+          "handler": "ownedRooms"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "listAttachments",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/attachments",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "listAttachments"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "listAttachments"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "PartyContractsController",
+          "handler": "listAttachments"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "attachmentUrl",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/attachments/:documentId/url",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "attachmentUrl"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "attachmentUrl"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "PartyContractsController",
+          "handler": "attachmentUrl"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "uploadAttachment",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/contracts/mine/:id/attachments",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 201,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "uploadAttachment"
+          }
+        },
+        "owner": {
+          "status": 201,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "uploadAttachment"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "document",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/contracts/mine/:id/document",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "document"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "document"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "financialDocument",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/financial-documents/:kind",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "financialDocument"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "financialDocument"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "PartyContractsController",
+          "handler": "financialDocument"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "paymentSlip",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/contracts/mine/:id/payment-slip",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "paymentSlip"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "paymentSlip"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "sign",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/contracts/mine/:id/sign",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "sign"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PartyContractsController",
+            "handler": "sign"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant | owner"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "PublicContractSignController",
+      "handler": "preview",
+      "file": "apps/api/src/agent/contracts/public-contract-sign.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/public/contract-sign/:token",
+      "roles": [],
+      "guarded": false,
+      "results": {
+        "anonymous": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "preview"
+          }
+        },
+        "unsynced": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "preview"
+          }
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "preview"
+          }
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "preview"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "preview"
+          }
+        },
+        "guest": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "preview"
+          }
+        }
+      }
+    },
+    {
+      "controller": "PublicContractSignController",
+      "handler": "sign",
+      "file": "apps/api/src/agent/contracts/public-contract-sign.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/public/contract-sign/:token",
+      "roles": [],
+      "guarded": false,
+      "results": {
+        "anonymous": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "sign"
+          }
+        },
+        "unsynced": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "sign"
+          }
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "sign"
+          }
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "sign"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "sign"
+          }
+        },
+        "guest": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicContractSignController",
+            "handler": "sign"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "locations",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/locations",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "locations"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentLeadsController",
+          "handler": "locations"
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "visaTypes",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/visa-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "visaTypes"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentLeadsController",
+          "handler": "visaTypes"
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "create",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/leads",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "create"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "list"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "q must be a single string"
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "update",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "PATCH",
+      "path": "/api/v1/agent/leads/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "update"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "markInProgress",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/leads/:id/mark-inprogress",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "markInProgress"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "markLost",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/leads/:id/mark-lost",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "markLost"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentLeadsController",
+            "handler": "view"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentLeadsController",
+          "handler": "view"
+        }
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "settings",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/match-settings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "LeadMatchingController",
+            "handler": "settings"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "LeadMatchingController",
+          "handler": "settings"
+        }
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "saveSettings",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "PATCH",
+      "path": "/api/v1/agent/leads/:id/match-settings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "LeadMatchingController",
+            "handler": "saveSettings"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "run",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/leads/:id/match-runs",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "LeadMatchingController",
+            "handler": "run"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "clear",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "DELETE",
+      "path": "/api/v1/agent/leads/:id/match-runs",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 204,
+          "handler": {
+            "controller": "LeadMatchingController",
+            "handler": "clear"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "latest",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/match-runs/latest",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "LeadMatchingController",
+            "handler": "latest"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "LeadMatchingController",
+          "handler": "latest"
+        }
+      }
+    },
+    {
+      "controller": "LeadViewingsController",
+      "handler": "create",
+      "file": "apps/api/src/agent/leads/lead-viewings.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/leads/:id/viewings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "LeadViewingsController",
+            "handler": "create"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "LeadViewingsController",
+      "handler": "listForLead",
+      "file": "apps/api/src/agent/leads/lead-viewings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/viewings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "LeadViewingsController",
+            "handler": "listForLead"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "LeadViewingsController",
+          "handler": "listForLead"
+        }
+      }
+    },
+    {
+      "controller": "LeadViewingsController",
+      "handler": "range",
+      "file": "apps/api/src/agent/leads/lead-viewings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/viewings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "LeadViewingsController",
+            "handler": "range"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "LeadViewingsController",
+          "handler": "range"
+        }
+      }
+    },
+    {
+      "controller": "LeadViewingsController",
+      "handler": "update",
+      "file": "apps/api/src/agent/leads/lead-viewings.controller.ts",
+      "method": "PATCH",
+      "path": "/api/v1/agent/viewings/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "LeadViewingsController",
+            "handler": "update"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentListingsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/listings/agent-listings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentListingsController",
+            "handler": "view"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentListingsController",
+          "handler": "view"
+        }
+      }
+    },
+    {
+      "controller": "AgentListingsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/listings/agent-listings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentListingsController",
+            "handler": "list"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "q must be a single string"
+      }
+    },
+    {
+      "controller": "AgentRoomShareLinksController",
+      "handler": "create",
+      "file": "apps/api/src/agent/listings/room-share-links.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/listings/:id/share-links",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgentRoomShareLinksController",
+            "handler": "create"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentRoomShareLinksController",
+      "handler": "list",
+      "file": "apps/api/src/agent/listings/room-share-links.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings/:id/share-links",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomShareLinksController",
+            "handler": "list"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomShareLinksController",
+          "handler": "list"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomShareLinksController",
+      "handler": "revoke",
+      "file": "apps/api/src/agent/listings/room-share-links.controller.ts",
+      "method": "DELETE",
+      "path": "/api/v1/agent/listings/:id/share-links/:linkId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomShareLinksController",
+            "handler": "revoke"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "PublicRoomShareController",
+      "handler": "resolve",
+      "file": "apps/api/src/agent/listings/room-share-links.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/public/room-shares/:token",
+      "roles": [],
+      "guarded": false,
+      "results": {
+        "anonymous": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicRoomShareController",
+            "handler": "resolve"
+          }
+        },
+        "unsynced": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicRoomShareController",
+            "handler": "resolve"
+          }
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicRoomShareController",
+            "handler": "resolve"
+          }
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicRoomShareController",
+            "handler": "resolve"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicRoomShareController",
+            "handler": "resolve"
+          }
+        },
+        "guest": {
+          "status": 200,
+          "handler": {
+            "controller": "PublicRoomShareController",
+            "handler": "resolve"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AgentPlacesController",
+      "handler": "autocomplete",
+      "file": "apps/api/src/agent/places/agent-places.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/places/autocomplete",
+      "roles": [
+        "agent",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "autocomplete"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "autocomplete"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "language must be a single string"
+      }
+    },
+    {
+      "controller": "AgentPlacesController",
+      "handler": "nearby",
+      "file": "apps/api/src/agent/places/agent-places.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/places/nearby",
+      "roles": [
+        "agent",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "nearby"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "nearby"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "language must be a single string"
+      }
+    },
+    {
+      "controller": "AgentPlacesController",
+      "handler": "reverse",
+      "file": "apps/api/src/agent/places/agent-places.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/places/reverse",
+      "roles": [
+        "agent",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "reverse"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "reverse"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "longitude must be a single string"
+      }
+    },
+    {
+      "controller": "AgentPlacesController",
+      "handler": "details",
+      "file": "apps/api/src/agent/places/agent-places.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/places/details",
+      "roles": [
+        "agent",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "details"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentPlacesController",
+            "handler": "details"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent | owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "language must be a single string"
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listProperties",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/properties",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listProperties"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomsController",
+          "handler": "listProperties"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listPropertyTypes",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/property-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listPropertyTypes"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomsController",
+          "handler": "listPropertyTypes"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listContractTypes",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/contract-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listContractTypes"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomsController",
+          "handler": "listContractTypes"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listRoomTypes",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/room-types",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listRoomTypes"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomsController",
+          "handler": "listRoomTypes"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listFacilities",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/facilities",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listFacilities"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomsController",
+          "handler": "listFacilities"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listContacts",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/contacts",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listContacts"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomsController",
+          "handler": "listContacts"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "listPropertyOwners",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/rooms/property-owners",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "listPropertyOwners"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentRoomsController",
+          "handler": "listPropertyOwners"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "uploadMedia",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/rooms/media/upload",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "uploadMedia"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "enhanceMedia",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/rooms/media/enhance",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "enhanceMedia"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "generateListingPromo",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/rooms/generate-listing-promo",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "generateListingPromo"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "update",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "PATCH",
+      "path": "/api/v1/agent/rooms/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "update"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentRoomsController",
+      "handler": "create",
+      "file": "apps/api/src/agent/rooms/agent-rooms.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/rooms",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgentRoomsController",
+            "handler": "create"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "leads",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants/leads",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "leads"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "q must be a single string"
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "rooms",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants/rooms",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "rooms"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 400,
+        "handler": null,
+        "message": "leadId must be a single string"
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "list"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentTenantsController",
+          "handler": "list"
+        }
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "view"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentTenantsController",
+          "handler": "view"
+        }
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "create",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/agent/tenants",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "create"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "update",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "PATCH",
+      "path": "/api/v1/agent/tenants/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentTenantsController",
+            "handler": "update"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AppController",
+      "handler": "getHealth",
+      "file": "apps/api/src/app.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/health",
+      "roles": [],
+      "guarded": false,
+      "results": {
+        "anonymous": {
+          "status": 200,
+          "handler": {
+            "controller": "AppController",
+            "handler": "getHealth"
+          }
+        },
+        "unsynced": {
+          "status": 200,
+          "handler": {
+            "controller": "AppController",
+            "handler": "getHealth"
+          }
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AppController",
+            "handler": "getHealth"
+          }
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "AppController",
+            "handler": "getHealth"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "AppController",
+            "handler": "getHealth"
+          }
+        },
+        "guest": {
+          "status": 200,
+          "handler": {
+            "controller": "AppController",
+            "handler": "getHealth"
+          }
+        }
+      }
+    },
+    {
+      "controller": "AuthController",
+      "handler": "sync",
+      "file": "apps/api/src/auth/auth.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/auth/sync",
+      "roles": [],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "sync"
+          }
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "sync"
+          }
+        },
+        "tenant": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "sync"
+          }
+        },
+        "owner": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "sync"
+          }
+        },
+        "guest": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "sync"
+          }
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AuthController",
+      "handler": "updateProfile",
+      "file": "apps/api/src/auth/auth.controller.ts",
+      "method": "PATCH",
+      "path": "/api/v1/auth/profile",
+      "roles": [],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateProfile"
+          },
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateProfile"
+          }
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateProfile"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateProfile"
+          }
+        },
+        "guest": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateProfile"
+          }
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AuthController",
+      "handler": "updateAvatar",
+      "file": "apps/api/src/auth/auth.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/auth/profile/avatar",
+      "roles": [],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateAvatar"
+          },
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateAvatar"
+          }
+        },
+        "tenant": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateAvatar"
+          }
+        },
+        "owner": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateAvatar"
+          }
+        },
+        "guest": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "updateAvatar"
+          }
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AuthController",
+      "handler": "grantDevRole",
+      "file": "apps/api/src/auth/auth.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/auth/dev/roles",
+      "roles": [],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "grantDevRole"
+          },
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "grantDevRole"
+          }
+        },
+        "tenant": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "grantDevRole"
+          }
+        },
+        "owner": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "grantDevRole"
+          }
+        },
+        "guest": {
+          "status": 201,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "grantDevRole"
+          }
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AuthController",
+      "handler": "revokeDevRole",
+      "file": "apps/api/src/auth/auth.controller.ts",
+      "method": "DELETE",
+      "path": "/api/v1/auth/dev/roles",
+      "roles": [],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "revokeDevRole"
+          },
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "revokeDevRole"
+          }
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "revokeDevRole"
+          }
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "revokeDevRole"
+          }
+        },
+        "guest": {
+          "status": 200,
+          "handler": {
+            "controller": "AuthController",
+            "handler": "revokeDevRole"
+          }
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "awaiting",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/agent",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentBillsController",
+            "handler": "awaiting"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentBillsController",
+          "handler": "awaiting"
+        }
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "tenantBilling",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/agent/tenants/:tenantId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentBillsController",
+            "handler": "tenantBilling"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentBillsController",
+          "handler": "tenantBilling"
+        }
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/agent/:id/payment-slip",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentBillsController",
+            "handler": "paymentSlipUrl"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "AgentBillsController",
+          "handler": "paymentSlipUrl"
+        }
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "confirm",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/bills/agent/:id/confirm",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentBillsController",
+            "handler": "confirm"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "returnSlip",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/bills/agent/:id/return",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 200,
+          "handler": {
+            "controller": "AgentBillsController",
+            "handler": "returnSlip"
+          }
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: agent"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "OwnerBillsController",
+      "handler": "received",
+      "file": "apps/api/src/billing/owner-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/received",
+      "roles": [
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: owner"
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: owner"
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "OwnerBillsController",
+            "handler": "received"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "OwnerBillsController",
+          "handler": "received"
+        }
+      }
+    },
+    {
+      "controller": "OwnerBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/owner-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/received/:id/payment-slip",
+      "roles": [
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: owner"
+        },
+        "tenant": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: owner"
+        },
+        "owner": {
+          "status": 200,
+          "handler": {
+            "controller": "OwnerBillsController",
+            "handler": "paymentSlipUrl"
+          }
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: owner"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "OwnerBillsController",
+          "handler": "paymentSlipUrl"
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "mine",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/mine",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "mine"
+          }
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "TenantBillsController",
+          "handler": "mine"
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "next",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/mine/next",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "next"
+          }
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "TenantBillsController",
+          "handler": "next"
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/mine/:id/payment-slip",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "paymentSlipUrl"
+          }
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        }
+      },
+      "repeatedQuery": {
+        "status": 200,
+        "handler": {
+          "controller": "TenantBillsController",
+          "handler": "paymentSlipUrl"
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "uploadPaymentSlip",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/bills/mine/:id/payment-slip",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "uploadPaymentSlip"
+          }
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "confirm",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "POST",
+      "path": "/api/v1/bills/mine/:id/confirm",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "anonymous": {
+          "status": 401,
+          "handler": null,
+          "message": "Missing Bearer token"
+        },
+        "unsynced": {
+          "status": 401,
+          "handler": null,
+          "message": "Call POST /auth/sync first"
+        },
+        "agent": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "tenant": {
+          "status": 200,
+          "handler": {
+            "controller": "TenantBillsController",
+            "handler": "confirm"
+          }
+        },
+        "owner": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        },
+        "guest": {
+          "status": 403,
+          "handler": null,
+          "message": "Required role: tenant"
+        }
+      },
+      "nullBody": {
+        "status": 400,
+        "handler": null,
+        "message": "Unexpected token 'n', \"null\" is not valid JSON"
+      }
+    }
+  ]
+}

@@ -50,7 +50,7 @@ export function TenantBillsBody({
   const totals = billingTotals(billing);
   const bills = billing?.bills ?? [];
 
-  if (!leaseActive) {
+  if (!leaseActive && !bills.length && !billing?.upcoming) {
     return (
       <View style={s.root}>
         <DetailCard>

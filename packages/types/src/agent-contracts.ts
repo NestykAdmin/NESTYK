@@ -131,6 +131,31 @@ export interface CreateAgentContract {
   notes?: string;
 }
 
+export interface ContractEndReason {
+  code: string;
+  nameTh: string;
+  nameEn: string;
+  status: "expired" | "terminated" | "cancelled";
+  requiresNote: boolean;
+}
+export interface CloseAgentContract {
+  endReasonCode: string;
+  effectiveEndDate: string;
+  note?: string;
+}
+export interface ContractClosureBilling {
+  policy: "retain_existing";
+  unpaidCount: number;
+  unpaidAmount: string;
+  paidCount: number;
+  /** Already-issued bills due after closure need a separate financial decision. */
+  billsDueAfterEndCount: number;
+}
+export interface CloseAgentContractResult {
+  contract: AgentContract;
+  billing: ContractClosureBilling;
+}
+
 export type AgreementDocumentSubject =
   "tenant" | "owner" | "property" | "representative";
 export interface AgreementAttachment {

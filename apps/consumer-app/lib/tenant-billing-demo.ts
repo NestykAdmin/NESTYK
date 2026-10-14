@@ -7,7 +7,8 @@ import { advanceMonths, dateKey, rentDueDay, tenantLease, tenantReservation } fr
  * the reservation fee row is real. Every sample bill is paid: slips waiting for review are real
  * (`withLiveSlips`), so the work list and this page agree. Delete this file once the API is wired.
  */
-export const TENANT_BILLING_DEMO = true;
+/** @deprecated The Agent screen now loads persisted billing from the API. */
+export const TENANT_BILLING_DEMO = false;
 
 const BILL_LEAD_DAYS = 5;
 

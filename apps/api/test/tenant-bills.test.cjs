@@ -99,7 +99,7 @@ test('status is pending through the grace day, then overdue; paid stays paid', (
   assert.equal(service.serialize(bill({ lease_contract: lease({ data: {} }) })).payTo, null);
 });
 
-function fixture(row) {
+function fixture(row, options = {}) {
   const uploaded = [], removed = [], updates = [];
   const qb = { params: {} };
   for (const key of ['innerJoinAndSelect', 'leftJoinAndSelect', 'leftJoin', 'orderBy', 'addOrderBy']) qb[key] = () => qb;
@@ -112,6 +112,12 @@ function fixture(row) {
   const repo = {
     createQueryBuilder: () => { qb.params = {}; return qb; },
     update: async (where, patch) => {
+      if (options.beforeUpdate) await options.beforeUpdate(where, patch);
+      for (const [key, value] of Object.entries(where)) {
+        if (value?.type === 'isNull' ? row[key] != null :
+            value instanceof Date ? new Date(row[key]).getTime() !== value.getTime() : row[key] !== value)
+          return { affected: 0 };
+      }
       updates.push({ where, patch });
       Object.assign(row, patch);
       return { affected: 1 };
@@ -190,4 +196,81 @@ test('other users cannot see or pay a bill', async () => {
   await assert.rejects(() => f.service.uploadPaymentSlip(99, 5, file), (e) => e.getStatus() === 404);
   await assert.rejects(() => f.service.paymentSlipUrl(99, 5), (e) => e.getStatus() === 404);
   assert.deepEqual(f.uploaded, []);
+});
+
+test('a concurrent return invalidates a stale confirmation instead of paying a bill without evidence', async () => {
+  const row = bill({ payment_slip_path: '7/payment-slips/bad.jpg', slip_submitted_at: new Date() });
+  let release, entered;
+  const gate = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { entered = resolve; });
+  const f = fixture(row, { beforeUpdate: async (_where, patch) => {
+    if (patch.status === 'paid') { entered(); await gate; }
+  } });
+  const confirming = f.service.confirmForAgent(7, 5);
+  const rejected = assert.rejects(() => confirming, e => e.getStatus() === 409);
+  await started;
+  await f.service.returnForAgent(7, 5, { reason: 'Wrong slip' });
+  release(); await rejected;
+  assert.equal(row.status, 'pending'); assert.equal(row.payment_slip_path, null);
+  assert.equal(row.paid_at, null); assert.equal(row.slip_return_note, 'Wrong slip');
+  assert.deepEqual(f.removed, ['7/payment-slips/bad.jpg']);
+});
+
+test('billing re-reads active contracts under a lock so a stale pre-closure snapshot issues nothing', async () => {
+  const qb = {}; for (const name of ['leftJoin', 'leftJoinAndSelect', 'where', 'andWhere']) qb[name] = () => qb;
+  qb.getMany = async () => [lease()];
+  const locks = []; let insertCalled = false;
+  const service = new TenantBillingService({ getRepository: () => ({ createQueryBuilder: () => qb }),
+    transaction: fn => fn({ findOne: async (_entity, options) => { locks.push(options); return null; },
+      createQueryBuilder: () => { insertCalled = true; throw Error('must not insert closed lease'); } }),
+  });
+  assert.equal(await service.ensureAllActive('2026-10-12'), 0);
+  assert.deepEqual(locks, [{ where: { id: 42, status: 'active' }, lock: { mode: 'pessimistic_write' } }]);
+  assert.equal(insertCalled, false);
+});
+
+test('closed leases keep unpaid bills payable and preserve paid bill evidence', async () => {
+  const row = bill({ lease_contract: lease({ status: 'terminated' }) });
+  const f = fixture(row);
+  assert.equal(f.service.serialize(row, '2026-10-21').status, 'overdue');
+  assert.equal(f.service.serialize(row).leaseActive, false);
+  await f.service.uploadPaymentSlip(8, 5, file); await f.service.submitForTenant(8, 5);
+  const paid = await f.service.confirmForAgent(7, 5);
+  assert.equal(paid.status, 'paid'); assert.equal(paid.hasPaymentSlip, true); assert.equal(paid.leaseActive, false);
+});
+
+
+test('grace deadline follows the signed form and rolls forward when its day is before the due date', () => {
+  const { rentPeriodsUntil } = require('../src/billing/rent-schedule.ts');
+  assert.equal(rentPeriodsUntil({ anchorDate: '2026-10-01', endDate: '2026-11-01', dueDay: '1', graceDay: '15' }, '2026-10-01')[0].graceUntil, '2026-10-15');
+  assert.equal(rentPeriodsUntil({ anchorDate: '2026-10-01', endDate: '2026-11-01', dueDay: '25', graceDay: '5' }, '2026-10-25')[0].graceUntil, '2026-11-05');
+  assert.equal(rentPeriodsUntil({ anchorDate: '2027-02-01', endDate: '2027-03-01', dueDay: '31', graceDay: '31' }, '2027-02-28')[0].graceUntil, '2027-02-28');
+  const c = lease({ data: { leaseAgreement: { rentDueDay: '15', graceDay: '25', advanceMonths: '0' } } });
+  assert.equal(openRentBills(c, '2026-10-20')[0].grace_until, '2026-10-25');
+});
+
+test('renewal bank display text exposes a copyable account number separately', () => {
+  const service = new TenantBillingService({});
+  const c = lease({ data: { leaseRenewal: { dueDay: '15', bankAccount: 'KBank / Owner / 1234567890' } } });
+  assert.deepEqual(service.serialize(bill({ lease_contract: c })).payTo, { bankName: 'KBank', accountName: 'Owner', accountNo: '1234567890' });
+});
+
+
+test('billing activates only signed stays that have started, and preserves closed or future occupancy', async () => {
+  const updates = [];
+  const records = [lease({ id: 42, room_tenancy_id: 9, start_date: '2026-10-01', move_in_date: '2026-10-01' }),
+    lease({ id: 43, room_tenancy_id: 10, start_date: '2026-11-01', move_in_date: '2026-11-01' }),
+    lease({ id: 44, room_tenancy_id: 11, status: 'terminated' })];
+  const manager = { findOne: async (_, options) => records.find(c => c.id === options.where.id && c.status === options.where.status),
+    update: async (_, where, patch) => { updates.push({ where, patch }); },
+    createQueryBuilder: () => { const qb = {}; for (const name of ['insert', 'into', 'values', 'orIgnore']) qb[name] = () => qb; qb.execute = async () => ({ raw: [] }); return qb; } };
+  const service = new TenantBillingService({ transaction: fn => fn(manager) });
+  await service.insertBills(records, '2026-10-14');
+  assert.equal(updates.length, 1); assert.equal(updates[0].where.id, 9);
+  assert.equal(updates[0].where.status, 'prospect'); assert.equal(updates[0].patch.move_in_date, '2026-10-01');
+});
+
+
+test('legacy advances beyond the supported calendar yield no due bills instead of a date error', () => {
+  assert.deepEqual(rentPeriodsUntil({ anchorDate: '2026-10-01', endDate: null, advanceMonths: 1e12 }, '2026-10-14'), []);
 });

@@ -7,7 +7,10 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { DataSource, IsNull } from "typeorm";
-import type { TenantBill, TenantNextBill } from "@nestyk/types";
+import type { AgentTenantBilling, FinancialDocumentInput, TenantBill, TenantNextBill } from "@nestyk/types";
+import { TenantEntity } from '../entities/tenant.entity';
+import { RoomTenancyEntity } from '../entities/room-tenancy.entity';
+import { financialTotals } from '../agent/contracts/financial-document';
 import { LeaseContractEntity } from "../entities/lease-contract.entity";
 import { TenantBillEntity } from "../entities/tenant-bill.entity";
 import { ContractDocumentStorageService } from "../agent/contracts/contract-document-storage.service";
@@ -20,6 +23,7 @@ import {
 
 type LeaseFormData = {
   rentDueDay?: unknown;
+  graceDay?: unknown;
   advanceMonths?: unknown;
   bankName?: unknown;
   accountName?: unknown;
@@ -33,10 +37,12 @@ function leaseForm(c: LeaseContractEntity): LeaseFormData {
   if (!renewal || typeof renewal !== "object") return base;
   const form = renewal as { dueDay?: unknown; bankAccount?: unknown };
   const bank = typeof form.bankAccount === "string" ? form.bankAccount.trim() : "";
+  const parts = bank.split(/\s*\/\s*/);
   return {
     ...base,
     rentDueDay: form.dueDay || base.rentDueDay,
-    accountNo: bank || base.accountNo,
+    ...(parts.length === 3 ? { bankName: parts[0], accountName: parts[1], accountNo: parts[2] }
+      : parts.length === 2 ? { bankName: parts[0], accountNo: parts[1] } : { accountNo: bank || base.accountNo }),
   };
 }
 
@@ -75,6 +81,7 @@ function scheduleInput(c: LeaseContractEntity) {
     anchorDate: c.move_in_date ?? c.start_date,
     endDate: c.end_date,
     dueDay: form.rentDueDay,
+    graceDay: form.graceDay,
     advanceMonths: parseAdvanceMonths(form.advanceMonths, c.advance_rent, c.monthly_rent),
   };
 }
@@ -126,16 +133,33 @@ export class TenantBillingService {
   }
 
   private async insertBills(leases: LeaseContractEntity[], today: string) {
-    const rows = currentRentContracts(leases, today).flatMap((c) => openRentBills(c, today));
-    if (!rows.length) return 0;
-    const result = await this.db
-      .createQueryBuilder()
-      .insert()
-      .into(TenantBillEntity)
-      .values(rows)
-      .orIgnore()
-      .execute();
-    return Array.isArray(result.raw) ? result.raw.length : 0;
+    if (!leases.length) return 0;
+    return this.db.transaction(async manager => {
+      const current: LeaseContractEntity[] = [];
+      // Re-read under the same parent lock as closure; stale scheduler snapshots cannot issue bills after closure.
+      for (const id of [...new Set(leases.map(c => c.id))].sort((a, b) => a - b)) {
+        const c = await manager.findOne(LeaseContractEntity, {
+          where: { id, status: "active" }, lock: { mode: "pessimistic_write" },
+        });
+        if (c) current.push(c);
+      }
+      // Lock all parents before touching shared tenancies, matching closure's parent-before-occupancy order.
+      for (const c of current) {
+        const moveIn = c.move_in_date ?? c.start_date;
+        if (c.room_tenancy_id && moveIn <= today && (!c.end_date || today <= c.end_date)) {
+          // The daily job and billing reads activate occupancy only once the signed stay starts.
+          // The parent lock keeps a concurrent closure from reactivating a moved-out tenancy.
+          await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, tenant_id: c.tenant_id,
+            rent_room_id: c.rent_room_id, created_by_user_id: c.created_by_user_id, status: 'prospect' },
+            { status: 'active', move_in_date: moveIn });
+        }
+      }
+      const rows = currentRentContracts(current, today).flatMap(c => openRentBills(c, today));
+      if (!rows.length) return 0;
+      const result = await manager.createQueryBuilder().insert().into(TenantBillEntity)
+        .values(rows).orIgnore().execute();
+      return Array.isArray(result.raw) ? result.raw.length : 0;
+    });
   }
 
   async ensureAllActive(today = bangkokToday()) {
@@ -154,7 +178,7 @@ export class TenantBillingService {
   private ownerLeases(userId: number) {
     return this.activeLeases()
       .leftJoin("c.rent_room", "ownerRoom")
-      .andWhere("(c.owner_user_id = :userId OR ownerRoom.owner_id = :userId)", { userId });
+      .andWhere("(c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND ownerRoom.owner_id = :userId))", { userId });
   }
 
   async ensureForOwner(userId: number, today = bangkokToday()) {
@@ -265,7 +289,7 @@ export class TenantBillingService {
     const today = bangkokToday();
     await this.ensureForOwner(userId, today);
     const rows = await this.billsQuery()
-      .where("(c.owner_user_id = :userId OR room.owner_id = :userId)", { userId })
+      .where("(c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND room.owner_id = :userId))", { userId })
       .orderBy("b.due_date", "DESC")
       .addOrderBy("b.id", "DESC")
       .getMany();
@@ -275,7 +299,7 @@ export class TenantBillingService {
   private async owned(userId: number, id: number) {
     const bill = await this.billsQuery()
       .where("b.id = :id", { id })
-      .andWhere("(c.owner_user_id = :userId OR room.owner_id = :userId)", { userId })
+      .andWhere("(c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND room.owner_id = :userId))", { userId })
       .getOne();
     if (!bill) throw new NotFoundException("ไม่พบบิล");
     return bill;
@@ -371,6 +395,50 @@ export class TenantBillingService {
     return rows.map((bill) => this.serialize(bill));
   }
 
+  async listForAgentTenant(agentId: number, tenantId: number): Promise<AgentTenantBilling> {
+    const tenant = await this.db.getRepository(TenantEntity).findOneBy({ id: tenantId, created_by_user_id: agentId });
+    if (!tenant) throw new NotFoundException('ไม่พบผู้เช่า');
+    const today = bangkokToday();
+    const leases = await this.activeLeases().andWhere('c.tenant_id = :tenantId', { tenantId }).getMany();
+    await this.insertBills(leases, today);
+    const rows = await this.agentBills(agentId).andWhere('b.tenant_id = :tenantId', { tenantId })
+      .orderBy('b.due_date', 'DESC').addOrderBy('b.id', 'DESC').getMany();
+    const bills = rows.map(row => {
+      const view = this.serialize(row, today);
+      return { id: row.id, period: row.period, documentNo: row.document_no, issueDate: row.issue_date,
+        dueDate: row.due_date, amount: view.amount,
+        status: row.status === 'pending' && row.payment_slip_path && row.slip_submitted_at ? 'awaiting_review' as const : view.status,
+        slipSubmittedAt: row.slip_submitted_at ? new Date(row.slip_submitted_at).toISOString() : null, paidAt: view.paidAt };
+    });
+    const current = currentRentContracts(leases, today);
+    const upcoming = current.map(c => ({ period: upcomingRentPeriod(c, today), amount: Number(c.monthly_rent) }))
+      .filter(row => row.period !== null).sort((a, b) => a.period!.dueDate.localeCompare(b.period!.dueDate))[0];
+    const advancePeriods = [...new Set(current.flatMap(c => {
+      const schedule = scheduleInput(c), count = Math.max(0, schedule.advanceMonths);
+      return rentPeriodsUntil({ ...schedule, advanceMonths: 0 }, addDays(schedule.anchorDate, Math.min(count, 1200) * 32 + 32))
+        .slice(0, count).map(period => period.period);
+    }))].sort();
+    const payments: AgentTenantBilling['payments'] = rows.filter(row => row.status === 'paid' && row.paid_at).map(row => ({
+      id: `bill-${row.id}`, kind: 'rent', period: row.period, amount: Number(row.amount),
+      paidAt: new Date(row.paid_at!).toISOString(), hasSlip: !!row.payment_slip_path, receiptIssued: false,
+    }));
+    const reservations = await this.db.getRepository(LeaseContractEntity).createQueryBuilder('c')
+      .leftJoin('c.template', 'template').leftJoin('c.agreement_type', 'agreementType')
+      .where('c.tenant_id = :tenantId', { tenantId })
+      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) = 'reservation'")
+      .andWhere('c.receipt_url IS NOT NULL').getMany();
+    for (const c of reservations) {
+      const financial = c.data?.financialDocuments as { invoice?: FinancialDocumentInput; receipt?: FinancialDocumentInput } | undefined;
+      const payment = c.data?.reservationPayment as { slipPath?: string; submittedAt?: string } | undefined;
+      if (!financial?.invoice) continue;
+      payments.push({ id: `reservation-${c.id}`, kind: 'reservation', period: null, amount: financialTotals(financial.invoice).total,
+        paidAt: financial.receipt?.issueDate || payment?.submittedAt || c.start_date, hasSlip: !!payment?.slipPath, receiptIssued: true });
+    }
+    payments.sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+    return { bills, upcoming: upcoming ? { period: upcoming.period!.period, issueDate: upcoming.period!.issueDate,
+      dueDate: upcoming.period!.dueDate, amount: upcoming.amount } : null, advancePeriods, payments };
+  }
+
   async agentSlipUrl(agentId: number, id: number) {
     const bill = await this.forAgent(agentId, id);
     if (!bill.payment_slip_path || !bill.slip_submitted_at) throw new NotFoundException("ยังไม่ได้ส่งสลิป");
@@ -386,7 +454,8 @@ export class TenantBillingService {
     if (!bill.payment_slip_path || !bill.slip_submitted_at)
       throw new BadRequestException("ผู้เช่ายังไม่ได้ยืนยันสลิป");
     const result = await this.db.getRepository(TenantBillEntity).update(
-      { id, status: "pending" },
+      { id, status: "pending", payment_slip_path: bill.payment_slip_path,
+        slip_submitted_at: bill.slip_submitted_at },
       { status: "paid", paid_at: new Date(), slip_return_note: null },
     );
     if (result.affected !== 1) throw new ConflictException("บิลถูกเปลี่ยนแล้ว กรุณาเปิดใหม่");

@@ -14,6 +14,8 @@ export type RentScheduleInput = {
   endDate: string | null;
   /** Day of month from the lease form (`rentDueDay`); blank uses the anchor day. */
   dueDay?: unknown;
+  /** Contract's grace deadline as a day of month; blank preserves the five-day default. */
+  graceDay?: unknown;
   /** Months already paid in advance at signing; those periods are skipped. */
   advanceMonths?: number;
 };
@@ -69,17 +71,26 @@ export function rentPeriodsUntil(input: RentScheduleInput, until: string): RentP
   const day = parseDueDay(input.dueDay) ?? anchorDay;
   let index = monthDate(year, month - 1, day) < input.anchorDate ? 1 : 0;
   index += Math.max(0, input.advanceMonths ?? 0);
+  // Legacy monetary advances may imply a very large number of prepaid periods.
+  // Nothing is due within the supported calendar in that case; avoid an invalid Date.
+  if (!Number.isSafeInteger(index) || year * 12 + month - 1 + index > 9999 * 12 + 11) return [];
   const periods: RentPeriod[] = [];
   for (;;) {
     const dueDate = monthDate(year, month - 1 + index, day);
     if (input.endDate && dueDate >= input.endDate) break;
     const issueDate = addDays(dueDate, -BILL_LEAD_DAYS);
     if (issueDate > until) break;
+    const graceDay = parseDueDay(input.graceDay);
+    let graceUntil = addDays(dueDate, BILL_GRACE_DAYS);
+    if (graceDay !== null) {
+      graceUntil = monthDate(year, month - 1 + index, graceDay);
+      if (graceUntil < dueDate) graceUntil = monthDate(year, month + index, graceDay);
+    }
     periods.push({
       period: dueDate.slice(0, 7),
       issueDate,
       dueDate,
-      graceUntil: addDays(dueDate, BILL_GRACE_DAYS),
+      graceUntil,
     });
     index += 1;
   }

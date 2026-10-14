@@ -153,7 +153,7 @@ test('creates tenancy and draft using server-owned identity and locked room', as
   assert.equal(c.status, 'draft'); assert.equal(c.created_by_user_id, 7); assert.equal(c.tenant_id, 2); assert.equal(c.room_tenancy_id, 10); assert.equal(c.monthly_rent, '15000.00');
   assert.match(c.contract_no, /^LS\d{4}\d{5}$/);
   assert.equal(f.saved[0].status, 'prospect');
-  assert.ok(f.calls.some(c => c[0] === 'andWhere' && c[1].includes('c.end_date >= :start')));
+  assert.ok(f.calls.some(c => c[0] === 'andWhere' && c[1].includes('COALESCE(c.effective_end_date, c.end_date) >= :start')));
 });
 test('rejects unbooked leads, unauthorized rooms and overlapping contracts without writes', async () => {
   for (const options of [{ status: 'inprogress' }, { foreignRoom: true }, { overlap: 1 }]) { const f = fixture(options); await assert.rejects(() => f.service.create(7, valid)); assert.equal(f.saved.length, 0); }
@@ -462,4 +462,34 @@ test('draft payment records cannot be forged, edited away or cancelled', async (
     await assert.rejects(() => f.service.cancelDraft(7, 40, { reason: 'cancel' }), /ชำระเงิน/);
     assert.equal(f.saved.length, 0);
   }
+});
+
+
+test('lease defaults preserve finalized booking move-in and negotiated money instead of the latest room price', async () => {
+  const booked = { ...finalizedReservation, move_in_date: '2026-11-01', monthly_rent: '15000.00', deposit: '30000.00', data: { reservationLetter: { termMonths: '12', advanceMonths: '0', advanceAmount: '0', depositMonths: '2' } } };
+  const qb = { getMany: async () => [booked] };
+  for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
+  const lead = { lease_duration_months: 12, rent_room: { price_rows: [{ price: '18000', contract_type: { term_months: 12 } }], advance_rent_months: 1, deposit_months: 2 } };
+  const service = new AgentContractsService({ getRepository: () => ({ findOne: async () => lead, createQueryBuilder: () => qb }) });
+  service.reservationDefaults = async () => ({ issueDate: '2026-10-14' });
+  const data = await service.leaseDefaults(7, 1);
+  assert.equal(data.termFrom, '2026-11-01'); assert.equal(data.termTo, '2027-10-31');
+  assert.equal(data.monthlyRent, '15000'); assert.equal(data.depositAmount, '30000');
+  assert.equal(data.advanceMonths, '0'); assert.equal(data.advanceAmount, '0');
+});
+
+test('cancelling the last unsigned rental draft releases booking; a sibling keeps the booking', async () => {
+  for (const remaining of [0, 1]) {
+    const f = fixture({ draft: draftRow(), overlap: remaining });
+    await f.service.cancelDraft(7, 40, { reason: 'Customer cancelled' });
+    const release = f.calls.find(c => c[0] === 'update' && c[1] === 'LeadEntity' && c[3].booking_released_at);
+    assert.equal(!!release, remaining === 0);
+  }
+});
+
+
+test('cancelling a broker appointment does not release the rental booking', async () => {
+  const f = fixture({ draft: draftRow(), previous: { form_kind: 'broker_appointment' } });
+  await f.service.cancelDraft(7, 40, { reason: 'Cancel appointment only' });
+  assert.equal(f.calls.some(c => c[0] === 'update' && c[1] === 'LeadEntity'), false);
 });

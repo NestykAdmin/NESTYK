@@ -14,6 +14,7 @@ const sharp = require('sharp');
 const { RoomPhotoStorageService, MAX_ROOM_PHOTO_BYTES } = require('../src/agent/rooms/room-photo-storage.service.ts');
 const { AgentRoomsController } = require('../src/agent/rooms/agent-rooms.controller.ts');
 const { AgentRoomsService } = require('../src/agent/rooms/agent-rooms.service.ts');
+const { ListingPromoService } = require('../src/agent/rooms/listing-promo.service.ts');
 const { AuthService } = require('../src/auth/auth.service.ts');
 const { Module } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
@@ -55,12 +56,13 @@ test('real multipart room photo upload, retrieval and ownership validation', asy
   Module({ controllers: [AgentRoomsController], providers: [
     { provide: RoomPhotoStorageService, useValue: storage },
     { provide: AgentRoomsService, useValue: {} },
+    { provide: ListingPromoService, useValue: {} },
     { provide: AuthService, useValue: {
       findBySupabaseUserId: async () => ({ id: 7 }),
       loadUserWithRoles: async () => ({ id: 7, roleNames: ['agent'] }),
     } },
   ] })(TestModule);
-  const app = await NestFactory.create(TestModule, { logger: false });
+  const app = await NestFactory.create(TestModule, { logger: false, abortOnError: false });
   app.setGlobalPrefix('api/v1');
   t.after(async () => { await app.close(); });
   await app.listen(0, '127.0.0.1');

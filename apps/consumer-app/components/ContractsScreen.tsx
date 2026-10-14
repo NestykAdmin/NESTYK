@@ -49,6 +49,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import {
+  MobileThemeProvider,
   MobileBottomSheet,
   MobileButton,
   MobileIcon,
@@ -105,7 +106,8 @@ import {
 } from "../lib/agent-contracts-api";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
-import { BookingInvoiceListCard, bookingInvoicesForTenant } from "./BookingInvoiceListCard";
+import { AgentContractLibrary } from "./AgentContractLibrary";
+import { emptyLibraryView, type ContractLibraryEntry } from "../lib/agent-contract-library";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import {
   ContractSignaturePad,
@@ -179,9 +181,10 @@ function renewalDraftFromLease(
     [lease.project, lease.houseNo, source.room, lease.propertyAddress || source.property]
       .filter(Boolean)
       .join(" ");
+  const bankParts = [lease.bankName, lease.accountName, lease.accountNo].map(value => value?.trim() || '');
   const bankAccount =
     prior.bankAccount ||
-    [lease.bankName, lease.accountName, lease.accountNo].filter(Boolean).join(" / ");
+    (bankParts.some(Boolean) ? bankParts.join(" / ") : '');
   return {
     ...emptyLeaseRenewalForm(),
     issueDate: bangkokToday(),
@@ -206,21 +209,21 @@ function renewalDraftFromLease(
   };
 }
 
-export function ContractsScreen({
-  tenant,
-  initialContract,
-  onChanged,
-  startCreate = null,
-  onStartCreateHandled,
-}: {
+type ContractsScreenProps = {
   tenant?: AgentTenant;
   initialContract?: AgentContract | null;
   onChanged?: () => void;
-  /** Open the create form of this document straight away, skipping the type picker. */
+  /** Open this document's create flow directly, skipping the type picker. */
   startCreate?: CreateDocumentKind | null;
-  /** Called once `startCreate` was taken, so the owner can clear it. */
+  /** Clear the requested create kind after it has been opened. */
   onStartCreateHandled?: () => void;
-} = {}) {
+};
+
+export function ContractsScreen(props: ContractsScreenProps = {}) {
+  return <MobileThemeProvider defaultMode="light"><ContractsWorkspace {...props} /></MobileThemeProvider>;
+}
+
+function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled }: ContractsScreenProps) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
   const docs = t.agent.contracts;
@@ -268,7 +271,6 @@ export function ContractsScreen({
   const shownInvoices = tenant
     ? invoices.filter((row) => row.tenantId === tenant.id)
     : invoices;
-  const bookingInvoices = bookingInvoicesForTenant(contracts, tenant?.id);
   const [viewingInvoice, setViewingInvoice] = useState<StandaloneInvoice | null>(
     null,
   );
@@ -293,10 +295,11 @@ export function ContractsScreen({
             (row) => !tenant || row.tenantId === tenant.id,
           ),
         );
-      else setListError(message(contractResult.reason));
       if (invoiceResult.status === "fulfilled") setInvoices(invoiceResult.value);
       if (commissionResult.status === "fulfilled")
         setCommissions(commissionResult.value);
+      const failed = [contractResult, invoiceResult, commissionResult].find(result => result.status === "rejected");
+      if (failed?.status === "rejected") setListError(message(failed.reason));
     })
       .catch((e) => {
         if (request === listRequest.current) setListError(message(e));
@@ -498,6 +501,7 @@ export function ContractsScreen({
   const [renewalErrors, setRenewalErrors] = useState<
     Partial<Record<string, string>>
   >({});
+  const [libraryView, setLibraryView] = useState(emptyLibraryView);
   const accent =
     creating && steppedCreation
       ? tokens.colors.brand[500]
@@ -3148,258 +3152,106 @@ export function ContractsScreen({
         </Modal>
       </View>
     );
+  async function openLibraryEntry(entry: ContractLibraryEntry) {
+    if (busy) return;
+    setError("");
+    setNotice("");
+    setFocusDocuments(false);
+    if (entry.kind === "commission") {
+      if (entry.value.pdfUrl) openDocumentPreview(docs.commissionConfirmation.title, entry.value.pdfUrl, "commission_confirmation");
+      return;
+    }
+    if (entry.kind === "invoice" || entry.kind === "receipt") {
+      setViewingInvoice(entry.value);
+      if (entry.kind === "receipt" && entry.value.receiptUrl)
+        openDocumentPreview(`${tc.screen.library.receipt} ${entry.value.receiptDocumentNo}`, entry.value.receiptUrl, "receipt");
+      return;
+    }
+    setBusy(true);
+    try {
+      const latest = await getAgentContract(entry.value.id);
+      const url = entry.kind === "booking_receipt" ? latest.receiptUrl : latest.invoiceUrl;
+      if (entry.kind !== "contract" && !url) throw new Error(entry.kind === "booking_invoice" ? cn.invoiceNotFound : cn.openDocumentFailed);
+      setSelected(latest);
+      setContracts(current => current.map(item => item.id === latest.id ? latest : item));
+      if (entry.kind !== "contract" && url) {
+        const receipt = entry.kind === "booking_receipt";
+        openDocumentPreview(`${receipt ? tc.screen.library.receipt : tc.screen.library.bookingInvoice} ${receipt ? latest.reservationPayment?.receiptDocumentNo : latest.reservationPayment?.invoiceDocumentNo}`, url, receipt ? "receipt" : "invoice");
+      }
+    } catch (e) { setError(message(e)); }
+    finally { setBusy(false); }
+  }
   return (
     <View style={s.root}>
-      <View
-        style={[
-          s.hero,
-          { backgroundColor: tenant ? theme.surface : "#172F2B" },
-        ]}
-      >
-        <Text style={[s.eyebrow, { color: tenant ? accent : "#AAD8BD" }]}>
-          NESTYK E-CONTRACT
-        </Text>
-        <Text
-          style={[s.heroTitle, { color: tenant ? theme.textHeading : "#fff" }]}
-        >
-          {tenant ? sc.tenantContracts : sc.allContracts}
-        </Text>
-        <Text
-          style={[s.body, { color: tenant ? theme.textSecondary : "#C6D9D0" }]}
-        >
-          {sc.listHint}
-        </Text>
-        {button(
-          sc.create,
-          () => {
-            setViewingInvoice(null);
-            setChoosingType(true);
-            setNotice("");
-            setError("");
-          },
-          true,
-        )}
-      </View>
       {errorView}
-      {(
-        <>
-          <Text style={[s.subtitle, title]}>
-            {sc.invoice}
-            {!loadingList ? ` (${shownInvoices.length + bookingInvoices.length})` : ""}
-          </Text>
-          {!loadingList && bookingInvoices.map((contract) => (
-            <BookingInvoiceListCard
-              key={`booking-invoice-${contract.id}`}
-              contract={contract}
-              busy={busy}
-              onOpen={async () => {
-                setBusy(true);
-                setError("");
-                setNotice("");
-                setFocusDocuments(false);
-                try {
-                  const latest = await getAgentContract(contract.id);
-                  if (!latest.invoiceUrl) throw new Error(cn.invoiceNotFound);
-                  setSelected(latest);
-                  setContracts((current) => current.map((item) => item.id === latest.id ? latest : item));
-                  openDocumentPreview(fillTemplate(sc.bookingInvoiceNo, { no: latest.reservationPayment?.invoiceDocumentNo ?? latest.contractNo }), latest.invoiceUrl, "invoice");
-                } catch (e) {
-                  setError(message(e));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            />
-          ))}
-          {!loadingList &&
-            shownInvoices.map((invoice) => (
-              <View key={invoice.id} style={[s.card, card]}>
+      {(loadingList || busy) && <ActivityIndicator color={tokens.colors.brand[500]} />}
+      {!!listError && <View style={[s.card, card]}>
+        <Text accessibilityRole="alert" style={[s.body, muted]}>{listError}</Text>
+        {button(tc.common.retry, () => setRetry(value => value + 1))}
+      </View>}
+      <AgentContractLibrary contracts={contracts} invoices={shownInvoices} commissions={shownCommissions}
+        tenantName={tenant?.name} view={libraryView} onViewChange={setLibraryView}
+        busy={busy} loading={loadingList || !!listError} onOpen={entry => void openLibraryEntry(entry)}
+        onCreate={() => { setViewingInvoice(null); setChoosingType(true); setNotice(""); setError(""); }} />
+        <Modal
+          visible={previewDoc != null}
+          onRequestClose={() => setPreviewDoc(null)}
+          animationType="slide"
+          presentationStyle="fullScreen"
+        >
+          <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: 16,
+                  gap: 12,
+                }}
+              >
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={fillTemplate(sc.viewInvoiceA11y, { no: invoice.documentNo })}
-                  disabled={busy}
-                  onPress={() => {
-                    setError("");
-                    setNotice("");
-                    setViewingInvoice(invoice);
-                  }}
-                  style={({ pressed }) => ({
-                    opacity: pressed || busy ? 0.65 : 1,
-                    gap: 10,
-                  })}
+                  accessibilityLabel={tc.common.closeDocument}
+                  onPress={() => setPreviewDoc(null)}
+                  style={{ padding: 8 }}
                 >
-                  <Text style={[s.subtitle, title]}>{invoice.documentNo}</Text>
-                  <Text style={[s.body, title]}>{invoice.customerName}</Text>
-                  <View style={s.row}>
-                    <Text style={[s.small, muted]}>
-                      {date(invoice.issueDate)} · {money(invoice.total)}
-                    </Text>
-                    <Text
-                      style={[
-                        s.small,
-                        { color: invoice.receiptDocumentNo ? "#198460" : "#B45309" },
-                      ]}
-                    >
-                      {invoice.receiptDocumentNo
-                        ? docs.financial.paid
-                        : docs.financial.awaitingPayment}
-                    </Text>
-                  </View>
+                  <Text style={title}>{tc.common.close}</Text>
                 </Pressable>
-                {invoice.receiptDocumentNo ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={docs.financial.viewSlip}
-                    onPress={() => openPaymentProof(invoice)}
-                    style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                  >
-                    <Text style={[s.body, { color: accent }]}>
-                      {docs.financial.viewSlip}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ))}
-          {!loadingList && !shownInvoices.length && !bookingInvoices.length && (
-            <Text style={[s.body, muted]}>{sc.noInvoices}</Text>
-          )}
-          <Text style={[s.subtitle, title]}>
-            {docs.commissionConfirmation.list}
-            {!loadingList ? ` (${shownCommissions.length})` : ""}
-          </Text>
-          {!loadingList &&
-            shownCommissions.map((doc) => (
-              <Pressable
-                key={doc.id}
-                accessibilityRole="button"
-                accessibilityLabel={`${docs.commissionConfirmation.view} ${doc.documentNo}`}
-                disabled={busy || !doc.pdfUrl}
-                onPress={() => {
-                  if (!doc.pdfUrl) return;
-                  setError("");
-                  openDocumentPreview(
-                    docs.commissionConfirmation.title,
-                    doc.pdfUrl,
-                    "commission_confirmation",
-                  );
-                }}
-                style={({ pressed }) => [
-                  s.card,
-                  card,
-                  { opacity: pressed || busy ? 0.65 : 1 },
-                ]}
-              >
-                <Text style={[s.subtitle, title]}>{doc.documentNo}</Text>
-                <Text style={[s.body, title]}>{doc.landlordName}</Text>
-                <Text style={[s.small, muted]}>
-                  {date(doc.issueDate)}
-                  {doc.tenantName ? ` · ${doc.tenantName}` : ""}
+                <Text style={[s.sheetTitle, title]}>
+                  {previewDoc
+                    ? docs.previewTitle.replace("{name}", previewDoc.name)
+                    : docs.preview}
                 </Text>
-              </Pressable>
-            ))}
-          {!loadingList && !shownCommissions.length && (
-            <Text style={[s.body, muted]}>{docs.commissionConfirmation.empty}</Text>
-          )}
-        </>
-      )}
-      <Text style={[s.subtitle, title]}>
-        {sc.created}
-        {!loadingList && !listError ? ` (${contracts.length})` : ""}
-      </Text>
-      {(loadingList || busy) && <ActivityIndicator color={accent} />}
-      {!!listError && (
-        <View style={[s.card, card]}>
-          <Text accessibilityRole="alert" style={[s.body, muted]}>
-            {listError}
-          </Text>
-          {button(tc.common.retry, () => setRetry((value) => value + 1))}
-        </View>
-      )}
-      {!loadingList &&
-        !listError &&
-        contracts.map((contract) => (
-          <Pressable
-            key={contract.id}
-            accessibilityRole="button"
-            accessibilityLabel={fillTemplate(sc.viewContractA11y, { type: typeLabel(contract), no: contract.contractNo })}
-            disabled={busy}
-            onPress={async () => {
-              setBusy(true);
-              setError("");
-              setNotice("");
-              setFocusDocuments(false);
-              try {
-                const latest = await getAgentContract(contract.id);
-                setSelected(latest);
-                setContracts((current) =>
-                  current.map((item) =>
-                    item.id === latest.id ? latest : item,
-                  ),
-                );
-              } catch (e) {
-                setError(message(e));
-              } finally {
-                setBusy(false);
-              }
-            }}
-            style={({ pressed }) => [
-              s.card,
-              card,
-              { opacity: pressed || busy ? 0.65 : 1 },
-            ]}
-          >
-            <View style={s.row}>
-              <Text style={[s.subtitle, title]}>
-                {typeLabel(contract)}
-              </Text>
-              <Text
-                style={[
-                  s.badge,
-                  {
-                    color: color(contract.status),
-                    backgroundColor: `${color(contract.status)}15`,
-                  },
-                ]}
-              >
-                {labels[contract.status]}
-              </Text>
-            </View>
-            <Text style={[s.small, muted]}>
-              {fillTemplate(tc.common.contractNo, { no: contract.contractNo })}
-            </Text>
-            <Text style={[s.body, title]}>
-              {contract.property}
-              {roomSuffix(contract.room)}
-            </Text>
-            <Text style={[s.small, muted]}>
-              {contract.formKind === "reservation"
-                ? fillTemplate(tc.common.bookingAndMoveIn, { booking: date(contract.bookingDate), moveIn: date(contract.moveInDate) })
-                : contract.formKind === "broker_appointment"
-                  ? fillTemplate(sc.issuedOn, { date: date(contract.startDate) })
-                  : `${date(contract.startDate)} – ${date(contract.endDate)}`}
-            </Text>
-            <View style={s.row}>
-              <Text style={[s.body, title]}>
-                {contract.formKind === "reservation"
-                  ? fillTemplate(tc.common.reservationFee, { amount: money(contract.reservationFee) })
-                  : contract.formKind === "broker_appointment"
-                    ? contract.monthlyRent
-                      ? fillTemplate(tc.common.rent, { amount: fillTemplate(tc.common.perMonth, { amount: money(contract.monthlyRent) }) })
-                      : tc.common.kinds.broker_appointment
-                    : fillTemplate(tc.common.perMonth, { amount: money(contract.monthlyRent) })}
-              </Text>
-              <Text style={[s.small, { color: accent }]}>{sc.viewContract}</Text>
-            </View>
-          </Pressable>
-        ))}
-      {!loadingList && !listError && !contracts.length && (
-        <Text style={[s.body, muted]}>{sc.empty}</Text>
-      )}
+              </View>
+              {previewDoc ? (
+                <ContractDocumentPreview
+                  key={previewDoc.url}
+                  url={previewDoc.url}
+                />
+              ) : null}
+              {previewDoc ? (
+                <View style={[s.previewActions, { padding: 12 }]}>
+                  <MobileButton
+                    variant="outline"
+                    disabled={busy}
+                    onPress={() => {
+                      void openDocumentExternally(previewDoc.url);
+                    }}
+                  >
+                    {docs.openExternally}
+                  </MobileButton>
+                </View>
+              ) : null}
+            </SafeAreaView>
+          </SafeAreaProvider>
+        </Modal>
     </View>
   );
 }
+
 const s = StyleSheet.create({
-  root: { gap: 16, paddingBottom: 24 },
+  root: { gap: 16, paddingBottom: 24, backgroundColor: "#FFFFFF" },
   hero: { borderRadius: 22, padding: 24, gap: 12 },
   heroTitle: {
     fontFamily: tokens.typography.native.headingTh,
@@ -3418,6 +3270,35 @@ const s = StyleSheet.create({
     fontFamily: tokens.typography.native.headingTh,
     fontSize: 17,
     lineHeight: 26,
+  },
+  group: { gap: 10 },
+  groupTitle: {
+    fontFamily: tokens.typography.native.headingTh,
+    fontSize: 18,
+    lineHeight: 27,
+  },
+  section: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    gap: 10,
+  },
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  sectionTitle: {
+    fontFamily: tokens.typography.native.headingTh,
+    fontSize: 16,
+    lineHeight: 24,
+    flex: 1,
+  },
+  sectionCount: {
+    fontFamily: tokens.typography.native.body,
+    fontSize: 13,
+    lineHeight: 20,
   },
   body: {
     fontFamily: tokens.typography.native.body,
