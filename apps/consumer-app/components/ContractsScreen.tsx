@@ -2096,7 +2096,8 @@ export function ContractsScreen({
                 ([key]) =>
                   key !== "reservationLetter" &&
                   key !== "brokerAppointment" &&
-                  key !== "leaseAgreement",
+                  key !== "leaseAgreement" &&
+                  key !== "leaseRenewal",
               )
               .map(([key, field]) => (
                 <View key={key} style={{ gap: 6 }}>
