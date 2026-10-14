@@ -16,7 +16,12 @@ const lib = load('../lib/agent-contract-library.ts');
 const dependencies = {
   react: { ...React, useMemo: fn => fn() },
   'react-native': { View: 'view', Text: 'text', Pressable: 'button', StyleSheet: { create: s => s } },
-  '@nestyk/ui/native': { tokens: { typography: { native: {} } }, MobileIcon: 'icon', MobileInput: 'input', MobileButton: 'button', useMobileTheme: () => ({ theme: {} }) },
+  '@nestyk/ui/native': {
+    tokens: { typography: { native: {} }, colors: { brand: { 100: '#FFF0C4' }, onBrand: '#211E1E' } },
+    MobileIcon: 'icon', MobileInput: 'input', MobileButton: 'button', MobileStatusPill: 'mark',
+    useMobileTheme: () => ({ theme: {} }), getCardElevation: () => ({ boxShadow: 'none', elevation: 1 }),
+  },
+  './TenantDetailParts': { DetailCard: 'section', DetailMenuRow: 'button', ps: { grow: {}, row: {}, body: {}, small: {}, value: {} } },
   '@nestyk/i18n': i18nMock({ agent: { contracts: { commissionConfirmation: { menu: 'ค่าคอมมิชชัน' } } } }),
   '../lib/lead-format': leadFormat, '../lib/agent-contract-library': lib,
 };
@@ -54,7 +59,7 @@ test('filters combine folder, type, status, document reference and Thai customer
 });
 test('folder navigation resets stale filters; receipt cards open the original source despite overlapping IDs', () => {
   const home = render({ ...lib.emptyLibraryView(), query: 'stale', type: 'lease' });
-  home.nodes.find(n => n.props?.accessibilityLabel?.startsWith(contractsTh.screen.library.finance)).props.onPress();
+  home.nodes.find(n => n.props?.title === contractsTh.screen.library.finance).props.onPress();
   assert.deepEqual(home.next, { folder: 'finance', type: 'all', status: 'all', query: '' });
   const finance = render({ ...home.next, type: 'receipt' });
   const buttons = finance.nodes.filter(n => ['ใบเสร็จรับเงิน BR007', 'ใบเสร็จรับเงิน REC007'].includes(n.props?.accessibilityLabel));

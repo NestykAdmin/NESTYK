@@ -3251,7 +3251,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
 }
 
 const s = StyleSheet.create({
-  root: { gap: 16, paddingBottom: 24, backgroundColor: "#FFFFFF" },
+  root: { gap: 16, paddingBottom: 24 },
   hero: { borderRadius: 22, padding: 24, gap: 12 },
   heroTitle: {
     fontFamily: tokens.typography.native.headingTh,
