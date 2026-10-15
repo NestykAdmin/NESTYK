@@ -1,3 +1,5 @@
+import { SingleQueryPipe } from '../../common/single-query.pipe';
+import { contactPageOptions } from '../contacts/contact-pagination';
 import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MAX_ROOM_PHOTO_BYTES, RoomPhotoStorageService } from './room-photo-storage.service';
@@ -13,6 +15,7 @@ import {
   Post,
   Patch,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../../auth/guards/auth.guard';
@@ -62,6 +65,42 @@ export class AgentRoomsController {
   @Get('contacts')
   listContacts(@CurrentUser() user: AuthRequestUser) {
     return this.roomsService.listContacts(user.id);
+  }
+
+  @Get('contacts/:id')
+  getContact(@CurrentUser() user: AuthRequestUser, @Param('id', DatabaseIdPipe) id: number) {
+    return this.roomsService.getContact(user.id, id);
+  }
+
+  @Get('contacts/:id/rooms')
+  listContactRooms(@CurrentUser() user: AuthRequestUser, @Param('id', DatabaseIdPipe) id: number) {
+    return this.roomsService.listContactRooms(user.id, id);
+  }
+
+  @Patch('contacts/:id')
+  updateContact(@CurrentUser() user: AuthRequestUser, @Param('id', DatabaseIdPipe) id: number,
+    @Body() body: unknown) {
+    return this.roomsService.updateContact(user.id, id, body);
+  }
+
+  @Get('co-agent-contacts')
+  listCoAgentContacts(@CurrentUser() user: AuthRequestUser, @Query(new SingleQueryPipe()) query: Record<string, unknown>) {
+    return this.roomsService.listCoAgentContacts(user.id, contactPageOptions(query));
+  }
+
+  @Post('co-agent-contacts')
+  createCoAgentContact(@CurrentUser() user: AuthRequestUser, @Body() body: unknown) {
+    return this.roomsService.createCoAgentContact(user.id, body);
+  }
+
+  @Get('owner-contacts')
+  listOwnerContacts(@CurrentUser() user: AuthRequestUser, @Query(new SingleQueryPipe()) query: Record<string, unknown>) {
+    return this.roomsService.listOwnerContacts(user.id, contactPageOptions(query));
+  }
+
+  @Get('landlord-contacts')
+  listLandlordContacts(@CurrentUser() user: AuthRequestUser, @Query(new SingleQueryPipe()) query: Record<string, unknown>) {
+    return this.roomsService.listLandlordContacts(user.id, contactPageOptions(query));
   }
 
   @Get('property-owners')

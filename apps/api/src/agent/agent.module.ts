@@ -1,3 +1,5 @@
+import { RenterContactsController } from './contacts/renter-contacts.controller';
+import { RenterContactsService } from './contacts/renter-contacts.service';
 import { AgreementAttachmentsService } from './contracts/agreement-attachments.service';
 import { AgreementAttachmentsController } from './contracts/agreement-attachments.controller';
 import { AgentTenantsController } from './tenants/agent-tenants.controller';
@@ -88,8 +90,8 @@ import { GeminiModule } from '../gemini/gemini.module';
       RoomShareLinkEntity,
     ]),
   ],
-  controllers: [AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, PublicContractSignController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
-  providers: [AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
+  controllers: [RenterContactsController, AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, PublicContractSignController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
+  providers: [RenterContactsService, AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
   exports: [AgentRoomsService, AgentListingsService, AgentPlacesService, RoomShareLinksService],
 })
 export class AgentModule {}

@@ -1,14 +1,19 @@
 import { validateNearbyPlaces, validCoordinates, distanceMeters } from '../places/nearby-places';
 import { validateRoomInput } from './room-input';
+import { roomPrices } from '../listings/agent-listings.service';
+import { contactUpdate } from './contact-input';
+import { contactDirectoryRows, type ContactPageOptions } from '../contacts/contact-pagination';
+import { rentalHistorySql } from '../contacts/rental-history';
 import type { NearbyPlace } from '@nestyk/types';
 import { RoomPhotoStorageService } from './room-photo-storage.service';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, QueryFailedError, Repository } from 'typeorm';
 import { AuthRequestUser } from '../../auth/decorators/current-user.decorator';
 import { PropertyEntity } from '../../entities/property.entity';
 import { MasterPropertyTypeEntity } from '../../entities/master-property-type.entity';
@@ -159,6 +164,143 @@ export class AgentRoomsService {
       note: row.note,
       roomCount: Number(row.roomCount) || 0,
     }));
+  }
+
+  async listCoAgentContacts(agentId: number, options?: ContactPageOptions) {
+    return contactDirectoryRows(this.dataSource, `
+        WITH co_agent_rooms AS (
+          SELECT DISTINCT rrc.contact_id, r.id
+          FROM rent_room_contacts rrc
+          INNER JOIN rent_rooms r ON r.id = rrc.rent_room_id
+          INNER JOIN master_listing_sources source ON source.id = r.listing_source_id
+          WHERE r.created_by_user_id = $1 AND r.is_scout_room = TRUE AND source.code = 'co_agent'
+        )
+        SELECT c.id, c.name, c.phone, COUNT(cr.id) AS "roomCount"
+        FROM contacts c
+        LEFT JOIN co_agent_rooms cr ON cr.contact_id = c.id
+        WHERE c.created_by_user_id = $1 AND (c.is_co_agent = TRUE OR cr.id IS NOT NULL)
+        GROUP BY c.id ORDER BY c.name ASC, c.id ASC
+      `, [agentId], options);
+  }
+
+  async createCoAgentContact(agentId: number, input: unknown) {
+    const values = contactUpdate(input);
+    if (!values.name || !values.phone) throw new BadRequestException('Name and phone are required');
+    try {
+      const contact = await this.contactsRepo.save(this.contactsRepo.create({
+        email: null, line_id: null, facebook: null, note: null,
+        ...values, created_by_user_id: agentId, is_co_agent: true,
+      }));
+      return {
+        id: contact.id, name: contact.name, phone: contact.phone,
+        email: contact.email, lineId: contact.line_id, facebook: contact.facebook, note: contact.note,
+      };
+    } catch (error) {
+      this.rethrowContactError(error);
+    }
+  }
+
+  private rethrowContactError(error: unknown): never {
+    if (error instanceof QueryFailedError &&
+      (error.driverError as { code?: string; constraint?: string }).code === '23505' &&
+      (error.driverError as { constraint?: string }).constraint === 'uq_contacts_agent_phone') {
+      throw new ConflictException('Contact phone already exists');
+    }
+    throw error;
+  }
+
+  async getContact(agentId: number, contactId: number) {
+    const contact = await this.contactsRepo.findOneBy({ id: contactId, created_by_user_id: agentId });
+    if (!contact) throw new NotFoundException('Contact not found');
+    return {
+      id: contact.id, name: contact.name, phone: contact.phone,
+      email: contact.email, lineId: contact.line_id, facebook: contact.facebook, note: contact.note,
+    };
+  }
+
+  /** Owner-sourced rooms for this agent/contact, including rooms that are now vacant. */
+  async listContactRooms(agentId: number, contactId: number) {
+    await this.getContact(agentId, contactId);
+    const rows: Array<{
+      id: number; roomId: string | null; listingTitle: string | null;
+      propertyName: string | null; district: string | null; province: string | null;
+      roomStatusCode: string | null; roomTypeCode: string | null;
+      bedroomCount: string | null; roomSizeSqm: string | null; floor: string | null;
+      minRent: number | string | null; legacyPrices: RentRoomEntity['prices'];
+    }> = await this.dataSource.query(`
+      SELECT r.id, r.room_id AS "roomId", r.listing_title AS "listingTitle",
+        p.name AS "propertyName", p.district, p.province,
+        status.code AS "roomStatusCode", room_type.code AS "roomTypeCode",
+        COALESCE((SELECT v.value FROM room_layout_values v
+          INNER JOIN master_layouts layout ON layout.id = v.layout_id
+          WHERE v.rent_room_id = r.id AND layout.code = 'bedroom' LIMIT 1),
+          room_type.bedroom_count::text) AS "bedroomCount",
+        (SELECT v.value FROM room_layout_values v INNER JOIN master_layouts layout ON layout.id = v.layout_id
+          WHERE v.rent_room_id = r.id AND layout.code = 'room_size' LIMIT 1) AS "roomSizeSqm",
+        (SELECT v.value FROM room_layout_values v INNER JOIN master_layouts layout ON layout.id = v.layout_id
+          WHERE v.rent_room_id = r.id AND layout.code = 'floor' LIMIT 1) AS "floor",
+        (SELECT MIN(price.price) FROM rent_room_prices price WHERE price.rent_room_id = r.id) AS "minRent",
+        r.prices AS "legacyPrices"
+      FROM rent_rooms r
+      INNER JOIN master_listing_sources source ON source.id = r.listing_source_id
+      LEFT JOIN properties p ON p.id = r.properties_id
+      LEFT JOIN master_room_statuses status ON status.id = r.room_status_id
+      LEFT JOIN master_room_types room_type ON room_type.id = r.room_type_id
+      WHERE r.created_by_user_id = $1 AND r.is_scout_room = TRUE AND source.code = 'owner'
+        AND EXISTS (SELECT 1 FROM rent_room_contacts link WHERE link.rent_room_id = r.id AND link.contact_id = $2)
+      ORDER BY p.name ASC, r.room_id ASC, r.id ASC
+    `, [agentId, contactId]);
+    return rows.map(({ legacyPrices, ...row }) => {
+      const legacy = roomPrices({ prices: legacyPrices } as RentRoomEntity).map(price => price.price);
+      return { ...row, minRent: row.minRent != null ? Number(row.minRent) : legacy.length ? Math.min(...legacy) : null };
+    });
+  }
+
+  /** Update the shared contact row; all room links retain the same contact ID. */
+  async updateContact(agentId: number, contactId: number, input: unknown) {
+    const changes = contactUpdate(input);
+    try {
+      const result = await this.contactsRepo.update({ id: contactId, created_by_user_id: agentId }, changes);
+      if (!result.affected) throw new NotFoundException('Contact not found');
+    } catch (error) {
+      this.rethrowContactError(error);
+    }
+    return this.getContact(agentId, contactId);
+  }
+
+  /** A contact remains a landlord once any of their rooms has rental history. */
+  async listOwnerContacts(agentId: number, options?: ContactPageOptions) {
+    return this.listOwnerContactsByRentalHistory(agentId, false, options);
+  }
+
+  async listLandlordContacts(agentId: number, options?: ContactPageOptions) {
+    return this.listOwnerContactsByRentalHistory(agentId, true, options);
+  }
+
+  private async listOwnerContactsByRentalHistory(agentId: number, hasRented: boolean, options?: ContactPageOptions) {
+    return contactDirectoryRows(this.dataSource, `
+      SELECT c.id, c.name, c.phone, COUNT(DISTINCT r.id) AS "roomCount"
+      FROM contacts c
+      INNER JOIN rent_room_contacts rrc ON rrc.contact_id = c.id
+      INNER JOIN rent_rooms r ON r.id = rrc.rent_room_id
+      INNER JOIN master_listing_sources source ON source.id = r.listing_source_id
+      WHERE c.created_by_user_id = $1
+        AND r.created_by_user_id = $1
+        AND r.is_scout_room = TRUE
+        AND source.code = 'owner'
+        AND ${hasRented ? 'EXISTS' : 'NOT EXISTS'} (
+          SELECT 1 FROM rent_room_contacts history_link
+          INNER JOIN rent_rooms history_room ON history_room.id = history_link.rent_room_id
+          INNER JOIN master_listing_sources history_source ON history_source.id = history_room.listing_source_id
+          WHERE history_link.contact_id = c.id
+            AND history_room.created_by_user_id = $1
+            AND history_room.is_scout_room = TRUE
+            AND history_source.code = 'owner'
+            AND ${rentalHistorySql({ roomId: 'history_room.id' })}
+        )
+      GROUP BY c.id, c.name, c.phone
+      ORDER BY c.name ASC, c.id ASC
+      `, [agentId], options);
   }
 
   async listPropertyOwners(agentId: number) {
@@ -601,6 +743,10 @@ export class AgentRoomsService {
       if (!existing) {
         throw new NotFoundException('contactId not found for this agent');
       }
+      if (body.listingSourceCode === 'co_agent' && !existing.is_co_agent) {
+        // Only mark membership; saving the fetched entity could overwrite a concurrent profile edit.
+        await manager.update(ContactEntity, { id: existing.id, created_by_user_id: agentId }, { is_co_agent: true });
+      }
       if (!ids.includes(existing.id)) ids.push(existing.id);
     };
 
@@ -610,13 +756,14 @@ export class AgentRoomsService {
         where: { created_by_user_id: agentId, phone },
       });
       if (reused) {
-        reused.name = input.name.trim();
-        reused.email = input.email ?? reused.email;
-        reused.line_id = input.lineId !== undefined ? input.lineId.trim() || null : reused.line_id;
-        reused.facebook =
-          input.facebook !== undefined ? input.facebook.trim() || null : reused.facebook;
-        reused.note = input.note ?? reused.note;
-        await manager.save(reused);
+        // Update supplied fields only: omitted fields may have changed since the phone lookup.
+        const changes: Partial<Pick<ContactEntity, 'name' | 'email' | 'line_id' | 'facebook' | 'note' | 'is_co_agent'>> = { name: input.name.trim() };
+        if (body.listingSourceCode === 'co_agent') changes.is_co_agent = true;
+        if (input.email != null) changes.email = input.email;
+        if (input.lineId !== undefined) changes.line_id = input.lineId?.trim() || null;
+        if (input.facebook !== undefined) changes.facebook = input.facebook?.trim() || null;
+        if (input.note != null) changes.note = input.note;
+        await manager.update(ContactEntity, { id: reused.id, created_by_user_id: agentId }, changes);
         if (!ids.includes(reused.id)) ids.push(reused.id);
         return;
       }
@@ -629,6 +776,7 @@ export class AgentRoomsService {
           facebook: input.facebook?.trim() || null,
           note: input.note ?? null,
           created_by_user_id: agentId,
+          is_co_agent: body.listingSourceCode === 'co_agent',
         }),
       );
       if (!ids.includes(created.id)) ids.push(created.id);

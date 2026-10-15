@@ -25,6 +25,10 @@ import { LeadFullInfoBody } from '../components/LeadFullInfoBody';
 import { LeadMatchedRoomBody } from '../components/LeadMatchedRoomBody';
 import { LeadRoomActions } from '../components/LeadRoomActions';
 import { LeadRoomViewingBanner } from '../components/LeadRoomViewingBanner';
+import { AgentContactKindsBody } from '../components/AgentContactKindsBody';
+import { AgentContactsBody } from '../components/AgentContactsBody';
+import type { AgentDirectoryKind } from '../lib/agent-contacts-api';
+import { AgentContactEditBar, type ContactDetailActions, type ContactDetailState } from '../components/AgentContactDetailBody';
 import { AgentMoreToolsBody } from '../components/AgentMoreToolsBody';
 import { AgentRoomDetailModal, type RoomSharePreview } from '../components/AgentRoomDetailModal';
 import type { LeadRoomMatch } from '../lib/lead-match-preview';
@@ -83,54 +87,7 @@ import {
 import { localeTag } from '../lib/lead-format';
 
 function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t']): string {
-  switch (tab) {
-    case 'home':
-      return t.mobile.screens.home;
-    case 'search':
-      return t.mobile.screens.discover;
-    case 'living':
-      return t.mobile.screens.living;
-    case 'bills':
-      return t.mobile.screens.bills;
-    case 'dashboard':
-      return t.mobile.screens.dashboard;
-    case 'listings':
-      return t.mobile.screens.listings;
-    case 'listingRoom':
-      return t.mobile.screens.listingRoom;
-    case 'createListing':
-      return t.mobile.screens.createListing;
-    case 'listingLead':
-      return t.agent.leads.title;
-    case 'createLead':
-      return t.agent.leads.create;
-    case 'leadDetail':
-      return t.mobile.tabs.leadDetail;
-    case 'leadInfo':
-      return t.mobile.tabs.leadInfo;
-    case 'leadRoom':
-      return t.mobile.tabs.leadRoom;
-    case 'clients':
-      return t.mobile.screens.clients;
-    case 'more':
-      return t.mobile.screens.more;
-    case 'contact':
-      return t.mobile.screens.contact;
-    case 'contracts':
-      return t.mobile.screens.contracts;
-    case 'calendar':
-      return t.mobile.screens.calendar;
-    case 'income':
-      return t.mobile.screens.income;
-    case 'deals':
-      return t.mobile.screens.deals;
-    case 'tickets':
-      return t.mobile.screens.tickets;
-    case 'services':
-      return t.mobile.screens.services;
-    default:
-      return t.mobile.screens.home;
-  }
+  return t.mobile.tabs[tab];
 }
 
 export default function AppHomeScreen() {
@@ -186,6 +143,10 @@ export default function AppHomeScreen() {
   const pendingRefresh = useRef<number | null>(null);
   const [leadsReloadToken, setLeadsReloadToken] = useState(0);
   const [roomsReloadToken, setRoomsReloadToken] = useState(0);
+  const [contactKind, setContactKind] = useState<AgentDirectoryKind | null>(null);
+  const [contactsReloadToken, setContactsReloadToken] = useState(0);
+  const [contactDetail, setContactDetail] = useState<ContactDetailState | null>(null);
+  const contactDetailActionsRef = useRef<ContactDetailActions | null>(null);
   const [creatingTenant, setCreatingTenant] = useState(false);
   const [createTenantBusy, setCreateTenantBusy] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<AgentTenant | null>(null);
@@ -403,6 +364,32 @@ export default function AppHomeScreen() {
     return () => sub.remove();
   }, [activeTab, handleCreateLeadBack]);
 
+  const handleContactsBack = useCallback(() => {
+    if (contactDetailActionsRef.current?.back()) return;
+    if (contactKind) setContactKind(null);
+    else setActiveTab('more');
+  }, [contactKind]);
+
+  const handleContactSaved = useCallback(() => {
+    const token = ++refreshSequence.current;
+    setRoomsReloadToken(token);
+    setLeadsReloadToken(token);
+    setBillsReloadToken(token);
+    setMatchRoomVersion((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'contact' || activeRole !== 'agent') {
+      setContactKind(null);
+      return;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleContactsBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [activeTab, activeRole, handleContactsBack]);
+
   useEffect(() => {
     if (activeTab !== 'clients') {
       setCreatingTenant(false);
@@ -616,6 +603,7 @@ export default function AppHomeScreen() {
       const isCreateTenant = activeTab === 'clients' && creatingTenant;
       const isLeadPage = activeTab === 'leadDetail' || activeTab === 'leadInfo' || activeTab === 'leadRoom';
       const hasLeadMenu = activeTab === 'leadDetail' || activeTab === 'leadRoom';
+      const isContact = activeTab === 'contact';
       const isSecondary =
         activeTab === 'createListing' || isCreateLead || isCreateTenant || isTenantDetail || isLeadPage;
       const canEditTenant = isTenantDetail && tenantDetail.canEdit;
@@ -623,7 +611,14 @@ export default function AppHomeScreen() {
       return (
         <MobileSectionHeader
           title={
-            isCreateLead
+            isContact
+              ? contactDetail?.title || (contactKind === 'owner' ? t.agent.dashboard.contactKindOwner
+                : contactKind === 'landlord' ? t.agent.dashboard.contactKindLandlord
+                : contactKind === 'lead' ? t.agent.dashboard.contactKindLead
+                : contactKind === 'tenant' ? t.agent.dashboard.contactKindTenant
+                : contactKind === 'coAgent' ? t.agent.dashboard.contactKindCoAgent
+                : t.agent.dashboard.openContacts)
+              : isCreateLead
               ? leadEdit
                 ? t.agent.leads.editLead
                 : t.agent.leads.create
@@ -649,10 +644,12 @@ export default function AppHomeScreen() {
                   : workspace
           }
           accentColor={accent}
-          leading={isSecondary ? 'back' : 'menu'}
+          leading={isSecondary || isContact ? 'back' : 'menu'}
           onMenuPress={openMenu}
           onBackPress={
-            isCreateLead
+            isContact
+              ? handleContactsBack
+              : isCreateLead
               ? handleCreateLeadBack
               : isCreateTenant
                 ? handleCreateTenantBack
@@ -665,12 +662,15 @@ export default function AppHomeScreen() {
                   : undefined
           }
           backDisabled={
+            (isContact && !!contactDetail?.saving) ||
             (isCreateLead && createLeadBusy) ||
             (isCreateTenant && createTenantBusy) ||
             (isTenantDetail && tenantDetail.saving)
           }
           onActionPress={
-            activeTab === 'leadInfo' && activeLead
+            isContact && contactDetail?.canEdit
+              ? () => contactDetailActionsRef.current?.edit()
+              : activeTab === 'leadInfo' && activeLead
               ? () => openLeadEdit('profile')
               : hasLeadMenu
                 ? () => setLeadMenuRequest((n) => n + 1)
@@ -679,7 +679,9 @@ export default function AppHomeScreen() {
                   : undefined
           }
           actionLabel={
-            activeTab === 'leadInfo'
+            isContact && contactDetail?.canEdit
+              ? t.agent.dashboard.contactDetails.edit
+              : activeTab === 'leadInfo'
               ? t.agent.leads.editLead
               : hasLeadMenu
                 ? t.agent.leads.moreActions
@@ -688,9 +690,9 @@ export default function AppHomeScreen() {
                   : undefined
           }
           actionIcon={
-            activeTab === 'leadInfo' || canEditTenant ? 'pencil' : hasLeadMenu ? 'dots-vertical' : undefined
+            activeTab === 'leadInfo' || canEditTenant || (isContact && contactDetail?.canEdit) ? 'pencil' : hasLeadMenu ? 'dots-vertical' : undefined
           }
-          actionVariant={activeTab === 'leadInfo' || hasLeadMenu || canEditTenant ? 'icon' : undefined}
+          actionVariant={activeTab === 'leadInfo' || hasLeadMenu || canEditTenant || (isContact && contactDetail?.canEdit) ? 'icon' : undefined}
           onAddPress={
             !isSecondary && activeTab === 'listingRoom'
               ? openCreateListing
@@ -823,7 +825,7 @@ export default function AppHomeScreen() {
     // A completion from a previous tab/role must never stop a newer refresh.
     pendingRefresh.current = null;
     setPageRefreshing(false);
-  }, [activeRole, activeTab, partyInbox]);
+  }, [activeRole, activeTab, partyInbox, contactKind]);
 
   useEffect(() => {
     // Demo data is synchronous: finish after the new snapshot is committed.
@@ -834,6 +836,7 @@ export default function AppHomeScreen() {
   }, [agentDashboardSnapshot, dashboardRefreshKey, activeRole, activeTab, finishPageRefresh]);
 
   const handlePageRefresh = useCallback(() => {
+    if (activeTab === 'contact' && (contactDetail?.editing || contactDetail?.saving || contactDetail?.confirming)) return;
     if (pendingRefresh.current !== null) return;
     const token = ++refreshSequence.current;
     pendingRefresh.current = token;
@@ -850,12 +853,14 @@ export default function AppHomeScreen() {
       setLeadsReloadToken(token);
     } else if (activeTab === 'listingRoom') {
       setRoomsReloadToken(token);
+    } else if (activeTab === 'contact' && contactKind) {
+      setContactsReloadToken(token);
     } else if (activeTab === 'bills' || activeTab === 'income') {
       setBillsReloadToken(token);
     } else {
       finishPageRefresh(token);
     }
-  }, [activeRole, activeTab, partyInbox, finishPageRefresh]);
+  }, [activeRole, activeTab, partyInbox, contactKind, contactDetail, finishPageRefresh]);
 
   const renderListingCards = () => (
     <>
@@ -1123,14 +1128,18 @@ export default function AppHomeScreen() {
     }
 
     if (activeTab === 'contact') {
-      return (
-        <View style={styles.bodyContainer}>
-          <View style={[styles.card, cardStyle]}>
-            <Text style={[styles.sectionDesc, secondaryText]}>
-              Owners · buyers · co-broke partners (mock contact book)
-            </Text>
-          </View>
-        </View>
+      return contactKind ? (
+        <AgentContactsBody
+          key={contactKind}
+          kind={contactKind}
+          reloadToken={contactsReloadToken}
+          onReloadSettled={finishPageRefresh}
+          onContactSaved={handleContactSaved}
+          onDetailStateChange={setContactDetail}
+          detailActionsRef={contactDetailActionsRef}
+        />
+      ) : (
+        <AgentContactKindsBody onSelect={setContactKind} />
       );
     }
 
@@ -1350,9 +1359,11 @@ export default function AppHomeScreen() {
         scrollable={partyInbox || !isWizardTab}
         refreshing={pageRefreshing}
         onRefresh={
+          // Keep the contact ScrollView refresh wrapper mounted in both list and detail.
           isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
           (!partyInbox && !isWizardTab && activeRole === 'agent' &&
-          ['dashboard', 'listingLead', 'listingRoom'].includes(activeTab))
+          (['dashboard', 'listingLead', 'listingRoom'].includes(activeTab) ||
+            (activeTab === 'contact' && contactKind)))
             ? handlePageRefresh : undefined
         }
         header={
@@ -1487,6 +1498,8 @@ export default function AppHomeScreen() {
               }
               onOpenTenant={(tenantId) => openTenantPage({ tenantId })}
             />
+          ) : activeTab === 'contact' && contactDetail?.editing ? (
+            <AgentContactEditBar state={contactDetail} actionsRef={contactDetailActionsRef} />
           ) : isTenantDetail && tenantDetail.editing ? (
             <TenantEditBar
               saving={tenantDetail.saving}
@@ -1499,10 +1512,16 @@ export default function AppHomeScreen() {
         tabBar={
           ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
           (activeTab === 'clients' && creatingTenant) ||
-          isTenantDetail ? null : (
+          isTenantDetail || (activeTab === 'contact' && !!contactDetail) ? null : (
             <MobileBottomTabBar
               activeRole={activeRole}
-              activeTab={activeRole === 'tenant' && partyInbox ? 'menu' : activeTab}
+              activeTab={
+                activeRole === 'tenant' && partyInbox
+                  ? 'menu'
+                  : activeTab === 'contact' || activeTab === 'calendar' || activeTab === 'contracts' || activeTab === 'services'
+                    ? 'more'
+                    : activeTab
+              }
               onTabPress={handleTabPress}
               accentColor={accentColor}
               {...(activeRole === 'agent' || isTenantWorkspace

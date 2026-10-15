@@ -107,6 +107,43 @@ export async function fetchAgentContacts(): Promise<
   return apiGet('/agent/rooms/contacts');
 }
 
+export type AgentOwnerContact = {
+  id: number;
+  name: string;
+  phone: string;
+  roomCount: number;
+};
+
+export type AgentContactDetail = {
+  id: number;
+  name: string;
+  phone: string;
+  email: string | null;
+  lineId: string | null;
+  facebook: string | null;
+  note: string | null;
+};
+
+export async function fetchAgentContact(id: number): Promise<AgentContactDetail> {
+  await ensureAgentSession();
+  return apiGet(`/agent/rooms/contacts/${id}`);
+}
+
+export async function updateAgentContact(id: number, input: Omit<AgentContactDetail, 'id'>): Promise<AgentContactDetail> {
+  await ensureAgentSession();
+  return apiRequest(`/agent/rooms/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export async function fetchAgentOwnerContacts(): Promise<AgentOwnerContact[]> {
+  await ensureAgentSession();
+  return apiGet('/agent/rooms/owner-contacts');
+}
+
+export async function fetchAgentLandlordContacts(): Promise<AgentOwnerContact[]> {
+  await ensureAgentSession();
+  return apiGet('/agent/rooms/landlord-contacts');
+}
+
 export async function fetchAgentContractTypes(): Promise<
   Array<{ id: number; code: string; termMonths: number }>
 > {

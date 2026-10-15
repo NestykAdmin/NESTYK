@@ -12,7 +12,7 @@ import {
 
 export type AgentMoreTool = 'calendar' | 'contact' | 'services' | 'contracts';
 
-type Shortcut = { tool: AgentMoreTool; icon: AppIconName; label: string; desc: string; highlight?: boolean };
+type Shortcut = { tool: AgentMoreTool; icon: AppIconName; label: string; desc: string; tone?: 'brand' | 'info' };
 
 const { boxShadow: _webShadow, ...cardShadow } = getCardElevation(1);
 
@@ -23,8 +23,8 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
   const d = t.agent.dashboard;
 
   const shortcuts: Shortcut[] = [
-    { tool: 'calendar', icon: 'calendar', label: d.openCalendar, desc: d.calendarDesc, highlight: true },
-    { tool: 'contact', icon: 'users', label: d.openContacts, desc: d.contactsDesc },
+    { tool: 'calendar', icon: 'calendar', label: d.openCalendar, desc: d.calendarDesc, tone: 'brand' },
+    { tool: 'contact', icon: 'users', label: d.openContacts, desc: d.contactsDesc, tone: 'info' },
     { tool: 'services', icon: 'buildings', label: d.openServices, desc: d.servicesDesc },
     { tool: 'contracts', icon: 'files', label: d.openContracts, desc: d.contractsDesc },
   ];
@@ -32,9 +32,16 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
 
   const card = { backgroundColor: theme.surface, borderColor: theme.border };
   const neutralIconBg = isDark ? 'rgba(148,163,184,0.16)' : '#F1F5F9';
-  const iconBg = (highlight?: boolean) =>
-    highlight ? (isDark ? 'rgba(248,182,21,0.18)' : tokens.colors.brand[100]) : neutralIconBg;
-  const iconColor = (highlight?: boolean) => (highlight ? tokens.colors.brand[700] : theme.textHeading);
+  const iconBg = (tone?: Shortcut['tone']) => {
+    if (tone === 'brand') return isDark ? 'rgba(248,182,21,0.18)' : tokens.colors.brand[100];
+    if (tone === 'info') return isDark ? 'rgba(37,99,235,0.18)' : tokens.colors.subtle.infoBg;
+    return neutralIconBg;
+  };
+  const iconColor = (tone?: Shortcut['tone']) => {
+    if (tone === 'brand') return tokens.colors.brand[700];
+    if (tone === 'info') return tokens.colors.subtle.infoFg;
+    return theme.textHeading;
+  };
 
   return (
     <View>
@@ -60,8 +67,8 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
                   pressed && Platform.OS === 'ios' ? styles.pressed : null,
                 ]}
               >
-                <View style={[styles.iconBox, { backgroundColor: iconBg(item.highlight) }]}>
-                  <MobileIcon name={item.icon} size={22} color={iconColor(item.highlight)} />
+                <View style={[styles.iconBox, { backgroundColor: iconBg(item.tone) }]}>
+                  <MobileIcon name={item.icon} size={22} color={iconColor(item.tone)} />
                 </View>
                 <Text style={[styles.title, { color: theme.textHeading }]} numberOfLines={1}>
                   {item.label}

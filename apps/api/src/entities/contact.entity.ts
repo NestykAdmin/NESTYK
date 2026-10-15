@@ -25,6 +25,9 @@ export class ContactEntity extends SerialCreatedEntity {
   @Column({ type: 'varchar', length: 500, nullable: true })
   note: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  is_co_agent: boolean;
+
   @Column({ type: 'int' })
   created_by_user_id: number;
 

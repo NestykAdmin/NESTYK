@@ -42,7 +42,7 @@ function layoutValue(room: RentRoomEntity, code: string): string | null {
   return room.layout_values?.find((row) => row.layout?.code === code)?.value?.trim() ?? null;
 }
 
-function roomPrices(room: RentRoomEntity) {
+export function roomPrices(room: RentRoomEntity) {
   // Lease-specific conditions live beside prices in the existing JSON column.
   // Old rooms remain compatible through their room-level defaults.
   const terms = (id: number | undefined, code: string) => {

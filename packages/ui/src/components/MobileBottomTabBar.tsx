@@ -181,6 +181,8 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
                   : { color: theme.textSecondary },
               ]}
               numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
             >
               {label}
             </Text>
@@ -248,6 +250,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
     fontWeight: '400',
+    alignSelf: 'stretch',
+    textAlign: 'center',
   },
   indicator: {
     marginTop: 0,

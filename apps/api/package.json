@@ -17,6 +17,7 @@
     "test:contract-deposits": "node --test test/contract-end-deposits.integration.cjs",
     "test:schema": "node --test test/schema-drift.test.cjs",
     "test:room-photos": "node --test test/room-photos.test.cjs",
+    "test:agent-contacts": "node --test test/owner-contacts.test.cjs test/contact-details.test.cjs test/renter-contacts.test.cjs test/co-agent-contacts.test.cjs test/contact-api.integration.cjs",
     "test:agent-listings": "node --test test/agent-listings.test.cjs test/room-share-links.test.cjs",
     "test:agent-leads": "node --test test/agent-leads.test.cjs test/lead-matching.test.cjs test/lead-viewings.test.cjs",
     "test:tenant-bills": "node --test test/tenant-bills.test.cjs",
