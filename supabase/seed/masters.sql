@@ -342,7 +342,8 @@ SELECT pg_catalog.setval('public.master_agreement_types_id_seq', 4, true);
 -- Name: master_contract_end_reasons_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.master_contract_end_reasons_id_seq', 7, true);
+-- max(id), not a fixed 7: migration 20261014120000_contract_closure adds id 8 before this seed runs.
+SELECT pg_catalog.setval('public.master_contract_end_reasons_id_seq', (SELECT max(id) FROM public.master_contract_end_reasons), true);
 
 
 --
