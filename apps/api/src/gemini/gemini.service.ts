@@ -99,6 +99,32 @@ export function resolveVertexCredentialsPath(): string | null {
   return null;
 }
 
+type ServiceAccountJson = { client_email: string; private_key: string; project_id?: string };
+
+/**
+ * Service-account key passed as the content of GOOGLE_CREDENTIALS_JSON (raw JSON or base64 of it),
+ * for hosts with no key file on disk such as Railway. Takes precedence over the file path variables.
+ */
+export function readVertexCredentialsJson(): ServiceAccountJson | null {
+  const raw = (process.env.GOOGLE_CREDENTIALS_JSON || '').trim();
+  if (!raw) return null;
+  const text = raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
+  let parsed: Partial<ServiceAccountJson>;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new ServiceUnavailableException(
+      'GOOGLE_CREDENTIALS_JSON is not valid JSON (paste the whole service-account file, or its base64)',
+    );
+  }
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new ServiceUnavailableException(
+      'GOOGLE_CREDENTIALS_JSON is missing client_email or private_key — use a service-account key file',
+    );
+  }
+  return parsed as ServiceAccountJson;
+}
+
 @Injectable()
 export class GeminiService {
   private readonly logger = new Logger(GeminiService.name);
@@ -127,22 +153,27 @@ export class GeminiService {
   private getClient(): GoogleGenAI {
     if (this.client) return this.client;
 
-    const credentialsPath = resolveVertexCredentialsPath();
-    if (!credentialsPath) {
+    const credentialsJson = readVertexCredentialsJson();
+    const credentialsPath = credentialsJson ? null : resolveVertexCredentialsPath();
+    if (!credentialsJson && !credentialsPath) {
       throw new ServiceUnavailableException(
-        'Vertex AI credentials missing — set GOOGLE_APPLICATION_CREDENTIALS (or VERTEX_CREDENTIALS) to a service-account JSON path and restart the API',
+        'Vertex AI credentials missing — set GOOGLE_CREDENTIALS_JSON, or GOOGLE_APPLICATION_CREDENTIALS (or VERTEX_CREDENTIALS) to a service-account JSON path, and restart the API',
       );
     }
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+    if (credentialsPath) process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
 
     const project = this.vertexProject();
     const location = this.vertexLocation();
-    this.logger.log(`Vertex AI client: project=${project} location=${location}`);
+    this.logger.log(
+      `Vertex AI client: project=${project} location=${location} credentials=${credentialsJson ? 'GOOGLE_CREDENTIALS_JSON' : 'file'}`,
+    );
     this.client = new GoogleGenAI({
       vertexai: true,
       project,
       location,
-      googleAuthOptions: { keyFile: credentialsPath },
+      googleAuthOptions: credentialsJson
+        ? { credentials: { client_email: credentialsJson.client_email, private_key: credentialsJson.private_key } }
+        : { keyFile: credentialsPath! },
     });
     return this.client;
   }
