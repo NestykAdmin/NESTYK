@@ -3,6 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { LeaseAgreementInput } from "@nestyk/types";
 import { fillTemplate, useLocale, type ContractCopy } from "@nestyk/i18n";
+import { isIsoDate, leaseTermEnd, positiveMonths } from "../lib/lease-term";
 import { localeTag } from "../lib/lead-format";
 
 type TextField = Exclude<
@@ -175,10 +176,17 @@ export function leaseAgreementFieldErrors(
     if (!String(value[key] ?? "").trim()) errors[key] = messages.required;
   }
   for (const key of ["issueDate", "termFrom", "termTo"] as const) {
-    if (value[key].trim() && !/^\d{4}-\d{2}-\d{2}$/.test(value[key].trim()))
+    if (value[key].trim() && !isIsoDate(value[key].trim()))
       errors[key] = messages.dateFormat;
   }
+  const months = positiveMonths(value.termMonths);
   if (
+    months &&
+    isIsoDate(value.termFrom.trim()) &&
+    value.termTo.trim() !== leaseTermEnd(value.termFrom.trim(), months)
+  )
+    errors.termTo = messages.termEndsBeforeAnniversary;
+  else if (
     value.termFrom.trim() &&
     value.termTo.trim() &&
     value.termTo.trim() <= value.termFrom.trim()
@@ -375,10 +383,15 @@ export function LeaseAgreementFields({
                   !value.witnessSignName.trim()
                 )
                   next.witnessSignName = text;
+                if (field.key === "termFrom" || field.key === "termMonths") {
+                  const months = positiveMonths(next.termMonths);
+                  if (months && isIsoDate(next.termFrom.trim()))
+                    next.termTo = leaseTermEnd(next.termFrom.trim(), months);
+                }
                 onChange(next);
               }}
               placeholder={field.placeholder}
-              editable={!disabled}
+              editable={!disabled && field.key !== "termTo"}
               maxLength={LEASE_AGREEMENT_MAX_LENGTH[field.key]}
               multiline={field.multiline}
               autoCapitalize={key.endsWith("Email") ? "none" : "sentences"}

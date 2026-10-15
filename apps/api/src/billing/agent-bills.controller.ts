@@ -1,4 +1,5 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, UseGuards } from "@nestjs/common";
+import { DatabaseIdPipe } from '../common/database-id.pipe';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../auth/guards/auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -16,10 +17,15 @@ export class AgentBillsController {
     return this.billing.listForAgent(user.id);
   }
 
+  @Get('agent/tenants/:tenantId')
+  tenantBilling(@CurrentUser() user: AuthRequestUser, @Param('tenantId', DatabaseIdPipe) tenantId: number) {
+    return this.billing.listForAgentTenant(user.id, tenantId);
+  }
+
   @Get("agent/:id/payment-slip")
   paymentSlipUrl(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.billing.agentSlipUrl(user.id, id);
   }
@@ -28,8 +34,18 @@ export class AgentBillsController {
   @HttpCode(HttpStatus.OK)
   confirm(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.billing.confirmForAgent(user.id, id);
+  }
+
+  @Post("agent/:id/return")
+  @HttpCode(HttpStatus.OK)
+  returnSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.billing.returnForAgent(user.id, id, body);
   }
 }

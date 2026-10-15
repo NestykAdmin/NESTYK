@@ -17,6 +17,7 @@ const TITLE_MAX = 100;
 const DESCRIPTION_SOFT_MAX = 1200;
 
 function normalizeLocale(value: string | undefined): GenerateListingPromoLocale {
+  if (value !== undefined && typeof value !== 'string') throw new BadRequestException('outputLocale must be a string');
   const raw = (value || 'th').trim().toLowerCase();
   if (raw === 'en' || raw === 'zh' || raw === 'ja' || raw === 'th') return raw;
   return 'th';
@@ -190,7 +191,7 @@ export class ListingPromoService {
   constructor(private readonly gemini: GeminiService) {}
 
   async generate(body: GenerateListingPromoBody): Promise<GenerateListingPromoResult> {
-    if (!body || typeof body !== 'object') {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
       throw new BadRequestException('Body is required');
     }
     if (!body.listing || typeof body.listing !== 'object' || Array.isArray(body.listing)) {

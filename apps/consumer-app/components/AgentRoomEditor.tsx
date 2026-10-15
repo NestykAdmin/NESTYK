@@ -57,7 +57,7 @@ export function AgentRoomEditor({
     waterRatePerUnit: room.waterRatePerUnit == null ? undefined : Number(room.waterRatePerUnit),
     electricRatePerUnit: room.electricRatePerUnit == null ? undefined : Number(room.electricRatePerUnit),
     medias: room.medias.filter((m) => m.mediaType === 'image').map((m, index) => ({ mediaUrl: m.mediaUrl, category: 'room', isCover: m.isCover, sortOrder: index })),
-    facilities: room.facilityItems ?? [], customFacilities: room.customFacilities ?? [],
+    facilities: (room.facilityItems ?? []).map(item => ({ ...item, groupCode: item.groupCode ?? undefined })), customFacilities: room.customFacilities ?? [],
     nearbyOther: room.nearbyOther ?? '', nearbyPlaces: room.nearbyPlaces,
     documents: [],
     promoCopyStale: room.promoCopyStale,

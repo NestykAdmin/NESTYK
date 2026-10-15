@@ -128,21 +128,27 @@ export class AuthService {
     userId: number,
     patch: { firstName?: string; lastName?: string; phone?: string | null },
   ): Promise<AuthUserResponse> {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new BadRequestException('Profile must be an object');
+    for (const [key, max] of [['firstName', 255], ['lastName', 255], ['phone', 50]] as const) {
+      const value = patch[key];
+      if (value !== undefined && !(key === 'phone' && value === null) && (typeof value !== 'string' || value.length > max)) {
+        throw new BadRequestException(`${key} must be text up to ${max} characters`);
+      }
+    }
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
     if (patch.firstName !== undefined) user.first_name = patch.firstName;
     if (patch.lastName !== undefined) user.last_name = patch.lastName;
     if (patch.phone !== undefined) user.phone = patch.phone;
-    if (user.first_name && user.phone) {
-      user.profile_completed = true;
-    }
+    user.profile_completed = Boolean(user.first_name?.trim() && user.phone?.trim());
     await this.usersRepo.save(user);
     const loaded = await this.loadUserWithRoles(userId);
     return this.toResponse(loaded, false);
   }
 
   async updateAvatar(userId: number, avatarUrl: string): Promise<AuthUserResponse> {
+    if (typeof avatarUrl !== 'string' || !avatarUrl.trim() || avatarUrl.length > 512) throw new BadRequestException('avatarUrl must be text up to 512 characters');
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     user.avatar_url = avatarUrl;

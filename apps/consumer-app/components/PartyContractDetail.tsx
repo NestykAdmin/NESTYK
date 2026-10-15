@@ -30,6 +30,7 @@ import {
 } from "./ContractSignaturePad";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
+import { TenantContractAttachments } from "./TenantContractList";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
@@ -37,6 +38,7 @@ import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
 const CONTRACT_ICON: Record<PartyContract["formKind"], AppIconName> = {
   reservation: "calendar",
   lease: "key",
+  renewal: "file-text",
   broker_appointment: "handshake",
 };
 
@@ -49,7 +51,7 @@ function statusColor(status: PartyContract["status"]) {
 }
 
 function signerKeys(row: PartyContract): SignerKey[] {
-  if (row.formKind === "lease") return ["owner", "tenant"];
+  if (row.formKind === "lease" || row.formKind === "renewal") return ["owner", "tenant"];
   if (row.formKind === "broker_appointment") return ["owner", "agent"];
   return ["owner", "tenant", "agent"];
 }
@@ -68,6 +70,7 @@ export function PartyContractDetail({
   onReloadSettled,
   refreshError,
   refreshing = false,
+  mode = "owner",
 }: {
   contract: PartyContract;
   accentColor?: string;
@@ -75,6 +78,7 @@ export function PartyContractDetail({
   onReloadSettled?: (token: number) => void;
   refreshError?: string;
   refreshing?: boolean;
+  mode?: "owner" | "tenant";
   onUpdated: (next: PartyContract) => void;
 }) {
   const { theme } = useMobileTheme();
@@ -328,8 +332,8 @@ export function PartyContractDetail({
           </View>
         </View>
         <View style={styles.contractLine}>
-          <View style={[styles.kindIcon, { backgroundColor: `${accentColor}18` }]}>
-            <MobileIcon name={CONTRACT_ICON[contract.formKind]} size={18} color={accentColor} />
+          <View style={[styles.kindIcon, { backgroundColor: mode === "tenant" ? theme.background : `${accentColor}18` }]}>
+            <MobileIcon name={CONTRACT_ICON[contract.formKind]} size={18} color={mode === "tenant" ? theme.screenTitle : accentColor} />
           </View>
           <Text style={[styles.copy, title, styles.contractNoText]}>
             {fillTemplate(tc.common.contractNo, { no: contract.contractNo })}
@@ -343,7 +347,7 @@ export function PartyContractDetail({
           {locale === "th" ? contract.agreementTypeName : tc.common.kinds[contract.formKind]}
           {contract.formKind === "reservation"
             ? ` · ${fillTemplate(tc.common.reservationFee, { amount: money(contract.reservationFee) })}`
-            : contract.formKind === "lease"
+            : contract.formKind === "lease" || contract.formKind === "renewal"
               ? ` · ${fillTemplate(tc.common.rent, { amount: money(contract.monthlyRent) })}`
               : ""}
         </Text>
@@ -372,6 +376,13 @@ export function PartyContractDetail({
           onUpload={mine.includes("tenant") ? () => setSlipSourceOpen(true) : undefined}
         />
       )}
+
+      {mode === "tenant" && contract.formKind === "lease" ? <TenantContractAttachments
+        attachments={attachments}
+        loading={loading}
+        disabled={busy || previewBusy || refreshing}
+        onOpen={(id) => void openFile(id)}
+      /> : null}
 
       <View style={[styles.card, card]}>
         <Text style={[styles.contractNo, title]}>{tc.party.myDocuments}</Text>

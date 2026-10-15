@@ -18,6 +18,7 @@ function harness(party) {
   let stateIndex = 0, refIndex = 0, effectIndex = 0, refresh, detail;
   const contract = { id: 11, property: 'Project', room: '101', formKind: 'reservation', status: 'draft', myParties: [party], invoiceUrl: 'old-invoice.pdf', receiptUrl: null };
   const props = {
+    mode: party,
     opened: contract, selectedRoom: null, reloadToken: 0,
     onOpenedChange: next => { props.opened = next; }, onSelectedRoomChange() {},
     onReloadSettled: token => settled.push(token),
@@ -46,7 +47,11 @@ function harness(party) {
       MobileButton: ({ children }) => React.createElement('button', {}, children),
     };
     if (name === './PartyContractDetail') return { PartyContractDetail: props => { detail = props; return React.createElement('span', {}, `${props.contract.invoiceUrl} ${props.contract.receiptUrl ?? ''}`); } };
-    if (name === '../lib/party-contracts-api') return { listMyContracts: () => { const request = deferred(); requests.push(request); return request.promise; } };
+    if (name === './TenantContractList') return { TenantContractList: () => null };
+    if (name === '../lib/party-contracts-api') return {
+      listMyContracts: () => { const request = deferred(); requests.push(request); return request.promise; },
+      listMyOwnedRooms: async () => [],
+    };
     if (name === '@nestyk/i18n') return {
       useLocale: () => ({ locale: 'th', t: { contracts: contractsTh, mobile: { partyContracts: { loadFailed: 'โหลดสัญญาไม่สำเร็จ' } } } }),
       fillTemplate,

@@ -46,6 +46,7 @@ function harness(contract) {
     if (name === '@nestyk/i18n') return i18nMock;
     if (name === '../lib/lead-format') return leadFormat;
     if (name === './ReservationPaymentCard') return { ReservationPaymentCard: () => null };
+    if (name === './TenantContractList') return { TenantContractAttachments: () => null };
     if (name === './ContractDocumentPreview') return { ContractDocumentPreview: () => null };
     if (name === './ContractSignaturePad') return { ContractSignaturePad: () => null };
     throw new Error(`Unexpected dependency: ${name}`);

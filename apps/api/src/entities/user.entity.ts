@@ -1,13 +1,17 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, Index, Unique } from "typeorm";
 import { SerialCreatedEntity } from './base.entity';
 import { UserRoleEntity } from './user-role.entity';
 
+@Unique("users_email_key", ["email"])
+@Unique("users_supabase_user_id_key", ["supabase_user_id"])
+@Index("idx_users_email", ["email"])
+@Index("idx_users_supabase_user_id", ["supabase_user_id"])
 @Entity({ name: 'users' })
 export class UserEntity extends SerialCreatedEntity {
-  @Column({ type: 'uuid', unique: true, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   supabase_user_id: string | null;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

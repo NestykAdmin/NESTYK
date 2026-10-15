@@ -1,0 +1,475 @@
+{
+  "mode": "read_only_database_synthetic_identity",
+  "routeCount": 120,
+  "checkedCount": 25,
+  "routes": [
+    {
+      "controller": "AgentContractsController",
+      "handler": "history",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/history",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "reservationDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/reservation-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "brokerAppointmentDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/broker-appointment-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "leaseDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/lease-defaults/:leadId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "receiptDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/invoices/:invoiceId/receipt-defaults",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "draftTemplate",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/draft-template",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentContractsController",
+      "handler": "financialDefaults",
+      "file": "apps/api/src/agent/contracts/agent-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/financial-documents/:kind",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "list",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "brokerAppointmentDefaults",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments/broker-appointment/defaults",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgreementAttachmentsController",
+      "handler": "url",
+      "file": "apps/api/src/agent/contracts/agreement-attachments.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/contracts/:id/attachments/:documentId/url",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "listAttachments",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/attachments",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        },
+        "owner": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "attachmentUrl",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/attachments/:documentId/url",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        },
+        "owner": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "PartyContractsController",
+      "handler": "financialDocument",
+      "file": "apps/api/src/agent/contracts/party-contracts.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/contracts/mine/:id/financial-documents/:kind",
+      "roles": [
+        "tenant",
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        },
+        "owner": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentLeadsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/leads/agent-leads.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "settings",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/match-settings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "LeadMatchingController",
+      "handler": "latest",
+      "file": "apps/api/src/agent/leads/lead-matching.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/match-runs/latest",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "LeadViewingsController",
+      "handler": "listForLead",
+      "file": "apps/api/src/agent/leads/lead-viewings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/leads/:id/viewings",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentListingsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/listings/agent-listings.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentRoomShareLinksController",
+      "handler": "list",
+      "file": "apps/api/src/agent/listings/room-share-links.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/listings/:id/share-links",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentTenantsController",
+      "handler": "view",
+      "file": "apps/api/src/agent/tenants/agent-tenants.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/agent/tenants/:id",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "tenantBilling",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/agent/tenants/:tenantId",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "AgentBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/agent-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/agent/:id/payment-slip",
+      "roles": [
+        "agent"
+      ],
+      "guarded": true,
+      "results": {
+        "agent": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "OwnerBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/owner-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/received/:id/payment-slip",
+      "roles": [
+        "owner"
+      ],
+      "guarded": true,
+      "results": {
+        "owner": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    },
+    {
+      "controller": "TenantBillsController",
+      "handler": "paymentSlipUrl",
+      "file": "apps/api/src/billing/tenant-bills.controller.ts",
+      "method": "GET",
+      "path": "/api/v1/bills/mine/:id/payment-slip",
+      "roles": [
+        "tenant"
+      ],
+      "guarded": true,
+      "results": {
+        "tenant": {
+          "status": 400,
+          "handler": null,
+          "message": "ID must be an integer between 1 and 2147483647"
+        }
+      }
+    }
+  ]
+}

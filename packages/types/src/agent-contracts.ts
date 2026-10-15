@@ -1,9 +1,11 @@
+import type { TenantNextBill } from "./contracts";
+
 export interface AgreementTemplate {
   id: number;
   agreementTypeCode: string;
   version: number;
   name: string;
-  formKind: "reservation" | "lease" | "broker_appointment";
+  formKind: "reservation" | "lease" | "broker_appointment" | "renewal";
   dataSchema: Record<string, unknown>;
 }
 export interface AgreementType {
@@ -11,7 +13,7 @@ export interface AgreementType {
   nameTh: string;
   nameEn: string;
   icon: string;
-  formKind: "reservation" | "lease" | "broker_appointment";
+  formKind: "reservation" | "lease" | "broker_appointment" | "renewal";
 }
 export type AgentContractStatus =
   | "draft"
@@ -39,7 +41,7 @@ export interface AgentContract {
   tenant: string;
   agreementTypeCode: string;
   agreementTypeName: string;
-  formKind: "reservation" | "lease" | "broker_appointment";
+  formKind: "reservation" | "lease" | "broker_appointment" | "renewal";
   reservationFee: number | null;
   status: AgentContractStatus;
   startDate: string;
@@ -48,6 +50,11 @@ export interface AgentContract {
   moveInDate: string | null;
   monthlyRent: number | null;
   deposit: number | null;
+  endReasonId?: number | null;
+  endReasonNote?: string | null;
+  effectiveEndDate?: string | null;
+  endRecordedAt?: string | null;
+  endRecordedByUserId?: number | null;
   notes: string | null;
   ownerSignedAt: string | null;
   tenantSignedAt: string | null;
@@ -100,6 +107,8 @@ export interface ContractDelivery {
 }
 export interface PartyContract extends AgentContract {
   myParties: Array<"owner" | "tenant">;
+  /** Next scheduled rent round, independently of any outstanding bills. */
+  nextRentBill?: Pick<TenantNextBill, "period" | "issueDate" | "dueDate" | "graceUntil"> | null;
 }
 export interface ContractCandidate {
   leadId: number;
@@ -120,6 +129,31 @@ export interface CreateAgentContract {
   reservationFee?: number;
   agreementTypeCode?: string;
   notes?: string;
+}
+
+export interface ContractEndReason {
+  code: string;
+  nameTh: string;
+  nameEn: string;
+  status: "expired" | "terminated" | "cancelled";
+  requiresNote: boolean;
+}
+export interface CloseAgentContract {
+  endReasonCode: string;
+  effectiveEndDate: string;
+  note?: string;
+}
+export interface ContractClosureBilling {
+  policy: "retain_existing";
+  unpaidCount: number;
+  unpaidAmount: string;
+  paidCount: number;
+  /** Already-issued bills due after closure need a separate financial decision. */
+  billsDueAfterEndCount: number;
+}
+export interface CloseAgentContractResult {
+  contract: AgentContract;
+  billing: ContractClosureBilling;
 }
 
 export type AgreementDocumentSubject =
@@ -375,4 +409,33 @@ export interface BrokerAppointmentInput {
   landlordSignaturePng: string;
   /** Optional PNG data URL for broker signature image on the PDF. */
   brokerSignaturePng: string;
+}
+
+/** Fields stamped onto the lease renewal addendum PDF. */
+export interface LeaseRenewalInput {
+  documentNo: string;
+  issueDate: string;
+  landlordName: string;
+  tenantName: string;
+  propertyLine: string;
+  /** First lease in the chain. Copied onto every later renewal. */
+  firstLeaseNo: string;
+  firstLeaseDate: string;
+  firstLeaseStart: string;
+  firstLeaseEnd: string;
+  originalLeaseNo: string;
+  originalLeaseDate: string;
+  originalExpiryDate: string;
+  renewMonths: string;
+  startDate: string;
+  endDate: string;
+  monthlyRent: string;
+  dueDay: string;
+  bankAccount: string;
+  depositCarried: string;
+  additionalChanges: string;
+  landlordSignName: string;
+  tenantSignName: string;
+  landlordSignaturePng: string;
+  tenantSignaturePng: string;
 }

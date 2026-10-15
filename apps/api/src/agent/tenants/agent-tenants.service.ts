@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DataSource, In, Not, QueryFailedError } from "typeorm";
+import { DataSource, In, IsNull, Not, QueryFailedError } from "typeorm";
 import type {
   AgentTenant,
   CreateAgentTenant,
@@ -290,6 +290,7 @@ export class AgentTenantsService {
       where: {
         rent_room_id: In(roomIds),
         status: "booked",
+        booking_released_at: IsNull(),
         created_by_user_id: agentId,
       },
       select: { id: true, name: true, rent_room_id: true },
@@ -335,7 +336,7 @@ export class AgentTenantsService {
       if (!room) throw new NotFoundException("ไม่พบห้องที่คุณมีสิทธิ์จัดการ");
       // One booked lead per room: say so here, before the unique index does.
       const taken = await manager.findOne(LeadEntity, {
-        where: { rent_room_id: room.id, status: "booked" },
+        where: { rent_room_id: room.id, status: "booked", booking_released_at: IsNull() },
       });
       if (taken && taken.id !== lead.id)
         throw new ConflictException({
@@ -363,6 +364,7 @@ export class AgentTenantsService {
       lead.tenant_id = tenant.id;
       lead.rent_room_id = room.id;
       lead.status = "booked";
+      lead.booking_released_at = null;
       await manager.save(LeadEntity, lead);
       return tenant.id;
     });

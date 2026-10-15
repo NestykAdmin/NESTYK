@@ -10,10 +10,7 @@ const { AuthService } = require('../src/auth/auth.service.ts');
 const { Module } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
 
-const png = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.alloc(40, 1),
-]);
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEElEQVQImWNgYGD4D8UQBgAd9AP9JAD7OgAAAABJRU5ErkJggg==', 'base64');
 const signaturePng = `data:image/png;base64,${png.toString('base64')}`;
 
 function row(overrides = {}) {
@@ -73,12 +70,12 @@ function serviceFor(current, affected = 1) {
   return { service: new AgentContractsService(db, documents), updates, current };
 }
 
-test('validateSign accepts png data urls and unique parties', () => {
-  const result = validateSign({ parties: ['owner', 'owner', 'tenant'], signaturePng });
+test('validateSign accepts decodable png data urls and unique parties', async () => {
+  const result = await validateSign({ parties: ['owner', 'owner', 'tenant'], signaturePng });
   assert.deepEqual(result.parties, ['owner', 'tenant']);
   assert.equal(result.png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
-  assert.throws(() => validateSign({ parties: ['owner'], signaturePng: 'nope' }), error => error.getStatus() === 400);
-  assert.throws(() => validateSign({ parties: ['witness'], signaturePng }), error => error.getStatus() === 400);
+  await assert.rejects(() => validateSign({ parties: ['owner'], signaturePng: 'nope' }), error => error.getStatus() === 400);
+  await assert.rejects(() => validateSign({ parties: ['witness'], signaturePng }), error => error.getStatus() === 400);
 });
 
 test('proxy sign stamps unsigned parties and moves draft to awaiting signatures', async () => {
@@ -168,4 +165,25 @@ test('a concurrent edit or cancellation prevents a stale signature from being co
   assert.equal(current.owner_signed_at, null);
   assert.equal(updates[0][0].status, 'draft');
   assert.ok(updates[0][0].data);
+});
+
+
+test('corrupt PNG is rejected before storage or signature state changes; valid retry stays usable by PDF', async () => {
+  const f = serviceFor(row());
+  let uploads = 0;
+  f.service.documents.uploadSignature = async () => { uploads++; return { path: '7/11/signatures/valid.png' }; };
+  const corrupt = Buffer.concat([png.subarray(0, 8), Buffer.alloc(40, 1)]).toString('base64');
+  await assert.rejects(() => f.service.sign(7, 11, { parties: ['owner'], signaturePng: corrupt }), e => e.getStatus() === 400);
+  assert.equal(uploads, 0); assert.equal(f.updates.length, 0); assert.equal(f.current.status, 'draft');
+  const normalized = await validateSign({ parties: ['owner'], signaturePng });
+  const pdf = await require('pdf-lib').PDFDocument.create();
+  const embedded = await pdf.embedPng(normalized.png);
+  assert.equal(embedded.width, 2); assert.equal(embedded.height, 2);
+  await f.service.sign(7, 11, { parties: ['owner'], signaturePng });
+  assert.equal(uploads, 1); assert.ok(f.current.owner_signed_at);
+});
+
+test('PNG dimensions are bounded before a signature is committed', async () => {
+  const large = await require('sharp')({ create: { width: 4097, height: 1, channels: 4, background: '#000000' } }).png().toBuffer();
+  await assert.rejects(() => validateSign({ parties: ['owner'], signaturePng: large.toString('base64') }), e => e.getStatus() === 400);
 });

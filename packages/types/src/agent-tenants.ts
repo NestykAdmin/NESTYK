@@ -40,7 +40,7 @@ export interface AgentTenantPayment {
   hasSlip: boolean;
   receiptIssued: boolean;
 }
-/** One tenant's rent billing as the agent sees it (planned `GET /bills/agent/tenants/:tenantId`). */
+/** One tenant's persisted rent billing (`GET /bills/agent/tenants/:tenantId`). */
 export interface AgentTenantBilling {
   bills: AgentTenantBill[];
   /** Next period whose bill is not issued yet. */

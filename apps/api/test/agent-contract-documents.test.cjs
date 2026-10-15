@@ -113,6 +113,7 @@ test('uploadDocument supports reservation invoice and lease agreement uploads', 
         update: async (where, patch) => {
           updates.push([where, patch]);
           Object.assign(current, patch);
+          return { affected: 1 };
         },
       };
     },
@@ -289,4 +290,44 @@ test('invalid signature leaves the original preview unchanged', async () => {
   }
   await assert.rejects(() => h.service.reservationPdf(7, 11, true), error => error.getStatus() === 400);
   assert.equal(h.row.document_url, original);
+});
+
+test('ended agreements cannot upload replacement documents or persist new PDF previews', async () => {
+  for (const status of ['cancelled', 'expired', 'terminated']) {
+    const lease = pdfHarness({ status, agreement_type_code: 'lease', agreement_type: { form_kind: 'lease' }, document_url: '7/11/lease_agreement/historical.pdf' });
+    await assert.rejects(() => lease.service.uploadDocument(7, 11, 'lease_agreement', { buffer: pdf, size: pdf.length }), e => e.getStatus() === 400);
+    await assert.rejects(() => lease.service.leaseAgreementPdf(7, 11, false), e => e.getStatus() === 400);
+    assert.equal(lease.row.document_url, '7/11/lease_agreement/historical.pdf'); assert.equal(lease.objects.size, 0);
+    const renewal = pdfHarness({ status, agreement_type_code: 'lease_renewal', agreement_type: { form_kind: 'renewal' } });
+    await assert.rejects(() => renewal.service.leaseRenewalPdf(7, 11, false), e => e.getStatus() === 400);
+    assert.equal(renewal.objects.size, 0);
+  }
+});
+
+test('closure during a document upload rejects the stale write and cleans up the new file', async () => {
+  const row = reservationRow({ agreement_type: { form_kind: 'lease' }, data: {}, document_url: 'historical.pdf' });
+  const qb = {}; for (const key of ['leftJoinAndSelect', 'where', 'andWhere']) qb[key] = () => qb;
+  qb.getOne = async () => structuredClone(row);
+  const removed = [];
+  const repo = { createQueryBuilder: () => qb, update: async (where) => {
+    assert.equal(where.status, 'draft'); assert.equal(where.document_url, 'historical.pdf');
+    return { affected: row.status === where.status ? 1 : 0 };
+  } };
+  const storage = { upload: async () => { row.status = 'terminated'; return { path: 'new-upload.pdf' }; }, remove: async path => removed.push(path) };
+  const service = new AgentContractsService({ getRepository: () => repo }, storage);
+  await assert.rejects(() => service.uploadDocument(7, 11, 'lease_agreement', { buffer: pdf, size: pdf.length }), e => e.getStatus() === 409);
+  assert.equal(row.document_url, 'historical.pdf'); assert.deepEqual(removed, ['new-upload.pdf']);
+});
+
+
+test('signature storage rejects malformed PNG before uploading and normalizes valid images for PDF use', async () => {
+  const { storage, objects } = storageDouble();
+  const invalid = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(40, 1)]);
+  await assert.rejects(() => storage.uploadSignature(7, 11, { buffer: invalid, size: invalid.length }), e => e.getStatus() === 400);
+  assert.equal(objects.size, 0);
+  const valid = await signaturePng();
+  const stored = await storage.uploadSignature(7, 11, { buffer: valid, size: valid.length });
+  const pdf = await PDFDocument.create();
+  const image = await pdf.embedPng(objects.get(stored.path).buffer);
+  assert.ok(image.width > 0 && image.height > 0);
 });

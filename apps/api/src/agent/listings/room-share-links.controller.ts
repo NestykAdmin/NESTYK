@@ -1,3 +1,4 @@
+import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import {
   Body,
   Controller,
@@ -5,7 +6,6 @@ import {
   Get,
   Header,
   Param,
-  ParseIntPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -24,22 +24,22 @@ export class AgentRoomShareLinksController {
   @Post(':id/share-links')
   create(
     @CurrentUser() user: AuthRequestUser,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', DatabaseIdPipe) id: number,
     @Body() body: unknown,
   ) {
     return this.shareLinks.create(user.id, id, body);
   }
 
   @Get(':id/share-links')
-  list(@CurrentUser() user: AuthRequestUser, @Param('id', ParseIntPipe) id: number) {
+  list(@CurrentUser() user: AuthRequestUser, @Param('id', DatabaseIdPipe) id: number) {
     return this.shareLinks.list(user.id, id);
   }
 
   @Delete(':id/share-links/:linkId')
   revoke(
     @CurrentUser() user: AuthRequestUser,
-    @Param('id', ParseIntPipe) id: number,
-    @Param('linkId', ParseIntPipe) linkId: number,
+    @Param('id', DatabaseIdPipe) id: number,
+    @Param('linkId', DatabaseIdPipe) linkId: number,
   ) {
     return this.shareLinks.revoke(user.id, id, linkId);
   }

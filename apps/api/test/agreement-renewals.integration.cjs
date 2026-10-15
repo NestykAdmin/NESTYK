@@ -40,7 +40,7 @@ test('PostgreSQL: migration repeatability, backfill, version pinning, renewal ch
     await admin.query("INSERT INTO master_agreement_types(code,name_th,name_en,form_kind) VALUES ('lease','สัญญาเช่า','Lease','lease'),('reservation','หนังสือจอง','Reservation','reservation')");
     // A pre-migration row exercises template and JSON backfill without copying personal data.
     await admin.query("INSERT INTO lease_contracts(id,room_tenancy_id,rent_room_id,tenant_id,lead_id,created_by_user_id,start_date,end_date,monthly_rent,deposit) VALUES (900,1,1,1,1,1,'2020-01-01','2020-12-31',100,200)");
-    const migration = fs.readFileSync(path.resolve(__dirname,'../migrations/20260915-agreement-templates-renewals.sql'),'utf8');
+    const migration = fs.readFileSync(path.resolve(__dirname,'../migrations/20260915-00-agreement-templates-renewals.sql'),'utf8');
     await admin.query(migration); await admin.query(migration);
     const legacy = (await admin.query('SELECT * FROM lease_contracts WHERE id=900')).rows[0];
     assert.equal(legacy.root_agreement_id,900); assert.equal(legacy.data.monthlyRent,100); assert.ok(legacy.template_id);

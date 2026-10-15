@@ -7,6 +7,7 @@ const { AgentContractsService, validateContract, formatContractNo, parseContract
 const { AgentContractsController } = require('../src/agent/contracts/agent-contracts.controller.ts');
 const { AgreementTemplateEntity } = require('../src/entities/agreement-template.entity.ts');
 const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
+const { MasterContractEndReasonEntity } = require('../src/entities/master-contract-end-reason.entity.ts');
 const { TenantEntity } = require('../src/entities/tenant.entity.ts');
 const { validateAgreementData } = require('../src/agent/contracts/agreement-data.ts');
 const { LeadEntity } = require('../src/entities/lead.entity.ts');
@@ -105,7 +106,7 @@ const finalizedReservation = {
   status: 'active',
   document_url: '7/1/generated/reservation_letter/letter-v1/booked.pdf',
 };
-function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, successor = 0, draft = null, reservations = [finalizedReservation] } = {}) {
+function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, successor = 0, draft = null, occupancy = null, endReason = { id: 77 }, reservations = [finalizedReservation] } = {}) {
   const saved = []; const calls = []; const uploads = []; const removed = []; let rolledBack = false;
   const qb = {};
   for (const key of ['leftJoin', 'where', 'andWhere']) qb[key] = (...args) => { calls.push([key, ...args]); return qb; };
@@ -119,8 +120,9 @@ function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, fo
       if (entity === LeaseContractEntity) return options.where.id === draft?.id ? draft : previous;
       if (entity === LeadEntity) return { id: 1, status, tenant_id: 2, rent_room_id: 3 };
       if (entity === RentRoomEntity) return foreignRoom ? null : { id: 3, property_owner_id: 4, owner_id: 5 };
+      if (entity === RoomTenancyEntity) return occupancy;
     },
-    findOneBy: async (entity, options) => { if (entity === AgreementTemplateEntity) return { form_kind: previous?.form_kind ?? 'lease' }; if (entity !== TenantEntity) return null; assert.deepEqual(options, { id: 2, lead_id: 1, created_by_user_id: 7 }); return { id: 2, name: 'Original tenant' }; },
+    findOneBy: async (entity, options) => { if (entity === MasterContractEndReasonEntity) { assert.deepEqual(options, {code:'draft_cancelled',is_active:true}); return endReason; } if (entity === AgreementTemplateEntity) return { form_kind: previous?.form_kind ?? 'lease' }; if (entity !== TenantEntity) return null; assert.deepEqual(options, { id: 2, lead_id: 1, created_by_user_id: 7 }); return { id: 2, name: 'Original tenant' }; },
     update: async (entity, where, patch) => {
       calls.push(['update', entity.name, where, patch]);
       if (failInvoiceUpdate && patch.invoice_url) throw new Error('invoice DB failure');
@@ -151,7 +153,7 @@ test('creates tenancy and draft using server-owned identity and locked room', as
   assert.equal(c.status, 'draft'); assert.equal(c.created_by_user_id, 7); assert.equal(c.tenant_id, 2); assert.equal(c.room_tenancy_id, 10); assert.equal(c.monthly_rent, '15000.00');
   assert.match(c.contract_no, /^LS\d{4}\d{5}$/);
   assert.equal(f.saved[0].status, 'prospect');
-  assert.ok(f.calls.some(c => c[0] === 'andWhere' && c[1].includes('c.end_date >= :start')));
+  assert.ok(f.calls.some(c => c[0] === 'andWhere' && c[1].includes('COALESCE(c.effective_end_date, c.end_date) >= :start')));
 });
 test('rejects unbooked leads, unauthorized rooms and overlapping contracts without writes', async () => {
   for (const options of [{ status: 'inprogress' }, { foreignRoom: true }, { overlap: 1 }]) { const f = fixture(options); await assert.rejects(() => f.service.create(7, valid)); assert.equal(f.saved.length, 0); }
@@ -214,12 +216,12 @@ test('reservation drafts persist their master code and booking fee without month
   assert.equal(f.uploads.length, 1);
   assert.ok(c.invoice_url);
   assert.equal(c.agreement_type_code, 'reservation'); assert.equal(c.reservation_fee, '5000.00'); assert.equal(c.monthly_rent, null); assert.equal(c.deposit, null);
-  assert.ok(f.calls.some(call => call[2]?.formKind === 'reservation'));
+  assert.ok(f.calls.some(call => call[2]?.formKinds?.includes('reservation')));
 });
-test('overlap checks only the same form kind so reservation does not block lease or broker', async () => {
+test('overlap groups lease and renewal while reservation and broker can coexist', async () => {
   const f = fixture(); await f.service.create(7, valid);
-  const clause = f.calls.find(call => call[1]?.includes?.('= :formKind') && call[2]?.formKind === 'lease');
-  assert.ok(clause);
+  const clause = f.calls.find(call => call[1]?.includes?.('IN (:...formKinds)'));
+  assert.deepEqual(clause[2].formKinds, ['lease', 'renewal']);
   assert.equal(f.calls.some(call => call[2]?.isLease != null), false);
 });
 test('a new lease requires a generated reservation letter for the same lead and room', async () => {
@@ -292,6 +294,16 @@ test('second renewal retains original root', async () => {
   const f = fixture({ previous: {...original, id: 21} });
   const c = await f.service.create(7, {...valid, previousAgreementId: 21});
   assert.equal(c.previous_agreement_id, 21); assert.equal(c.root_agreement_id, 20);
+});
+test('continuous renewal reuses active occupancy, but a gap or moved-out occupancy creates a new tenancy', async () => {
+  for (const [startDate, status, reuse] of [
+    ['2026-10-01','active',true], ['2026-10-02','active',false], ['2026-10-01','moved_out',false],
+  ]) {
+    const f = fixture({ previous: {...original,room_tenancy_id:9}, occupancy:{id:9,status} });
+    const c = await f.service.create(7,{...valid,startDate,previousAgreementId:20});
+    assert.equal(c.room_tenancy_id === 9,reuse);
+    assert.equal(f.saved.some(row=>row.status==='prospect'),!reuse);
+  }
 });
 test('renewal rejects missing/foreign originals, mismatched parties, invalid dates, reservation and duplicate successors', async () => {
   for (const previous of [null, {...original, tenant_id: 99}, {...original, rent_room_id: 99}, {...original, lead_id: 99}, {...original, status:'draft'}, {...original, end_date:null}, {...original, end_date:valid.startDate}, {...original, form_kind:'reservation'}]) {
@@ -378,8 +390,18 @@ test('cancelling a draft retains identity and records reason while revoking link
   assert.equal(result.status, 'cancelled'); assert.equal(result.id, 40);
   assert.equal(result.data.draftCancellation.reason, 'Customer changed plans');
   assert.equal(result.data.draftCancellation.by, 7);
+  assert.equal(result.end_reason_id, 77, 'selects the master by code rather than hard-coding its ID');
+  assert.equal(result.end_reason_note, 'Customer changed plans');
+  assert.equal(result.end_recorded_by_user_id, 7);
+  assert.equal(result.end_recorded_at.toISOString(), result.data.draftCancellation.at);
+  assert.match(result.effective_end_date, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(f.calls.some(c => c[0] === 'update' && c[1] === 'AgreementSignInviteEntity'));
   assert.equal(f.saved.length, 0);
+});
+test('draft cancellation refuses a missing or disabled reason before changing the contract', async () => {
+  const f = fixture({draft:draftRow(),endReason:null});
+  await assert.rejects(()=>f.service.cancelDraft(7,40,{reason:'Cancel'}),e=>e.getStatus()===400);
+  assert.equal(f.calls.some(c=>c[0]==='update'),false);
 });
 test('cancellation requires a reason and refuses signed or closed contracts', async () => {
   for (const reason of ['', ' ', 'x'.repeat(1001), 5]) {
@@ -440,4 +462,34 @@ test('draft payment records cannot be forged, edited away or cancelled', async (
     await assert.rejects(() => f.service.cancelDraft(7, 40, { reason: 'cancel' }), /ชำระเงิน/);
     assert.equal(f.saved.length, 0);
   }
+});
+
+
+test('lease defaults preserve finalized booking move-in and negotiated money instead of the latest room price', async () => {
+  const booked = { ...finalizedReservation, move_in_date: '2026-11-01', monthly_rent: '15000.00', deposit: '30000.00', data: { reservationLetter: { termMonths: '12', advanceMonths: '0', advanceAmount: '0', depositMonths: '2' } } };
+  const qb = { getMany: async () => [booked] };
+  for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
+  const lead = { lease_duration_months: 12, rent_room: { price_rows: [{ price: '18000', contract_type: { term_months: 12 } }], advance_rent_months: 1, deposit_months: 2 } };
+  const service = new AgentContractsService({ getRepository: () => ({ findOne: async () => lead, createQueryBuilder: () => qb }) });
+  service.reservationDefaults = async () => ({ issueDate: '2026-10-14' });
+  const data = await service.leaseDefaults(7, 1);
+  assert.equal(data.termFrom, '2026-11-01'); assert.equal(data.termTo, '2027-10-31');
+  assert.equal(data.monthlyRent, '15000'); assert.equal(data.depositAmount, '30000');
+  assert.equal(data.advanceMonths, '0'); assert.equal(data.advanceAmount, '0');
+});
+
+test('cancelling the last unsigned rental draft releases booking; a sibling keeps the booking', async () => {
+  for (const remaining of [0, 1]) {
+    const f = fixture({ draft: draftRow(), overlap: remaining });
+    await f.service.cancelDraft(7, 40, { reason: 'Customer cancelled' });
+    const release = f.calls.find(c => c[0] === 'update' && c[1] === 'LeadEntity' && c[3].booking_released_at);
+    assert.equal(!!release, remaining === 0);
+  }
+});
+
+
+test('cancelling a broker appointment does not release the rental booking', async () => {
+  const f = fixture({ draft: draftRow(), previous: { form_kind: 'broker_appointment' } });
+  await f.service.cancelDraft(7, 40, { reason: 'Cancel appointment only' });
+  assert.equal(f.calls.some(c => c[0] === 'update' && c[1] === 'LeadEntity'), false);
 });

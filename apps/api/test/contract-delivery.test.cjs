@@ -4,11 +4,9 @@ const ts = require('typescript');
 require('reflect-metadata');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(require('node:fs').readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
 const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
+const rentSchedule = require('../src/billing/rent-schedule.ts');
 
-const png = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.alloc(40, 1),
-]);
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEElEQVQImWNgYGD4D8UQBgAd9AP9JAD7OgAAAABJRU5ErkJggg==', 'base64');
 const signaturePng = `data:image/png;base64,${png.toString('base64')}`;
 
 function contract(overrides = {}) {
@@ -53,11 +51,11 @@ function contract(overrides = {}) {
   };
 }
 
-function serviceFor(current) {
+function serviceFor(current, inboxRows = [current]) {
   const qb = {};
   for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
   qb.getOne = async () => current;
-  qb.getMany = async () => [current];
+  qb.getMany = async () => inboxRows;
   const updates = [];
   const documents = {
     uploadSignature: async () => ({ path: '7/11/signatures/sig.png' }),
@@ -166,4 +164,41 @@ test('delivered owner can sign a reservation while tenant payment is pending', a
   await f.service.signAsParty(9, 11, { party: 'owner', signaturePng });
   assert.ok(f.current.owner_signed_at);
   assert.equal(f.current.tenant_signed_at, null);
+});
+
+test('contract inbox includes each active lease next issue date, respecting advance rent and contract end', async (t) => {
+  t.mock.method(rentSchedule, 'bangkokToday', () => '2026-10-07');
+  const first = contract({
+    status: 'active', tenant_delivered_at: new Date(), start_date: '2026-10-15',
+    data: { leaseAgreement: { advanceMonths: '2' } },
+  });
+  const rows = [
+    first,
+    contract({ id: 12, status: 'active', tenant_delivered_at: new Date(),
+      start_date: '2026-01-15', data: { leaseAgreement: { rentDueDay: '5', advanceMonths: '1' } } }),
+    contract({ id: 13, status: 'active', end_date: '2026-10-15' }),
+    contract({ id: 14, status: 'draft' }),
+    contract({ id: 15, status: 'active', template: { form_kind: 'reservation' } }),
+    contract({ id: 16, status: 'active', monthly_rent: '0' }),
+  ];
+  const f = serviceFor(first, rows);
+  const inbox = await f.service.listForUser(8);
+  assert.deepEqual(inbox[0].nextRentBill, {
+    period: '2026-12', issueDate: '2026-12-10', dueDate: '2026-12-15', graceUntil: '2026-12-20',
+  });
+  assert.deepEqual(inbox[1].nextRentBill, {
+    period: '2026-11', issueDate: '2026-10-31', dueDate: '2026-11-05', graceUntil: '2026-11-10',
+  });
+  for (const row of inbox.slice(2)) assert.equal(row.nextRentBill, null);
+  assert.equal(f.updates.length, 0);
+});
+
+
+test('a delivered party cannot commit a corrupt PNG and can retry with a readable signature', async () => {
+  const f = serviceFor(contract({ tenant_delivered_at: new Date() }));
+  const invalid = Buffer.concat([png.subarray(0, 8), Buffer.alloc(40, 1)]).toString('base64');
+  await assert.rejects(() => f.service.signAsParty(8, 11, { party: 'tenant', signaturePng: invalid }), e => e.getStatus() === 400);
+  assert.equal(f.updates.length, 0); assert.equal(f.current.tenant_signed_at, null);
+  await f.service.signAsParty(8, 11, { party: 'tenant', signaturePng });
+  assert.ok(f.current.tenant_signed_at);
 });

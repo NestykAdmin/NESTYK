@@ -6,9 +6,9 @@ export type TenantProfileField = "phone" | "email" | "identityNumber" | "nationa
 const DAY_MS = 86_400_000;
 
 export function dateKey(at: Date): string {
-  const month = String(at.getMonth() + 1).padStart(2, "0");
-  const day = String(at.getDate()).padStart(2, "0");
-  return `${at.getFullYear()}-${month}-${day}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(at);
 }
 
 function dayNumber(key: string): number {
@@ -19,12 +19,23 @@ function dayNumber(key: string): number {
 const newestFirst = (a: AgentContract, b: AgentContract) =>
   b.startDate.localeCompare(a.startDate) || b.id - a.id;
 
-/** The lease that drives rent: the active one, else the newest that was not cancelled. */
-export function tenantLease(tenant: AgentTenant): AgentContract | null {
-  const leases = tenant.contracts
-    .filter((c) => c.formKind === "lease" && c.status !== "cancelled")
+/** The stay that drives rent: the active lease or renewal covering today, else the newest that was not cancelled. */
+export function tenantLease(tenant: AgentTenant, today = new Date()): AgentContract | null {
+  const stays = tenant.contracts
+    .filter(
+      (c) =>
+        (c.formKind === "lease" || c.formKind === "renewal") &&
+        c.status !== "cancelled",
+    )
     .sort(newestFirst);
-  return leases.find((c) => c.status === "active") ?? leases[0] ?? null;
+  const todayKey = dateKey(today);
+  const covering = stays.filter(
+    (c) =>
+      c.status === "active" &&
+      c.startDate.slice(0, 10) <= todayKey &&
+      (!c.endDate || c.endDate.slice(0, 10) >= todayKey),
+  );
+  return covering[0] ?? stays.find((c) => c.status === "active") ?? stays[0] ?? null;
 }
 
 export function tenantReservation(tenant: AgentTenant): AgentContract | null {
@@ -47,7 +58,12 @@ function leaseForm(lease: AgentContract): Record<string, unknown> {
 
 /** Day of month rent is due, from the lease form; null when the lease leaves it blank. */
 export function rentDueDay(lease: AgentContract): number | null {
-  const raw = leaseForm(lease).rentDueDay;
+  const renewal = lease.data?.leaseRenewal;
+  const renewalDue =
+    renewal && typeof renewal === "object"
+      ? (renewal as { dueDay?: unknown }).dueDay
+      : undefined;
+  const raw = renewalDue || leaseForm(lease).rentDueDay;
   const text = typeof raw === "number" ? String(raw) : typeof raw === "string" ? raw.trim() : "";
   if (!/^\d{1,2}$/.test(text)) return null;
   const day = Number(text);

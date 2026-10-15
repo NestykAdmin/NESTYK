@@ -9,6 +9,12 @@ export function listMyContracts(): Promise<PartyContract[]> {
   return apiGet("/contracts/mine");
 }
 
+export type OwnedRoom = { property: string; room: string | null };
+
+export function listMyOwnedRooms(): Promise<OwnedRoom[]> {
+  return apiGet("/contracts/mine/rooms");
+}
+
 export function openMyContractDocument(id: number): Promise<{ url: string }> {
   return apiPost(`/contracts/mine/${id}/document`, {});
 }

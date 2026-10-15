@@ -4,10 +4,13 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { localizedError, useLocale } from "@nestyk/i18n";
 import { MobileBottomSheet, MobileButton, MobileIcon, tokens, useMobileTheme } from "@nestyk/ui/native";
-import type { TenantBill, TenantBillStatus } from "@nestyk/types";
-import { listMyBills, listReceivedBills, openMyBillSlip, openReceivedBillSlip, uploadMyBillSlip } from "../lib/tenant-bills-api";
+import type { TenantBill, TenantBillStatus, TenantNextBill } from "@nestyk/types";
+import { listMyBills, listReceivedBills, openMyBillSlip, openReceivedBillSlip, submitMyBillSlip, uploadMyBillSlip } from "../lib/tenant-bills-api";
+import { listMyContracts } from "../lib/party-contracts-api";
+import { upcomingTenantBill } from "../lib/tenant-bill-upcoming";
 import { billFormatters } from "../lib/bill-format";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
+import { TenantBillsContent, type SlipPreview } from "./TenantBillsContent";
 
 const MAX_SLIP_BYTES = 10 * 1024 * 1024;
 
@@ -23,11 +26,17 @@ export function TenantBillsScreen({
   reloadToken = 0,
   onReloadSettled,
   accentColor = mode === "owner" ? tokens.colors.roles.owner : tokens.colors.roles.tenant,
+  roomHistory = false,
+  selectedRoom = null,
+  onSelectRoom,
 }: {
   mode?: "tenant" | "owner";
   reloadToken?: number;
   onReloadSettled?: (token: number) => void;
   accentColor?: string;
+  roomHistory?: boolean;
+  selectedRoom?: { property: string; room: string | null } | null;
+  onSelectRoom?: (room: { property: string; room: string | null }) => void;
 }) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
@@ -36,21 +45,29 @@ export function TenantBillsScreen({
   const canUpload = mode === "tenant";
   const { date: formatDate, month: formatMonth, amount: formatAmount } = billFormatters(locale);
   const [rows, setRows] = useState<TenantBill[]>([]);
+  const [next, setNext] = useState<TenantNextBill | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [retryKey, setRetryKey] = useState(0);
-  const [slipFor, setSlipFor] = useState<TenantBill | null>(null);
   const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [submittingId, setSubmittingId] = useState<number | null>(null);
+  const [slipPreviews, setSlipPreviews] = useState<Record<number, SlipPreview>>({});
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
-    (mode === "owner" ? listReceivedBills() : listMyBills())
-      .then((next) => {
-        if (!cancelled) setRows(next);
+    Promise.all([
+      mode === "owner" ? listReceivedBills() : listMyBills(),
+      mode === "tenant" ? listMyContracts().then(upcomingTenantBill).catch(() => null) : Promise.resolve(null),
+    ])
+      .then(([bills, upcoming]) => {
+        if (!cancelled) {
+          setRows(bills);
+          setNext(upcoming);
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(localizedError(e, copy.loadFailed, locale));
@@ -64,12 +81,6 @@ export function TenantBillsScreen({
       cancelled = true;
     };
   }, [mode, reloadToken, retryKey]);
-
-  function chooseSlipSource(source: "documents" | "photos") {
-    const bill = slipFor;
-    setSlipFor(null);
-    if (bill) setTimeout(() => void uploadSlip(bill, source), 400);
-  }
 
   async function uploadSlip(bill: TenantBill, source: "documents" | "photos") {
     if (uploadingId != null) return;
@@ -95,11 +106,28 @@ export function TenantBillsScreen({
       setUploadingId(bill.id);
       const updated = await uploadMyBillSlip(bill.id, file);
       setRows((current) => current.map((row) => (row.id === updated.id ? updated : row)));
-      setNotice(tenantCopy.slipUploaded);
+      setSlipPreviews((current) => ({ ...current, [updated.id]: { uri: file.uri, mimeType: file.mimeType } }));
+      setNotice(tenantCopy.slipReady);
     } catch (e) {
       setError(localizedError(e, copy.loadFailed, locale));
     } finally {
       setUploadingId(null);
+    }
+  }
+
+  async function submitSlip(bill: TenantBill) {
+    if (submittingId != null) return;
+    setError("");
+    setNotice("");
+    setSubmittingId(bill.id);
+    try {
+      const updated = await submitMyBillSlip(bill.id);
+      setRows((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+      setNotice(tenantCopy.slipUploaded);
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : copy.loadFailed);
+    } finally {
+      setSubmittingId(null);
     }
   }
 
@@ -151,6 +179,20 @@ export function TenantBillsScreen({
         </View>
       ) : null}
 
+      {canUpload ? (rows.length || next ? <TenantBillsContent
+        rows={rows}
+        next={next}
+        uploadingId={uploadingId}
+        submittingId={submittingId}
+        error={error}
+        slipPreviews={slipPreviews}
+        onUpload={(bill, source) => void uploadSlip(bill, source)}
+        onViewSlip={(bill) => void viewSlip(bill)}
+        onSubmit={(bill) => void submitSlip(bill)}
+        roomHistory={roomHistory}
+        selectedRoom={selectedRoom}
+        onSelectRoom={onSelectRoom}
+      /> : null) : <>
       {open.length ? <Text style={[styles.section, heading]}>{copy.current}</Text> : null}
       {open.map((bill) => (
         <View key={bill.id} style={[styles.card, card, bill.status === "overdue" ? { borderColor: tokens.colors.danger } : null]}>
@@ -175,36 +217,6 @@ export function TenantBillsScreen({
             <Text style={[styles.copy, body]}>{copy.graceUntil}</Text>
             <Text style={[styles.copy, strong]}>{formatDate(bill.graceUntil)}</Text>
           </View>
-          {mode === "tenant" && bill.payTo ? (
-            <View style={[styles.payTo, { borderColor: theme.border }]}>
-              <Text style={[styles.caption, body]}>{tenantCopy.payTo}</Text>
-              <Text style={[styles.copy, strong]}>{[bill.payTo.bankName, bill.payTo.accountNo].filter(Boolean).join(" ")}</Text>
-              {bill.payTo.accountName ? <Text style={[styles.copy, body]}>{bill.payTo.accountName}</Text> : null}
-            </View>
-          ) : null}
-          {canUpload && !bill.hasPaymentSlip ? (
-            <MobileButton isLoading={uploadingId === bill.id} disabled={uploadingId != null} onPress={() => setSlipFor(bill)}>
-              {tenantCopy.uploadSlip}
-            </MobileButton>
-          ) : null}
-          {canUpload && bill.hasPaymentSlip ? (
-            <View style={styles.actions}>
-              <View style={styles.flex}>
-                <MobileButton variant="outline" onPress={() => void viewSlip(bill)}>{copy.viewSlip}</MobileButton>
-              </View>
-              <View style={styles.flex}>
-                <MobileButton variant="outline" disabled={uploadingId != null} onPress={() => setSlipFor(bill)}>
-                  {tenantCopy.replaceSlip}
-                </MobileButton>
-              </View>
-            </View>
-          ) : null}
-          {canUpload && bill.hasPaymentSlip ? (
-            <Text style={[styles.caption, body]}>{tenantCopy.slipUploaded}</Text>
-          ) : null}
-          {!canUpload && bill.status === "paid" && bill.hasPaymentSlip ? (
-            <MobileButton variant="outline" onPress={() => void viewSlip(bill)}>{copy.viewSlip}</MobileButton>
-          ) : null}
           <Text style={[styles.caption, body]}>{bill.documentNo}</Text>
         </View>
       ))}
@@ -235,15 +247,7 @@ export function TenantBillsScreen({
           </View>
         </View>
       ))}
-
-      <MobileBottomSheet visible={canUpload && slipFor != null} onClose={() => setSlipFor(null)} maxHeight="50%">
-        <View style={styles.sheet}>
-          <Text style={[styles.title, heading]}>{tenantCopy.slipSourceTitle}</Text>
-          <MobileButton onPress={() => chooseSlipSource("photos")}>{tenantCopy.fromPhotos}</MobileButton>
-          <MobileButton variant="outline" onPress={() => chooseSlipSource("documents")}>{tenantCopy.fromFiles}</MobileButton>
-          <MobileButton variant="outline" onPress={() => setSlipFor(null)}>{t.common.cancel}</MobileButton>
-        </View>
-      </MobileBottomSheet>
+      </>}
 
       <MobileBottomSheet visible={preview != null} onClose={() => setPreview(null)} maxHeight="94%" sheetStyle={styles.previewSheet}>
         <View style={styles.previewHeader}>
@@ -273,14 +277,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
   copy: { fontSize: 14, lineHeight: 22 },
   caption: { fontSize: 12, lineHeight: 18 },
-  payTo: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
   actions: { flexDirection: "row", gap: 8 },
   badge: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4 },
   badgeLabel: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18 },
   errorRow: { gap: 8 },
   error: { fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 22, color: tokens.colors.danger },
   notice: { fontFamily: tokens.typography.native.body, color: "#166534" },
-  sheet: { gap: 12, padding: 16 },
   previewSheet: { height: "90%", paddingHorizontal: 16, gap: 8 },
   previewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   preview: { flex: 1, minHeight: 280 },

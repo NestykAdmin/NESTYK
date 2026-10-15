@@ -1,9 +1,10 @@
+import { SingleQueryPipe } from '../../common/single-query.pipe';
+import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import {
   Body,
   Controller,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -21,7 +22,7 @@ import { AgentTenantsService } from "./agent-tenants.service";
 /** Optional numeric query parameter; anything else is ignored. */
 function positiveId(value?: string): number | undefined {
   const id = Number(value);
-  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+  return typeof value === "string" && Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : undefined;
 }
 @Controller("agent/tenants")
 @UseGuards(AuthGuard, RolesGuard)
@@ -30,15 +31,15 @@ export class AgentTenantsController {
   constructor(private readonly tenants: AgentTenantsService) {}
   @Get("leads") leads(
     @CurrentUser() u: AuthRequestUser,
-    @Query("q") q?: string,
+    @Query("q", SingleQueryPipe) q?: string,
   ) {
     return this.tenants.leadOptions(u.id, q);
   }
   @Get("rooms") rooms(
     @CurrentUser() u: AuthRequestUser,
-    @Query("q") q?: string,
-    @Query("leadId") leadId?: string,
-    @Query("roomId") roomId?: string,
+    @Query("q", SingleQueryPipe) q?: string,
+    @Query("leadId", SingleQueryPipe) leadId?: string,
+    @Query("roomId", SingleQueryPipe) roomId?: string,
   ) {
     return this.tenants.roomOptions(u.id, q, {
       leadId: positiveId(leadId),
@@ -50,7 +51,7 @@ export class AgentTenantsController {
   }
   @Get(":id") view(
     @CurrentUser() u: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.tenants.view(u.id, id);
   }
@@ -59,7 +60,7 @@ export class AgentTenantsController {
   }
   @Patch(":id") update(
     @CurrentUser() u: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
     @Body() body: unknown,
   ) {
     return this.tenants.update(u.id, id, body);

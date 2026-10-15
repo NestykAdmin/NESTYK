@@ -1,4 +1,5 @@
-import { Controller, Get, Param, ParseIntPipe, UseGuards } from "@nestjs/common";
+import { DatabaseIdPipe } from '../common/database-id.pipe';
+import { Controller, Get, Param, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../auth/guards/auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -22,7 +23,7 @@ export class OwnerBillsController {
   @Get("received/:id/payment-slip")
   paymentSlipUrl(
     @CurrentUser() user: AuthRequestUser,
-    @Param("id", ParseIntPipe) id: number,
+    @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.billing.receivedSlipUrl(user.id, id);
   }

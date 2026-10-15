@@ -85,3 +85,26 @@ test('tenants group by project in name order', () => {
     ['B', ['Bob', 'Zed']],
   ]);
 });
+
+test('renewal work disappears once there is a draft, signable, or signed successor and returns after cancellation', () => {
+  const original = contract({ id: 10, endDate: '2026-10-29' });
+  for (const status of ['draft', 'awaiting_signatures', 'active', 'cancelled']) {
+    const successor = contract({ id: 11, formKind: 'renewal', previousAgreementId: original.id, status, startDate: '2026-10-30', endDate: '2027-10-29' });
+    const items = tenantWorkItems([tenant(1, { contracts: [original, successor] })], [], today);
+    assert.equal(items.some(i => i.kind === 'renewal'), status === 'cancelled', status);
+    assert.equal(items.some(i => i.kind === 'signing'), status === 'awaiting_signatures', status);
+  }
+});
+
+test('renewal days use Bangkok date even when the device is set to UTC', () => {
+  const savedTZ = process.env.TZ;
+  process.env.TZ = 'UTC';
+  try {
+    const row = tenant(1, { contracts: [contract({ endDate: '2026-10-31' })] });
+    const items = tenantWorkItems([row], [], new Date('2026-09-30T17:30:00Z'));
+    assert.equal(items[0].kind, 'renewal');
+    assert.equal(items[0].daysLeft, 30);
+  } finally {
+    if (savedTZ === undefined) delete process.env.TZ; else process.env.TZ = savedTZ;
+  }
+});

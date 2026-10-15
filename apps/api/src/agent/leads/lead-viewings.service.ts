@@ -70,7 +70,7 @@ function noteValue(value: unknown): string | null {
 
 export function validateViewingInput(input: unknown, now = Date.now()): ViewingInput {
   const body = asObject(input);
-  if (!Number.isInteger(body.rentRoomId) || (body.rentRoomId as number) <= 0) throw new BadRequestException('rentRoomId is required');
+  if (!Number.isInteger(body.rentRoomId) || (body.rentRoomId as number) <= 0 || (body.rentRoomId as number) > 2147483647) throw new BadRequestException('rentRoomId is required');
   return { rentRoomId: body.rentRoomId as number, scheduledAt: futureDate(body.scheduledAt, now), note: noteValue(body.note) };
 }
 

@@ -1,3 +1,4 @@
+import { validateSignaturePng } from './signature-image';
 import {
   BadRequestException,
   Injectable,
@@ -164,9 +165,10 @@ export class ContractDocumentStorageService {
     const detected = this.sniff(file.buffer);
     if (detected.mime !== "image/png")
       throw new BadRequestException("ลายเซ็นต้องเป็นไฟล์ PNG");
+    const png = await validateSignaturePng(file.buffer);
     await this.ensureBucket();
     const objectPath = `${agentId}/${contractId}/signatures/${randomUUID()}.png`;
-    const { error } = await this.storage().upload(objectPath, file.buffer, {
+    const { error } = await this.storage().upload(objectPath, png, {
       contentType: "image/png",
       cacheControl: "3600",
       upsert: false,
@@ -230,6 +232,30 @@ export class ContractDocumentStorageService {
       throw new BadRequestException("ไฟล์ PDF ไม่ถูกต้องหรือมีขนาดเกิน 10 MB");
     await this.ensureBucket();
     const path = `${agentId}/${contractId}/${generated ? "generated" : "mock"}/broker_appointment/${BROKER_APPOINTMENT_VERSION}/${randomUUID()}.pdf`;
+    const { error } = await this.storage().upload(path, pdf, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (error)
+      throw new ServiceUnavailableException(
+        "สร้างเอกสารไม่สำเร็จ กรุณาลองอีกครั้ง",
+      );
+    return { path };
+  }
+
+  async uploadLeaseRenewalPdf(
+    agentId: number,
+    contractId: number,
+    pdf: Buffer,
+    generated: boolean,
+  ) {
+    if (
+      this.sniff(pdf).mime !== "application/pdf" ||
+      pdf.length > MAX_CONTRACT_DOCUMENT_BYTES
+    )
+      throw new BadRequestException("ไฟล์ PDF ไม่ถูกต้องหรือมีขนาดเกิน 10 MB");
+    await this.ensureBucket();
+    const path = `${agentId}/${contractId}/${generated ? "generated" : "mock"}/lease_renewal/v1/${randomUUID()}.pdf`;
     const { error } = await this.storage().upload(path, pdf, {
       contentType: "application/pdf",
       upsert: false,

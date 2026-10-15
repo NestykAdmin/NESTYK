@@ -46,6 +46,8 @@ export const ModePageScrollContext = React.createContext<ModePageScrollApi | nul
 export interface MobileModePageProps {
   role?: UserRole | 'services';
   screenTitle?: string;
+  /** Optional page surface, for screens that use a white canvas in the light theme. */
+  backgroundColor?: string;
   header?: React.ReactNode;
   children: React.ReactNode;
   /** Docked full-width bar (action bars, edit bars). Takes the place of `tabBar` when both are set. */
@@ -60,6 +62,7 @@ export interface MobileModePageProps {
 
 export const MobileModePage: React.FC<MobileModePageProps> = ({
   screenTitle,
+  backgroundColor,
   header,
   children,
   bottomBar,
@@ -70,6 +73,7 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { theme } = useMobileTheme();
+  const pageBackground = backgroundColor ?? theme.background;
   const [tabBarHeight, setTabBarHeight] = useState(64);
   const showTabBar = Boolean(tabBar) && !bottomBar;
   const tabBarBottom = Math.max(insets.bottom, 12);
@@ -245,7 +249,7 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
   if (!scrollable) {
     return (
       <ModePageScrollContext.Provider value={null}>
-      <View style={[styles.root, { backgroundColor: theme.background }]}>
+      <View style={[styles.root, { backgroundColor: pageBackground }]}>
         <StatusBar barStyle={theme.statusBarStyle} backgroundColor={theme.header} />
         <View
           style={[
@@ -265,7 +269,7 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
         <View
           style={[
             styles.body,
-            { backgroundColor: theme.background, paddingBottom: bottomBar ? 0 : showTabBar ? tabBarHeight + tabBarBottom : insets.bottom },
+            { backgroundColor: pageBackground, paddingBottom: bottomBar ? 0 : showTabBar ? tabBarHeight + tabBarBottom : insets.bottom },
           ]}
         >
           <View style={styles.bodyFill}>{children}</View>
@@ -281,7 +285,7 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
 
   return (
     <ModePageScrollContext.Provider value={scrollApi}>
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
+    <View style={[styles.root, { backgroundColor: pageBackground }]}>
       <StatusBar barStyle={theme.statusBarStyle} translucent backgroundColor="transparent" />
 
       {/* Outside the scroll viewport: native refresh always appears below the header. */}
@@ -299,7 +303,7 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
         />
       </Animated.View>
 
-      <View style={[styles.body, { backgroundColor: theme.background }]}>
+      <View style={[styles.body, { backgroundColor: pageBackground }]}>
         <Animated.ScrollView
           ref={scrollRef}
           contentContainerStyle={[
