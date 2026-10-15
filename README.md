@@ -93,6 +93,7 @@ npm run db:check -w @nestyk/api -- --check
 * ทั้งสองสคริปต์ใช้ `.env.api` เป็นค่าเริ่มต้น ระบุไฟล์อื่นด้วย `--env=.env.api.docker`
 * docker ที่มี schema อยู่แล้ว ใช้ `db:push -- --mark-applied` เพื่อบันทึกว่า baseline รันแล้วโดยไม่รันซ้ำ
 * migration ใหม่ให้ตั้งชื่อ `supabase/migrations/<YYYYMMDDHHMMSS>_<ชื่อ>.sql`
+* ก่อนเพิ่ม migration หรือขึ้นฐานข้อมูล อ่านข้อห้ามและข้อระวังใน [`supabase/MIGRATION-RULES.md`](supabase/MIGRATION-RULES.md)
 * ผู้ใช้ใน `demo` ใช้ UUID สมมติ เข้าได้เฉพาะ dev token (`ALLOW_DEV_AUTH=true`) เช่น `dev|00000000-0000-4000-8000-000000000001|admin@jitsamrit.com`
 
 ---
