@@ -11,6 +11,9 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) บัญชีตัวอย่างมีบทบาท agent และ owner (seed-dev-user.sql)
  *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบจาก migration ของ apps/api และบัญชีตัวอย่างมีลีดอย่างน้อย 1 ราย
+ *   - API รุ่น DEV/main f7d52ed ขึ้นไป และฐานข้อมูลรัน migration ถึง 20261014-contract-closure.sql แล้ว
+ *     ถ้ายังไม่รันถึง 20261012-lease-renewal-agreement.sql เทส GET /agent/contracts/types และ templates of lease_renewal
+ *     จะไม่ผ่าน เพราะยังไม่มีประเภท lease_renewal ส่วน 20261014 ต้องมีเพราะ API รุ่นนี้อ่านคอลัมน์ leads.booking_released_at
  *   - ข้อมูลตัวอย่างยังไม่มีผู้เช่า สัญญา ใบแจ้งหนี้ และหนังสือยืนยันค่าคอมมิชชั่น เทสของรายการเหล่านี้จึงตรวจได้แค่ว่าตอบเป็นรายการ
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
@@ -21,12 +24,16 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
 /** เลขจำนวนเต็มที่มากที่สุดที่คอลัมน์ id (ชนิด integer ของ PostgreSQL) เก็บได้ = 2^31 - 1 */
 const INT32_MAX = 2_147_483_647;
 
+/** ข้อความของตัวตรวจ id (DatabaseIdPipe ใน apps/api/src/common/database-id.pipe.ts ตั้งแต่ DEV/main f7d52ed) เมื่อ id ไม่อยู่ในช่วง 1 ถึง 2147483647 */
+const ID_OUT_OF_RANGE = 'ID must be an integer between 1 and 2147483647';
+
 /** id ที่ไม่มีลีด สัญญา หรือใบแจ้งหนี้รายไหนใช้: ใช้ค่าที่มากที่สุดที่ฐานข้อมูลเก็บได้ */
 const NO_SUCH_ID = INT32_MAX;
 
 /**
- * ประเภทสัญญาที่ต้องมี ตามลำดับที่แอปแสดง (sort_order 10, 15, 20)
- * ที่มา: migration ของ apps/api ได้แก่ 20260911-agreement-types.sql, 20260914-reservation-letter-name.sql และ 20260918-broker-appointment-agreement.sql
+ * ประเภทสัญญาที่ต้องมี ตามลำดับที่แอปแสดง (sort_order 10, 15, 20, 25)
+ * ที่มา: migration ของ apps/api ได้แก่ 20260911-agreement-types.sql, 20260914-reservation-letter-name.sql,
+ *   20260918-broker-appointment-agreement.sql และ 20261012-lease-renewal-agreement.sql (lease_renewal มีใน DEV/main 793465c เพิ่มหลัง f9b9bea)
  */
 const AGREEMENT_TYPES: AgreementType[] = [
   { code: 'reservation', nameTh: 'หนังสือจองห้อง', nameEn: 'Room reservation agreement', icon: 'calendar', formKind: 'reservation' },
@@ -38,6 +45,7 @@ const AGREEMENT_TYPES: AgreementType[] = [
     formKind: 'broker_appointment',
   },
   { code: 'lease', nameTh: 'สัญญาเช่า', nameEn: 'Lease agreement', icon: 'key', formKind: 'lease' },
+  { code: 'lease_renewal', nameTh: 'หนังสือต่อสัญญาเช่า', nameEn: 'Lease renewal addendum', icon: 'key', formKind: 'renewal' },
 ];
 
 /** ข้อความที่ API ตอบ ที่มา: agent-contracts.service.ts, agreement-attachments.service.ts และ financial-document.ts */
@@ -64,7 +72,7 @@ async function signedInOwner(agent: ApiSession): Promise<AuthUser> {
 }
 
 test.describe('agreement types and templates', () => {
-  test('GET /agent/contracts/types lists the three agreement types in display order', { tag: '@smoke' }, async ({ agent }) => {
+  test('GET /agent/contracts/types lists the four agreement types in display order', { tag: '@smoke' }, async ({ agent }) => {
     // ขั้นที่ 1: เรียกรายการประเภทสัญญา   ขั้นที่ 2: ต้องตรงกับประเภทที่ migration สร้างไว้ทุกช่อง และเรียงตามลำดับที่แอปแสดง
     expect(await expectJson<AgreementType[]>(await agent.contracts.types(), 200)).toEqual(AGREEMENT_TYPES);
   });
@@ -220,28 +228,11 @@ test.describe('a contract that does not exist', () => {
     await expectError(await agent.contracts.getById('1.5'), 400);
   });
 
-  test(
-    'answers with a client error for an id above the 32-bit integer range',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'id ที่เกิน 2147483647 ทำให้ API ตอบ 500 (ฐานข้อมูลแจ้ง out of range for type integer) ควรตอบ 404 หรือ 400',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail = บอก Playwright ว่าเทสข้อนี้ "ต้องไม่ผ่าน" ในตอนนี้ เพราะเป็นบั๊กที่รู้แล้วและรอแก้ (คำอธิบายเต็มอยู่ใน agent-listings.spec.ts)
-      test.fail(true, 'API ตอบ 500 เมื่อ id เกินช่วงของ integer');
-
-      // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1
-      const response = await agent.contracts.getById(INT32_MAX + 1);
-      // บันทึกรหัสที่ได้จริงลงรายงาน: test.fail นับทุกความล้มเหลวเป็นบั๊กนี้ รหัสนี้ช่วยยืนยันว่ายังล้มเพราะได้ 500
-      test.info().annotations.push({ type: 'รหัสที่ได้', description: String(response.status()) });
-
-      // ขั้นที่ 2: ที่ถูกต้องคือปฏิเสธแบบความผิดของผู้เรียก (404 หรือ 400) ไม่ใช่ความผิดของเซิร์ฟเวอร์ (500)
-      expect([400, 404]).toContain(response.status());
-    },
-  );
+  test('answers 400 for an id above the 32-bit integer range', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ id (DatabaseIdPipe) ปฏิเสธก่อนถึงฐานข้อมูล
+    // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของตัวตรวจ id
+    expect(await expectError(await agent.contracts.getById(INT32_MAX + 1), 400)).toBe(ID_OUT_OF_RANGE);
+  });
 });
 
 test.describe('GET /agent/contracts/owner-users', () => {
@@ -282,26 +273,16 @@ test.describe('GET /agent/contracts/owner-users', () => {
     expect(owners.map((owner) => owner.id)).toContain(me.id);
   });
 
-  test(
-    'answers 400 when q is sent twice',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'ส่ง q ซ้ำ 2 ครั้ง ทำให้ API ตอบ 500 (searchOwnerUsers เรียก .trim() กับค่าที่กลายเป็นรายการ) ควรตอบ 400 แบบเดียวกับ GET /agent/leads',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail: บั๊กที่รู้แล้ว ชุดเดียวกับเรื่องค่าซ้ำของ GET /agent/listings
-      test.fail(true, 'API ตอบ 500 เมื่อส่ง q ซ้ำ 2 ครั้ง');
+  test('answers 400 when q is sent twice', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ query (SingleQueryPipe) ปฏิเสธค่าที่ไม่ใช่ข้อความเดี่ยว
+    // ขั้นที่ 1: ส่ง q ซ้ำ 2 ครั้งในที่อยู่เดียว (เฟรมเวิร์กจะแปลงค่าเป็นรายการ)
+    //   ใช้ตัวส่งคำขอพื้นฐาน (client) แบบเดียวกับเทสเรื่องค่าซ้ำใน agent-listings.spec.ts
+    const response = await agent.client.get('agent/contracts/owner-users?q=a&q=b');
 
-      // ขั้นที่ 1: ส่ง q ซ้ำ 2 ครั้งในที่อยู่เดียว (เฟรมเวิร์กจะแปลงค่าเป็นรายการ)
-      //   ใช้ตัวส่งคำขอพื้นฐาน (client) เพราะเป็นคำขอที่ตั้งใจส่งผิดรูปแบบ แบบเดียวกับเทสเรื่องค่าซ้ำใน agent-listings.spec.ts
-      const response = await agent.client.get('agent/contracts/owner-users?q=a&q=b');
-      test.info().annotations.push({ type: 'รหัสที่ได้', description: String(response.status()) });
-
-      // ขั้นที่ 2: ที่ถูกต้องคือปฏิเสธด้วย 400 ไม่ใช่ 500 (ตรวจแค่รหัส ไม่พิมพ์เนื้อคำตอบ)
-      expect(response.status()).toBe(400);
-    },
-  );
+    // ขั้นที่ 2: ตรวจรหัสก่อนโดยไม่พิมพ์เนื้อคำตอบ เพราะถ้า API ตอบ 200 เนื้อคำตอบคือข้อมูลส่วนตัวของเจ้าของห้อง
+    expect(response.status()).toBe(400);
+    // ขั้นที่ 3: เมื่อเป็น 400 แล้ว เนื้อคำตอบเป็นข้อความ error จึงตรวจข้อความได้
+    //   (ข้อความจาก apps/api/src/common/single-query.pipe.ts: `${ชื่อพารามิเตอร์} must be a single string`)
+    expect(await expectError(response, 400)).toBe('q must be a single string');
+  });
 });

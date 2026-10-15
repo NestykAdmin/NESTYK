@@ -162,7 +162,7 @@ export interface AgreementType {
   nameTh: string;
   nameEn: string;
   icon: string;
-  /** แบบฟอร์มที่ประเภทนี้ใช้: reservation, broker_appointment หรือ lease */
+  /** แบบฟอร์มที่ประเภทนี้ใช้: reservation, broker_appointment, lease หรือ renewal */
   formKind: string;
 }
 
@@ -188,4 +188,20 @@ export interface NextDocumentNumber {
  */
 export interface OwnerUserOption {
   id: number;
+}
+
+/**
+ * บิลค่าเช่า 1 รายการ ใน GET /bills/mine, /bills/received และ /bills/agent
+ * ที่มา: TenantBill ใน packages/types/src/contracts.ts และ serialize ใน apps/api/src/billing/tenant-billing.service.ts (DEV/main f7d52ed)
+ * ประกาศเฉพาะช่องที่เทสใช้
+ */
+export interface TenantBill {
+  id: number;
+  /** วันครบกำหนด รูปแบบ YYYY-MM-DD */
+  dueDate: string;
+  /** overdue ไม่ได้เก็บในฐานข้อมูล API คำนวณตอนอ่านจากวันผ่อนผัน */
+  status: 'pending' | 'paid' | 'overdue';
+  hasPaymentSlip: boolean;
+  /** ผู้เช่ากดยืนยันส่งสลิปให้นายหน้าแล้ว */
+  slipSubmitted: boolean;
 }

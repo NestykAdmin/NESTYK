@@ -19,6 +19,9 @@ import { isDescending } from '../../src/support/pagination';
 /** เลขจำนวนเต็มที่มากที่สุดที่คอลัมน์ id (ชนิด integer ของ PostgreSQL) เก็บได้ = 2^31 - 1 */
 const INT32_MAX = 2_147_483_647;
 
+/** ข้อความของตัวตรวจ id (DatabaseIdPipe ใน apps/api/src/common/database-id.pipe.ts ตั้งแต่ DEV/main f7d52ed) เมื่อ id ไม่อยู่ในช่วง 1 ถึง 2147483647 */
+const ID_OUT_OF_RANGE = 'ID must be an integer between 1 and 2147483647';
+
 /** id ที่ไม่มีสัญญาไหนใช้: ใช้ค่าที่มากที่สุดที่ฐานข้อมูลเก็บได้ */
 const NO_SUCH_ID = INT32_MAX;
 
@@ -78,28 +81,11 @@ test.describe('party routes with a contract that does not exist', () => {
     await expectError(await agent.partyContracts.attachments('abc'), 400);
   });
 
-  test(
-    'answers with a client error for an id above the 32-bit integer range',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'id ที่เกิน 2147483647 ทำให้ API ตอบ 500 (ฐานข้อมูลแจ้ง out of range for type integer) ควรตอบ 404 หรือ 400',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail = บอก Playwright ว่าเทสข้อนี้ "ต้องไม่ผ่าน" ในตอนนี้ เพราะเป็นบั๊กที่รู้แล้วและรอแก้ (คำอธิบายเต็มอยู่ใน agent-listings.spec.ts)
-      test.fail(true, 'API ตอบ 500 เมื่อ id เกินช่วงของ integer');
-
-      // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1
-      const response = await agent.partyContracts.attachments(INT32_MAX + 1);
-      // บันทึกรหัสที่ได้จริงลงรายงาน: test.fail นับทุกความล้มเหลวเป็นบั๊กนี้ รหัสนี้ช่วยยืนยันว่ายังล้มเพราะได้ 500
-      test.info().annotations.push({ type: 'รหัสที่ได้', description: String(response.status()) });
-
-      // ขั้นที่ 2: ที่ถูกต้องคือปฏิเสธแบบความผิดของผู้เรียก (404 หรือ 400) ไม่ใช่ความผิดของเซิร์ฟเวอร์ (500)
-      expect([400, 404]).toContain(response.status());
-    },
-  );
+  test('answers 400 for an id above the 32-bit integer range', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ id (DatabaseIdPipe) ปฏิเสธก่อนถึงฐานข้อมูล
+    // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของตัวตรวจ id
+    expect(await expectError(await agent.partyContracts.attachments(INT32_MAX + 1), 400)).toBe(ID_OUT_OF_RANGE);
+  });
 });
 
 test.describe('public sign links (no login)', () => {

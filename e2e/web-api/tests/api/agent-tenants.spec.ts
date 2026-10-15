@@ -22,6 +22,9 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
 /** เลขจำนวนเต็มที่มากที่สุดที่คอลัมน์ id (ชนิด integer ของ PostgreSQL) เก็บได้ = 2^31 - 1 */
 const INT32_MAX = 2_147_483_647;
 
+/** ข้อความของตัวตรวจ id (DatabaseIdPipe ใน apps/api/src/common/database-id.pipe.ts ตั้งแต่ DEV/main f7d52ed) เมื่อ id ไม่อยู่ในช่วง 1 ถึง 2147483647 */
+const ID_OUT_OF_RANGE = 'ID must be an integer between 1 and 2147483647';
+
 /** id ที่ไม่มีลีด ห้อง หรือผู้เช่ารายไหนใช้: ใช้ค่าที่มากที่สุดที่ฐานข้อมูลเก็บได้ */
 const NO_SUCH_ID = INT32_MAX;
 
@@ -121,28 +124,11 @@ test.describe('GET /agent/tenants/:id', () => {
     await expectError(await agent.tenants.getById('1.5'), 400);
   });
 
-  test(
-    'answers with a client error for an id above the 32-bit integer range',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'id ที่เกิน 2147483647 ทำให้ API ตอบ 500 (ฐานข้อมูลแจ้ง out of range for type integer) ควรตอบ 404 หรือ 400',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail = บอก Playwright ว่าเทสข้อนี้ "ต้องไม่ผ่าน" ในตอนนี้ เพราะเป็นบั๊กที่รู้แล้วและรอแก้ (คำอธิบายเต็มอยู่ใน agent-listings.spec.ts)
-      test.fail(true, 'API ตอบ 500 เมื่อ id เกินช่วงของ integer');
-
-      // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1
-      const response = await agent.tenants.getById(INT32_MAX + 1);
-      // บันทึกรหัสที่ได้จริงลงรายงาน: test.fail นับทุกความล้มเหลวเป็นบั๊กนี้ รหัสนี้ช่วยยืนยันว่ายังล้มเพราะได้ 500
-      test.info().annotations.push({ type: 'รหัสที่ได้', description: String(response.status()) });
-
-      // ขั้นที่ 2: ที่ถูกต้องคือปฏิเสธแบบความผิดของผู้เรียก (404 หรือ 400) ไม่ใช่ความผิดของเซิร์ฟเวอร์ (500)
-      expect([400, 404]).toContain(response.status());
-    },
-  );
+  test('answers 400 for an id above the 32-bit integer range', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ id (DatabaseIdPipe) ปฏิเสธก่อนถึงฐานข้อมูล
+    // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของตัวตรวจ id
+    expect(await expectError(await agent.tenants.getById(INT32_MAX + 1), 400)).toBe(ID_OUT_OF_RANGE);
+  });
 });
 
 test.describe('GET /agent/tenants/leads', () => {
@@ -271,49 +257,31 @@ test.describe('GET /agent/tenants/rooms', () => {
     expect(await roomOptions(agent, { q: 'e2e-no-such-room-zz' })).toEqual([]);
   });
 
-  test(
-    'answers without a server error when leadId is above the 32-bit integer range',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'leadId ที่เกิน 2147483647 ทำให้ API ตอบ 500 (positiveId ใน controller ไม่มีเพดาน ฐานข้อมูลแจ้ง out of range for type integer) ควรตอบ 400 หรือไม่สนค่านี้',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail: บั๊กที่รู้แล้ว ใช้แบบเดียวกับเทสเรื่อง id ข้างบน
-      test.fail(true, 'API ตอบ 500 เมื่อ leadId เกินช่วงของ integer');
+  test('ignores a leadId above the 32-bit integer range', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: positiveId ใน agent-tenants.controller.ts
+    //   คืน undefined เมื่อค่าเกิน 2147483647 API จึงไม่สนค่านี้ แบบเดียวกับค่าที่ไม่ใช่จำนวนเต็มบวก
+    //   id ที่เกินช่วงมีอยู่จริงไม่ได้ เทสนี้จึงยืนยันได้แค่ว่าตอบ 200 และรายการไม่เปลี่ยน
+    // ขั้นที่ 1: เก็บรายการปกติไว้เทียบ ต้องมีห้องอย่างน้อย 1 ห้อง ไม่อย่างนั้นการเทียบรายการว่างกับรายการว่างไม่ได้ตรวจอะไร
+    const expected = (await roomOptions(agent)).map((room) => room.id);
+    expect(expected.length, 'บัญชีตัวอย่างต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
 
-      // ขั้นที่ 1: ส่ง leadId ที่มากกว่าค่าสูงสุดของ integer อยู่ 1
-      const response = await agent.tenants.roomOptions({ leadId: INT32_MAX + 1 });
-      test.info().annotations.push({ type: 'รหัสที่ได้', description: String(response.status()) });
+    // ขั้นที่ 2: ส่ง leadId ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 3: ต้องตอบ 200 และได้รายการเหมือนตอนไม่ส่ง leadId
+    const ids = (await roomOptions(agent, { leadId: INT32_MAX + 1 })).map((room) => room.id);
+    expect(ids).toEqual(expected);
+  });
 
-      // ขั้นที่ 2: ที่ถูกต้องคือไม่ใช่ความผิดของเซิร์ฟเวอร์ (5xx)
-      expect(response.status()).toBeLessThan(500);
-    },
-  );
+  test('ignores a roomId above the 32-bit integer range', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: positiveId ใน agent-tenants.controller.ts
+    //   คืน undefined เมื่อค่าเกิน 2147483647 API จึงไม่สนค่านี้ แบบเดียวกับค่าที่ไม่ใช่จำนวนเต็มบวก
+    //   id ที่เกินช่วงมีอยู่จริงไม่ได้ เทสนี้จึงยืนยันได้แค่ว่าตอบ 200 และรายการไม่เปลี่ยน
+    // ขั้นที่ 1: เก็บรายการปกติไว้เทียบ ต้องมีห้องอย่างน้อย 1 ห้อง ไม่อย่างนั้นการเทียบรายการว่างกับรายการว่างไม่ได้ตรวจอะไร
+    const expected = (await roomOptions(agent)).map((room) => room.id);
+    expect(expected.length, 'บัญชีตัวอย่างต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
 
-  test(
-    'answers without a server error when roomId is above the 32-bit integer range',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'roomId ที่เกิน 2147483647 ทำให้ API ตอบ 500 (positiveId ใน controller ไม่มีเพดาน ฐานข้อมูลแจ้ง out of range for type integer) ควรตอบ 400 หรือไม่สนค่านี้',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail: บั๊กที่รู้แล้ว ใช้แบบเดียวกับเทสเรื่อง id ข้างบน
-      test.fail(true, 'API ตอบ 500 เมื่อ roomId เกินช่วงของ integer');
-
-      // ขั้นที่ 1: ส่ง roomId ที่มากกว่าค่าสูงสุดของ integer อยู่ 1
-      const response = await agent.tenants.roomOptions({ roomId: INT32_MAX + 1 });
-      test.info().annotations.push({ type: 'รหัสที่ได้', description: String(response.status()) });
-
-      // ขั้นที่ 2: ที่ถูกต้องคือไม่ใช่ความผิดของเซิร์ฟเวอร์ (5xx)
-      expect(response.status()).toBeLessThan(500);
-    },
-  );
+    // ขั้นที่ 2: ส่ง roomId ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 3: ต้องตอบ 200 และได้รายการเหมือนตอนไม่ส่ง roomId
+    const ids = (await roomOptions(agent, { roomId: INT32_MAX + 1 })).map((room) => room.id);
+    expect(ids).toEqual(expected);
+  });
 });
 
 test.describe('POST /agent/tenants (requests that must be refused, nothing is created)', () => {

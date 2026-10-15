@@ -25,6 +25,9 @@ const VISIBILITIES = ['private', 'published'];
 /** เลขจำนวนเต็มที่มากที่สุดที่คอลัมน์ id (ชนิด integer ของ PostgreSQL) เก็บได้ = 2^31 - 1 */
 const INT32_MAX = 2_147_483_647;
 
+/** ข้อความของตัวตรวจ id (DatabaseIdPipe ใน apps/api/src/common/database-id.pipe.ts ตั้งแต่ DEV/main f7d52ed) เมื่อ id ไม่อยู่ในช่วง 1 ถึง 2147483647 */
+const ID_OUT_OF_RANGE = 'ID must be an integer between 1 and 2147483647';
+
 /** ราคาต่ำสุดของห้อง: API ใช้ค่านี้ทั้งตอนเรียงตามราคาและตอนกรองช่วงราคา */
 function lowestPrice(listing: ListingSummary): number {
   return Math.min(...listing.prices.map((row) => row.price));
@@ -261,27 +264,17 @@ test.describe('GET /agent/listings', () => {
     expect(body).toMatchObject({ items: [], total: 0 });
   });
 
-  test(
-    'answers 400 when the same query parameter is sent twice',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'ส่ง q, roomStatus หรือ listingSource ซ้ำ 2 ครั้ง ทำให้ API ตอบ 500 ควรตอบ 400 แบบเดียวกับ GET /agent/leads',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail = บอก Playwright ว่าเทสข้อนี้ "ต้องไม่ผ่าน" ในตอนนี้ เพราะเป็นบั๊กที่รู้แล้วและรอแก้
-      // ผลรวมของชุดเทสจึงยังเขียว และวันที่ทีมแก้บั๊ก เทสข้อนี้จะกลายเป็นแดง เพื่อเตือนให้มาลบบรรทัดนี้ออก
-      test.fail(true, 'API ตอบ 500 เมื่อส่งค่าเดียวกันซ้ำ 2 ครั้ง');
-
-      // ขั้นที่ 1: ส่ง q ซ้ำ 2 ครั้งในที่อยู่เดียว (เฟรมเวิร์กจะแปลงค่าเป็นรายการ ซึ่งโค้ดส่วนนี้ไม่ได้เผื่อไว้)
-      const response = await agent.client.get('agent/listings?q=a&q=b');
-
-      // ขั้นที่ 2: ที่ถูกต้องคือปฏิเสธด้วย 400 ไม่ใช่ 500
-      expect(response.status()).toBe(400);
-    },
-  );
+  test('answers 400 when the same query parameter is sent twice', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ query (SingleQueryPipe) ปฏิเสธค่าที่ไม่ใช่ข้อความเดี่ยว
+    // ขั้นที่ 1: ส่งพารามิเตอร์ซ้ำ 2 ครั้งในที่อยู่เดียวทีละชื่อ (เฟรมเวิร์กจะแปลงค่าเป็นรายการ)
+    //   ใช้ตัวส่งคำขอพื้นฐาน (client) เพราะเป็นคำขอที่ตั้งใจส่งผิดรูปแบบ
+    // ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความว่าพารามิเตอร์นั้นต้องเป็นค่าเดียว
+    //   (ข้อความจาก apps/api/src/common/single-query.pipe.ts: `${ชื่อพารามิเตอร์} must be a single string`)
+    for (const name of ['q', 'roomStatus', 'listingSource']) {
+      const response = await agent.client.get(`agent/listings?${name}=a&${name}=b`);
+      expect(await expectError(response, 400), name).toBe(`${name} must be a single string`);
+    }
+  });
 });
 
 test.describe('GET /agent/listings/:id', () => {
@@ -317,24 +310,9 @@ test.describe('GET /agent/listings/:id', () => {
     await expectError(await agent.listings.getById('1.5'), 400);
   });
 
-  test(
-    'answers with a client error for an id above the 32-bit integer range',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'id ที่เกิน 2147483647 ทำให้ API ตอบ 500 (ฐานข้อมูลแจ้ง out of range for type integer) ควรตอบ 404 หรือ 400',
-      },
-    },
-    async ({ agent }) => {
-      // บั๊กที่รู้แล้วอีกข้อ ใช้ test.fail แบบเดียวกับเทสเรื่องค่าซ้ำข้างบน
-      test.fail(true, 'API ตอบ 500 เมื่อ id เกินช่วงของ integer');
-
-      // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1
-      const response = await agent.listings.getById(INT32_MAX + 1);
-
-      // ขั้นที่ 2: ที่ถูกต้องคือปฏิเสธแบบความผิดของผู้เรียก (404 หรือ 400) ไม่ใช่ความผิดของเซิร์ฟเวอร์ (500)
-      expect([400, 404]).toContain(response.status());
-    },
-  );
+  test('answers 400 for an id above the 32-bit integer range', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ id (DatabaseIdPipe) ปฏิเสธก่อนถึงฐานข้อมูล
+    // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของตัวตรวจ id
+    expect(await expectError(await agent.listings.getById(INT32_MAX + 1), 400)).toBe(ID_OUT_OF_RANGE);
+  });
 });

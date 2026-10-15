@@ -47,6 +47,9 @@ const THAI_PROVINCE_COUNT = 77;
 /** เลขจำนวนเต็มที่มากที่สุดที่คอลัมน์ id (ชนิด integer ของ PostgreSQL) เก็บได้ = 2^31 - 1 */
 const INT32_MAX = 2_147_483_647;
 
+/** ข้อความของตัวตรวจ id (DatabaseIdPipe ใน apps/api/src/common/database-id.pipe.ts ตั้งแต่ DEV/main f7d52ed) เมื่อ id ไม่อยู่ในช่วง 1 ถึง 2147483647 */
+const ID_OUT_OF_RANGE = 'ID must be an integer between 1 and 2147483647';
+
 /** งบที่ API ใช้ตอนเรียงตามงบ: งบขั้นต่ำ ถ้าไม่มีให้ใช้งบสูงสุด ถ้าไม่มีทั้งคู่ถือว่าไม่ระบุงบ */
 function sortBudget(lead: Lead): number | null {
   return lead.budgetMin ?? lead.budgetMax;
@@ -407,27 +410,11 @@ test.describe('GET /agent/leads/:id', () => {
     await expectError(await agent.leads.getById('1.5'), 400);
   });
 
-  test(
-    'answers with a client error for an id above the 32-bit integer range',
-    {
-      tag: '@known-bug',
-      annotation: {
-        type: 'issue',
-        description: 'id ที่เกิน 2147483647 ทำให้ API ตอบ 500 (ฐานข้อมูลแจ้ง out of range for type integer) ควรตอบ 404 หรือ 400',
-      },
-    },
-    async ({ agent }) => {
-      // test.fail = บอก Playwright ว่าเทสข้อนี้ "ต้องไม่ผ่าน" ในตอนนี้ เพราะเป็นบั๊กที่รู้แล้วและรอแก้
-      // (คำอธิบายเต็มอยู่ใน agent-listings.spec.ts)
-      test.fail(true, 'API ตอบ 500 เมื่อ id เกินช่วงของ integer');
-
-      // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1
-      const response = await agent.leads.getById(INT32_MAX + 1);
-
-      // ขั้นที่ 2: ที่ถูกต้องคือปฏิเสธแบบความผิดของผู้เรียก (404 หรือ 400) ไม่ใช่ความผิดของเซิร์ฟเวอร์ (500)
-      expect([400, 404]).toContain(response.status());
-    },
-  );
+  test('answers 400 for an id above the 32-bit integer range', async ({ agent }) => {
+    // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ id (DatabaseIdPipe) ปฏิเสธก่อนถึงฐานข้อมูล
+    // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของตัวตรวจ id
+    expect(await expectError(await agent.leads.getById(INT32_MAX + 1), 400)).toBe(ID_OUT_OF_RANGE);
+  });
 });
 
 test.describe('lead form catalogs', () => {

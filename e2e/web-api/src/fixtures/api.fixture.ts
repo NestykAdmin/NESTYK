@@ -1,6 +1,7 @@
 import { test as base, expect, type APIRequestContext } from '@playwright/test';
 import { ApiClient } from '../api/api-client';
 import { AuthApi } from '../api/auth.api';
+import { BillsApi } from '../api/bills.api';
 import { ContractsApi } from '../api/contracts.api';
 import { HealthApi } from '../api/health.api';
 import { LeadsApi } from '../api/leads.api';
@@ -23,6 +24,8 @@ export interface ApiSession {
   partyContracts: PartyContractsApi;
   /** ลิงก์ลงนามที่เปิดได้โดยไม่ต้องล็อกอิน */
   publicContractSign: PublicContractSignApi;
+  /** บิลค่าเช่าและสลิป (ผู้เช่า เจ้าของห้อง นายหน้า) */
+  bills: BillsApi;
 }
 
 function createSession(request: APIRequestContext): ApiSession {
@@ -37,6 +40,7 @@ function createSession(request: APIRequestContext): ApiSession {
     contracts: new ContractsApi(client),
     partyContracts: new PartyContractsApi(client),
     publicContractSign: new PublicContractSignApi(client),
+    bills: new BillsApi(client),
   };
 }
 
