@@ -1,9 +1,10 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, Unique } from "typeorm";
 import { SerialEntity } from './base.entity';
 
+@Unique("master_listing_sources_code_key", ["code"])
 @Entity({ name: 'master_listing_sources' })
 export class MasterListingSourceEntity extends SerialEntity {
-  @Column({ type: 'varchar', length: 64, unique: true })
+  @Column({ type: 'varchar', length: 64 })
   code: string;
 
   @Column({ type: 'int', default: 0 })

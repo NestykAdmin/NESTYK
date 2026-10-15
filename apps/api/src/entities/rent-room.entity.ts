@@ -1,10 +1,4 @@
-import {
-  Entity,
-  Column,
-  ManyToOne,
-  OneToMany,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Check, Index } from "typeorm";
 import { SerialTimestampEntity } from './base.entity';
 import { UserEntity } from './user.entity';
 import { PropertyEntity } from './property.entity';
@@ -21,15 +15,28 @@ import { RentRoomPriceEntity } from './rent-room-price.entity';
 
 export type RentRoomVisibility = 'private' | 'published';
 
+@Index("idx_rent_rooms_created_by_user_id", ["created_by_user_id"])
+@Index("idx_rent_rooms_is_scout_room", ["is_scout_room"])
+@Index("idx_rent_rooms_listing_source_id", ["listing_source_id"])
+@Index("idx_rent_rooms_owner_id", ["owner_id"])
+@Index("idx_rent_rooms_properties_id", ["properties_id"])
+@Index("idx_rent_rooms_property_owner_id", ["property_owner_id"])
+@Index("idx_rent_rooms_public_scout_listing", ["visibility", "room_status_id"], { where: "((is_scout_room = true) AND ((visibility)::text = 'published'::text))" })
+@Index("idx_rent_rooms_room_type_id", ["room_type_id"])
+@Check("chk_rent_rooms_advance_rent_months", "((advance_rent_months >= 0) AND (advance_rent_months <= 12))")
+@Check("chk_rent_rooms_deposit_months", "((deposit_months >= 0) AND (deposit_months <= 12))")
+@Check("chk_rent_rooms_owner_invariant", "(is_scout_room OR ((owner_id IS NOT NULL) AND (property_owner_id IS NULL) AND (visibility IS NULL)))")
+@Check("chk_rent_rooms_scout_invariant", "((NOT is_scout_room) OR ((created_by_user_id IS NOT NULL) AND (owner_id IS NULL) AND ((visibility)::text = ANY ((ARRAY['private'::character varying, 'published'::character varying])::text[]))))")
+@Check("chk_rent_rooms_visibility", "((visibility IS NULL) OR ((visibility)::text = ANY ((ARRAY['private'::character varying, 'published'::character varying])::text[])))")
 @Entity({ name: 'rent_rooms' })
 export class RentRoomEntity extends SerialTimestampEntity {
   @Column({ type: 'varchar', length: 100, nullable: true })
   room_id: string | null;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true, comment: "Agent-only internal listing name" })
   listing_title: string | null;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true, comment: "Public listing headline for share / marketplace" })
   promo_title: string | null;
 
   @Column({ type: 'text', nullable: true })
@@ -111,31 +118,31 @@ export class RentRoomEntity extends SerialTimestampEntity {
   last_viewed_at: Date | null;
 
   @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'created_by_user_id' })
+  @JoinColumn({ name: "created_by_user_id", foreignKeyConstraintName: "rent_rooms_created_by_user_id_fkey" })
   created_by: UserEntity | null;
 
   @ManyToOne(() => PropertyOwnerEntity, { nullable: true, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'property_owner_id' })
+  @JoinColumn({ name: "property_owner_id", foreignKeyConstraintName: "rent_rooms_property_owner_id_fkey" })
   property_owner: PropertyOwnerEntity | null;
 
   @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'owner_id' })
+  @JoinColumn({ name: "owner_id", foreignKeyConstraintName: "rent_rooms_owner_id_fkey" })
   owner: UserEntity | null;
 
   @ManyToOne(() => PropertyEntity, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'properties_id' })
+  @JoinColumn({ name: "properties_id", foreignKeyConstraintName: "rent_rooms_properties_id_fkey" })
   property: PropertyEntity;
 
   @ManyToOne(() => MasterRoomTypeEntity, { nullable: true, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'room_type_id' })
+  @JoinColumn({ name: "room_type_id", foreignKeyConstraintName: "rent_rooms_room_type_id_fkey" })
   room_type: MasterRoomTypeEntity | null;
 
   @ManyToOne(() => MasterListingSourceEntity, { nullable: true, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'listing_source_id' })
+  @JoinColumn({ name: "listing_source_id", foreignKeyConstraintName: "rent_rooms_listing_source_id_fkey" })
   listing_source: MasterListingSourceEntity | null;
 
   @ManyToOne(() => MasterRoomStatusEntity, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'room_status_id' })
+  @JoinColumn({ name: "room_status_id", foreignKeyConstraintName: "rent_rooms_room_status_id_fkey" })
   room_status: MasterRoomStatusEntity;
 
   @OneToMany(() => RoomMediaEntity, (m) => m.rent_room)

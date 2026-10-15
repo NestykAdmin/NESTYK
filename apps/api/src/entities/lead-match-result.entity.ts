@@ -1,8 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, Unique } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, Unique, Check } from "typeorm";
 import { SerialEntity } from './base.entity';
 import { LeadMatchRunEntity } from './lead-match-run.entity';
 import { RentRoomEntity } from './rent-room.entity';
 
+@Check("chk_lead_match_results_location", "((location_score >= 0) AND (location_score <= 100))")
+@Check("chk_lead_match_results_score", "((score IS NULL) OR ((score >= 0) AND (score <= 100)))")
 @Entity({ name: 'lead_match_results' })
 @Unique('uq_lead_match_results_rank', ['run_id', 'rank'])
 @Unique('uq_lead_match_results_room', ['run_id', 'rent_room_id'])
@@ -11,14 +13,14 @@ export class LeadMatchResultEntity extends SerialEntity {
   run_id: number;
 
   @ManyToOne(() => LeadMatchRunEntity, (run) => run.results, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'run_id' })
+  @JoinColumn({ name: "run_id", foreignKeyConstraintName: "lead_match_results_run_id_fkey" })
   run: LeadMatchRunEntity;
 
   @Column({ type: 'int' })
   rent_room_id: number;
 
   @ManyToOne(() => RentRoomEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'rent_room_id' })
+  @JoinColumn({ name: "rent_room_id", foreignKeyConstraintName: "lead_match_results_rent_room_id_fkey" })
   rent_room: RentRoomEntity;
 
   @Column({ type: 'smallint' })

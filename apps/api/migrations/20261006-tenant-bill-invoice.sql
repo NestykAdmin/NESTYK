@@ -1,2 +1,2 @@
-ALTER TABLE tenant_bills
+ALTER TABLE IF EXISTS tenant_bills
   ADD COLUMN IF NOT EXISTS invoice_path TEXT;

@@ -1,11 +1,16 @@
-import { Entity, Column, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToOne, Index, Unique } from "typeorm";
 import { SerialTimestampEntity } from './base.entity';
 import { LeadEntity } from './lead.entity';
 import { UserEntity } from './user.entity';
 
+@Unique("tenants_lead_id_key", ["lead_id"])
+@Index("idx_tenants_created_by_user_id", ["created_by_user_id"])
+@Index("idx_tenants_lead_id", ["lead_id"])
+@Index("idx_tenants_phone", ["phone"])
+@Index("idx_tenants_user_id", ["user_id"])
 @Entity({ name: 'tenants' })
 export class TenantEntity extends SerialTimestampEntity {
-  @Column({ type: 'int', unique: true })
+  @Column({ type: 'int' })
   lead_id: number;
 
   @Column({ type: 'varchar', length: 255 })
@@ -39,14 +44,14 @@ export class TenantEntity extends SerialTimestampEntity {
   created_by_user_id: number;
 
   @OneToOne(() => LeadEntity, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'lead_id' })
+  @JoinColumn({ name: "lead_id", foreignKeyConstraintName: "tenants_lead_id_fkey" })
   lead: LeadEntity;
 
   @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn({ name: "user_id", foreignKeyConstraintName: "tenants_user_id_fkey" })
   user: UserEntity | null;
 
   @ManyToOne(() => UserEntity, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'created_by_user_id' })
+  @JoinColumn({ name: "created_by_user_id", foreignKeyConstraintName: "tenants_created_by_user_id_fkey" })
   created_by: UserEntity;
 }

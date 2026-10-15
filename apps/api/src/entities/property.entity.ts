@@ -1,7 +1,9 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from "typeorm";
 import { SerialTimestampEntity } from './base.entity';
 import { MasterPropertyTypeEntity } from './master-property-type.entity';
 
+@Index("idx_properties_name", ["name"])
+@Index("idx_properties_property_type_id", ["property_type_id"])
 @Entity({ name: 'properties' })
 export class PropertyEntity extends SerialTimestampEntity {
   @Column({ type: 'varchar', length: 255 })
@@ -32,6 +34,6 @@ export class PropertyEntity extends SerialTimestampEntity {
   longitude: string | null;
 
   @ManyToOne(() => MasterPropertyTypeEntity, { nullable: true, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'property_type_id' })
+  @JoinColumn({ name: "property_type_id", foreignKeyConstraintName: "properties_property_type_id_fkey" })
   property_type: MasterPropertyTypeEntity | null;
 }

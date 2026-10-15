@@ -1,7 +1,11 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Check, Index } from "typeorm";
 import { SerialCreatedEntity } from './base.entity';
 import { RentRoomEntity } from './rent-room.entity';
 
+@Index("idx_room_medias_rent_id", ["rent_id", "sort_order"])
+@Index("uq_room_medias_one_cover", ["rent_id"], { unique: true, where: "(is_cover = true)" })
+@Check("chk_room_medias_category", "((category)::text = ANY ((ARRAY['room'::character varying, 'common'::character varying, 'floorplan'::character varying])::text[]))")
+@Check("chk_room_medias_type", "((media_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[]))")
 @Entity({ name: 'room_medias' })
 export class RoomMediaEntity extends SerialCreatedEntity {
   @Column({ type: 'int' })
@@ -23,6 +27,6 @@ export class RoomMediaEntity extends SerialCreatedEntity {
   sort_order: number;
 
   @ManyToOne(() => RentRoomEntity, (room) => room.medias, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'rent_id' })
+  @JoinColumn({ name: "rent_id", foreignKeyConstraintName: "room_medias_rent_id_fkey" })
   rent_room: RentRoomEntity;
 }
