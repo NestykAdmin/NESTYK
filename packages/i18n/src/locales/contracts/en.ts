@@ -1,6 +1,28 @@
 import type { ContractCopy } from './th';
 
 export const contractsEn: ContractCopy = {
+  archive: {
+    descriptions: {
+      "reservation": "Confirm a room reservation",
+      "lease": "Rental terms between landlord and tenant",
+      "renewal": "Extend an existing rental term",
+      "broker_appointment": "Appoint an agent to manage a property",
+      "booking_invoice": "Booking payment details",
+      "invoice": "Amounts due for payment",
+      "receipt": "Proof of payment received",
+      "agent_commission": "Confirm the agent’s commission"
+    },
+    "choose": "Choose a document type",
+    "hint": "All your documents of this type",
+    "error": "Could not load documents. Please retry.",
+    "person": "Contact",
+    "property": "Property / Room",
+    "amount": "Amount",
+    "date": "Issue date",
+    "no": "Document number",
+    "unavailable": "No document file is available yet",
+    "ready": "Ready"
+},
   common: {
     notSpecified: 'Not specified',
     edit: 'Edit',

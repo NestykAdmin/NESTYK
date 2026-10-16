@@ -101,6 +101,7 @@ export function AgentContactKindsBody({ onSelect }: { onSelect?: (kind: AgentCon
                 {item.desc}
               </Text>
             </View>
+            <MobileIcon name="chevron-right" size={18} color={theme.textSecondary} />
           </Pressable>
         ))}
       </View>

@@ -9,3 +9,4 @@ export { LEAD_MAX_PINS, LEAD_CONTACT_CHANNELS, LEAD_MAX_CONTACTS, LEAD_MATCH_MIN
 export type { NearbyPlace, FacilityOption } from './nearby';
 export * from './agent-contracts';
 export * from './agent-tenants';
+export * from './contract-archive';

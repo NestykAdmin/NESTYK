@@ -12,7 +12,7 @@ import {
 
 export type AgentMoreTool = 'calendar' | 'contact' | 'services' | 'contracts';
 
-type Shortcut = { tool: AgentMoreTool; icon: AppIconName; label: string; desc: string; tone?: 'brand' | 'info' };
+type Shortcut = { tool: AgentMoreTool; icon: AppIconName; label: string; desc: string; tone?: 'brand' | 'info' | 'violet' };
 
 const { boxShadow: _webShadow, ...cardShadow } = getCardElevation(1);
 
@@ -26,7 +26,7 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
     { tool: 'calendar', icon: 'calendar', label: d.openCalendar, desc: d.calendarDesc, tone: 'brand' },
     { tool: 'contact', icon: 'users', label: d.openContacts, desc: d.contactsDesc, tone: 'info' },
     { tool: 'services', icon: 'buildings', label: d.openServices, desc: d.servicesDesc },
-    { tool: 'contracts', icon: 'files', label: d.openContracts, desc: d.contractsDesc },
+    { tool: 'contracts', icon: 'files', label: d.openContracts, desc: d.contractsDesc, tone: 'violet' },
   ];
   const rows = [shortcuts.slice(0, 2), shortcuts.slice(2, 4)];
 
@@ -35,11 +35,13 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
   const iconBg = (tone?: Shortcut['tone']) => {
     if (tone === 'brand') return isDark ? 'rgba(248,182,21,0.18)' : tokens.colors.brand[100];
     if (tone === 'info') return isDark ? 'rgba(37,99,235,0.18)' : tokens.colors.subtle.infoBg;
+    if (tone === 'violet') return isDark ? 'rgba(167,139,250,0.18)' : '#F3EDFF';
     return neutralIconBg;
   };
   const iconColor = (tone?: Shortcut['tone']) => {
     if (tone === 'brand') return tokens.colors.brand[700];
     if (tone === 'info') return tokens.colors.subtle.infoFg;
+    if (tone === 'violet') return isDark ? '#C4B5FD' : '#7C3AED';
     return theme.textHeading;
   };
 

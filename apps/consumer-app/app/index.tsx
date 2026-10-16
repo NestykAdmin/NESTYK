@@ -1,3 +1,5 @@
+import type { ContractArchiveType } from '@nestyk/types';
+import { AgentContractArchiveBody, AgentContractArchiveKindsBody, archiveTypeLabel } from '../components/AgentContractArchiveBody';
 import { AgentCalendarScreen, emptyCalendarDraft } from '../components/AgentCalendarScreen';
 import { calendarDateKey, createCalendarDemoEvents, type CalendarDemoEvent } from '../lib/agent-calendar-demo';
 import { calendarViewingRange, viewingToCalendarEvent } from '../lib/agent-calendar-viewings';
@@ -143,6 +145,10 @@ export default function AppHomeScreen() {
   const pendingRefresh = useRef<number | null>(null);
   const [leadsReloadToken, setLeadsReloadToken] = useState(0);
   const [roomsReloadToken, setRoomsReloadToken] = useState(0);
+  const [contractType, setContractType] = useState<ContractArchiveType | null>(null);
+  const [contractArchiveReloadToken, setContractArchiveReloadToken] = useState(0);
+  const [contractArchiveDetail, setContractArchiveDetail] = useState<string | null>(null);
+  const contractArchiveBackRef = useRef<(() => void) | null>(null);
   const [contactKind, setContactKind] = useState<AgentDirectoryKind | null>(null);
   const [contactsReloadToken, setContactsReloadToken] = useState(0);
   const [contactDetail, setContactDetail] = useState<ContactDetailState | null>(null);
@@ -363,6 +369,22 @@ export default function AppHomeScreen() {
     });
     return () => sub.remove();
   }, [activeTab, handleCreateLeadBack]);
+
+  const handleContractArchiveBack = useCallback(() => {
+    if (contractArchiveBackRef.current) { contractArchiveBackRef.current(); return; }
+    if (contractType) setContractType(null);
+    else setActiveTab('more');
+  }, [contractType]);
+
+  useEffect(() => {
+    if (activeTab !== 'contracts' || activeRole !== 'agent') {
+      setContractType(null);
+      setContractArchiveDetail(null);
+      return;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleContractArchiveBack(); return true; });
+    return () => sub.remove();
+  }, [activeTab, activeRole, handleContractArchiveBack]);
 
   const handleContactsBack = useCallback(() => {
     if (contactDetailActionsRef.current?.back()) return;
@@ -604,6 +626,7 @@ export default function AppHomeScreen() {
       const isLeadPage = activeTab === 'leadDetail' || activeTab === 'leadInfo' || activeTab === 'leadRoom';
       const hasLeadMenu = activeTab === 'leadDetail' || activeTab === 'leadRoom';
       const isContact = activeTab === 'contact';
+      const isArchive = activeTab === 'contracts';
       const isSecondary =
         activeTab === 'createListing' || isCreateLead || isCreateTenant || isTenantDetail || isLeadPage;
       const canEditTenant = isTenantDetail && tenantDetail.canEdit;
@@ -611,7 +634,9 @@ export default function AppHomeScreen() {
       return (
         <MobileSectionHeader
           title={
-            isContact
+            isArchive
+              ? contractArchiveDetail || (contractType ? archiveTypeLabel(contractType, t.contracts) : t.agent.dashboard.openContracts)
+              : isContact
               ? contactDetail?.title || (contactKind === 'owner' ? t.agent.dashboard.contactKindOwner
                 : contactKind === 'landlord' ? t.agent.dashboard.contactKindLandlord
                 : contactKind === 'lead' ? t.agent.dashboard.contactKindLead
@@ -644,10 +669,12 @@ export default function AppHomeScreen() {
                   : workspace
           }
           accentColor={accent}
-          leading={isSecondary || isContact ? 'back' : 'menu'}
+          leading={isSecondary || isContact || isArchive ? 'back' : 'menu'}
           onMenuPress={openMenu}
           onBackPress={
-            isContact
+            isArchive
+              ? handleContractArchiveBack
+              : isContact
               ? handleContactsBack
               : isCreateLead
               ? handleCreateLeadBack
@@ -825,7 +852,7 @@ export default function AppHomeScreen() {
     // A completion from a previous tab/role must never stop a newer refresh.
     pendingRefresh.current = null;
     setPageRefreshing(false);
-  }, [activeRole, activeTab, partyInbox, contactKind]);
+  }, [activeRole, activeTab, partyInbox, contactKind, contractType]);
 
   useEffect(() => {
     // Demo data is synchronous: finish after the new snapshot is committed.
@@ -853,6 +880,8 @@ export default function AppHomeScreen() {
       setLeadsReloadToken(token);
     } else if (activeTab === 'listingRoom') {
       setRoomsReloadToken(token);
+    } else if (activeTab === 'contracts' && contractType) {
+      setContractArchiveReloadToken(token);
     } else if (activeTab === 'contact' && contactKind) {
       setContactsReloadToken(token);
     } else if (activeTab === 'bills' || activeTab === 'income') {
@@ -860,7 +889,7 @@ export default function AppHomeScreen() {
     } else {
       finishPageRefresh(token);
     }
-  }, [activeRole, activeTab, partyInbox, contactKind, contactDetail, finishPageRefresh]);
+  }, [activeRole, activeTab, partyInbox, contactKind, contactDetail, contractType, finishPageRefresh]);
 
   const renderListingCards = () => (
     <>
@@ -1144,15 +1173,11 @@ export default function AppHomeScreen() {
     }
 
     if (activeTab === 'contracts') {
-      return (
-        <View style={styles.bodyContainer}>
-          <View style={[styles.card, cardStyle]}>
-            <Text style={[styles.sectionDesc, secondaryText]}>
-              Draft · pending signature · active co-broke contracts (mock)
-            </Text>
-          </View>
-        </View>
-      );
+      return contractType ? <AgentContractArchiveBody
+        key={contractType} type={contractType} reloadToken={contractArchiveReloadToken}
+        onReloadSettled={finishPageRefresh} onDetailStateChange={setContractArchiveDetail}
+        detailBackRef={contractArchiveBackRef}
+      /> : <AgentContractArchiveKindsBody onSelect={setContractType} />;
     }
 
     if (activeTab === 'calendar' && activeRole === 'agent') {
@@ -1359,11 +1384,11 @@ export default function AppHomeScreen() {
         scrollable={partyInbox || !isWizardTab}
         refreshing={pageRefreshing}
         onRefresh={
-          // Keep the contact ScrollView refresh wrapper mounted in both list and detail.
+          // Keep the directory ScrollView refresh wrapper mounted in both list and detail.
           isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
           (!partyInbox && !isWizardTab && activeRole === 'agent' &&
           (['dashboard', 'listingLead', 'listingRoom'].includes(activeTab) ||
-            (activeTab === 'contact' && contactKind)))
+            (activeTab === 'contact' && contactKind) || (activeTab === 'contracts' && contractType)))
             ? handlePageRefresh : undefined
         }
         header={
@@ -1512,7 +1537,7 @@ export default function AppHomeScreen() {
         tabBar={
           ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
           (activeTab === 'clients' && creatingTenant) ||
-          isTenantDetail || (activeTab === 'contact' && !!contactDetail) ? null : (
+          isTenantDetail || (activeTab === 'contact' && !!contactDetail) || (activeTab === 'contracts' && !!contractArchiveDetail) ? null : (
             <MobileBottomTabBar
               activeRole={activeRole}
               activeTab={

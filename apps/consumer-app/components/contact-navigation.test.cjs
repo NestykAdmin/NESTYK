@@ -51,3 +51,22 @@ test('pull refresh during contact editing or saving leaves the form and refresh 
   createHandler({ editing: false, saving: false }, pending, sequence, value => calls.push(value), token => calls.push(token))();
   assert.deepEqual(calls, [true, 1]); assert.equal(pending.current, 1);
 });
+
+for (const type of ['reservation', 'lease', 'renewal', 'broker_appointment', 'booking_invoice', 'invoice', 'receipt', 'agent_commission']) test(`${type}: archive keeps the refresh wrapper in list and detail`, () => {
+  const read = new Function('contractArchiveDetail', 'handlePageRefresh', 'contractType', `
+    const isTenantWorkspace = false, partyInbox = false, isWizardTab = false, contactKind = null;
+    const activeRole = 'agent', activeTab = 'contracts';
+    return (${expression});
+  `);
+  assert.equal(read(null, callback, type), callback);
+  assert.equal(read('DOC-1', callback, type), callback);
+});
+test('archive refresh is dispatched once to its own token', () => {
+  const create = new Function('pendingRefresh', 'refreshSequence', 'setPageRefreshing', 'setContractArchiveReloadToken', `
+    const activeTab = 'contracts', activeRole = 'agent', partyInbox = false, contractType = 'lease', contactDetail = null;
+    return (${refreshHandler});
+  `);
+  const pending = { current: null }, sequence = { current: 0 }, calls = [];
+  const refresh = create(pending, sequence, value => calls.push(value), token => calls.push(token));
+  refresh(); refresh(); assert.deepEqual(calls, [true, 1]);
+});

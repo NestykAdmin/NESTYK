@@ -1,6 +1,28 @@
 import type { ContractCopy } from './th';
 
 export const contractsJa: ContractCopy = {
+  archive: {
+    descriptions: {
+      "reservation": "部屋の予約を確認する書類",
+      "lease": "貸主と借主の賃貸条件",
+      "renewal": "賃貸期間を延長する書類",
+      "broker_appointment": "仲介業者への委任契約",
+      "booking_invoice": "予約金の支払い明細",
+      "invoice": "支払いが必要な金額の明細",
+      "receipt": "入金を確認する証明書",
+      "agent_commission": "仲介手数料を確認する書類"
+    },
+    "choose": "書類の種類を選択",
+    "hint": "この種類のすべての書類",
+    "error": "書類を読み込めませんでした。再試行してください。",
+    "person": "関係者",
+    "property": "物件 / 部屋",
+    "amount": "金額",
+    "date": "発行日",
+    "no": "書類番号",
+    "unavailable": "書類ファイルはまだありません",
+    "ready": "準備完了"
+},
   common: {
     notSpecified: '未入力',
     edit: '編集',

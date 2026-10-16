@@ -1,6 +1,28 @@
 import type { ContractCopy } from './th';
 
 export const contractsZh: ContractCopy = {
+  archive: {
+    descriptions: {
+      "reservation": "确认房间预订的文件",
+      "lease": "房东与租客之间的租赁约定",
+      "renewal": "延长现有租期的文件",
+      "broker_appointment": "委托中介管理房源的协议",
+      "booking_invoice": "预订款项付款通知",
+      "invoice": "应付款项通知",
+      "receipt": "确认已收款的凭证",
+      "agent_commission": "确认中介佣金的文件"
+    },
+    "choose": "选择文档类型",
+    "hint": "此类型的所有文档",
+    "error": "无法加载文档，请重试",
+    "person": "相关人员",
+    "property": "项目 / 房间",
+    "amount": "金额",
+    "date": "签发日期",
+    "no": "文档编号",
+    "unavailable": "暂无文档文件",
+    "ready": "已就绪"
+},
   common: {
     notSpecified: '未填写',
     edit: '编辑',
