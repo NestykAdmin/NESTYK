@@ -119,3 +119,6 @@ Thumbs.db
 
 # Local uploaded room images
 .data/
+
+# temp files left by Claude sessions (keep out of git)
+_to_delete_*/
