@@ -61,7 +61,7 @@ export default function RootLayout({
       </head>
       <body style={{ margin: 0, padding: 0, backgroundColor: '#F8FAFC' }}>
         <WebPageLayout
-          role="owner"
+          role="landlord"
           navLinks={[
             { label: 'ห้องพักของฉัน', href: '/', active: true },
             { label: 'ลงประกาศใหม่', href: '/create' },

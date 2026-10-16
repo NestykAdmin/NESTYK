@@ -49,6 +49,13 @@ SELECT pg_catalog.setval('public.master_xxx_id_seq', (SELECT max(id) FROM public
 
 **8. ห้าม commit `.env` / `.env.api` และห้ามแปะรหัสผ่านหรือคีย์ในแชท**
 
+**9. ห้ามสร้าง role ชื่อ `owner` อีก**
+รหัส `owner` เลิกใช้ถาวรตั้งแต่ migration `20261016100000_rename_owner_role_to_landlord.sql` (เปลี่ยนเป็น `landlord` id เดิม) โค้ดรุ่นเก่าเข้าใจ `owner` ว่าผู้ให้เช่า ถ้ามีแถวนี้กลับมา API รุ่นใหม่จะไม่ยอมเริ่มทำงาน (`RoleCatalogCheck`) ส่วน API รุ่นเก่าจะให้สิทธิ์ผิดความหมาย
+- เช็กว่าฐานข้อมูลอยู่รอบไหน: `SELECT id, name FROM public.master_roles ORDER BY id;` ถ้าเห็น `owner` = ยังไม่รันรอบ 1, เห็น `landlord` = รันแล้ว
+- ก่อน push โค้ดที่แตะ role ให้รัน `npm run check:roles` (ที่ root) ต้องไม่เจออะไร
+- คำว่า `owner` ที่เป็น "ฝ่ายผู้ให้เช่าในสัญญา" (`party`, `subject`, คอลัมน์ `owner_*`, ชนิด `ContractParty`) ใช้ต่อได้ตามปกติ ไม่ใช่ role
+- role ใหม่ต้องเพิ่มใน `MASTER_ROLE_NAMES` (`apps/api/src/entities/master-role.entity.ts`) และใส่ id ตายตัวใน migration ตามข้อ 5 ถ้าโค้ดยังไม่รู้จัก role นั้น API จะแค่เตือนใน log
+
 ## ข้อระวัง
 
 **แก้ entity ต้องมี migration ในการแก้เดียวกัน**
@@ -81,4 +88,5 @@ baseline ตั้ง `search_path` เป็นค่าว่างระห�
 
 | วันที่ | ไฟล์ | เรื่อง |
 |---|---|---|
+| 2026-10-16 | `20261016100000_rename_owner_role_to_landlord.sql`, `seed/masters.sql` | เปลี่ยน role `owner` → `landlord` (id 2 เดิม) และ `setval` ของ `master_roles_id_seq` ใช้ `max(id)` ดู `docs/ROLE-CHANGE-PLAN.md` |
 | 2026-10-15 | `20261014120000_contract_closure.sql`, `seed/masters.sql` | ย้าย contract-closure จากโฟลเดอร์เก่ามาโฟลเดอร์ใหม่ (คอลัมน์ `leads.booking_released_at`, index `uq_leads_one_booked_per_room` แบบใหม่, เหตุผลจบสัญญา `before_start_cancelled` id 8) และแก้ `setval` ใน seed ให้ใช้ `max(id)` |

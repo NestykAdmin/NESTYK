@@ -26,9 +26,9 @@ const TAB_MATRIX: Record<ExtendedTabRole, MobileTabConfig[]> = {
     { key: 'bills', icon: 'credit-card' },
     MENU_TAB,
   ],
-  owner: [
+  // Landlord: no listings tab; landlords do not list rooms themselves (docs/ROLE-CHANGE-PLAN.md).
+  landlord: [
     { key: 'dashboard', icon: 'grid' },
-    { key: 'listings', icon: 'key' },
     SERVICES_TAB,
     { key: 'income', icon: 'credit-card' },
     MENU_TAB,
@@ -51,7 +51,7 @@ const TAB_MATRIX: Record<ExtendedTabRole, MobileTabConfig[]> = {
 const DEFAULT_TAB: Record<ExtendedTabRole, MobileAppTab> = {
   guest: 'home',
   tenant: 'dashboard',
-  owner: 'dashboard',
+  landlord: 'dashboard',
   agent: 'dashboard',
   admin: 'dashboard',
 };

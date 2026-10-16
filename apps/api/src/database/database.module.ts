@@ -2,6 +2,7 @@ import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ALL_ENTITIES } from '../entities';
 import { SchemaDriftCheck } from './schema-drift.check';
+import { RoleCatalogCheck } from './role-catalog.check';
 
 const logger = new Logger('DatabaseModule');
 
@@ -40,7 +41,7 @@ const typeOrmRoot = (() => {
 
 @Module({
   imports: [...typeOrmRoot, TypeOrmModule.forFeature(ALL_ENTITIES)],
-  providers: typeOrmRoot.length ? [SchemaDriftCheck] : [],
+  providers: typeOrmRoot.length ? [SchemaDriftCheck, RoleCatalogCheck] : [],
   exports: [TypeOrmModule],
 })
 export class DatabaseModule {}

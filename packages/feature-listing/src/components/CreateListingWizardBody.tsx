@@ -32,7 +32,7 @@ export const CreateListingWizardBody: React.FC<CreateListingWizardBodyProps> = (
             ลงประกาศปล่อยเช่า
           </h2>
           <p style={{ fontSize: '13px', color: tokens.colors.textSecondary, margin: '4px 0 0 0', lineHeight: 1.5, fontWeight: 400 }}>
-            โหมด {config.actorRole === 'owner' ? 'เจ้าของห้องปล่อยเช่าเอง' : 'นายหน้า Co-Broke'}
+            โหมด {config.themeTone === 'owner' ? 'เจ้าของห้องปล่อยเช่าเอง' : 'นายหน้า Co-Broke'}
           </p>
         </div>
         <AppBadge role={config.actorRole} label={`Step ${step}/3`} />

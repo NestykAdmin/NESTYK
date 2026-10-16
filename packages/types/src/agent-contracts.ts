@@ -1,3 +1,4 @@
+import type { ContractParty } from "./roles";
 import type { TenantNextBill } from "./contracts";
 
 export interface AgreementTemplate {
@@ -96,17 +97,17 @@ export interface SignAgentContract {
   signaturePng: string;
 }
 export interface ContractSignInvite {
-  party: "owner" | "tenant";
+  party: ContractParty;
   url: string;
   expiresAt: string;
 }
 export interface ContractDelivery {
-  party: "owner" | "tenant";
+  party: ContractParty;
   userId: number;
   deliveredAt: string;
 }
 export interface PartyContract extends AgentContract {
-  myParties: Array<"owner" | "tenant">;
+  myParties: Array<ContractParty>;
   /** Next scheduled rent round, independently of any outstanding bills. */
   nextRentBill?: Pick<TenantNextBill, "period" | "issueDate" | "dueDate" | "graceUntil"> | null;
 }

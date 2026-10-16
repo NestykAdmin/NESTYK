@@ -110,16 +110,16 @@ const DRAWER_MENU_MATRIX: Record<UserRole, DrawerMenuSection[]> = {
       ],
     },
   ],
-  owner: [
+  landlord: [
     {
       titleKey: 'sectionTitle',
       items: [
-        { id: 'tenants', labelKey: 'tenants', icon: 'user', action: { type: 'route', path: '/owner/tenants' } },
+        { id: 'tenants', labelKey: 'tenants', icon: 'user', action: { type: 'route', path: '/landlord/tenants' } },
         {
           id: 'ownerContracts',
           labelKey: 'ownerContracts',
           icon: 'clipboard',
-          action: { type: 'route', path: '/owner/contracts' },
+          action: { type: 'route', path: '/landlord/contracts' },
         },
         {
           id: 'reports',
@@ -137,7 +137,7 @@ const DRAWER_MENU_MATRIX: Record<UserRole, DrawerMenuSection[]> = {
               id: 'occupancy',
               labelKey: 'occupancy',
               icon: 'home',
-              action: { type: 'route', path: '/owner/occupancy' },
+              action: { type: 'route', path: '/landlord/occupancy' },
             },
           ],
         },

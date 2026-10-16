@@ -1,7 +1,9 @@
 import Constants from 'expo-constants';
 import type { UserRole } from '@nestyk/types';
 
-const ROLES: UserRole[] = ['guest', 'tenant', 'owner', 'agent', 'admin'];
+const ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+/** Old role codes still found in .env files; mapped once with a warning (docs/ROLE-CHANGE-PLAN.md, guard 6). */
+const LEGACY_ROLE_ALIASES: Record<string, UserRole> = { owner: 'landlord' };
 
 const extra = Constants.expoConfig?.extra as
   | { apiUrl?: string; baseUrl?: string; defaultRole?: string }
@@ -11,6 +13,11 @@ function resolveDefaultRole(): UserRole {
   const raw = (extra?.defaultRole || process.env.EXPO_PUBLIC_DEFAULT_ROLE || 'guest')
     .trim()
     .toLowerCase();
+  if (LEGACY_ROLE_ALIASES[raw]) {
+    console.warn(`[config] EXPO_PUBLIC_DEFAULT_ROLE=${raw} is retired; using ${LEGACY_ROLE_ALIASES[raw]}`);
+    return LEGACY_ROLE_ALIASES[raw];
+  }
+  if (!ROLES.includes(raw as UserRole)) console.warn(`[config] Unknown EXPO_PUBLIC_DEFAULT_ROLE=${raw}; using guest`);
   return (ROLES.includes(raw as UserRole) ? raw : 'guest') as UserRole;
 }
 

@@ -26,13 +26,13 @@ export interface TranslationSchema {
   roles: {
     guest: string;
     tenant: string;
-    owner: string;
+    landlord: string;
     agent: string;
     admin: string;
     services: string;
     guestSubtitle: string;
     tenantSubtitle: string;
-    ownerSubtitle: string;
+    landlordSubtitle: string;
     agentSubtitle: string;
     adminSubtitle: string;
     servicesSubtitle: string;
@@ -131,7 +131,7 @@ export interface TranslationSchema {
       rolePickerSubtitle: string;
       currentRole: string;
       viewProfile: string;
-      roleDescriptions: Record<'guest' | 'tenant' | 'owner' | 'agent' | 'admin', string>;
+      roleDescriptions: Record<'guest' | 'tenant' | 'landlord' | 'agent' | 'admin', string>;
       navigation: string;
       settings: string;
       myRental: string;

@@ -24,7 +24,7 @@ export type AuthUserResponse = {
   roles: MasterRoleName[];
 };
 
-const DEV_GRANTABLE: MasterRoleName[] = ['owner', 'tenant', 'agent', 'admin'];
+const DEV_GRANTABLE: MasterRoleName[] = ['landlord', 'tenant', 'agent', 'admin'];
 
 @Injectable()
 export class AuthService {
@@ -103,7 +103,7 @@ export class AuthService {
           where: { name: 'guest' },
         });
         if (!guest) {
-          throw new BadRequestException('master_roles.guest is missing — run roles/schema.sql');
+          throw new BadRequestException('master_roles.guest is missing — run npm run db:push and db:seed masters');
         }
         await manager.save(
           manager.create(UserRoleEntity, {

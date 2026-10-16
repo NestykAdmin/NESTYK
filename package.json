@@ -22,6 +22,7 @@
     "dev:all": "turbo dev",
     "lint": "turbo lint",
     "test": "turbo test",
+    "check:roles": "node apps/api/scripts/check-roles.cjs",
     "clean": "turbo clean && rm -rf node_modules",
     "postinstall": "npx --yes patch-package"
   },

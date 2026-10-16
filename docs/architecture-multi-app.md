@@ -3,6 +3,11 @@
 > **สถานะ:** Architecture Blueprint & Modular Monolith Target  
 > **เป้าหมาย:** สถาปัตยกรรม Cross-Platform Marketplace (Web + Mobile App), Universal Shell & Slot Architecture, Consumer Journey (Guest ➔ Tenant), Landlord & Pro Apps (Owner / Agent / Admin) ด้วย Config Injection, โทนสี Modern FinTech & PropTech, และระบบบริการส่วนกลาง (Services Hub)
 
+> **หมายเหตุเรื่องบทบาท (2026-10-16):** เอกสารนี้เขียนก่อนแยก role เจ้าของห้อง คำว่า "Owner" ด้านล่างรวม 2 บทบาทที่ตอนนี้แยกกันแล้ว
+> - เจ้าของที่ **เซ็นเอกสารและรับบิลผ่าน agent** = role `landlord` (โหมด `/landlord`, theme key `landlord`) มีในระบบแล้ว
+> - เจ้าของที่ **ลงประกาศห้องเอง** (Listing Wizard แบบ `direct_owner`, Owner App) = role `self_owner` เฟส 2 (ยังไม่ได้ทำ แผนคือ mockup เมนูก่อน)
+> รายละเอียดและสิ่งที่ห้ามทำอยู่ใน [ROLE-CHANGE-PLAN.md](./ROLE-CHANGE-PLAN.md)
+
 ---
 
 ## 1. ภาพรวมสถาปัตยกรรม (System Architecture Overview)

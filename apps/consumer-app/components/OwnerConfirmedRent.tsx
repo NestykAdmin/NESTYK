@@ -59,7 +59,7 @@ export function OwnerConfirmedRent({
   return (
     <View style={styles.root}>
       <Text style={[styles.heading, title]}>{copy.confirmedTitle}</Text>
-      {loading ? <ActivityIndicator color={tokens.colors.roles.owner} /> : null}
+      {loading ? <ActivityIndicator color={tokens.colors.roles.landlord} /> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!loading && !rows.length ? <Text style={[styles.copy, body]}>{copy.confirmedEmpty}</Text> : null}
       {rows.map((bill) => (

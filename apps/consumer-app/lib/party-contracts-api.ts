@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import { Platform } from "react-native";
 import type {
   AgreementAttachmentChecklist,
@@ -88,7 +89,7 @@ export async function uploadMyAttachment(
 
 export function signMyContract(
   id: number,
-  party: "owner" | "tenant",
+  party: ContractParty,
   signaturePng: string,
 ): Promise<PartyContract> {
   return apiPost(`/contracts/mine/${id}/sign`, { party, signaturePng });

@@ -4,7 +4,8 @@ export type ListingDocType = 'title_deed' | 'power_of_attorney' | 'id_card';
 export type AiPersonaType = 'direct_owner' | 'broker_pro';
 
 export interface ListingEngineConfig {
-  actorRole: Extract<UserRole, 'owner' | 'agent'>;
+  /** Colour/role of the person listing. Owner listing has no role until self_owner exists (docs/ROLE-CHANGE-PLAN.md). */
+  actorRole: Extract<UserRole, 'landlord' | 'agent'>;
   themeTone: 'owner' | 'agent';
   features: {
     enableCommission: boolean;
@@ -15,7 +16,7 @@ export interface ListingEngineConfig {
 }
 
 export const defaultOwnerListingConfig: ListingEngineConfig = {
-  actorRole: 'owner',
+  actorRole: 'landlord',
   themeTone: 'owner',
   features: {
     enableCommission: false,

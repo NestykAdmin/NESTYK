@@ -52,12 +52,11 @@ import {
   getDefaultTabForRole,
   tokens,
 } from '@nestyk/ui/native';
-import { UserRole, type AgentLead, type AgentTenant, type PartyContract } from '@nestyk/types';
+import { UserRole, CONTRACT_PARTY_ROLE, type AgentLead, type AgentTenant, type ContractParty, type PartyContract } from '@nestyk/types';
 import {
   MobileCreateListingWizardBody,
   MobileAgentDashboardBody,
   createAgentDashboardDemoFixture,
-  defaultOwnerListingConfig,
   defaultAgentListingConfig,
   type AgentDashboardDeepLink,
 } from '@nestyk/feature-listing';
@@ -254,8 +253,9 @@ export default function AppHomeScreen() {
     if (hostOrPath.includes('tenant')) {
       setActiveRole('tenant');
       setActiveTab('dashboard');
-    } else if (hostOrPath.includes('owner')) {
-      setActiveRole('owner');
+    } else if (hostOrPath.includes('landlord') || hostOrPath.includes('owner')) {
+      // 'owner' kept for old links; the role is now landlord (docs/ROLE-CHANGE-PLAN.md)
+      setActiveRole('landlord');
       setActiveTab('dashboard');
     } else if (hostOrPath.includes('agent')) {
       setActiveRole('agent');
@@ -348,8 +348,8 @@ export default function AppHomeScreen() {
     const fallback: MobileAppTab =
       activeTab === 'createLead'
         ? 'listingLead'
-        : activeRole === 'owner'
-          ? 'listings'
+        : activeRole === 'landlord'
+          ? 'dashboard'
           : 'listingRoom';
     const target =
       secondaryReturnTab &&
@@ -576,7 +576,9 @@ export default function AppHomeScreen() {
     activeRole === 'agent' || partyInbox || isTenantWorkspace
       ? undefined
       : getScreenTitle(activeTab, t);
-  const partyRole = activeRole === 'tenant' ? 'tenant' : 'owner';
+  /** Contract side shown in the party inbox ('owner' = landlord side of a contract, not a role). */
+  const partyRole: ContractParty = activeRole === 'tenant' ? 'tenant' : 'owner';
+  const partyAccent = tokens.colors.roles[CONTRACT_PARTY_ROLE[partyRole]];
 
   const agentSectionTabs: MobileAppTab[] = [
     'listingRoom',
@@ -842,7 +844,7 @@ export default function AppHomeScreen() {
       setPartyContractsReloadToken(token);
     } else if (activeRole === 'agent' && activeTab === 'dashboard') {
       setDashboardRefreshKey(token);
-    } else if ((activeRole === 'tenant' || activeRole === 'owner') && activeTab === 'dashboard') {
+    } else if ((activeRole === 'tenant' || activeRole === 'landlord') && activeTab === 'dashboard') {
       setBillsReloadToken(token);
     } else if (activeTab === 'clients') {
       setBillsReloadToken(token);
@@ -913,7 +915,7 @@ export default function AppHomeScreen() {
     const summaries: Record<UserRole, { title: string; desc: string; badge: string }> = {
       guest: { title: 'Welcome to NESTYK', desc: 'Browse rooms and schedule viewings nearby.', badge: 'Guest' },
       tenant: { title: 'Tenant Dashboard', desc: '', badge: 'Active Lease' },
-      owner: { title: 'Owner Dashboard', desc: '3 active listings · 2 tenants occupied', badge: '3 Listings' },
+      landlord: { title: 'Landlord Dashboard', desc: '', badge: 'Landlord' },
       agent: { title: 'Agent Dashboard', desc: '24 co-broke listings · 45,000 THB commission', badge: 'Partner' },
       admin: { title: 'Operations Dashboard', desc: 'Pending tickets: 3 · Inspections today: 2', badge: 'Ops' },
     };
@@ -931,7 +933,7 @@ export default function AppHomeScreen() {
               onReloadSettled={finishPageRefresh}
               onOpenBills={() => handleTabPress('bills')}
             />
-          ) : activeRole === 'owner' ? (
+          ) : activeRole === 'landlord' ? (
             <OwnerConfirmedRent
               reloadToken={billsReloadToken}
               onReloadSettled={finishPageRefresh}
@@ -1279,21 +1281,6 @@ export default function AppHomeScreen() {
       );
     }
 
-    if (activeTab === 'listings') {
-      if (activeRole === 'owner') {
-        return (
-          <View style={[styles.bodyContainer, styles.wizardBody]}>
-            <MobileCreateListingWizardBody
-              config={defaultOwnerListingConfig}
-              searchPlaces={handleSearchPlaces}
-              getPlaceDetails={handleGetPlaceDetails}
-              onSubmitListing={() => Alert.alert(t.mobile.demoAlerts.listingPublished)}
-            />
-          </View>
-        );
-      }
-    }
-
     return null;
   };
 
@@ -1338,8 +1325,7 @@ export default function AppHomeScreen() {
     activeTab === 'createListing' ||
     activeTab === 'createLead' ||
     activeTab === 'leadInfo' ||
-    (activeTab === 'clients' && creatingTenant) ||
-    (activeTab === 'listings' && activeRole === 'owner');
+    (activeTab === 'clients' && creatingTenant);
 
   return (
     <>
@@ -1386,9 +1372,9 @@ export default function AppHomeScreen() {
                       : tenantWorkspaceCopy(locale).myContracts
                     : partyRole === 'owner'
                       ? tenantWorkspaceCopy(locale).ownerWorkspace
-                      : t.roles[partyRole]
+                      : t.roles[CONTRACT_PARTY_ROLE[partyRole]]
               }
-              accentColor={tokens.colors.roles[partyRole]}
+              accentColor={partyAccent}
               leading={
                 selectedPartyRoom || (contractHistory && partyRole !== "owner")
                   ? "back"
@@ -1524,7 +1510,7 @@ export default function AppHomeScreen() {
               selectedRoom={selectedPartyRoom}
               onSelectedRoomChange={setSelectedPartyRoom}
               history={contractHistory}
-              accentColor={tokens.colors.roles[partyRole]}
+              accentColor={partyAccent}
               reloadToken={partyContractsReloadToken}
               onReloadSettled={finishPageRefresh}
               onRefresh={activeRole !== 'agent' ? handlePageRefresh : undefined}
@@ -1556,7 +1542,7 @@ export default function AppHomeScreen() {
             return;
           }
           if (action.type === 'route') {
-            if (action.path === '/owner/tenants') {
+            if (action.path === '/landlord/tenants') {
               setDrawerOpen(false);
               setOpenedPartyContract(null);
               setSelectedPartyRoom(null);
@@ -1564,7 +1550,7 @@ export default function AppHomeScreen() {
               setPartyInbox(true);
               return;
             }
-            if (action.path === '/tenant/contract' || action.path === '/owner/contracts') {
+            if (action.path === '/tenant/contract' || action.path === '/landlord/contracts') {
               setDrawerOpen(false);
               setOpenedPartyContract(null);
               setSelectedPartyRoom(null);

@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -25,12 +26,12 @@ export function TenantBillsScreen({
   mode = "tenant",
   reloadToken = 0,
   onReloadSettled,
-  accentColor = mode === "owner" ? tokens.colors.roles.owner : tokens.colors.roles.tenant,
+  accentColor = mode === "owner" ? tokens.colors.roles.landlord : tokens.colors.roles.tenant,
   roomHistory = false,
   selectedRoom = null,
   onSelectRoom,
 }: {
-  mode?: "tenant" | "owner";
+  mode?: ContractParty;
   reloadToken?: number;
   onReloadSettled?: (token: number) => void;
   accentColor?: string;

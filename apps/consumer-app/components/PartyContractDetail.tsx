@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -64,7 +65,7 @@ function signedAt(row: PartyContract, party: SignerKey) {
 
 export function PartyContractDetail({
   contract,
-  accentColor = tokens.colors.roles.owner,
+  accentColor = tokens.colors.roles.landlord,
   onUpdated,
   reloadToken = 0,
   onReloadSettled,
@@ -78,7 +79,7 @@ export function PartyContractDetail({
   onReloadSettled?: (token: number) => void;
   refreshError?: string;
   refreshing?: boolean;
-  mode?: "owner" | "tenant";
+  mode?: ContractParty;
   onUpdated: (next: PartyContract) => void;
 }) {
   const { theme } = useMobileTheme();
@@ -108,7 +109,7 @@ export function PartyContractDetail({
   const [previewTitle, setPreviewTitle] = useState("");
   const [slipSourceOpen, setSlipSourceOpen] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
-  const [signing, setSigning] = useState<"owner" | "tenant" | null>(null);
+  const [signing, setSigning] = useState<ContractParty | null>(null);
   const [signPadKey, setSignPadKey] = useState(0);
   const padRef = useRef<ContractSignaturePadHandle>(null);
 
@@ -117,7 +118,7 @@ export function PartyContractDetail({
   const card = { backgroundColor: theme.card, borderColor: theme.border };
   const mine = contract.myParties;
   const ownRequirements = (attachments?.requirements ?? []).filter((row) =>
-    mine.includes(row.subject as "owner" | "tenant"),
+    mine.includes(row.subject as ContractParty),
   );
 
   useEffect(() => {

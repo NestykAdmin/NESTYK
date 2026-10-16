@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import type {
   AgreementType,
   AgentContract,
@@ -124,7 +125,7 @@ export async function signAgentContract(
 
 export async function deliverAgentContract(
   id: number,
-  party: "owner" | "tenant",
+  party: ContractParty,
 ): Promise<import("@nestyk/types").ContractDelivery> {
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/deliveries`, { party });
@@ -132,7 +133,7 @@ export async function deliverAgentContract(
 
 export async function createContractSignInvite(
   id: number,
-  party: "owner" | "tenant",
+  party: ContractParty,
 ): Promise<import("@nestyk/types").ContractSignInvite> {
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/sign-invites`, { party });

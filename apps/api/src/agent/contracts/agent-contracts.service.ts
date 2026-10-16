@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import { validateSignaturePng } from './signature-image';
 import { financialKind, validateFinancialDocument, buildReceiptFromInvoice, financialTotals } from "./financial-document";
 import { createFinancialPdf } from "./financial-pdf";
@@ -446,7 +447,7 @@ export class AgentContractsService {
       .where("c.status <> 'cancelled'");
   }
   private partiesFor(userId: number, c: LeaseContractEntity) {
-    const parties: Array<"owner" | "tenant"> = [];
+    const parties: ContractParty[] = [];
     if (c.tenant?.user_id === userId && c.tenant_delivered_at) parties.push("tenant");
     if (c.owner_user_id === userId && c.owner_delivered_at) parties.push("owner");
     return parties;
@@ -1732,9 +1733,9 @@ export class AgentContractsService {
       typeof (input as { party?: unknown }).party === "string"
         ? (input as { party: string }).party
         : "";
-    if (!SHAREABLE_SIGN_PARTIES.includes(party as "owner" | "tenant"))
+    if (!SHAREABLE_SIGN_PARTIES.includes(party as ContractParty))
       throw new BadRequestException("ส่งสัญญาได้เฉพาะผู้เช่าหรือผู้ให้เช่า");
-    return party as "owner" | "tenant";
+    return party as ContractParty;
   }
   async deliverToParty(agentId: number, id: number, input: unknown) {
     const party = this.shareParty(input);
@@ -2085,9 +2086,9 @@ export class AgentContractsService {
       typeof (input as { party?: unknown }).party === "string"
         ? (input as { party: string }).party
         : "";
-    if (!SHAREABLE_SIGN_PARTIES.includes(party as "owner" | "tenant"))
+    if (!SHAREABLE_SIGN_PARTIES.includes(party as ContractParty))
       throw new BadRequestException("แชร์ลิงก์ได้เฉพาะผู้เช่าหรือผู้ให้เช่า");
-    const shareParty = party as "owner" | "tenant";
+    const shareParty = party as ContractParty;
     const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
     if (!c) throw new NotFoundException("ไม่พบสัญญา");
     const formKind =
@@ -2295,7 +2296,7 @@ export class AgentContractsService {
       FROM users u
       INNER JOIN user_roles ur ON ur.user_id = u.id
       INNER JOIN master_roles r ON r.id = ur.role_id
-      WHERE r.name = 'owner'
+      WHERE r.name = 'landlord'
         AND (
           u.email ILIKE $1
           OR COALESCE(u.phone, '') ILIKE $1
@@ -2791,7 +2792,7 @@ export class AgentContractsService {
             name: reservationLetter.landlordName,
             identityNumber: reservationLetter.landlordId,
             nationality: reservationLetter.landlordNationality,
-            role: "owner",
+            role: "landlord",
             who: "ผู้ให้เช่า",
           }),
         }
