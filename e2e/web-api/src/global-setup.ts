@@ -8,7 +8,7 @@ import { devToken, env } from './config/env';
  * เทสหลายข้อจะล้มด้วยข้อความที่อ่านยาก ตรวจตรงนี้ก่อนจะได้ข้อความเดียวที่บอกสาเหตุและวิธีแก้
  */
 
-/** รุ่นต่ำสุดของ API ที่ชุดเทสนี้เขียนไว้ (DEV/main) */
+/** รุ่นต่ำสุดของ API ที่ชุดเทสนี้เขียนไว้ commit นี้อยู่ใน develop แล้ว (develop เป็นฐานหลักของงานเทสตั้งแต่ 16 ต.ค. 2026) */
 const MIN_API_COMMIT = 'f7d52ed';
 
 /** ข้อความของตัวตรวจ id ที่เพิ่มใน f7d52ed (apps/api/src/common/database-id.pipe.ts) ใช้แยก API รุ่นนี้ออกจากรุ่นก่อน */
@@ -22,7 +22,7 @@ export default async function globalSetup(): Promise<void> {
       const detail = health instanceof Error ? health.message.split('\n')[0] : `ได้รหัส ${health.status()}`;
       throw new Error(
         `API ไม่ตอบที่ ${env.apiBaseUrl}/health (${detail})\n` +
-          'วิธีแก้: เปิด Supabase ฐานข้อมูล และ API ในเครื่องก่อน แล้วรันเทสอีกครั้ง',
+          'วิธีแก้: เปิด API (และ Supabase ในเครื่อง ถ้า API ใช้ฐานข้อมูลในเครื่อง) ก่อน แล้วรันเทสอีกครั้ง',
       );
     }
 
@@ -34,22 +34,28 @@ export default async function globalSetup(): Promise<void> {
     if (leads.status() === 403) {
       throw new Error(
         `บัญชี ${env.devUser.email} ไม่มีบทบาท agent (ได้รหัส 403)\n` +
-          'วิธีแก้: ใส่ข้อมูลตัวอย่างของทีมอีกครั้ง (seed-dev-user.sql) เทสชุดนี้เรียก API ในบทบาทนายหน้า',
+          'วิธีแก้: ถ้า API ต่อฐานข้อมูลของทีม ห้ามใส่ข้อมูลเอง ให้แจ้งทีม\n' +
+          'ถ้าใช้ฐานข้อมูลในเครื่อง ให้ใส่ข้อมูลตัวอย่างของทีมอีกครั้ง (docs/new-project/docker/seed-dev-user.sql) เทสชุดนี้เรียก API ในบทบาทนายหน้า',
       );
     }
     if (leads.status() >= 500) {
       throw new Error(
         `GET /agent/leads ตอบ ${leads.status()} (API ล้มระหว่างอ่านฐานข้อมูล)\n` +
-          'สาเหตุที่พบบ่อย: ยังไม่รัน migration ของ apps/api ถึง 20261014-contract-closure.sql ' +
+          'สาเหตุที่พบบ่อย: ฐานข้อมูลยังไม่มีคอลัมน์ที่โค้ดของ API อ่าน ' +
           `(API รุ่น ${MIN_API_COMMIT} อ่านคอลัมน์ leads.booking_released_at)\n` +
-          'วิธีตรวจ: ดู log ของ API ว่ามี "column ... booking_released_at does not exist" หรือไม่ ถ้าไม่มี ให้ดู error อื่นใน log',
+          'ตรวจแบบอ่านอย่างเดียวด้วย npm run db:check -w @nestyk/api -- --check (migration ของทีมอยู่ที่ supabase/migrations/)\n' +
+          'ห้ามรัน db:check ที่ไม่มี --check กับทุกฐานข้อมูล (ดู supabase/MIGRATION-RULES.md)\n' +
+          'ถ้า API ต่อฐานข้อมูลของทีม ห้ามรัน db:push ทุกแบบ (รวม -- --check) และห้ามรัน SQL แก้ฐานข้อมูลเอง ให้แจ้งทีมให้ขึ้น migration\n' +
+          'วิธีตรวจ: ดู log ของ API ว่ามี "column ... does not exist" หรือบรรทัด SchemaDrift หรือไม่ ถ้าไม่มี ให้ดู error อื่นใน log',
       );
     }
     if (leads.status() !== 200) {
       const answer = (await leads.text()).slice(0, 200);
       throw new Error(
         `ล็อกอินแบบนักพัฒนาด้วยบัญชี ${env.devUser.email} ไม่สำเร็จ (ได้รหัส ${leads.status()}: ${answer})\n` +
-          'วิธีแก้: ตรวจว่า .env.api ตั้ง ALLOW_DEV_AUTH=true และฐานข้อมูลมีบัญชีตัวอย่างแล้ว (seed-dev-user.sql)',
+          'วิธีแก้: ตรวจว่า .env.api ตั้ง ALLOW_DEV_AUTH=true และฐานข้อมูลมีบัญชีตัวอย่างแล้ว\n' +
+          'ถ้า API ต่อฐานข้อมูลของทีม ห้ามใส่ข้อมูลเอง และห้ามเรียก POST /auth/sync แม้ API จะบอกให้เรียก (เส้นทางนี้สร้างบัญชีในฐานข้อมูล) ให้แจ้งทีม\n' +
+          'ถ้าใช้ฐานข้อมูลในเครื่อง ใส่บัญชีด้วย docs/new-project/docker/seed-dev-user.sql',
       );
     }
 
@@ -59,9 +65,9 @@ export default async function globalSetup(): Promise<void> {
     const probeText = await probe.text();
     if (probe.status() !== 400) {
       throw new Error(
-        `API ที่ ${env.apiBaseUrl} น่าจะเก่ากว่า DEV/main ${MIN_API_COMMIT} ` +
+        `API ที่ ${env.apiBaseUrl} น่าจะเก่ากว่ารุ่น ${MIN_API_COMMIT} ` +
           `(GET /agent/leads/2147483648 ได้รหัส ${probe.status()} แต่รุ่นนั้นต้องตอบ 400)\n` +
-          `วิธีแก้: รวม DEV/main ถึง ${MIN_API_COMMIT} แล้วเปิด API ใหม่ ชุดเทสนี้เขียนตามพฤติกรรมของรุ่นนั้น`,
+          `วิธีแก้: ใช้โค้ดของ develop ซึ่งมี ${MIN_API_COMMIT} แล้ว (ถ้ารันจาก qa/e2e โค้ดนอก e2e/ ต้องเหมือน develop) แล้วเปิด API ใหม่ ชุดเทสนี้เขียนตามพฤติกรรมของรุ่นนั้น`,
       );
     }
     if (!probeText.includes(ID_OUT_OF_RANGE)) {
