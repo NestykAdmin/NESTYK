@@ -270,7 +270,7 @@ INSERT INTO public.master_property_types (id, code) VALUES
 
 INSERT INTO public.master_roles (id, name, details) VALUES
 	(1, 'guest', 'Default app identity — not a gated management mode'),
-	(2, 'owner', 'Property owner mode — /owner'),
+	(2, 'landlord', 'Landlord — signs documents an agent sends'),
 	(3, 'tenant', 'Tenant mode — /tenant'),
 	(4, 'agent', 'Field agent mode — /agent'),
 	(5, 'admin', 'Admin operations — /admin');
@@ -392,7 +392,8 @@ SELECT pg_catalog.setval('public.master_property_types_id_seq', 3, true);
 -- Name: master_roles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.master_roles_id_seq', 5, true);
+-- max(id), not a fixed number: later migrations add roles with fixed ids before this seed runs.
+SELECT pg_catalog.setval('public.master_roles_id_seq', (SELECT max(id) FROM public.master_roles), true);
 
 
 --

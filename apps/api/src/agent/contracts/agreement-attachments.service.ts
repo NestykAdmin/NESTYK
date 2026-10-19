@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import {
   BadRequestException,
   ConflictException,
@@ -161,12 +162,12 @@ export class AgreementAttachmentsService {
   async uploadForParty(
     c: LeaseContractEntity,
     uploaderId: number,
-    allowedSubjects: Array<"owner" | "tenant">,
+    allowedSubjects: ContractParty[],
     input: unknown,
     file: { buffer: Buffer; size: number; originalname?: string } | undefined,
   ) {
     const b = validateAttachmentInput(input);
-    if (!allowedSubjects.includes(b.subject as "owner" | "tenant"))
+    if (!allowedSubjects.includes(b.subject as ContractParty))
       throw new BadRequestException("แนบได้เฉพาะเอกสารของฝ่ายคุณ");
     this.mutable(c);
     const stored = await this.storage.uploadAttachment(
@@ -251,7 +252,7 @@ export class AgreementAttachmentsService {
   }
   async assertReadyForSubject(
     c: LeaseContractEntity,
-    subject: "owner" | "tenant",
+    subject: ContractParty,
   ) {
     if (
       (await this.groups(c)).some((g) => g.subject === subject && !g.complete)

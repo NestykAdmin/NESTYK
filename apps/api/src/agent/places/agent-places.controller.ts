@@ -7,7 +7,8 @@ import { AgentPlacesService } from './agent-places.service';
 
 @Controller('agent/places')
 @UseGuards(AuthGuard, RolesGuard)
-@Roles('agent', 'owner')
+// Landlords no longer list rooms (no listings tab), so address search is agent-only (docs/ROLE-CHANGE-PLAN.md).
+@Roles('agent')
 export class AgentPlacesController {
   constructor(private readonly placesService: AgentPlacesService) {}
 

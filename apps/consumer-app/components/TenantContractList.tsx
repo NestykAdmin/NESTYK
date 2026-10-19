@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -45,7 +46,7 @@ export function TenantContractList({
   ownedRooms?: OwnedRoomRef[];
   selectedRoom: PartyContractRoom | null;
   history?: boolean;
-  mode?: "tenant" | "owner";
+  mode?: ContractParty;
   onSelectRoom: (room: PartyContractRoom) => void;
   onOpen: (contract: PartyContract) => void;
 }) {
@@ -93,7 +94,7 @@ export function TenantContractList({
       .filter((row) => isStay(row) && row.status === "active")
       .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.id - a.id)[0]
       ?.tenant?.trim() || "";
-  const roleAccent = mode === "owner" ? tokens.colors.roles.owner : tokens.colors.roles.tenant;
+  const roleAccent = mode === "owner" ? tokens.colors.roles.landlord : tokens.colors.roles.tenant;
   const roleTint = mode === "owner" ? "rgba(0, 85, 218, 0.12)" : "rgba(0, 198, 141, 0.14)";
   const latestStart = (contracts: PartyContract[]) =>
     contracts.reduce((max, row) => (row.startDate > max ? row.startDate : max), "");
@@ -198,7 +199,7 @@ export function TenantContractList({
       />
     );
   }
-  function signer(row: PartyContract, party: "tenant" | "owner") {
+  function signer(row: PartyContract, party: ContractParty) {
     const signed = party === "tenant" ? row.tenantSignedAt : row.ownerSignedAt;
     return (
       <View style={s.signer} key={party}>
@@ -223,7 +224,7 @@ export function TenantContractList({
     );
   }
   if (!group && mode === "owner" && !history && !selectedRoom) {
-    const chipTone = { bg: "#E8F0FE", fg: tokens.colors.roles.owner, dot: tokens.colors.roles.owner };
+    const chipTone = { bg: "#E8F0FE", fg: tokens.colors.roles.landlord, dot: tokens.colors.roles.landlord };
     const actionLabel: Record<OwnerRoomAction, string> = {
       renewal: copy.renewalAction,
       reservation: copy.reservation,

@@ -6,7 +6,7 @@ export interface ServiceTicket {
   category: ServiceCategory;
   listingId?: string;
   requesterId: string;
-  requesterRole: 'tenant' | 'owner' | 'agent' | 'guest';
+  requesterRole: 'tenant' | 'landlord' | 'agent' | 'guest';
   assigneeId?: string; // Assistant or Agent or Technician
   scheduledAt: string;
   status: ServiceStatus;

@@ -74,7 +74,7 @@ export async function ensurePartyLogin(
     lastName?: string;
     identityNumber?: string;
     nationality?: string;
-    role: Extract<MasterRoleName, "owner" | "tenant">;
+    role: Extract<MasterRoleName, "landlord" | "tenant">;
     who: string;
   },
 ): Promise<number> {

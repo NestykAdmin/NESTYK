@@ -13,7 +13,7 @@ export interface ServicePermissionItem {
 export type ServiceHubActionId = 'tickets' | 'emergency' | 'move';
 
 /** Mock phase: every role sees the same service catalog */
-const ALL_SERVICE_ROLES: UserRole[] = ['guest', 'tenant', 'owner', 'agent', 'admin'];
+const ALL_SERVICE_ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
 
 export interface ServiceHubExtraTile {
   id: ServiceHubActionId;

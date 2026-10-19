@@ -45,7 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_role_id ON user_roles (role_id);
 INSERT INTO master_roles (name, details)
 VALUES
   ('guest',  'Default app identity — not a gated management mode'),
-  ('owner',  'Property owner mode — /owner'),
+  ('landlord', 'Landlord — signs documents an agent sends'),
   ('tenant', 'Tenant mode — /tenant'),
   ('agent',  'Field agent mode — /agent'),
   ('admin',  'Admin operations — /admin')

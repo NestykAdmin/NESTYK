@@ -107,7 +107,7 @@ export const MOCK_LISTINGS = [
     floor: 'Floor 35 · High Floor',
     price: '45,000',
     tag: 'Panorama View',
-    badgeRole: 'owner' as UserRole,
+    badgeRole: 'landlord' as UserRole,
   },
 ];
 
@@ -115,7 +115,7 @@ export function getRoleSubtitle(role: UserRole | 'services'): string {
   const map: Record<UserRole | 'services', string> = {
     guest: 'Room Seeker',
     tenant: 'Tenant · Room 1804',
-    owner: 'Owner · 3 Active Listings',
+    landlord: 'Landlord · Rooms managed by your agent',
     agent: 'Agent · Co-Broke Partner',
     admin: 'Admin · Operations',
     services: 'Services Hub',

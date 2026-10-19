@@ -68,7 +68,7 @@ export const tokens = {
     roles: {
       guest: '#f8b615',     // 🟡 Warm Yellow (Marketplace)
       tenant: '#00c68d',    // 🟢 Neo Mint (Tenant)
-      owner: '#0055da',     // 🔵 Electric Blue (Owner)
+      landlord: '#0055da',  // 🔵 Electric Blue (Landlord)
       agent: '#ff0052',     // 🔴 Neon Rose (Agent)
       admin: '#0f172a',     // ⚫ Deep Slate (Admin / Operations)
       services: '#0284c7',  // 🔷 Sky Blue (Services Hub)

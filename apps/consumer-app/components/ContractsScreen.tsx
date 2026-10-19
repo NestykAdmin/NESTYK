@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import { FinancialDocumentForm } from "./FinancialDocumentForm";
 import { CommissionConfirmationForm } from "./CommissionConfirmationForm";
 import { AgreementAttachments } from "./AgreementAttachments";
@@ -854,13 +855,13 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   }
   function partyDeliveredAt(
     contract: AgentContract,
-    party: "owner" | "tenant",
+    party: ContractParty,
   ) {
     return party === "owner"
       ? contract.ownerDeliveredAt
       : contract.tenantDeliveredAt;
   }
-  function confirmShare(party: "owner" | "tenant") {
+  function confirmShare(party: ContractParty) {
     if (!selected || busy || documentLocked || !attachmentsReady) return;
     if (partyDeliveredAt(selected, party)) return;
     const label = party === "owner" ? docs.owner : docs.tenant;
@@ -869,7 +870,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
       { text: docs.shareSignSend, onPress: () => void shareSignInvite(party) },
     ]);
   }
-  async function shareSignInvite(party: "owner" | "tenant") {
+  async function shareSignInvite(party: ContractParty) {
     if (!selected || busy || documentLocked || !attachmentsReady) return;
     if (partyDeliveredAt(selected, party)) return;
     const contractId = selected.id;

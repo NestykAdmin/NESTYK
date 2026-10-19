@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import { Column, Entity, JoinColumn, ManyToOne, Check, Index, Unique } from "typeorm";
 import { SerialCreatedEntity } from "./base.entity";
 import { LeaseContractEntity } from "./lease-contract.entity";
@@ -13,7 +14,7 @@ export class AgreementSignInviteEntity extends SerialCreatedEntity {
   @JoinColumn({ name: "agreement_id", foreignKeyConstraintName: "agreement_sign_invites_agreement_id_fkey" })
   agreement: LeaseContractEntity;
 
-  @Column({ type: "varchar", length: 16 }) party: "owner" | "tenant";
+  @Column({ type: "varchar", length: 16 }) party: ContractParty;
 
   @Column({ type: "char", length: 64 }) token_hash: string;
 

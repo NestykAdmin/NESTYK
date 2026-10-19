@@ -66,12 +66,12 @@ export interface MobileProfileDrawerProps {
 const ROLE_OPTIONS: { key: UserRole; icon: AppIconName }[] = [
   { key: 'guest', icon: 'search' },
   { key: 'tenant', icon: 'home' },
-  { key: 'owner', icon: 'key' },
+  { key: 'landlord', icon: 'key' },
   { key: 'agent', icon: 'handshake' },
   { key: 'admin', icon: 'shield' },
 ];
 
-const DEFAULT_ALLOWED_ROLES: UserRole[] = ['guest', 'tenant', 'owner', 'agent', 'admin'];
+const DEFAULT_ALLOWED_ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
 
 const BRAND_YELLOW = tokens.colors.brand[500];
 

@@ -1,3 +1,4 @@
+import type { ContractParty } from "@nestyk/types";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from "react-native-safe-area-context";
@@ -24,7 +25,7 @@ export function PartyContractsScreen({
   selectedRoom,
   onSelectedRoomChange,
   history = false,
-  accentColor = tokens.colors.roles.owner,
+  accentColor = tokens.colors.roles.landlord,
   mode = "owner",
 }: {
   reloadToken?: number;
@@ -36,7 +37,7 @@ export function PartyContractsScreen({
   onSelectedRoomChange: (room: PartyContractRoom | null) => void;
   history?: boolean;
   accentColor?: string;
-  mode?: "owner" | "tenant";
+  mode?: ContractParty;
 }) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();

@@ -11,6 +11,8 @@
 
 ## ลำดับขั้นตอนเวลาขึ้นฐานข้อมูล
 
+**Supabase dev: Railway รันให้เองทุกครั้งที่ deploy** (`railway.json` ช่อง `preDeployCommand`) ดูข้อ 10 ขั้นตอนข้างล่างใช้กับฐานข้อมูลในเครื่อง และใช้ลองไฟล์ใหม่ก่อน push
+
 1. `npm run db:push -w @nestyk/api -- --check` สั่งรันจริงแล้วย้อนกลับ เพื่อดูว่าทุกไฟล์รันผ่าน
 2. `npm run db:push -w @nestyk/api` สั่งรันจริง
 3. (เฉพาะฐานข้อมูลใหม่) `npm run db:seed -w @nestyk/api -- masters` ส่วน `demo` ให้ใส่เฉพาะ dev
@@ -49,6 +51,21 @@ SELECT pg_catalog.setval('public.master_xxx_id_seq', (SELECT max(id) FROM public
 
 **8. ห้าม commit `.env` / `.env.api` และห้ามแปะรหัสผ่านหรือคีย์ในแชท**
 
+**9. ห้ามสร้าง role ชื่อ `owner` อีก**
+รหัส `owner` เลิกใช้ถาวรตั้งแต่ migration `20261016100000_rename_owner_role_to_landlord.sql` (เปลี่ยนเป็น `landlord` id เดิม) โค้ดรุ่นเก่าเข้าใจ `owner` ว่าผู้ให้เช่า ถ้ามีแถวนี้กลับมา API รุ่นใหม่จะไม่ยอมเริ่มทำงาน (`RoleCatalogCheck`) ส่วน API รุ่นเก่าจะให้สิทธิ์ผิดความหมาย
+- เช็กว่าฐานข้อมูลอยู่รอบไหน: `SELECT id, name FROM public.master_roles ORDER BY id;` ถ้าเห็น `owner` = ยังไม่รันรอบ 1, เห็น `landlord` = รันแล้ว
+- ก่อน push โค้ดที่แตะ role ให้รัน `npm run check:roles` (ที่ root) ต้องไม่เจออะไร
+- คำว่า `owner` ที่เป็น "ฝ่ายผู้ให้เช่าในสัญญา" (`party`, `subject`, คอลัมน์ `owner_*`, ชนิด `ContractParty`) ใช้ต่อได้ตามปกติ ไม่ใช่ role
+- role ใหม่ต้องเพิ่มใน `MASTER_ROLE_NAMES` (`apps/api/src/entities/master-role.entity.ts`) และใส่ id ตายตัวใน migration ตามข้อ 5 ถ้าโค้ดยังไม่รู้จัก role นั้น API จะแค่เตือนใน log
+
+**10. push เข้า `develop` = รัน migration บน Supabase dev ทันที**
+`railway.json` สั่งให้ Railway รัน `node apps/api/scripts/db-push.cjs` หลัง build เสร็จ ก่อนเปิด API ตัวใหม่ ไม่มีขั้นยืนยันก่อน
+- ก่อน merge ไฟล์ใน `supabase/migrations` ต้องรัน `db:push -- --check` กับฐานข้อมูลในเครื่องให้ผ่าน และให้อีกคนรีวิว
+- ถ้า migration พัง Railway จะหยุด deploy ตัวนั้น (ไม่ลองซ้ำ) API ตัวเดิมยังเปิดอยู่ และฐานข้อมูลไม่เปลี่ยนเพราะทุกไฟล์รันใน transaction เดียว ดู error ได้ที่ Deploy Logs ช่วง pre-deploy
+- **rollback บน Railway ไม่ได้ย้อนฐานข้อมูล** ถ้าย้อนไปโค้ดที่เก่ากว่า migration ล่าสุด โค้ดนั้นต้องยังทำงานกับฐานข้อมูลใหม่ได้ ถ้าไม่ได้ ให้แก้ด้วย migration ใหม่แทนการ rollback
+- seed ไม่ถูกรัน ข้อมูล master ใหม่ต้องอยู่ใน migration ตามข้อ 5
+- ห้ามย้าย `db-push` ไปรันตอน API เริ่มทำงาน (`main.ts` หรือ `migrationsRun` ของ TypeORM) เพราะทุกเครื่องที่รัน API จะแก้ฐานข้อมูลที่ `.env.api` ชี้อยู่ได้ และถ้าพังจะรีสตาร์ทวนไม่หยุด
+
 ## ข้อระวัง
 
 **แก้ entity ต้องมี migration ในการแก้เดียวกัน**
@@ -81,4 +98,6 @@ baseline ตั้ง `search_path` เป็นค่าว่างระห�
 
 | วันที่ | ไฟล์ | เรื่อง |
 |---|---|---|
+| 2026-10-16 | `railway.json` | ให้ Railway รัน `db-push` ก่อน deploy ทุกครั้ง (ข้อ 10) |
+| 2026-10-16 | `20261016100000_rename_owner_role_to_landlord.sql`, `seed/masters.sql` | เปลี่ยน role `owner` → `landlord` (id 2 เดิม) และ `setval` ของ `master_roles_id_seq` ใช้ `max(id)` ดู `docs/ROLE-CHANGE-PLAN.md` |
 | 2026-10-15 | `20261014120000_contract_closure.sql`, `seed/masters.sql` | ย้าย contract-closure จากโฟลเดอร์เก่ามาโฟลเดอร์ใหม่ (คอลัมน์ `leads.booking_released_at`, index `uq_leads_one_booked_per_room` แบบใหม่, เหตุผลจบสัญญา `before_start_cancelled` id 8) และแก้ `setval` ใน seed ให้ใช้ `max(id)` |

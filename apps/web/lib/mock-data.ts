@@ -49,7 +49,7 @@ export const MOCK_LISTINGS: MockListing[] = [
     roomType: '2 ห้องนอน • 65 ตร.ม. • ชั้น 35',
     price: '45,000',
     tag: 'วิวพาโนรามา',
-    role: 'owner',
+    role: 'landlord',
     desc: 'คอนโดหรูระดับ Luxury ใจกลางอโศก สภาพใหม่มาก ไม่เคยปล่อยเช่า',
   },
   {

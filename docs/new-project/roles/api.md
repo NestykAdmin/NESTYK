@@ -30,7 +30,7 @@ Authorization: Bearer eyJ…
   "avatarUrl": null,
   "profileCompleted": false,
   "provisioned": true,
-  "roles": ["guest", "owner"]
+  "roles": ["guest", "landlord"]
 }
 ```
 
@@ -67,12 +67,12 @@ Response shape เหมือน `/auth/sync`
 { "role": "agent" }
 ```
 
-Allowed: `owner` | `tenant` | `agent` | `admin`
+Allowed: `landlord` | `tenant` | `agent` | `admin` (`owner` ถูกปฏิเสธ 400)
 
 ### `DELETE /auth/dev/roles`
 
 ```json
-{ "role": "owner" }
+{ "role": "landlord" }
 ```
 
 Idempotent · ไม่ลบ `guest`
@@ -105,7 +105,7 @@ Guest/public endpoints: ไม่ assert management role
 
 | App mode | ตัวอย่าง API prefix | Role |
 |----------|---------------------|------|
-| Owner | `/owner/*` | `owner` |
+| Landlord | `/bills/received*` · `/contracts/mine*` (ร่วมกับ tenant) | `landlord` |
 | Tenant | `/tenant/*` | `tenant` |
 | Agent | `/agent/*` | `agent` |
 | Admin | `/admin/*` | `admin` |

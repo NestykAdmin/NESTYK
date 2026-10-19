@@ -38,7 +38,7 @@
   "roles": {
     "guest": "#f8b615",
     "tenant": "#00c68d",
-    "owner": "#0055da",
+    "landlord": "#0055da",
     "agent": "#ff0052",
     "admin": "#0f172a",
     "services": "#0284c7"

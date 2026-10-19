@@ -25,7 +25,7 @@ import { MAX_CONTRACT_DOCUMENT_BYTES } from "./contract-document-storage.service
 
 @Controller("contracts")
 @UseGuards(AuthGuard, RolesGuard)
-@Roles("tenant", "owner")
+@Roles("tenant", "landlord")
 export class PartyContractsController {
   constructor(
     private readonly contracts: AgentContractsService,
