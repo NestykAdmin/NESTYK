@@ -1,3 +1,4 @@
+import { CALENDAR_TIMEZONE } from '../lib/agent-calendar';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
@@ -16,11 +17,11 @@ export function ViewingDateTile({ at, past = false, tone }: { at: string; past?:
   const { theme, isDark } = useMobileTheme();
   const date = new Date(at);
   const tag = localeTag(locale);
-  const day = date.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
-  const time = date.toLocaleTimeString(tag, { hour: '2-digit', minute: '2-digit', hour12: false });
+  const day = date.toLocaleDateString(tag, { timeZone: CALENDAR_TIMEZONE, day: 'numeric', month: 'short' });
+  const time = date.toLocaleTimeString(tag, { timeZone: CALENDAR_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false });
   const isPast = tone ? tone !== 'upcoming' : past;
   const dayLabel = isPast
-    ? date.toLocaleDateString(tag, { weekday: 'short' })
+    ? date.toLocaleDateString(tag, { timeZone: CALENDAR_TIMEZONE, weekday: 'short' })
     : (viewingDayLabel(at, locale, c.viewing) ?? '');
   const brand = tone ? tone === 'upcoming' : !past && daysFromToday(date) <= 0;
   const gray = !!tone && tone !== 'upcoming';

@@ -1,3 +1,4 @@
+import { CALENDAR_TIMEZONE, calendarDateKey } from './agent-calendar';
 import type { AgentLead, LeadContactChannel } from '@nestyk/types';
 
 const HONORIFIC = /^(คุณ|นางสาว|นาง|นาย|น\.ส\.|ด\.ช\.|ด\.ญ\.|mrs\.?|mr\.?|ms\.?|miss|dr\.?)\s*/i;
@@ -75,15 +76,14 @@ export function formatShortDateTime(value: string | null | undefined, locale: st
   const date = toDate(value);
   if (!date) return null;
   const tag = LOCALE_TAGS[locale] ?? locale;
-  const day = date.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
-  const time = date.toLocaleTimeString(tag, { hour: '2-digit', minute: '2-digit', hour12: false });
+  const day = date.toLocaleDateString(tag, { timeZone: CALENDAR_TIMEZONE, day: 'numeric', month: 'short' });
+  const time = date.toLocaleTimeString(tag, { timeZone: CALENDAR_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false });
   return `${day} ${time}`;
 }
 
-/** Calendar days from today in device time (0 = today); rounding absorbs DST shifts. */
+/** Calendar days in Bangkok (0 = today). */
 export function daysFromToday(date: Date, now = new Date()): number {
-  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  return Math.round((start(date) - start(now)) / 86400000);
+  return (Date.parse(calendarDateKey(date)) - Date.parse(calendarDateKey(now))) / 86400000;
 }
 
 /** "วันนี้" / "พรุ่งนี้" / weekday within the week / "อีก 9 วัน". */
@@ -97,7 +97,7 @@ export function viewingDayLabel(
   const days = daysFromToday(date);
   if (days <= 0) return copy.today;
   if (days === 1) return copy.tomorrow;
-  if (days < 7) return date.toLocaleDateString(LOCALE_TAGS[locale] ?? locale, { weekday: 'short' });
+  if (days < 7) return date.toLocaleDateString(LOCALE_TAGS[locale] ?? locale, { timeZone: CALENDAR_TIMEZONE, weekday: 'short' });
   return copy.inDays.replace('{n}', String(days));
 }
 

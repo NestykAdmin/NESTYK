@@ -1,35 +1,22 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { listCalendarEvents } from '../lib/agent-calendar-api';
+import { viewingToCalendarEvent } from '../lib/agent-calendar-viewings';
+import { calendarEventFromApi } from '../lib/agent-calendar';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import type { LeadViewing } from '@nestyk/types';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { MobileBottomSheet, MobileButton, MobileIcon, MobileInput, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { createLeadViewing, listAgentViewings, updateLeadViewing } from '../lib/agent-leads-api';
-import { calendarDateKey, calendarLocalDate } from '../lib/agent-calendar-demo';
+import { calendarDateKey, calendarLocalDate, calendarDateTime, calendarTimeKey, calendarDayRange, nearbyCalendarEvent, CALENDAR_TIMEZONE, type CalendarEvent } from '../lib/agent-calendar';
 import { localeTag } from '../lib/lead-format';
 import { SheetHeader } from './AgentLeadDetailBody';
 import { openTimeDialog, timePickerInline, ViewingTimePicker } from './ViewingTimeField';
 
-/** Viewings closer than this to another one on the same day get a (non-blocking) warning. */
-const NEAR_MS = 60 * 60 * 1000;
-
-function localDateTime(date: string, time: string): Date {
-  const [y, m, d] = date.split('-').map(Number);
-  const [hh, mm] = time.split(':').map(Number);
-  return new Date(y, m - 1, d, hh, mm);
-}
-
-function timeKey(date: Date): string {
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-/** Next full hour from now — a new viewing starts there so it can be saved straight away. */
 function nextFullHour(): Date {
-  const at = new Date();
-  at.setMinutes(0, 0, 0);
-  at.setHours(at.getHours() + 1);
-  return at;
+  return new Date(Math.ceil((Date.now() + 1) / 3600000) * 3600000);
 }
+const timeKey = calendarTimeKey;
 
 function FormRow({
   label,
@@ -98,7 +85,10 @@ export function LeadViewingSheet({
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [note, setNote] = useState('');
-  const [dayViewings, setDayViewings] = useState<LeadViewing[] | null>(null);
+  const [dayViewings, setDayViewings] = useState<CalendarEvent[] | null>(null);
+  const [checkedDate, setCheckedDate] = useState('');
+  const pending = useRef(false);
+  const [overlapFailed, setOverlapFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,15 +107,16 @@ export function LeadViewingSheet({
     if (!visible || !date) return;
     let active = true;
     setDayViewings(null);
-    const start = calendarLocalDate(date);
-    const from = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    const to = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
-    listAgentViewings(from.toISOString(), to.toISOString())
-      .then((rows) => {
-        if (active) setDayViewings(rows.filter((v) => v.status === 'scheduled' && v.id !== viewing?.id));
-      })
-      .catch(() => {
-        if (active) setDayViewings([]);
+    setOverlapFailed(false); setCheckedDate('');
+    const dayRange = calendarDayRange(date);
+    const from = new Date(Date.parse(dayRange.from) - 3600000).toISOString();
+    const to = new Date(Date.parse(dayRange.to) + 3600000).toISOString();
+    Promise.allSettled([listAgentViewings(from, to).then(rows => rows.map(viewingToCalendarEvent)), listCalendarEvents(from, to).then(rows => rows.map(calendarEventFromApi))])
+      .then(results => {
+        if (!active) return;
+        setDayViewings(results.flatMap(result => result.status === 'fulfilled' ? result.value : []).filter(event => (event.source === 'manual' ? event.status !== 'cancelled' : event.status === 'scheduled') && event.id !== `viewing-${viewing?.id}`));
+        setOverlapFailed(results.some(result => result.status === 'rejected'));
+        setCheckedDate(date);
       });
     return () => {
       active = false;
@@ -134,13 +125,12 @@ export function LeadViewingSheet({
 
   const tag = localeTag(locale);
   const today = calendarDateKey(new Date());
-  const selectedAt = date && time ? localDateTime(date, time).getTime() : 0;
+  const selectedAt = date && time ? calendarDateTime(date, time).getTime() : 0;
   const past = !!selectedAt && selectedAt <= Date.now();
-  const near = selectedAt
-    ? (dayViewings ?? []).find((v) => Math.abs(new Date(v.scheduledAt).getTime() - selectedAt) < NEAR_MS)
-    : undefined;
+  const near = nearbyCalendarEvent(dayViewings ?? [], date, time, `viewing-${viewing?.id}`);
+  const sameDay = dayViewings?.filter(event => event.date === date);
   const dateLabel = date
-    ? calendarLocalDate(date).toLocaleDateString(tag, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    ? calendarLocalDate(date).toLocaleDateString(tag, { timeZone: CALENDAR_TIMEZONE, weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     : '';
   const markedDates = useMemo(
     () => (date ? { [date]: { selected: true, selectedColor: tokens.colors.brand[500], selectedTextColor: tokens.colors.primary } } : {}),
@@ -157,11 +147,12 @@ export function LeadViewingSheet({
   };
 
   const save = async () => {
-    if (busy || !date || !time || past) return;
+    if (pending.current || !date || !time || past || checkedDate !== date) return;
+    pending.current = true;
     setBusy(true);
     setError(null);
     try {
-      const scheduledAt = localDateTime(date, time).toISOString();
+      const scheduledAt = calendarDateTime(date, time).toISOString();
       const saved = viewing
         ? await updateLeadViewing(viewing.id, { scheduledAt, note: note.trim() || null })
         : await createLeadViewing(leadId, { rentRoomId: roomId, scheduledAt, note: note.trim() || null });
@@ -169,12 +160,13 @@ export function LeadViewingSheet({
     } catch (err) {
       setError(localizedError(err, c.saveError, locale));
     } finally {
-      setBusy(false);
+      pending.current = false; setBusy(false);
     }
   };
 
   const cancelViewing = async () => {
-    if (busy || !viewing) return;
+    if (pending.current || !viewing) return;
+    pending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -182,7 +174,7 @@ export function LeadViewingSheet({
     } catch (err) {
       setError(localizedError(err, c.cancelError, locale));
     } finally {
-      setBusy(false);
+      pending.current = false; setBusy(false);
     }
   };
 
@@ -265,24 +257,22 @@ export function LeadViewingSheet({
               <View style={[styles.warn, { backgroundColor: tokens.colors.subtle.warningBg }]}>
                 <MobileIcon name="warning" size={16} color={tokens.colors.subtle.warningFg} />
                 <Text style={[styles.warnText, { color: tokens.colors.subtle.warningFg }]}>
-                  {(near.rentRoomId === roomId ? c.nearViewingSameRoom : c.nearViewing).replace(
-                    '{time}',
-                    timeKey(new Date(near.scheduledAt)),
-                  )}
+                  {t.agent.calendar.overlapWarning.replace('{time}', near.date === date ? near.time : `${near.date} ${near.time}`).replace('{title}', near.title)}
                 </Text>
               </View>
             ) : null}
 
+            {overlapFailed && <Text style={[styles.muted, { color: theme.textSecondary }]}>{t.agent.calendar.overlapIncomplete}</Text>}
             <View style={styles.daySection}>
-              <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>{c.dayViewings}</Text>
-              {dayViewings === null ? null : dayViewings.length === 0 ? (
-                <Text style={[styles.muted, { color: theme.textSecondary }]}>{c.noDayViewings}</Text>
+              <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>{t.agent.calendar.dayAppointments}</Text>
+              {sameDay === undefined ? <Text style={[styles.muted, { color: theme.textSecondary }]}>{t.common.loading}</Text> : sameDay.length === 0 && !overlapFailed ? (
+                <Text style={[styles.muted, { color: theme.textSecondary }]}>{t.agent.calendar.noDayAppointments}</Text>
               ) : (
-                dayViewings.map((v) => (
+                sameDay.map((v) => (
                   <View key={v.id} style={styles.dayItem}>
-                    <Text style={[styles.dayTime, { color: theme.textHeading }]}>{timeKey(new Date(v.scheduledAt))}</Text>
+                    <Text style={[styles.dayTime, { color: theme.textHeading }]}>{v.time}</Text>
                     <Text style={[styles.dayTitle, { color: theme.textHeading }]} numberOfLines={1}>
-                      {v.leadName} · {v.roomTitle}
+                      {v.title}
                     </Text>
                   </View>
                 ))
@@ -291,7 +281,7 @@ export function LeadViewingSheet({
 
             <MobileInput value={note} onChangeText={setNote} placeholder={c.notePlaceholder} maxLength={500} editable={!busy} />
             {error ? <Text style={[styles.error, { color: tokens.colors.danger }]}>{error}</Text> : null}
-            <MobileButton onPress={() => void save()} isLoading={busy} disabled={past}>
+            <MobileButton onPress={() => void save()} isLoading={busy} disabled={past || checkedDate !== date}>
               {viewing ? c.saveChange : c.save}
             </MobileButton>
             {viewing ? (

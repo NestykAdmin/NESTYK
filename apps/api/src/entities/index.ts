@@ -1,3 +1,5 @@
+import { AgentCalendarEventEntity } from './agent-calendar-event.entity';
+export * from './agent-calendar-event.entity';
 import { MasterDocumentTypeEntity, AgreementDocumentRequirementEntity, AgreementDocumentEntity } from "./agreement-document.entity";
 import { AgreementTemplateEntity } from "./agreement-template.entity";
 import { MasterContractEndReasonEntity } from "./master-contract-end-reason.entity";
@@ -85,6 +87,7 @@ export * from './tenant-bill.entity';
  * update the entity in the same change as any migration that adds or renames one.
  */
 export const ALL_ENTITIES = [
+  AgentCalendarEventEntity,
   MasterContractEndReasonEntity,
   ContractDepositSettlementEntity,
   DepositDeductionItemEntity,

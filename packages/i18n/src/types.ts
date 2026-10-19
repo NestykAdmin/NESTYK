@@ -366,7 +366,16 @@ export interface TranslationSchema {
   };
   agent: {
     calendar: {
-      demoNotice: string;
+      edit: string;
+      editDescription: string; cancelDescription: string;
+      confirmEdit: string; keepAppointment: string; dismissConfirmation: string; cancelSuccess: string;
+      cancelAppointment: string; cancelConfirm: string; confirmCancel: string;
+      createDescription: string; confirmCreate: string;
+      leadLoadFailed: string; manualLoadFailed: string;
+      overlapWarning: string; overlapIncomplete: string;
+      dayAppointments: string; noDayAppointments: string;
+      saveFailed: string;
+      loadFailed: string;
       today: string;
       previousMonth: string;
       nextMonth: string;
@@ -388,7 +397,6 @@ export interface TranslationSchema {
       contract: string;
       confirmed: string;
       pending: string;
-      kind: string;
       saved: string;
     };
     tenants: {
@@ -1753,6 +1761,14 @@ export interface TranslationSchema {
       edit: string;
     };
     dashboard: {
+      unsupported: string;
+      loadFailed: string;
+      noActivity: string;
+      statusScheduled: string;
+      pendingPayment: string;
+      awaitingReview: string;
+      issuedBillsHint: string;
+
       workspaceLabel: string;
       welcome: string;
       todayDate: string;

@@ -126,3 +126,11 @@ Validation (400): `scheduledAt` ต้องเป็นอนาคต (เผ�
 ## 6. ทดสอบ
 
 `npm run test:agent-leads` (ใน `apps/api`) รวม `test/lead-viewings.test.cjs`: validation และ HTTP (401 / 403 / 404 / 409 / สร้าง / รายลีด / ตามช่วง / เลื่อน / ยกเลิก)
+
+## Calendar consistency (16 Oct 2026)
+
+- Viewing dates/times, the booking sheet, Lead banners and Calendar use `Asia/Bangkok`; API timestamps must include a timezone and are stored as UTC.
+- Creates and updates lock the Lead in the same order. A move also locks and re-reads the viewing, checks for another upcoming scheduled viewing for the same Lead and room (excluding itself), then writes in the same transaction. Closed viewings cannot be moved by a delayed request.
+- Calendar ranges use `[from,to)` for both viewing and manual-appointment APIs.
+- The booking sheet checks both Lead viewings and manual calendar appointments; a one-hour proximity warning includes neighboring midnight appointments, excludes itself and completed/cancelled items, and remains non-blocking. Failed sources are explicitly reported.
+- Late post-save responses are discarded after switching Lead/account, leaving the page, or leaving and returning to the same Lead.

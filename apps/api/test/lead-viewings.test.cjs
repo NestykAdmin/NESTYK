@@ -9,7 +9,7 @@ test('viewing input needs a room and a future time within a year; patches need a
  const ok=V.validateViewingInput({rentRoomId:3,scheduledAt:at(hour),note:'  bring keys '});
  assert.equal(ok.rentRoomId,3);assert.equal(ok.note,'bring keys');assert.ok(ok.scheduledAt instanceof Date);
  assert.equal(V.validateViewingInput({rentRoomId:3,scheduledAt:at(hour),note:'   '}).note,null);
- for(const body of [null,[],{scheduledAt:at(hour)},{rentRoomId:0,scheduledAt:at(hour)},{rentRoomId:3},{rentRoomId:3,scheduledAt:'soon'},{rentRoomId:3,scheduledAt:at(-hour)},{rentRoomId:3,scheduledAt:at(400*24*hour)},{rentRoomId:3,scheduledAt:at(hour),note:'x'.repeat(501)}])
+ for(const body of [null,[],{scheduledAt:at(hour)},{rentRoomId:0,scheduledAt:at(hour)},{rentRoomId:3},{rentRoomId:3,scheduledAt:'soon'},{rentRoomId:3,scheduledAt:'2026-10-17T10:00:00'},{rentRoomId:3,scheduledAt:'2027-02-30T10:00:00Z'},{rentRoomId:3,scheduledAt:at(-hour)},{rentRoomId:3,scheduledAt:at(400*24*hour)},{rentRoomId:3,scheduledAt:at(hour),note:'x'.repeat(501)}])
   assert.throws(()=>V.validateViewingInput(body),undefined,JSON.stringify(body));
  assert.deepEqual(V.validateViewingPatch({status:'done'}),{status:'done'});
  for(const body of [{},{status:'maybe'},{scheduledAt:at(-hour)}]) assert.throws(()=>V.validateViewingPatch(body),undefined,JSON.stringify(body));
@@ -22,6 +22,7 @@ function matches(row,where){
   if(want&&typeof want==='object'&&'_type' in want){
    const v=want._value;
    if(want._type==='moreThan')return new Date(have)>new Date(v);
+   if(want._type==='raw'){const range=want.objectLiteralParameters;return new Date(have)>=new Date(range.from)&&new Date(have)<new Date(range.to)}
    if(want._type==='between')return new Date(have)>=new Date(v[0])&&new Date(have)<=new Date(v[1]);
    if(want._type==='not')return have!==v;
    throw new Error('operator '+want._type);
@@ -104,4 +105,15 @@ test('viewings HTTP API books, lists by lead and by range, and moves or closes a
  await touched(async()=>{assert.equal((await call('viewings/2',{method:'PATCH',body:{note:'Changed mind'}})).status,200);});
 
  const again=await call('leads/5/viewings',{method:'POST',body:{rentRoomId:12,scheduledAt:at(hour)}});assert.equal(again.status,201);
+});
+
+test('rescheduling rejects a second upcoming appointment for the same lead and room and excludes the range end',async()=>{
+ const f=fakeService();const first=await f.service.create(7,5,{rentRoomId:11,scheduledAt:at(hour)});
+ f.rows[0].scheduled_at=new Date(Date.now()-hour);
+ const newer=await f.service.create(7,5,{rentRoomId:11,scheduledAt:at(2*hour)});
+ await assert.rejects(f.service.update(7,first.id,{scheduledAt:at(3*hour)}),{status:409});
+ assert.equal(f.rows[0].scheduled_at.getTime()<Date.now(),true);
+ await f.service.update(7,newer.id,{scheduledAt:at(4*hour)});
+ const end=f.rows[1].scheduled_at.toISOString();
+ assert.equal((await f.service.listRange(7,at(0),end)).length,0);
 });

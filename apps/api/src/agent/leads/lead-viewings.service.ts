@@ -1,6 +1,7 @@
+import { parseZonedInstant } from '../../common/iso-date-time';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, EntityManager, MoreThan, Not, Repository } from 'typeorm';
+import { Raw, EntityManager, MoreThan, Not, Repository } from 'typeorm';
 import type { LeadViewing } from '@nestyk/types';
 import { LeadEntity } from '../../entities/lead.entity';
 import { LeadViewingEntity, type LeadViewingStatus } from '../../entities/lead-viewing.entity';
@@ -55,8 +56,7 @@ function asObject(input: unknown): Record<string, unknown> {
 }
 
 function futureDate(value: unknown, now = Date.now()): Date {
-  const date = typeof value === 'string' ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) throw new BadRequestException('scheduledAt must be an ISO date-time');
+  const date = parseZonedInstant(value);
   if (date.getTime() < now - PAST_SLACK_MS) throw new BadRequestException('scheduledAt is in the past');
   if (date.getTime() > now + MAX_AHEAD_MS) throw new BadRequestException('scheduledAt is more than a year ahead');
   return date;
@@ -164,7 +164,7 @@ export class LeadViewingsService {
     }
     if (to <= from || to.getTime() - from.getTime() > MAX_RANGE_MS) throw new BadRequestException('Range must be positive and at most 62 days');
     const rows = await this.viewings.find({
-      where: { created_by_user_id: agentId, scheduled_at: Between(from, to), status: Not('cancelled') },
+      where: { created_by_user_id: agentId, scheduled_at: Raw(alias => `${alias} >= :from AND ${alias} < :to`, { from, to }), status: Not('cancelled') },
       relations: RELATIONS,
       order: { scheduled_at: 'ASC', id: 'ASC' },
     });
@@ -173,20 +173,26 @@ export class LeadViewingsService {
 
   async update(agentId: number, id: number, input: unknown): Promise<LeadViewing> {
     const patch = validateViewingPatch(input);
-    const row = await this.viewings.findOneBy({ id, created_by_user_id: agentId });
-    if (!row) throw new NotFoundException('Viewing not found');
-    if (row.status !== 'scheduled' && (patch.scheduledAt || (patch.status && patch.status !== row.status))) {
-      throw new ConflictException({ code: 'VIEWING_CLOSED', message: 'Only scheduled viewings can be moved or change status' });
-    }
+    const initial = await this.viewings.findOneBy({ id, created_by_user_id: agentId });
+    if (!initial) throw new NotFoundException('Viewing not found');
     await this.viewings.manager.transaction(async (em) => {
-      await em.getRepository(LeadViewingEntity).update(
-        { id, created_by_user_id: agentId },
-        {
-          ...(patch.scheduledAt ? { scheduled_at: patch.scheduledAt } : {}),
-          ...(patch.status ? { status: patch.status } : {}),
-          ...(patch.note !== undefined ? { note: patch.note } : {}),
-        },
-      );
+      const lead = await em.findOne(LeadEntity, { where: { id: initial.lead_id, created_by_user_id: agentId }, lock: { mode: 'pessimistic_write' } });
+      if (!lead) throw new NotFoundException('Lead not found');
+      const repo = em.getRepository(LeadViewingEntity);
+      const row = await repo.findOne({ where: { id, created_by_user_id: agentId }, lock: { mode: 'pessimistic_write' } });
+      if (!row) throw new NotFoundException('Viewing not found');
+      if (row.status !== 'scheduled' && (patch.scheduledAt || (patch.status && patch.status !== row.status))) {
+        throw new ConflictException({ code: 'VIEWING_CLOSED', message: 'Only scheduled viewings can be moved or change status' });
+      }
+      if (patch.scheduledAt && (!patch.status || patch.status === 'scheduled')) {
+        const duplicate = await repo.findOneBy({ id: Not(id), lead_id: row.lead_id, rent_room_id: row.rent_room_id, status: 'scheduled', scheduled_at: MoreThan(new Date()) });
+        if (duplicate) throw new ConflictException({ code: 'VIEWING_EXISTS', message: 'This room already has an upcoming viewing for the lead', viewingId: duplicate.id });
+      }
+      await repo.update({ id, created_by_user_id: agentId }, {
+        ...(patch.scheduledAt ? { scheduled_at: patch.scheduledAt } : {}),
+        ...(patch.status ? { status: patch.status } : {}),
+        ...(patch.note !== undefined ? { note: patch.note } : {}),
+      });
       await em.getRepository(LeadEntity).update({ id: row.lead_id }, { updated_at: new Date() });
     });
     return this.view(agentId, id);

@@ -1,127 +1,35 @@
-# Agent dashboard — Database
+# Agent Dashboard — Database
 
-| | |
-|--|--|
-| กลับ | [README](./README.md) |
-| Flow | [flow.md](./flow.md) |
+อ่านอย่างเดียว ไม่มีตารางหรือ migration ใหม่สำหรับ Dashboard
+Query หลัก: `apps/api/src/agent/dashboard/dashboard-query.ts`
+Service: `apps/api/src/agent/dashboard/agent-dashboard.service.ts`
 
-**ไม่มีตารางใหม่** — dashboard อ่าน aggregate จากตารางใน pack อื่น
+| Source | ใช้สำหรับ |
+|---|---|
+| rent_rooms + master_room_statuses | สต็อก scout ของ Agent, availability, visibility |
+| properties, master_room_types, rent_room_prices และ prices JSON เดิม | ห้อง preview 2 รายการ |
+| leads | open count และ lead-added events |
+| tenants + lease_contracts + agreement_templates/master_agreement_types | distinct current clients, signing, renewals และ contract-delivered events |
+| tenant_bills เชื่อมสัญญาและผู้เช่าของ Agent | สรุปบิล, หนี้ทุกเดือน, payments และ payment-recorded events |
+| lead_viewings เชื่อม lead/room ของ Agent | นัดดูห้องทั้งหมดของวันนี้ที่ไม่ยกเลิก รวมรายการเลยเวลา ดูห้องแล้ว และ Lead ที่ปิดแล้ว |
+| agent_calendar_events ของ Agent | นัดทั้งหมดที่เพิ่มจากปฏิทินในวันนี้ รวมรายการที่เลยเวลาแล้ว พร้อมหัวข้อนัดหมาย |
 
----
+ทุก source scope ด้วย created_by_user_id และตรวจผู้เช่า/ลีด/ห้องที่เชื่อมกันตาม Agent ของ request
+ไม่ส่ง signatures, bank accounts, slip paths หรือ PDF URLs ใน summary
 
-## 1. ตารางที่ใช้
+Summary ใช้ SQL statement เดียวสำหรับ counts/previews/events; work-items ใช้ CTE predicates ชุดเดียวกัน
+Count และรายการของแต่ละหน้าคำนวณใน statement เดียว ป้องกัน total หายเมื่อหน้าปัจจุบันว่าง
+การเปิด Dashboard ไม่เรียก ensure/insert bills; การออกบิลยังเป็นหน้าที่ billing scheduler/workflow เดิม
 
-| ตาราง | Pack | ใช้สำหรับ |
-|--------|------|-----------|
-| `rent_rooms` | [create-room](../create-room/database.md) | stat ห้อง scout |
-| `leads` | [leads](../leads/database.md) | stat + reminders lead |
-| `lease_contracts` | [contracts](../contracts/database.md) | stat + reminders สัญญา |
-| `users` | [roles](../../roles/database.md) | greeting name |
+ค่าเช่ารายเดือนอิง due_date; received คือบิลในเดือนนั้นที่ยืนยัน paid แล้ว
+pending และ overdue เป็นคนละส่วนของ unpaid; overdue ตรวจ grace_until ด้วยวันที่ Asia/Bangkok
+บิลเก่าที่ยังค้างไม่ถูกซ่อนเพราะสัญญาสิ้นสุดแล้ว แต่ไม่ปนในยอดเดือนอื่น
 
----
+ลูกค้าที่เพิ่งจองและยังไม่มีสัญญาอ่านจาก leads.tenant_id + status booked + booking_released_at ว่าง
+ไม่นับ booked lead ที่ปล่อยการจองแล้ว และไม่ใช้ใบจองเก่ามาดึง former tenant กลับเข้า current clients
 
-## 2. Scout room counts
+ไม่มี follow-up due date หรือ commission ledger ในรอบนี้ จึงไม่มี query คำนวณสองฟีเจอร์นี้จากข้อมูลที่ไม่เพียงพอ
 
-```sql
-SELECT
-  COUNT(*) FILTER (WHERE TRUE)                    AS scout_rooms,
-  COUNT(*) FILTER (WHERE visibility = 'published') AS published_rooms,
-  COUNT(*) FILTER (WHERE visibility = 'private')   AS private_rooms
-FROM rent_rooms
-WHERE is_scout_room = TRUE
-  AND created_by_user_id = :agent_user_id;
-```
-
----
-
-## 3. Lead counts
-
-```sql
-SELECT
-  COUNT(*) FILTER (WHERE status = 'new') AS new_leads,
-  COUNT(*) FILTER (WHERE status = 'inprogress') AS active_leads
-FROM leads
-WHERE created_by_user_id = :agent_user_id;
-```
-
----
-
-## 4. Contract counts
-
-```sql
-SELECT
-  COUNT(*) FILTER (WHERE status IN (
-    'draft', 'awaiting_signatures', 'awaiting_agent_review',
-    'awaiting_payment', 'awaiting_payment_verification'
-  )) AS pending_contracts,
-  COUNT(*) FILTER (WHERE status = 'active') AS active_contracts
-FROM lease_contracts
-WHERE created_by_user_id = :agent_user_id;
-```
-
-ถ้า contract ไม่มี `created_by_user_id` — join:
-
-```sql
-FROM lease_contracts lc
-INNER JOIN leads l ON l.id = lc.lead_id
-WHERE l.created_by_user_id = :agent_user_id
-```
-
----
-
-## 5. Reminders query (union)
-
-```sql
-(
-  SELECT
-    'lead-' || id::text AS id,
-    'lead' AS kind,
-    id AS lead_id,
-    NULL::int AS contract_id,
-    name AS title,
-    status AS status_key,
-    updated_at
-  FROM leads
-  WHERE created_by_user_id = :agent_user_id
-    AND status IN ('new', 'inprogress')
-)
-UNION ALL
-(
-  SELECT
-    'contract-' || lc.id::text,
-    'contract',
-    NULL,
-    lc.id,
-    'สัญญา #' || lc.id::text,
-    lc.status,
-    lc.updated_at
-  FROM lease_contracts lc
-  WHERE lc.created_by_user_id = :agent_user_id
-    AND lc.status IN (
-      'draft', 'awaiting_signatures', 'awaiting_agent_review',
-      'awaiting_payment', 'awaiting_payment_verification'
-    )
-)
-ORDER BY updated_at DESC
-LIMIT 10;
-```
-
-Enrich `meta` ด้าน application layer ด้วย join `rent_rooms` / `properties` ตาม `lead.rent_room_id`
-
----
-
-## 6. Index ที่ช่วย performance
-
-| Index | ตาราง |
-|-------|--------|
-| `idx_rent_rooms_created_by_user_id` | `rent_rooms` |
-| `idx_leads_created_by_user_id` | `leads` |
-| `idx_leads_status` | `leads` |
-
-เพิ่ม index บน `lease_contracts(created_by_user_id, status)` เมื่อ implement จริง
-
----
-
-## 7. ไม่ต้อง migrate แยก
-
-Dashboard pack **ไม่มี `schema.sql`** — bootstrap ตามลำดับใน [new-project/README.md](../../README.md)
+ทดสอบด้วย PostgreSQL schema ชั่วคราว: `apps/api/test/agent-dashboard.test.cjs`
+ทดสอบสัญญาหลายฉบับต่อคน, สถานะ active ค้างหลังหมดอายุ, lineage, หนี้ข้ามเดือน, literal search,
+pagination เกิน 20 รายการ, วัน/เวลาข้ามเที่ยงคืน Bangkok และสิทธิ์ข้าม Agent

@@ -77,6 +77,8 @@ export type TenantDetailActions = {
 /** A tenant whose page opens as soon as the screen mounts, e.g. from a lead that booked a room. */
 export type TenantEntry = {
   tenantId: number;
+  initialSection?: TenantSection;
+  contractId?: number;
   /** Already at hand (just booked); otherwise the tenant is read by id. */
   tenant?: AgentTenant;
   /** Go straight into creating this document for the tenant. */
@@ -135,7 +137,7 @@ export function AgentTenantsScreen({
   const creating = creatingProp ?? creatingLocal;
   const setCreating = onCreatingChange ?? setCreatingLocal;
   const [section, setSection] = useState<TenantSection | null>(
-    entry?.startContract ? "contracts" : null,
+    entry?.startContract ? "contracts" : entry?.initialSection ?? null,
   );
   /** Document the contracts section starts creating when it opens (the reservation letter after a booking). */
   const [contractStart, setContractStart] = useState<CreateDocumentKind | null>(
@@ -244,7 +246,7 @@ export function AgentTenantsScreen({
   }, [reloadToken]);
   // A tenant the shell asks for by id opens the same way as a tap on its row.
   useEffect(() => {
-    if (entry && !entry.tenant) void open(entry.tenantId);
+    if (entry && !entry.tenant) void open(entry.tenantId, entry.initialSection ?? (entry.startContract ? "contracts" : null));
     // Read once: the shell mounts this screen for the entry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -255,7 +257,9 @@ export function AgentTenantsScreen({
     setNotice("");
     setEditing(false);
     try {
-      setSelected(await getAgentTenant(id));
+      const tenant = await getAgentTenant(id);
+      setSelected(tenant);
+      if (entry?.contractId && entry.tenantId === id) setContractFocus(tenant.contracts.find(c => c.id === entry.contractId) ?? null);
       setSection(at);
     } catch (e) {
       setError(localizedError(e, c.list.openError, locale));

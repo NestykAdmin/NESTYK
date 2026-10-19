@@ -1,3 +1,7 @@
+import { AgentCalendarController } from './calendar/agent-calendar.controller';
+import { AgentCalendarService } from './calendar/agent-calendar.service';
+import { AgentDashboardController } from './dashboard/agent-dashboard.controller';
+import { AgentDashboardService } from './dashboard/agent-dashboard.service';
 import { ContractArchiveController } from './contracts/contract-archive.controller';
 import { ContractArchiveService } from './contracts/contract-archive.service';
 import { RenterContactsController } from './contacts/renter-contacts.controller';
@@ -92,8 +96,8 @@ import { GeminiModule } from '../gemini/gemini.module';
       RoomShareLinkEntity,
     ]),
   ],
-  controllers: [ContractArchiveController, RenterContactsController, AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, PublicContractSignController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
-  providers: [ContractArchiveService, RenterContactsService, AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
+  controllers: [AgentCalendarController, AgentDashboardController, ContractArchiveController, RenterContactsController, AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, PublicContractSignController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
+  providers: [AgentCalendarService, AgentDashboardService, ContractArchiveService, RenterContactsService, AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
   exports: [AgentRoomsService, AgentListingsService, AgentPlacesService, RoomShareLinksService],
 })
 export class AgentModule {}

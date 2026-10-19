@@ -1,10 +1,12 @@
 # Agent — Dashboard
 
-> **ข้อสรุปดีไซน์ล่าสุด (11 ก.ย. 2026):** อ่าน [Mobile-first Design & Implementation Brief](./DESIGN-SPEC.md) ก่อนเริ่มงาน — **ทำ Mobile และตรวจรับก่อน Web** รวมภาพอ้างอิงทั้งสองแพลตฟอร์ม, Header/Role, เมนู 5 รายการ และฟีเจอร์ Clients ที่รวมสัญญา/การชำระเงิน/ต่ออายุไว้ใต้ลูกค้า เนื้อหาด้านล่างรวมถึง flow/API/database เป็น blueprint เดิมที่ยังต้องปรับให้สอดคล้อง ไม่ใช่หลักฐานว่าฟีเจอร์พัฒนาแล้ว
+เชื่อม Mobile Dashboard กับ API จริงแล้ว (16 ตุลาคม 2026): ห้อง ลีด ลูกค้า สัญญา นัดดูห้อง นัดจากปฏิทิน บิล และกิจกรรมล่าสุด
+ลีดต้องติดตามและค่าคอมรับแล้ว/รอรับยังไม่รองรับและแสดงข้อความตามจริง ดู [API](./api.md), [Database](./database.md) และ [แผน/ขอบเขต](./API-IMPLEMENTATION-PLAN.md)
+เนื้อหา flow/navigation ด้านล่างเป็น blueprint เดิม; หน้าจอจริงและ API docs ฉบับปัจจุบันเป็นแหล่งอ้างอิงของการเชื่อมข้อมูล
 
 | ฟิลด์ | ค่า |
 |-------|-----|
-| สถานะ | `blueprint` |
+| สถานะ | `mobile-integrated` (ยกเว้น follow-up / commission) |
 | โหมด | Agent `/agent` |
 | หน้าหลัก | `/agent/dashboard` |
 | Role | `agent` |

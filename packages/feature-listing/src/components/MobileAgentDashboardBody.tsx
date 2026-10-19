@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import {
@@ -101,7 +101,6 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
   const { theme } = useMobileTheme();
   const copy = t.agent.dashboard;
   const ink = theme.screenTitle || primary;
-  const [scheduleExpanded, setScheduleExpanded] = useState(false);
 
   const localeTag =
     locale === 'th' ? 'th-TH' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : 'en-GB';
@@ -118,17 +117,16 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
 
   const outlineMuted = { borderColor: theme.border, backgroundColor: theme.surface } as const;
 
-  const now = Date.now();
-  const upcoming = snapshot.schedule.items
-    .filter((a) => new Date(a.startsAt).getTime() >= now - 5 * 60_000)
-    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-  const highlight = upcoming[0] ?? snapshot.schedule.items[0] ?? null;
-  const rest = upcoming.filter((a) => a.id !== highlight?.id);
-  const visibleRest = scheduleExpanded ? rest : rest.slice(0, 0);
+  const { appointments, nextAppointmentId } = useMemo(() => {
+    const now = Date.now();
+    const sorted = [...snapshot.schedule.items]
+      .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt) || a.id.localeCompare(b.id));
+    return { appointments: sorted, nextAppointmentId: sorted.find(item => +new Date(item.startsAt) >= now)?.id ?? null };
+  }, [snapshot.schedule.items]);
 
   const apptSubtitle = (a: AgentDashboardAppointment) => {
-    const kind = a.kind === 'viewing' ? copy.apptViewing : copy.apptFollowUp;
-    return `${kind} · ${a.contactName}`;
+    const kind = a.kind === 'custom' ? '' : a.kind === 'viewing' ? copy.apptViewing : copy.apptFollowUp;
+    return [kind, a.contactName].filter(Boolean).join(' · ');
   };
 
   const actionTitle = (kind: AgentWorkItemKind) => {
@@ -146,13 +144,13 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
       case 'overdue_payment':
         return item.amount != null
           ? interpolate(copy.overdueAmountHint, { amount: formatMoney(item.amount) })
-          : interpolate(copy.itemsCount, { count: item.count });
+          : interpolate(copy.itemsCount, { count: item.count ?? 0 });
       case 'lead_follow_up':
-        return interpolate(copy.followUpHint, { count: item.count });
+        return interpolate(copy.followUpHint, { count: item.count ?? 0 });
       case 'awaiting_signature':
-        return interpolate(copy.signingHint, { count: item.count });
+        return interpolate(copy.signingHint, { count: item.count ?? 0 });
       case 'renewal':
-        return interpolate(copy.renewalHint, { count: item.count });
+        return interpolate(copy.renewalHint, { count: item.count ?? 0 });
       default:
         return '';
     }
@@ -250,13 +248,16 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               },
               {
                 label: copy.commissionPending,
-                value: formatMoney(snapshot.business.commissionPending),
+                value: snapshot.business.commissionPending == null ? copy.unsupported : formatMoney(snapshot.business.commissionPending),
+                disabled: snapshot.business.commissionPending == null,
                 sub: '',
                 onPress: () => onNavigate({ type: 'action', id: 'viewCommission' }),
               },
             ].map((kpi, index) => (
               <Pressable
                 key={kpi.label}
+                disabled={'disabled' in kpi && kpi.disabled}
+                accessibilityState={{ disabled: 'disabled' in kpi && kpi.disabled }}
                 onPress={kpi.onPress}
                 accessibilityRole="button"
                 style={({ pressed }) => [
@@ -269,7 +270,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                   },
                 ]}
               >
-                <Text style={[styles.kpiValue, { color: ink }]} numberOfLines={1}>{kpi.value}</Text>
+                <Text style={[styles.kpiValue, { color: ink }, 'disabled' in kpi && kpi.disabled ? styles.unsupportedValue : null]} numberOfLines={1}>{kpi.value}</Text>
                 <Text style={[styles.kpiLabel, { color: theme.textSecondary }]} numberOfLines={2}>{kpi.label}</Text>
                 {kpi.sub ? (
                   <Text style={[styles.kpiSub, { color: theme.textSecondary }]} numberOfLines={1}>{kpi.sub}</Text>
@@ -282,25 +283,27 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
         <Section>
           <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color: ink }]}>{copy.actionRequired}</Text>
-            {snapshot.actionRequired.items.length ? (
+            {snapshot.actionRequired.items.some(item => (item.count ?? 0) > 0) ? (
               <View style={styles.countPill}>
                 <Text style={styles.countPillText}>
-                  {snapshot.actionRequired.items.reduce((n, i) => n + i.count, 0)}
+                  {snapshot.actionRequired.items.reduce((n, i) => n + (i.count ?? 0), 0)}
                 </Text>
               </View>
             ) : null}
           </View>
-          {!snapshot.actionRequired.items.length ? (
+          {!snapshot.actionRequired.items.some(item => (item.count ?? 0) > 0) ? (
             <Text style={{ color: theme.textSecondary }}>{copy.emptyActions}</Text>
-          ) : (
-            snapshot.actionRequired.items.map((item) => {
+          ) : null}
+          {snapshot.actionRequired.items.filter(item => item.status === 'not_configured' || (item.count ?? 0) > 0).map((item) => {
               const tone = actionTone(item.kind);
               return (
                 <Pressable
                   key={item.id}
                   onPress={() => onNavigate(item.deepLink)}
+                  disabled={item.status === 'not_configured'}
+                  accessibilityState={{ disabled: item.status === 'not_configured' }}
                   accessibilityRole="button"
-                  accessibilityLabel={`${actionTitle(item.kind)}, ${actionSubtitle(item)}`}
+                  accessibilityLabel={`${actionTitle(item.kind)}, ${item.status === 'not_configured' ? copy.unsupported : actionSubtitle(item)}`}
                   style={({ pressed }) => [styles.actionRow, { opacity: pressed ? 0.75 : 1 }]}
                 >
                   <View style={[styles.actionIcon, { backgroundColor: tone.bg }]}>
@@ -311,80 +314,51 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                       {actionTitle(item.kind)}
                     </Text>
                     <Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18 }} numberOfLines={1}>
-                      {actionSubtitle(item)}
+                      {item.status === 'not_configured' ? copy.unsupported : actionSubtitle(item)}
                     </Text>
                   </View>
                   <View style={[styles.actionCount, { backgroundColor: tone.countBg }]}>
-                    <Text style={[styles.actionCountText, { color: tone.countFg }]}>{item.count}</Text>
+                    <Text style={[styles.actionCountText, { color: tone.countFg }]}>{item.count ?? '—'}</Text>
                   </View>
-                  <MobileIcon name="chevron-right" size={16} color={theme.textSecondary} />
+                  {item.status !== 'not_configured' && <MobileIcon name="chevron-right" size={16} color={theme.textSecondary} />}
                 </Pressable>
               );
-            })
-          )}
+            })}
         </Section>
 
-        {/* Merged schedule: highlight + expand */}
+        {/* Today's full schedule, including appointments whose time has passed. */}
         <Section>
           <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color: ink }]}>{copy.todaysSchedule}</Text>
             <LinkRow label={copy.viewCalendar} onPress={() => onNavigate({ type: 'action', id: 'viewCalendar' })} />
           </View>
-          {!highlight ? (
+          {appointments.length === 0 ? (
             <Text style={{ color: theme.textSecondary }}>{copy.noAppointments}</Text>
           ) : (
-            <>
-              <Pressable
-                onPress={() =>
-                  onNavigate({ type: 'action', id: 'viewAppointment', appointmentId: highlight.id })
-                }
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.highlightAppt, { borderColor: theme.border, backgroundColor: theme.background, opacity: pressed ? 0.85 : 1 }]}
-              >
-                <Text style={[styles.timeLabel, { color: accent }]}>{formatTimeLabel(highlight.startsAt, localeTag)}</Text>
-                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                  <Text style={[styles.rowTitle, { color: ink }]} numberOfLines={1}>{highlight.title}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 19 }} numberOfLines={1}>
-                    {apptSubtitle(highlight)}
-                  </Text>
-                </View>
-                <SoftPill
-                  label={highlight.status === 'confirmed' ? copy.statusConfirmed : copy.statusPending}
-                  tone={highlight.status === 'confirmed' ? 'success' : 'warning'}
-                />
-              </Pressable>
-              {visibleRest.map((item) => (
-                <Pressable
-                  key={item.id}
-                  onPress={() => onNavigate({ type: 'action', id: 'viewAppointment', appointmentId: item.id })}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.scheduleRow, { opacity: pressed ? 0.75 : 1 }]}
-                >
-                  <Text style={[styles.timeLabel, { color: accent }]}>{formatTimeLabel(item.startsAt, localeTag)}</Text>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.rowTitle, { color: ink }]} numberOfLines={1}>{item.title}</Text>
-                    <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 19 }} numberOfLines={1}>
-                      {apptSubtitle(item)}
-                    </Text>
-                  </View>
-                  <SoftPill
-                    label={item.status === 'confirmed' ? copy.statusConfirmed : copy.statusPending}
-                    tone={item.status === 'confirmed' ? 'success' : 'warning'}
-                  />
-                </Pressable>
-              ))}
-              {rest.length > 0 ? (
-                <Pressable
-                  onPress={() => setScheduleExpanded((v) => !v)}
-                  accessibilityRole="button"
-                  style={styles.linkRow}
-                >
-                  <Text style={styles.linkText}>
-                    {scheduleExpanded ? copy.showLessSchedule : `${copy.showMoreSchedule} (${rest.length})`}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </>
+            <View style={styles.scheduleList}>
+              {appointments.map((item) => {
+                const upcoming = item.id === nextAppointmentId;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => onNavigate({ type: 'action', id: 'viewAppointment', appointmentId: item.id, startsAt: item.startsAt })}
+                    accessibilityRole="button"
+                    android_ripple={{ color: brand[100] }}
+                    style={({ pressed }) => [styles.scheduleRow, {
+                      backgroundColor: upcoming ? brand[50] : theme.surface,
+                      borderColor: upcoming ? brand[500] : theme.border,
+                      opacity: pressed ? 0.85 : 1,
+                    }]}
+                  >
+                    <Text style={[styles.timeLabel, { color: upcoming ? brand[700] : ink }]}>{formatTimeLabel(item.startsAt, localeTag)}</Text>
+                    <View style={styles.scheduleCopy}>
+                      <Text style={[styles.rowTitle, { color: ink }]} numberOfLines={1}>{item.title}</Text>
+                      <Text style={[styles.scheduleMeta, { color: theme.textSecondary }]} numberOfLines={1}>{apptSubtitle(item)}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
           )}
         </Section>
       </View>
@@ -409,7 +383,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
           {snapshot.inventory.preview.map((room) => (
             <Pressable
               key={String(room.id)}
-              onPress={() => onNavigate({ type: 'tab', tab: 'listingRoom' })}
+              onPress={() => onNavigate({ type: 'action', id: 'viewListing', roomId: Number(room.id) })}
               style={({ pressed }) => [styles.previewRow, { borderTopColor: theme.border, opacity: pressed ? 0.8 : 1 }]}
             >
               <View style={[styles.thumb, { backgroundColor: subtle.neutralBg }]}>
@@ -418,13 +392,13 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
                 <Text style={[styles.rowTitle, { color: ink }]} numberOfLines={1}>{room.title}</Text>
                 <Text style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18 }} numberOfLines={1}>
-                  {interpolate(copy.bedsArea, { beds: room.beds, area: room.area })}
+                  {interpolate(copy.bedsArea, { beds: room.beds ?? '—', area: room.area || '—' })}
                   {' · '}
-                  {interpolate(copy.rentPerMonthShort, { price: formatMoney(room.price) })}
+                  {interpolate(copy.rentPerMonthShort, { price: room.price == null ? t.contracts.common.notSpecified : formatMoney(room.price) })}
                 </Text>
                 <View style={styles.badgeRow}>
                   <SoftPill label={room.availability === 'available' ? copy.available : copy.unavailable} tone={room.availability === 'available' ? 'success' : 'neutral'} />
-                  <SoftPill label={room.visibility === 'published' ? copy.published : copy.private} tone={room.visibility === 'published' ? 'info' : 'neutral'} />
+                  <SoftPill label={room.visibility === 'published' ? copy.published : room.visibility === 'private' ? copy.private : t.contracts.common.notSpecified} tone={room.visibility === 'published' ? 'info' : 'neutral'} />
                 </View>
               </View>
               <MobileIcon name="chevron-right" size={16} color={theme.textSecondary} />
@@ -488,12 +462,13 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             {copy.rentCollection} · {periodLabel}
           </Text>
           <Text style={[styles.moneyHero, { color: ink }]}>{formatMoney(snapshot.rent.totalDue)}</Text>
-          <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{copy.totalDue}</Text>
-          <RatioBar left={snapshot.rent.received} right={snapshot.rent.overdue} leftColor={success} rightColor={subtle.dangerBg} />
+          <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{copy.totalDue} · {copy.issuedBillsHint}</Text>
+          <RatioBar left={snapshot.rent.received} right={Math.max(0, snapshot.rent.totalDue - snapshot.rent.received)} leftColor={success} />
           <View style={styles.moneyRow}>
             <Text style={{ color: subtle.successFg }}>{copy.received} {formatMoney(snapshot.rent.received)}</Text>
             <Text style={{ color: danger }}>{copy.overdue} {formatMoney(snapshot.rent.overdue)}</Text>
           </View>
+          <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{copy.pendingPayment} {formatMoney(snapshot.rent.pending ?? Math.max(0, snapshot.rent.totalDue - snapshot.rent.received - snapshot.rent.overdue))}</Text>
           <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
             {interpolate(copy.receivedPercent, { pct: rentPct })}
           </Text>
@@ -503,17 +478,23 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
         <Section>
           <Text style={[styles.sectionTitle, { color: ink }]}>{copy.agentCommission}</Text>
           <Text style={[styles.metaLabel, { color: theme.textSecondary }]}>{periodLabel}</Text>
-          <Text style={[styles.moneyHero, { color: ink }]}>{formatMoney(snapshot.commission.total)}</Text>
+          {snapshot.commission.status === 'not_configured' ? <View style={{ gap: 8 }}>
+            <Text style={[styles.unsupportedText, { color: theme.textSecondary }]}>{copy.received} · {copy.unsupported}</Text>
+            <Text style={[styles.unsupportedText, { color: theme.textSecondary }]}>{copy.pendingAmount} · {copy.unsupported}</Text>
+          </View> : <>
+          <Text style={[styles.moneyHero, { color: ink }]}>{formatMoney(snapshot.commission.total ?? 0)}</Text>
           <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{copy.totalThisMonth}</Text>
           <View style={styles.moneyRow}>
-            <Text style={{ color: subtle.successFg }}>{copy.received} {formatMoney(snapshot.commission.received)}</Text>
-            <Text style={{ color: subtle.warningFg }}>{copy.pendingAmount} {formatMoney(snapshot.commission.pending)}</Text>
+            <Text style={{ color: subtle.successFg }}>{copy.received} {formatMoney(snapshot.commission.received ?? 0)}</Text>
+            <Text style={{ color: subtle.warningFg }}>{copy.pendingAmount} {formatMoney(snapshot.commission.pending ?? 0)}</Text>
           </View>
           <LinkRow label={copy.openCommission} onPress={() => onNavigate({ type: 'action', id: 'viewCommission' })} />
+          </>}
         </Section>
 
         <Section>
           <Text style={[styles.sectionTitle, { color: ink }]}>{copy.recentActivity}</Text>
+          {!snapshot.activity.items.length && <Text style={{ color: theme.textSecondary }}>{copy.noActivity}</Text>}
           {snapshot.activity.items.slice(0, 3).map((item) => (
             <Pressable
               key={item.id}
@@ -525,7 +506,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                 {activityTitle(item.kind, item.subject)}
               </Text>
               <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
-                {formatTimeLabel(item.at, localeTag)}
+                {new Date(item.at).toLocaleString(localeTag, { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}
               </Text>
             </Pressable>
           ))}
@@ -553,6 +534,8 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
 };
 
 const styles = StyleSheet.create({
+  unsupportedText: { fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 21 },
+  unsupportedValue: { fontSize: 14, lineHeight: 21 },
   root: { gap: 14, paddingBottom: 24 },
   zone: { gap: 10 },
   demoBanner: {
@@ -614,12 +597,15 @@ const styles = StyleSheet.create({
     minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
   },
   actionCountText: { fontSize: 11, fontWeight: '700' },
-  highlightAppt: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, padding: 10, minHeight: 56,
-  },
-  timeLabel: { fontFamily: tokens.typography.native.headingTh, fontSize: 15, lineHeight: 22, fontWeight: '500', width: 52 },
+  timeLabel: { fontFamily: tokens.typography.native.headingTh, fontSize: 14, lineHeight: 21, fontWeight: '500', width: 52 },
   rowTitle: { fontFamily: tokens.typography.native.headingTh, fontSize: 15, lineHeight: 22, fontWeight: '500' },
-  scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingVertical: 4 },
+  scheduleList: { gap: 8 },
+  scheduleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56,
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  scheduleCopy: { flex: 1, minWidth: 0, gap: 2 },
+  scheduleMeta: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18 },
   metaLabel: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18, fontWeight: '600' },
   ratioTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   ratioFill: { height: '100%', borderRadius: 4 },
