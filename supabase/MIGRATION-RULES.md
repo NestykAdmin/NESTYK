@@ -98,6 +98,7 @@ baseline ตั้ง `search_path` เป็นค่าว่างระห�
 
 | วันที่ | ไฟล์ | เรื่อง |
 |---|---|---|
+| 2026-10-19 | `20261019100000_link_qa_accounts.sql` | ผูกบัญชีเทส `qa-<role>@nestyk.test` ที่สร้างไว้ใน Supabase Authentication กับชื่อ เบอร์ และ role (ไม่สร้างบัญชี ไม่มีรหัสผ่าน ถ้าไม่มีบัญชีพวกนี้จะไม่ทำอะไร) |
 | 2026-10-16 | `railway.json` | ให้ Railway รัน `db-push` ก่อน deploy ทุกครั้ง (ข้อ 10) |
 | 2026-10-16 | `20261016100000_rename_owner_role_to_landlord.sql`, `seed/masters.sql` | เปลี่ยน role `owner` → `landlord` (id 2 เดิม) และ `setval` ของ `master_roles_id_seq` ใช้ `max(id)` ดู `docs/ROLE-CHANGE-PLAN.md` |
 | 2026-10-15 | `20261014120000_contract_closure.sql`, `seed/masters.sql` | ย้าย contract-closure จากโฟลเดอร์เก่ามาโฟลเดอร์ใหม่ (คอลัมน์ `leads.booking_released_at`, index `uq_leads_one_booked_per_room` แบบใหม่, เหตุผลจบสัญญา `before_start_cancelled` id 8) และแก้ `setval` ใน seed ให้ใช้ `max(id)` |
