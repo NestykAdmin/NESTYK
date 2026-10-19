@@ -9,7 +9,9 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  * สัญญาฝั่งนายหน้า: ประเภทและแม่แบบสัญญา รายการ เลขที่เอกสารถัดไป ข้อมูลตั้งต้น สัญญาที่ไม่มีอยู่ และการค้นบัญชีเจ้าของห้อง
  *
  * สิ่งที่ต้องมีก่อน
- *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) บัญชีตัวอย่างมีบทบาท agent และ owner (seed-dev-user.sql)
+ *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) บัญชีตัวอย่างมีบทบาท agent และ landlord (เจ้าของห้อง)
+ *     ชื่อบทบาท owner เปลี่ยนเป็น landlord ตั้งแต่ develop 84087e2 (supabase/migrations/20261016100000_rename_owner_role_to_landlord.sql)
+ *     ถ้าสร้างฐานข้อมูลใหม่แล้วใส่บัญชีด้วย docs/new-project/docker/seed-dev-user.sql บัญชีจะไม่ได้ landlord เพราะบรรทัด 66 ยังใช้ชื่อ owner (ที่ 84087e2)
  *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบจาก migration ของ apps/api และบัญชีตัวอย่างมีลีดอย่างน้อย 1 ราย
  *   - API รุ่น DEV/main f7d52ed ขึ้นไป และฐานข้อมูลรัน migration ถึง 20261014-contract-closure.sql แล้ว
  *     ถ้ายังไม่รันถึง 20261012-lease-renewal-agreement.sql เทส GET /agent/contracts/types และ templates of lease_renewal
@@ -62,10 +64,10 @@ function bangkokYear(date = new Date()): number {
   return Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric' }).format(date));
 }
 
-/** บัญชีตัวอย่างที่ล็อกอินอยู่ (จาก POST /auth/sync) พร้อมยืนยันว่ามีบทบาท owner */
+/** บัญชีตัวอย่างที่ล็อกอินอยู่ (จาก POST /auth/sync) พร้อมยืนยันว่ามีบทบาท landlord (เจ้าของห้อง) */
 async function signedInOwner(agent: ApiSession): Promise<AuthUser> {
   const me = await expectJson<AuthUser>(await agent.auth.sync(), 201);
-  expect(me.roles, 'บัญชีตัวอย่างต้องมีบทบาท owner (seed-dev-user.sql)').toContain('owner');
+  expect(me.roles, 'บัญชีตัวอย่างต้องมีบทบาท landlord (ฐานข้อมูลต้องขึ้น migration rename_owner_role_to_landlord แล้ว)').toContain('landlord');
   // API ตัด % _ และ \ ออกจากคำค้น ถ้าอีเมลมีอักขระเหล่านี้ การค้นด้วยอีเมลจะไม่เจอบัญชีนี้ เทสข้อค้นบัญชีจึงใช้ไม่ได้
   expect(me.email, 'อีเมลของบัญชีตัวอย่างต้องไม่มี % _ หรือ \\').not.toMatch(/[%_\\]/);
   return me;
@@ -238,10 +240,11 @@ test.describe('a contract that does not exist', () => {
 test.describe('GET /agent/contracts/owner-users', () => {
   // ข้อควรระวัง: เส้นทางนี้คืนข้อมูลส่วนตัวของเจ้าของห้อง (อีเมล เบอร์โทร เลขบัตร)
   //   เทสจึงตรวจแค่จำนวนกับ id และไม่เทียบทั้งรายการ เพราะถ้าไม่ผ่าน Playwright จะพิมพ์ค่าที่เทียบออกมาในผลรัน
-  //   บัญชีตัวอย่างมีบทบาท owner ถ้าการตรวจคำค้นของ API หลุด คำตอบจะมีบัญชีนี้ เทสจึงจับได้
+  //   บัญชีตัวอย่างมีบทบาท landlord ซึ่งเป็นบทบาทที่เส้นทางนี้ค้น (agent-contracts.service.ts:2299 ที่ develop 84087e2)
+  //   ถ้าการตรวจคำค้นของ API หลุด คำตอบจะมีบัญชีนี้ เทสจึงจับได้
 
   test('answers an empty list when the search is empty or longer than 80 characters', async ({ agent }) => {
-    // ขั้นที่ 1: หาอีเมลของบัญชีตัวอย่าง (บัญชีนี้มีบทบาท owner)
+    // ขั้นที่ 1: หาอีเมลของบัญชีตัวอย่าง (บัญชีนี้มีบทบาท landlord)
     const me = await signedInOwner(agent);
 
     // ขั้นที่ 2: สร้างคำค้นยาว 81 ตัว จากอีเมลต่อท้ายด้วย _
@@ -265,7 +268,7 @@ test.describe('GET /agent/contracts/owner-users', () => {
   });
 
   test('finds the signed-in account by its email', async ({ agent }) => {
-    // ขั้นที่ 1: หา id และอีเมลของบัญชีตัวอย่าง (บัญชีนี้มีบทบาท owner)
+    // ขั้นที่ 1: หา id และอีเมลของบัญชีตัวอย่าง (บัญชีนี้มีบทบาท landlord)
     const me = await signedInOwner(agent);
 
     // ขั้นที่ 2: ค้นด้วยอีเมลที่ API ตอบมา   ขั้นที่ 3: ต้องเจอบัญชีนี้ ตรวจแค่ id

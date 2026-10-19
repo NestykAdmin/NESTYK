@@ -7,7 +7,9 @@ import { expectError, expectJson } from '../../src/support/http';
 /**
  * การล็อกอินและการกันคนที่ไม่มีสิทธิ์
  * สิ่งที่ต้องมีก่อน: API ตั้ง ALLOW_DEV_AUTH=true และฐานข้อมูลมีบัญชีตัวอย่างของทีม (seed-dev-user.sql)
+ *   เทสของ POST /auth/dev/roles ต้องการ API ที่ตั้ง ALLOW_DEV_ROLE_GRANT=true ด้วย (ถ้าไม่ตั้ง API ตอบ 403 และข้อนั้นไม่ผ่าน)
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
+ *   POST /auth/dev/roles ถูกเรียกด้วยชื่อบทบาทที่ grantDevRole ปฏิเสธก่อนอ่านตารางบทบาทเท่านั้น จึงไม่บันทึกอะไร (ดูในเทส)
  */
 
 /** เส้นทางที่ต้องล็อกอินก่อน (ตัวแทนของแต่ละกลุ่ม) */
@@ -83,5 +85,47 @@ test.describe('POST /auth/sync', () => {
     expect(second.id).toBe(first.id);
     expect(second.roles).toEqual(first.roles);
     expect([first.provisioned, second.provisioned]).toEqual([false, false]);
+  });
+});
+
+/**
+ * รายการบทบาทที่ขอได้ จากข้อความ 400 ของ grantDevRole
+ * (auth.service.ts:169-171: `Role must be one of: ${DEV_GRANTABLE.join(', ')}`) ถ้าข้อความไม่ใช่รูปแบบนี้ ได้รายการว่าง
+ */
+function grantableRoles(message: string): string[] {
+  return /^Role must be one of: (.+)$/.exec(message)?.[1]?.split(', ') ?? [];
+}
+
+test.describe('POST /auth/dev/roles', () => {
+  // ตั้งแต่ develop 84087e2 บทบาท owner เปลี่ยนชื่อเป็น landlord (supabase/migrations/20261016100000_rename_owner_role_to_landlord.sql)
+  //   และชื่อ owner ไม่อยู่ในรายการที่ขอได้แล้ว (DEV_GRANTABLE ใน apps/api/src/auth/auth.service.ts:27)
+  //   grantDevRole (auth.service.ts:166-172) ตรวจว่าเปิดให้ขอบทบาทไหม แล้วตรวจชื่อ ก่อนอ่านตาราง master_roles และ user_roles
+  //   ชื่อที่ไม่อยู่ในรายการจึงไม่ถูกบันทึก (ส่วน AuthGuard อ่านตาราง users ก่อนทุกคำขออยู่แล้ว)
+
+  test('rejects the retired role name owner', async ({ agent }) => {
+    // ขั้นที่ 1: ยืนยันว่าบัญชีตัวอย่างใช้ชื่อบทบาทชุดใหม่แล้ว (มี landlord ไม่มี owner)
+    //   ถ้าไม่ตรง เทสหยุดตรงนี้ เพราะฐานข้อมูลยังไม่ได้ขึ้น migration rename_owner_role_to_landlord
+    const before = await expectJson<AuthUser>(await agent.auth.sync(), 201);
+    expect(before.roles, 'บัญชีตัวอย่างต้องมีบทบาท landlord (ฐานข้อมูลต้องขึ้น migration rename_owner_role_to_landlord แล้ว)').toContain('landlord');
+    expect(before.roles, 'ต้องไม่มีบทบาทชื่อ owner เหลืออยู่').not.toContain('owner');
+
+    // ขั้นที่ 2: ถามรายการบทบาทที่ API ที่เปิดอยู่ยอมให้ขอ ด้วยชื่อที่ไม่มีอยู่จริง
+    //   ชื่อนี้ไม่อยู่ในรายการที่ขอได้ และการบันทึกต้องหาแถวชื่อนี้ใน master_roles ให้เจอก่อน (auth.service.ts:173-178)
+    //   ซึ่งไม่มี (seed ของทีมไม่มีชื่อนี้) คำขอนี้จึงได้ 400 โดยไม่บันทึกอะไร
+    //   ถ้ารายการไม่มี landlord หรือยังมี owner แปลว่า API น่าจะเป็นโค้ดก่อน 84087e2 ซึ่งบันทึกบทบาท owner ให้บัญชีได้
+    //   ถ้าตาราง master_roles ยังมีแถว owner เทสจึงหยุดตรงนี้ก่อนส่งชื่อ owner
+    const probeMessage = await expectError(await agent.auth.grantDevRole('e2e-not-a-role'), 400);
+    const probe = grantableRoles(probeMessage);
+    expect(probe, `ต้องได้รายการบทบาทที่ขอได้ซึ่งมี landlord ถ้าไม่มี ให้ดูว่า API เป็นโค้ดก่อน 84087e2 หรือไม่ (ข้อความของ API: ${probeMessage})`).toContain('landlord');
+    expect(probe, `API ที่เปิดอยู่ยังรับชื่อ owner (โค้ดก่อน 84087e2) จึงไม่ส่งคำขอ owner (ข้อความของ API: ${probeMessage})`).not.toContain('owner');
+
+    // ขั้นที่ 3: ขอบทบาท owner แล้วต้องถูกปฏิเสธด้วย 400 ที่จุดเดียวกับขั้นที่ 2 (ชื่อไม่อยู่ในรายการที่ขอได้)
+    //   ถ้าข้อนี้ได้ 201 แปลว่า API อาจบันทึกบทบาท owner ให้บัญชีแล้ว ให้แจ้งทีมพร้อมผลรัน ห้ามเรียก DELETE /auth/dev/roles เอง
+    const message = await expectError(await agent.auth.grantDevRole('owner'), 400);
+    expect(grantableRoles(message), `ข้อความของ API: ${message}`).toEqual(probe);
+
+    // ขั้นที่ 4: บทบาทของบัญชีต้องเท่าเดิม (เรียงก่อนเทียบ เพราะ API ไม่ได้เรียงบทบาท)
+    const after = await expectJson<AuthUser>(await agent.auth.sync(), 201);
+    expect([...after.roles].sort()).toEqual([...before.roles].sort());
   });
 });

@@ -9,8 +9,8 @@ import { expectError, expectJson } from '../../src/support/http';
  *
  * สิ่งที่ต้องมีก่อน
  *   - API ที่รวม DEV/main ถึง f7d52ed แล้ว (มีตัวตรวจ id DatabaseIdPipe และเส้นทาง mine/:id/confirm, agent/:id/return)
- *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) บัญชีตัวอย่างมีบทบาท tenant, owner และ agent ครบ
- *     (docs/new-project/docker/seed-dev-user.sql) จึงเรียกได้ทั้ง 3 กลุ่มด้วยบัญชีเดียว
+ *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) บัญชีตัวอย่างมีบทบาท tenant, landlord และ agent ครบ จึงเรียกได้ทั้ง 3 กลุ่มด้วยบัญชีเดียว
+ *     (landlord คือชื่อใหม่ของ owner ตั้งแต่ develop 84087e2 กลุ่ม received ต้องมี landlord: owner-bills.controller.ts:14)
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   - ไม่เรียก GET mine, mine/next, received และ agent/tenants/:tenantId ด้วยบัญชีหรือ id ที่มีจริง เพราะ 4 เส้นทางนี้

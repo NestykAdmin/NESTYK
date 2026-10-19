@@ -14,4 +14,16 @@ export class AuthApi {
   sync(): Promise<APIResponse> {
     return this.client.post('auth/sync');
   }
+
+  /**
+   * POST /auth/dev/roles : ขอบทบาทให้บัญชีที่ล็อกอินอยู่ (เครื่องมือของนักพัฒนา ใช้ได้เมื่อ API ตั้ง ALLOW_DEV_ROLE_GRANT=true)
+   * ที่มา: apps/api/src/auth/auth.controller.ts:64-75 และ grantDevRole ใน auth.service.ts:166-189 ที่ develop 84087e2
+   *
+   * ข้อควรระวัง: ถ้าชื่อบทบาทอยู่ในรายการที่ขอได้ (DEV_GRANTABLE ใน auth.service.ts:27) มีแถวในตาราง master_roles
+   * และบัญชียังไม่มีบทบาทนั้น API จะบันทึกบทบาทลงตาราง user_roles ทันที (auth.service.ts:173-186)
+   * เทสจึงส่งได้เฉพาะชื่อบทบาทที่ API ต้องปฏิเสธก่อนอ่านตารางบทบาท
+   */
+  grantDevRole(role: string): Promise<APIResponse> {
+    return this.client.post('auth/dev/roles', { role });
+  }
 }

@@ -8,7 +8,8 @@ import { isDescending } from '../../src/support/pagination';
  *
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) เทสใช้ผู้เรียก agent ซึ่งเป็นบัญชีตัวอย่างเดียวกัน
- *     บัญชีนี้มีบทบาท tenant และ owner ด้วย (seed-dev-user.sql) จึงเรียกเส้นทางกลุ่ม /contracts/mine ได้
+ *     บัญชีนี้มีบทบาท tenant และ landlord ด้วย จึงเรียกเส้นทางกลุ่ม /contracts/mine ได้
+ *     (party-contracts.controller.ts:28 รับ tenant กับ landlord ที่ develop 84087e2 landlord คือชื่อใหม่ของ owner)
  *   - ข้อมูลตัวอย่างยังไม่มีสัญญา รายการสัญญาจึงตรวจได้แค่ว่าตอบเป็นรายการ
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
