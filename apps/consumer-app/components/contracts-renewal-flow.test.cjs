@@ -29,10 +29,10 @@ function harness(rows, options = {}) {
   };
   const dependencies={
     react:hookedReact,
-    'react-native':{View:'section',Text:'span',Pressable:'button',StyleSheet:{create:s=>s},ActivityIndicator:'progress',Modal:'aside',Linking:{},Alert:{}},
+    'react-native':{View:'section',Text:'span',Pressable:'button',StyleSheet:{create:s=>s},ActivityIndicator:'progress',Modal:'aside',Linking:{},Alert:{alert:(...args)=>options.alerts?.push(args)},Share:{dismissedAction:'dismissedAction',share:async message=>{options.shared?.push(message);if (options.shareResult instanceof Error) throw options.shareResult;return {action:options.shareResult ?? 'sharedAction'};}}},
     'react-native-safe-area-context':{SafeAreaProvider:'section',SafeAreaView:'section'},
     '@nestyk/ui/native':{tokens:{colors:{brand:{500:'#ff0'},roles:{agent:'#ff0'},onBrand:'#000'},typography:{native:{}}},useMobileTheme:()=>({theme:{}}),MobileThemeProvider:'light-theme',MobileIcon:'i',MobileButton:'button',MobileInput:'input',MobileBottomSheet:'aside'},
-    '@nestyk/i18n':i18nMock({agent:thai.th.agent}), '../lib/lead-format':leadFormat,
+    '@nestyk/i18n':i18nMock({agent:thai.th.agent,common:thai.th.common,mobile:thai.th.mobile}), '../lib/lead-format':leadFormat,
     '../lib/lease-term':term, '../lib/contract-renewal':renewalHelpers,
     '../lib/contract-signing':{bookingPaymentBlocksSigning:()=>false},
     './BookingInvoiceListCard':{bookingInvoicesForTenant:()=>[],BookingInvoiceListCard:()=>null},
@@ -41,6 +41,8 @@ function harness(rows, options = {}) {
       getAgentContract:async id=>rows.find(row=>row.id===id),
       listAgreementTypes:async()=>[{code:'lease_renewal',formKind:'renewal'}],
       listAgreementTemplates:async()=>[{id:2,dataSchema:{type:'object'}}],
+      createContractSignInvite:async(id,party)=>{options.invites?.push([id,party]);return {party,url:'https://nestyk.test/sign/abc',expiresAt:'2026-10-12T05:15:00Z'};},
+      deliverAgentContract:async(id,party)=>{options.deliveries?.push([id,party]);return {party,deliveredAt:'2026-10-12T05:00:00Z'};},
     },
     './ReservationLetterFields':{ReservationLetterFields:'reservation-fields',emptyReservationLetterForm:()=>({})},
     './BrokerAppointmentFields':{BrokerAppointmentFields:'broker-fields',emptyBrokerAppointmentForm:()=>({})},
@@ -49,6 +51,8 @@ function harness(rows, options = {}) {
     './ContractTypePicker':{ContractTypePicker:'type-picker'},
     './AgentContractLibrary':{AgentContractLibrary:'contract-library'},
     '../lib/agent-contract-library':load('../lib/agent-contract-library.ts'),
+    '../lib/contract-close':load('../lib/contract-close.ts', id=>id==='./lease-term'?term:require(id)),
+    './ContractCloseCard':{ContractCloseCard:'close-card',closeResultNotice:()=>'closed'},
   };
   for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ReservationPaymentCard','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
   for (const name of ['expo-document-picker','expo-image-picker','expo-image']) dependencies[name]={};
@@ -167,4 +171,73 @@ test('header back leaves an open create form to the host, as before', async () =
   h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
   assert.ok(nodes(h.render()).some(n=>n.type==='renewal-fields'));
   assert.equal(backRef.current(),false);
+}));
+
+test('sign link: the share button offers a web link next to sending to the app, and still offers it once delivered', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  const alerts=[],shared=[],invites=[],deliveries=[];
+  const signing=row({id:5,formKind:'renewal',status:'awaiting_signatures',contractNo:'RN005',ownerSignedAt:null,tenantSignedAt:null,ownerDeliveredAt:'2026-10-11T03:00:00Z',tenantDeliveredAt:null});
+  const h=harness([signing], {props:{startCreate:null,initialContract:signing},alerts,shared,invites,deliveries});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const shareButtons=()=>nodes(h.render()).filter(n=>n.type==='button' && [agent.shareSign,agent.shareSignLink].includes(n.props.children));
+  const [owner,tenant]=shareButtons();
+  // The owner already has it in the app: the button now sends a link, and the row says it was delivered.
+  assert.equal(owner.props.children,agent.shareSignLink);
+  assert.equal(owner.props.disabled,false);
+  assert.ok(nodes(h.render()).some(n=>n.type==='span' && n.props.children===agent.shareSignDelivered));
+  owner.props.onPress();
+  assert.deepEqual(alerts[0][2].map(b=>b.text),[thai.th.common.cancel,agent.shareSignLink]);
+  tenant.props.onPress();
+  assert.deepEqual(alerts[1][2].map(b=>b.text),[thai.th.common.cancel,agent.shareSignApp,agent.shareSignLink]);
+  alerts[1][2][2].onPress(); await h.tick();
+  assert.deepEqual(invites,[[5,'tenant']]);
+  assert.equal(shared.length,1);
+  assert.match(shared[0].message,/RN005/);
+  assert.match(shared[0].message,/https:\/\/nestyk\.test\/sign\/abc/);
+  assert.match(shared[0].message,/12:15/);
+  const tree=nodes(h.render());
+  assert.ok(tree.some(n=>n.type==='span' && n.props.children===agent.shareSignLinkReady.replace('{time}','12:15').replace('{party}',agent.tenant)));
+  assert.equal(shareButtons()[1].props.disabled,false,'busy is cleared after sharing');
+  assert.deepEqual(deliveries,[]);
+  // "Send to app" still goes through the one-time delivery, not the link.
+  alerts[1][2][1].onPress(); await h.tick();
+  assert.deepEqual(deliveries,[[5,'tenant']]);
+  assert.deepEqual(invites,[[5,'tenant']]);
+}));
+
+test('close contract: only an active lease or renewal gets the close card, and closing updates the screen', async () => atBangkokOctober12(async()=>{
+  let changed=0;
+  const active=row({id:6,contractNo:'LS006',templateId:2});
+  const h=harness([active], {props:{startCreate:null,initialContract:active,onChanged:()=>{changed++;}}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const card=nodes(h.render()).find(n=>n.type==='close-card');
+  assert.ok(card);
+  assert.equal(card.props.contract.id,6);
+  card.props.onClosed({contract:{...active,status:'terminated'},billing:{policy:'retain_existing',unpaidCount:0,unpaidAmount:'0.00',paidCount:0,billsDueAfterEndCount:0}});
+  const after=nodes(h.render());
+  assert.equal(after.some(n=>n.type==='close-card'),false);
+  assert.ok(after.some(n=>n.type==='span' && n.props.children==='closed'));
+  assert.equal(changed,1);
+  const draft=row({id:7,status:'awaiting_signatures',formKind:'renewal',templateId:2});
+  const other=harness([draft], {props:{startCreate:null,initialContract:draft}});
+  other.render(); other.resolve(); await other.tick(); other.render(); await other.tick();
+  assert.equal(nodes(other.render()).some(n=>n.type==='close-card'),false);
+}));
+
+test('sign link: a dismissed share sheet says the link was not sent, and a failed one shows the link to copy', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  for (const [shareResult,expected] of [
+    ['dismissedAction',agent.shareSignLinkNotSent.replace('{party}',agent.tenant)],
+    [new Error('no sheet'),agent.shareSignLinkCopy.replace('{party}',agent.tenant).replace('{time}','12:15').replace('{url}','https://nestyk.test/sign/abc')],
+  ]) {
+    const alerts=[];
+    const signing=row({id:5,formKind:'renewal',status:'awaiting_signatures',templateId:2,ownerSignedAt:null,tenantSignedAt:null,ownerDeliveredAt:null,tenantDeliveredAt:null});
+    const h=harness([signing], {props:{startCreate:null,initialContract:signing},alerts,shared:[],invites:[],shareResult});
+    h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+    nodes(h.render()).filter(n=>n.type==='button' && n.props.children===agent.shareSign)[1].props.onPress();
+    alerts[0][2].find(b=>b.text===agent.shareSignLink).onPress(); await h.tick();
+    const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+    assert.ok(texts.includes(expected),String(shareResult));
+    assert.equal(texts.includes(agent.shareSignLinkReady.replace('{time}','12:15').replace('{party}',agent.tenant)),false);
+  }
 }));
