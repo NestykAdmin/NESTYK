@@ -14,14 +14,18 @@ import {
 import type { AgentTenant } from "@nestyk/types";
 import { billFormatters } from "../lib/bill-format";
 import { tenantLease } from "../lib/tenant-detail";
-import { groupByProperty, tenantListStatus, type TenantWorkItem } from "../lib/tenant-work";
+import {
+  groupByProperty,
+  matchesDirectoryFilter as matchesFilter,
+  tenantListStatus,
+  type TenantDirectoryFilter,
+  type TenantWorkItem,
+} from "../lib/tenant-work";
 import { initials } from "./TenantDetailHub";
 import { DetailCard, RIPPLE, ps } from "./TenantDetailParts";
 import { WORK_TONE } from "./TenantWorkBody";
 
-export type TenantDirectoryFilter = "all" | "signing" | "active";
-
-const isActive = (tenant: AgentTenant) => tenantLease(tenant)?.status === "active";
+export type { TenantDirectoryFilter };
 
 /** "All customers" tab: search, status chips, then tenants grouped by project. */
 export function TenantDirectoryBody({
@@ -52,8 +56,6 @@ export function TenantDirectoryBody({
   const fmt = billFormatters(locale);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 
-  const matchesFilter = (tenant: AgentTenant, key: TenantDirectoryFilter) =>
-    key === "all" || (key === "active") === isActive(tenant);
   const needle = query.trim().toLowerCase();
   const visible = tenants.filter(
     (tenant) =>
@@ -72,7 +74,13 @@ export function TenantDirectoryBody({
   const status = (tenant: AgentTenant): { label: string; tone: MobileStatusPillTone } => {
     const kind = tenantListStatus(tenant, items);
     if (kind === "slip") return { label: l.pillSlip, tone: WORK_TONE.slip };
-    if (kind === "signing") return { label: l.tileSigning, tone: WORK_TONE.signing };
+    if (kind === "signing") {
+      const signed = items.some(
+        (item) =>
+          item.kind === "signing" && item.tenant.id === tenant.id && item.contract.status === "awaiting_agent_review",
+      );
+      return { label: signed ? l.pillConfirm : l.tileSigning, tone: WORK_TONE.signing };
+    }
     if (kind === "renewal") {
       const renewal = items.find((item) => item.kind === "renewal" && item.tenant.id === tenant.id);
       const days = renewal?.kind === "renewal" ? renewal.daysLeft : 0;
@@ -81,9 +89,9 @@ export function TenantDirectoryBody({
         tone: WORK_TONE.renewal,
       };
     }
-    return kind === "active"
-      ? { label: l.pillActive, tone: STATUS_PILL_TONES.green }
-      : { label: l.pillSigningContract, tone: STATUS_PILL_TONES.slate };
+    if (kind === "active") return { label: l.pillActive, tone: STATUS_PILL_TONES.green };
+    if (kind === "ended") return { label: l.pillEnded, tone: STATUS_PILL_TONES.slate };
+    return { label: l.pillSigningContract, tone: STATUS_PILL_TONES.slate };
   };
 
   function toggle(property: string) {

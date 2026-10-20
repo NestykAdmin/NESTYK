@@ -218,13 +218,18 @@ type ContractsScreenProps = {
   startCreate?: CreateDocumentKind | null;
   /** Clear the requested create kind after it has been opened. */
   onStartCreateHandled?: () => void;
+  /**
+   * Filled with this screen's own back step for the host's header back button.
+   * Returns true when the screen stepped back itself (type picker or a create menu opened from it).
+   */
+  backRef?: React.MutableRefObject<(() => boolean) | null>;
 };
 
 export function ContractsScreen(props: ContractsScreenProps = {}) {
   return <MobileThemeProvider defaultMode="light"><ContractsWorkspace {...props} /></MobileThemeProvider>;
 }
 
-function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled }: ContractsScreenProps) {
+function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled, backRef }: ContractsScreenProps) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
   const docs = t.agent.contracts;
@@ -910,6 +915,29 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const reservationRequest = useRef(false);
   const [pdfAction, setPdfAction] = useState<"preview" | "generate" | null>(
     null,
+  );
+  useEffect(() => {
+    if (!backRef) return;
+    backRef.current = () => {
+      if (choosingType) {
+        setChoosingType(false);
+        setError("");
+        return true;
+      }
+      // These menus' own back buttons return to the type picker, so the header back does the same.
+      if (menuCreate === "renewal" || menuCreate === "agent_commission" || menuCreate === "invoice") {
+        setMenuCreate(null);
+        setChoosingType(true);
+        return true;
+      }
+      return false;
+    };
+  });
+  useEffect(
+    () => () => {
+      if (backRef) backRef.current = null;
+    },
+    [backRef],
   );
   async function openReservation(generate: boolean) {
     if (!selected || reservationRequest.current) return;
@@ -1633,16 +1661,17 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     setMenuCreate(kind);
   }
 
-  if (choosingType)
+  if (choosingType) {
+    const locks: Array<[CreateDocumentKind, string]> = [
+      ["lease", !loadingList && !finalizedReservation(tenant?.leadId ?? null) ? cn.leaseRequiresReservation : ""],
+      ["renewal", renewalClosedMessage(contracts, tc.renewalForm)],
+    ];
+    const locked = locks.filter(([, hint]) => !!hint);
     return (
       <ContractTypePicker
         message={error}
-        disabledKinds={
-          renewalClosedMessage(contracts, tc.renewalForm) ? ["renewal"] : []
-        }
-        disabledHint={
-          renewalClosedMessage(contracts, tc.renewalForm) || undefined
-        }
+        disabledKinds={locked.map(([kind]) => kind)}
+        disabledHint={locked.map(([, hint]) => hint).join("\n") || undefined}
         onBack={() => {
           setChoosingType(false);
           setError("");
@@ -1652,6 +1681,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         }}
       />
     );
+  }
   if (menuCreate === "renewal")
     return (
       <View style={s.root}>

@@ -466,6 +466,7 @@ export interface TranslationSchema {
         callA11y: string;
         statusActive: string;
         statusSigning: string;
+        statusEnded: string;
         tenantSince: string;
         demoNotice: string;
         nowTitle: string;
@@ -475,6 +476,9 @@ export interface TranslationSchema {
         nowSignTitle: string;
         nowSignBody: string;
         nowSignCta: string;
+        nowConfirmTitle: string;
+        nowConfirmBody: string;
+        nowConfirmCta: string;
         sectionProfile: string;
         sectionRoom: string;
         sectionContracts: string;
@@ -599,10 +603,12 @@ export interface TranslationSchema {
         searchAll: string;
         pillSlip: string;
         pillSigning: string;
+        pillConfirm: string;
         pillRenewal: string;
         pillRenewalToday: string;
         pillActive: string;
         pillSigningContract: string;
+        pillEnded: string;
         metaRoom: string;
         metaRent: string;
         metaUntil: string;

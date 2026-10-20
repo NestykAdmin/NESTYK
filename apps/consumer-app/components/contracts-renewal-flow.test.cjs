@@ -117,3 +117,54 @@ test('standalone receipt opens the source invoice preview and returning retains 
   assert.ok(back); back.props.onPress();
   assert.deepEqual(nodes(h.render()).find(n=>n.type==='contract-library').props.view,view);
 });
+
+test('type picker locks the lease until a reservation is issued and explains why', async () => {
+  const leaseHint=thai.th.agent.contracts.notice.leaseRequiresReservation;
+  const picker=async(rows,props={})=>{
+    const h=harness(rows, {props:{startCreate:null,...props}});
+    h.render(); h.resolve(); await h.tick();
+    nodes(h.render()).find(n=>n.type==='contract-library').props.onCreate();
+    return nodes(h.render()).find(n=>n.type==='type-picker').props;
+  };
+  const locked=props=>props.disabledKinds.includes('lease') && (props.disabledHint ?? '').split('\n').includes(leaseHint);
+  const booking=patch=>row({id:3,formKind:'reservation',status:'active',reservationLetterStatus:'ready',endDate:null,...patch});
+  assert.equal(locked(await picker([])),true);
+  // A booking that is still being signed, or a ready one that was cancelled, does not unlock the lease.
+  assert.equal(locked(await picker([booking({status:'awaiting_signatures',reservationLetterStatus:'awaiting_signatures'}),booking({id:4,status:'cancelled'})])),true);
+  assert.equal(locked(await picker([booking()])),false);
+  // Inside a tenant only that tenant's own booking counts.
+  const tenant={id:1,leadId:1,name:'Tenant A',phone:'0812345678',email:null,identityNumber:null,nationality:null,fullAddress:null,contracts:[]};
+  assert.equal(locked(await picker([booking({leadId:2})],{tenant})),true);
+  assert.equal(locked(await picker([booking({leadId:1})],{tenant})),false);
+});
+
+test('header back steps out of the type picker and its menus before leaving the contracts section', async () => {
+  const backRef={current:null};
+  const h=harness([], {props:{startCreate:null,backRef}});
+  h.render(); h.resolve(); await h.tick();
+  let tree=h.render();
+  assert.equal(backRef.current(),false);
+  nodes(tree).find(n=>n.type==='contract-library').props.onCreate();
+  tree=h.render();
+  assert.equal(tree.type,'type-picker');
+  assert.equal(backRef.current(),true);
+  tree=h.render();
+  assert.ok(nodes(tree).some(n=>n.type==='contract-library'));
+  nodes(tree).find(n=>n.type==='contract-library').props.onCreate();
+  for (const kind of ['invoice','agent_commission']) {
+    h.render().props.onSelect(kind);
+    tree=h.render();
+    assert.notEqual(tree.type,'type-picker',kind);
+    assert.equal(nodes(tree).some(n=>n.type==='contract-library'),false,kind);
+    assert.equal(backRef.current(),true,kind);
+    assert.equal(h.render().type,'type-picker',kind);
+  }
+});
+
+test('header back leaves an open create form to the host, as before', async () => atBangkokOctober12(async()=>{
+  const backRef={current:null};
+  const h=harness([row()], {props:{backRef}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  assert.ok(nodes(h.render()).some(n=>n.type==='renewal-fields'));
+  assert.equal(backRef.current(),false);
+}));

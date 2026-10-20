@@ -16,6 +16,7 @@ import { localizedError, useLocale } from "@nestyk/i18n";
 import { getAgentTenant, listAgentTenants, updateAgentTenant } from "../lib/agent-tenants-api";
 import { nextIdentityNumberDraft } from "../lib/identity-number";
 import { billFormatters } from "../lib/bill-format";
+import { formatPhoneDisplay } from "../lib/phone";
 import { confirmAgentRentSlip, getAgentTenantBilling, listAgentRentSlips, openAgentRentSlip, returnAgentRentSlip } from "../lib/tenant-bills-api";
 import {
   tenantLease,
@@ -143,6 +144,8 @@ export function AgentTenantsScreen({
   );
   /** Contract the contracts section opens on, when reached from a work item. */
   const [contractFocus, setContractFocus] = useState<AgentContract | null>(null);
+  /** The contracts screen's own back step (type picker and its menus), tried before leaving the section. */
+  const contractsBackRef = useRef<(() => boolean) | null>(null);
   /** Rent slips waiting for this agent's review, across all tenants (`GET /bills/agent`). */
   const [slips, setSlips] = useState<TenantBill[]>([]);
   const [billing, setBilling] = useState<AgentTenantBilling | null>(null);
@@ -363,6 +366,7 @@ export function AgentTenantsScreen({
           setEditing(false);
           return;
         }
+        if (section === "contracts" && contractsBackRef.current?.()) return;
         if (section) {
           setSection(null);
           setContractStart(null);
@@ -425,9 +429,10 @@ export function AgentTenantsScreen({
     const fmt = billFormatters(locale);
     const runAction = (action: TenantNextAction) => {
       setNotice("");
-      setContractFocus(action.kind === "sign" ? action.contract : null);
+      const focus = action.kind === "sign" || action.kind === "confirm" ? action.contract : null;
+      setContractFocus(focus);
       if (action.kind === "review_slip") setSection("payments");
-      else if (action.kind === "sign") setSection("contracts");
+      else if (focus) setSection("contracts");
       else if (!selected.email) {
         setSection("profile");
         beginEdit(selected);
@@ -547,6 +552,7 @@ export function AgentTenantsScreen({
             initialContract={contractFocus}
             startCreate={contractStart}
             onStartCreateHandled={() => setContractStart(null)}
+            backRef={contractsBackRef}
             onChanged={() => {
               void refreshTenant(selected.id);
             }}
@@ -617,7 +623,7 @@ export function AgentTenantsScreen({
           <DetailCard style={s.profile}>
             {(
               [
-                ["phone", c.fieldPhone, selected.phone],
+                ["phone", c.fieldPhone, formatPhoneDisplay(selected.phone)],
                 ["email", d.fieldEmail, selected.email],
                 ["identity", d.fieldIdentity, selected.identityNumber],
                 ["nationality", c.fieldNationality, selected.nationality],

@@ -112,9 +112,32 @@ export function billingTotals(billing: AgentTenantBilling | null) {
   };
 }
 
+/** Documents that still count for this tenant: everything except cancelled ones, newest first. */
+export function tenantDocuments(tenant: AgentTenant): AgentContract[] {
+  return tenant.contracts.filter((c) => c.status !== "cancelled").sort(newestFirst);
+}
+
+// Statuses where nothing is left to sign or confirm; anything else counts as a document still in progress.
+const SETTLED_STATUSES = new Set<AgentContract["status"]>(["active", "cancelled", "expired", "terminated"]);
+
+export type TenantStage = "active" | "ended" | "signing";
+
+/**
+ * Where the tenant's stay is: an active lease, a lease that has ended, or still being drawn up.
+ * An ended lease counts as "signing" again once any new document for this tenant is in progress.
+ */
+export function tenantStage(tenant: AgentTenant, today = new Date()): TenantStage {
+  const status = tenantLease(tenant, today)?.status;
+  if (status === "active") return "active";
+  const ended = status === "expired" || status === "terminated";
+  if (ended && !tenant.contracts.some((c) => !SETTLED_STATUSES.has(c.status))) return "ended";
+  return "signing";
+}
+
 export type TenantNextAction =
   | { kind: "review_slip"; bill: AgentTenantBill }
   | { kind: "reservation" }
+  | { kind: "confirm"; contract: AgentContract }
   | { kind: "sign"; contract: AgentContract };
 
 /** The one thing the agent should do next for this tenant, most urgent first. */
@@ -123,7 +146,9 @@ export function tenantNextAction(tenant: AgentTenant, billing: AgentTenantBillin
     .filter((b) => b.status === "awaiting_review")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
   if (slip) return { kind: "review_slip", bill: slip };
-  if (!tenant.contracts.length) return { kind: "reservation" };
+  if (tenant.contracts.every((c) => c.status === "cancelled")) return { kind: "reservation" };
+  const signed = tenant.contracts.find((c) => c.status === "awaiting_agent_review");
+  if (signed) return { kind: "confirm", contract: signed };
   const signing = tenant.contracts.find((c) => c.status === "awaiting_signatures");
   return signing ? { kind: "sign", contract: signing } : null;
 }

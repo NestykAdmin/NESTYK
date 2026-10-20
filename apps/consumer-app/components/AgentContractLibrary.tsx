@@ -17,10 +17,6 @@ const types: Record<ContractFolder, string[]> = {
 };
 const { boxShadow: _webShadow, ...cardShadow } = getCardElevation(1);
 
-function initials(name: string) {
-  return name.trim().split(/\s+/).slice(0, 2).map(part => Array.from(part)[0] ?? '').join('').toUpperCase();
-}
-
 export function AgentContractLibrary({ contracts, invoices, commissions, view, onViewChange, onOpen, onCreate, busy, loading, tenantName }: {
   contracts: AgentContract[]; invoices: StandaloneInvoice[]; commissions: CommissionConfirmation[];
   view: LibraryView; onViewChange: (view: LibraryView) => void; onOpen: (entry: ContractLibraryEntry) => void;
@@ -99,26 +95,31 @@ export function AgentContractLibrary({ contracts, invoices, commissions, view, o
   return <View style={s.root}>
     {view.folder == null ? <>
       <DetailCard>
-        <View style={s.person}>
-          <View style={s.avatar}>
-            {tenantName ? <Text style={s.avatarText}>{initials(tenantName)}</Text> : <MobileIcon name="files" size={24} color={tokens.colors.onBrand} />}
+        {/* Inside a tenant the screen header already shows the name, so only the count and actions remain. */}
+        {tenantName ? (
+          !loading && pending.length > 0 && <MobileStatusPill label={copy.attention} tone="yellow" style={s.pill} />
+        ) : <>
+          <View style={s.person}>
+            <View style={s.avatar}>
+              <MobileIcon name="files" size={24} color={tokens.colors.onBrand} />
+            </View>
+            <View style={[ps.grow, s.personCopy]}>
+              <Text style={[s.name, { color: theme.textHeading }]} numberOfLines={2}>{copy.title}</Text>
+              {!loading && pending.length > 0 && (
+                <MobileStatusPill label={copy.attention} tone="yellow" style={s.pill} />
+              )}
+            </View>
           </View>
-          <View style={[ps.grow, s.personCopy]}>
-            <Text style={[s.name, { color: theme.textHeading }]} numberOfLines={2}>{tenantName || copy.title}</Text>
-            {!loading && pending.length > 0 && (
-              <MobileStatusPill label={copy.attention} tone="yellow" style={s.pill} />
-            )}
+          <View style={ps.row}>
+            <MobileIcon name="file-text" size={16} color={theme.textSecondary} />
+            <Text style={[ps.body, ps.grow, { color: theme.textSecondary }]} numberOfLines={2}>
+              {copy.hint}
+            </Text>
           </View>
-        </View>
-        <View style={ps.row}>
-          <MobileIcon name="file-text" size={16} color={theme.textSecondary} />
-          <Text style={[ps.body, ps.grow, { color: theme.textSecondary }]} numberOfLines={2}>
-            {tenantName ? copy.title : copy.hint}
-          </Text>
-        </View>
-        <View style={[s.actionRow, { borderTopColor: theme.border }]}>
+        </>}
+        <View style={[s.actionRow, tenantName ? s.actionRowBare : { borderTopColor: theme.border }]}>
           <Text style={[ps.value, ps.grow, { color: theme.textHeading }]}>{totalLabel}</Text>
-          <MobileButton disabled={busy} onPress={onCreate} style={s.createButton}>{copy.create}</MobileButton>
+          <MobileButton disabled={busy || loading} onPress={onCreate} style={s.createButton}>{copy.create}</MobileButton>
         </View>
       </DetailCard>
       <DetailCard style={s.menu}>
@@ -160,15 +161,13 @@ const s = StyleSheet.create({
     width: 60, height: 60, borderRadius: 30, backgroundColor: tokens.colors.brand[100],
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: {
-    fontFamily: tokens.typography.native.headingTh, fontSize: 22, lineHeight: 32, color: tokens.colors.onBrand,
-  },
   name: { fontFamily: tokens.typography.native.headingTh, fontSize: 20, lineHeight: 30 },
   pill: { alignSelf: 'flex-start' },
   actionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12,
   },
+  actionRowBare: { borderTopWidth: 0, paddingTop: 0 },
   createButton: { flexShrink: 0 },
   menu: { padding: 0, gap: 0 },
   stack: { gap: 12 }, flex: { flex: 1, minWidth: 0 },
