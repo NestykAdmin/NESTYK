@@ -456,7 +456,7 @@ export const MobileCreateListingWizardBody: React.FC<
   const [roomTypes, setRoomTypes] = useState<RoomTypeOption[]>([]);
   const [roomTypesLoading, setRoomTypesLoading] = useState(false);
   const [roomTypesError, setRoomTypesError] = useState('');
-  const [layoutSheet, setLayoutSheet] = useState<'roomType' | 'bedroom' | 'bathroom' | null>(
+  const [layoutSheet, setLayoutSheet] = useState<'propertyType' | 'roomType' | 'bedroom' | 'bathroom' | null>(
     null,
   );
 
@@ -2482,32 +2482,33 @@ export const MobileCreateListingWizardBody: React.FC<
               {propertyTypesError ? (
                 <Text style={styles.errorText}>{propertyTypesError}</Text>
               ) : null}
-              <View style={styles.propertyTypeRow}>
-                {propertyTypes.map((opt) => {
-                  const selected = propertyTypeId === opt.id;
-                  const labels = t.masters.propertyTypes as Record<string, string>;
-                  return (
-                    <SelectionChip
-                      key={opt.id}
-                      label={labels[opt.code] ?? opt.code}
-                      selected={selected}
-                      onPress={() => {
-                        setPropertyTypeId(opt.id);
-                        clearFieldError('propertyType');
-                      }}
-                      accentColor={tokens.colors.brand[500]}
-                      inkColor={tokens.colors.primary}
-                      style={[
-                        styles.propertyTypeChip,
-                        !selected && errors.propertyType
-                          ? { borderColor: tokens.colors.error }
-                          : null,
-                      ]}
-                      labelStyle={styles.propertyTypeChipText}
-                    />
-                  );
-                })}
-              </View>
+              <Pressable
+                onPress={() => setLayoutSheet('propertyType')}
+                disabled={propertyTypesLoading || !propertyTypes.length || submitting}
+                accessibilityRole="button"
+                accessibilityLabel={`${cr.propertyType}: ${
+                  selectedPropertyTypeCode
+                    ? (t.masters.propertyTypes as Record<string, string>)[selectedPropertyTypeCode] ?? selectedPropertyTypeCode
+                    : cr.propertyTypeRequired
+                }`}
+                style={({ pressed }) => [
+                  styles.selectRow,
+                  errors.propertyType ? { borderColor: tokens.colors.error } : null,
+                  propertyTypesLoading || !propertyTypes.length || submitting ? styles.selectRowLocked : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
+              >
+                <MobileIcon name="buildings" size={18} color={tokens.colors.textSecondary} />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.selectValue, !selectedPropertyTypeCode ? styles.selectPlaceholder : null]}
+                >
+                  {selectedPropertyTypeCode
+                    ? (t.masters.propertyTypes as Record<string, string>)[selectedPropertyTypeCode] ?? selectedPropertyTypeCode
+                    : cr.propertyTypeRequired}
+                </Text>
+                <MobileIcon name="chevron-down" size={18} color={tokens.colors.textSecondary} />
+              </Pressable>
               {errors.propertyType ? (
                 <Text style={styles.errorText}>{errors.propertyType}</Text>
               ) : null}
@@ -3566,11 +3567,13 @@ export const MobileCreateListingWizardBody: React.FC<
       <MobileBottomSheet visible={layoutSheet != null} onClose={() => setLayoutSheet(null)}>
         <WizardSheetChrome
           title={
-            layoutSheet === 'roomType'
-              ? cr.roomType
-              : layoutSheet === 'bedroom'
-                ? cr.bedroom
-                : cr.bathroom
+            layoutSheet === 'propertyType'
+              ? cr.propertyType
+              : layoutSheet === 'roomType'
+                ? cr.roomType
+                : layoutSheet === 'bedroom'
+                  ? cr.bedroom
+                  : cr.bathroom
           }
           closeLabel={cr.closePhotoPreview}
           onClose={() => setLayoutSheet(null)}
@@ -3581,7 +3584,39 @@ export const MobileCreateListingWizardBody: React.FC<
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator
         >
-          {layoutSheet === 'roomType'
+          {layoutSheet === 'propertyType'
+            ? propertyTypes.map((opt) => {
+                const selected = propertyTypeId === opt.id;
+                const labels = t.masters.propertyTypes as Record<string, string>;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    onPress={() => {
+                      setPropertyTypeId(opt.id);
+                      clearFieldError('propertyType');
+                      setLayoutSheet(null);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    style={({ pressed }) => [
+                      styles.layoutSheetRow,
+                      selected ? styles.layoutSheetRowSelected : null,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.layoutSheetRowText,
+                        selected ? styles.layoutSheetRowTextSelected : null,
+                      ]}
+                    >
+                      {labels[opt.code] ?? opt.code}
+                    </Text>
+                    {selected ? <SelectionCheck selected variant="chip" size="md" /> : null}
+                  </Pressable>
+                );
+              })
+            : layoutSheet === 'roomType'
             ? roomTypes.map((opt) => {
                 const selected = roomTypeId === opt.id;
                 const labels = t.masters.roomTypes as Record<string, string>;
@@ -4539,19 +4574,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontWeight: '600',
     color: tokens.colors.textHeading,
-  },
-  propertyTypeRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  propertyTypeChip: {
-    flex: 1,
-    minHeight: 52,
-    paddingVertical: 12,
-  },
-  propertyTypeChipText: {
-    fontSize: 15,
-    lineHeight: 23,
   },
   fieldBlock: {
     gap: 6,

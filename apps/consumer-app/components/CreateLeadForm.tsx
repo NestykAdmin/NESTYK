@@ -405,83 +405,45 @@ export function CreateLeadForm({
     yesText: string,
     noText: string,
   ) => (
-    <View style={styles.careCell}>
-      <View style={styles.careLabelRow}>
-        <MobileIcon name={icon} size={15} color={theme.textHeading} />
-        <Text style={[styles.careLabel, { color: theme.textHeading }]} numberOfLines={1}>
-          {label}
-        </Text>
-      </View>
-      <View style={styles.segmentRow}>
-        {(
-          [
-            { value: true, text: yesText },
-            { value: false, text: noText },
-            { value: null, text: c.unsure },
-          ] as const
-        ).map((item) => {
-          const on = choices[key] === item.value;
-          return (
-            <Pressable
-              key={String(item.value)}
-              disabled={busy}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={`${label}: ${item.text}`}
-              onPress={() => setChoices((current) => ({ ...current, [key]: item.value }))}
-              style={[styles.segment, on && styles.segmentOn]}
-            >
-              <Text
-                style={[styles.segmentText, { color: on ? tokens.colors.primary : theme.textHeading }]}
-                numberOfLines={1}
-              >
-                {item.text}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
+    <LeadSelectField<'yes' | 'no'>
+      style={styles.rowHalf}
+      label={label}
+      placeholder={c.unsure}
+      icon={icon}
+      value={choices[key] == null ? null : choices[key] ? 'yes' : 'no'}
+      disabled={busy}
+      clearLabel={c.unsure}
+      options={[
+        { value: 'yes', label: yesText },
+        { value: 'no', label: noText },
+      ]}
+      onChange={(value) =>
+        setChoices((current) => ({ ...current, [key]: value == null ? null : value === 'yes' }))
+      }
+    />
   );
 
   const occupantChoice = () => {
     const count = Number(form.occupantCount);
     const selected = form.occupantCount.trim() && Number.isFinite(count) ? Math.min(count, 3) : null;
     return (
-      <View style={styles.careCell}>
-        <View style={styles.careLabelRow}>
-          <MobileIcon name="users" size={15} color={theme.textHeading} />
-          <Text style={[styles.careLabel, { color: theme.textHeading }]} numberOfLines={1}>
-            {c.occupantsLabel}
-          </Text>
-        </View>
-        <View style={styles.segmentRow}>
-          {[1, 2, 3].map((n) => {
-            const on = selected === n;
-            const text = n === 3 ? c.occupantsMany : c.occupantsOption.replace('{count}', String(n));
-            return (
-              <Pressable
-                key={n}
-                disabled={busy}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={`${c.occupantsLabel}: ${text}`}
-                onPress={() =>
-                  setField('occupantCount', on ? '' : n === 3 && count > 3 ? form.occupantCount : String(n))
-                }
-                style={[styles.segment, on && styles.segmentOn]}
-              >
-                <Text
-                  style={[styles.segmentText, { color: on ? tokens.colors.primary : theme.textHeading }]}
-                  numberOfLines={1}
-                >
-                  {text}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <LeadSelectField<number>
+        style={styles.rowHalf}
+        label={c.occupantsLabel}
+        placeholder={c.unknown}
+        icon="users"
+        value={selected}
+        disabled={busy}
+        clearLabel={c.unknown}
+        error={errors.occupantCount}
+        options={[1, 2, 3].map((n) => ({
+          value: n,
+          label: n === 3 ? c.occupantsMany : c.occupantsOption.replace('{count}', String(n)),
+        }))}
+        onChange={(value) =>
+          setField('occupantCount', value == null ? '' : value === 3 && count > 3 ? form.occupantCount : String(value))
+        }
+      />
     );
   };
 
@@ -940,37 +902,6 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 14,
     backgroundColor: '#F8FAFC',
-  },
-  careCell: { flex: 1, minWidth: 0, gap: 8 },
-  careLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  careLabel: {
-    flex: 1,
-    fontFamily: tokens.typography.native.body,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '600',
-  },
-  segmentRow: { flexDirection: 'row', gap: 4 },
-  segment: {
-    flex: 1,
-    minHeight: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: tokens.colors.border,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  segmentOn: {
-    borderColor: tokens.colors.brand[500],
-    backgroundColor: tokens.colors.brand[50],
-  },
-  segmentText: {
-    fontFamily: tokens.typography.native.body,
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: '600',
   },
   banner: {
     flexDirection: 'row',
