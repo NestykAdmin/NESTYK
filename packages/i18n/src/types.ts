@@ -489,6 +489,7 @@ export interface TranslationSchema {
         profileMissing: string;
         pillMissing: string;
         fieldEmail: string;
+        emailLocked: string;
         fieldIdentity: string;
         fieldProperty: string;
         fieldRoom: string;

@@ -495,6 +495,7 @@ export const en: TranslationSchema = {
         profileMissing: 'Missing {fields}',
         pillMissing: '{count} missing',
         fieldEmail: 'Email',
+        emailLocked: 'This email is already the tenant\'s app login, so it cannot be changed',
         fieldIdentity: 'ID card / passport no.',
         fieldProperty: 'Project',
         fieldRoom: 'Room',

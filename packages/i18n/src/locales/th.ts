@@ -495,6 +495,7 @@ export const th: TranslationSchema = {
         profileMissing: 'ยังขาด {fields}',
         pillMissing: 'ขาด {count}',
         fieldEmail: 'อีเมล',
+        emailLocked: 'อีเมลนี้ใช้เข้าแอปของผู้เช่าแล้ว จึงเปลี่ยนไม่ได้',
         fieldIdentity: 'เลขบัตรประชาชน / พาสปอร์ต',
         fieldProperty: 'โครงการ',
         fieldRoom: 'ห้อง',

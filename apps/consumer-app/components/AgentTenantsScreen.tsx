@@ -608,8 +608,11 @@ export function AgentTenantsScreen({
                         : "sentences"
                   }
                   autoCorrect={key === "identityNumber" ? false : undefined}
-                  editable={!savingEdit}
+                  editable={!savingEdit && !(key === "email" && selected.hasAccount)}
                 />
+                {key === "email" && selected.hasAccount && (
+                  <Text style={[s.small, muted]}>{d.emailLocked}</Text>
+                )}
               </View>
             ))}
             <Text style={[s.small, muted]}>

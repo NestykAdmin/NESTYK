@@ -494,6 +494,7 @@ export const zh: TranslationSchema = {
         profileMissing: '缺少 {fields}',
         pillMissing: '缺 {count} 项',
         fieldEmail: '邮箱',
+        emailLocked: '此邮箱已是租客的应用登录账号，无法更改',
         fieldIdentity: '身份证 / 护照号',
         fieldProperty: '项目',
         fieldRoom: '房间',

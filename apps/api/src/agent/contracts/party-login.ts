@@ -1,9 +1,10 @@
-import { BadRequestException, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ServiceUnavailableException } from "@nestjs/common";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { DataSource } from "typeorm";
 import { MasterRoleEntity, MasterRoleName } from "../../entities/master-role.entity";
 import { UserEntity } from "../../entities/user.entity";
 import { UserRoleEntity } from "../../entities/user-role.entity";
+import { TenantEntity } from "../../entities/tenant.entity";
 
 function envValue(name: string) {
   return (process.env[name] ?? "").trim().replace(/^"|"$/g, "");
@@ -63,27 +64,107 @@ async function ensureSupabaseUser(email: string, password: string, name: string)
   throw new BadRequestException("สร้างบัญชีล็อกอินไม่สำเร็จ");
 }
 
-/** Create a login for this email, or attach the role when the email already exists. */
-export async function ensurePartyLogin(
+type PersonFields = {
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  identityNumber?: string | null;
+};
+
+// Titles agents often type in front of a name; they do not tell two people apart.
+// Thai titles are often typed straight onto the name; English ones need a dot or a space after them.
+const TITLES = /^(?:(?:นางสาว|นาง|นาย|น\.ส\.|ด\.ช\.|ด\.ญ\.)\s*|(?:mrs|mr|ms|miss)(?:\.\s*|\s+))/i;
+const cleanName = (value: string) =>
+  value
+    .normalize("NFC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\u0E4D\u0E32/g, "\u0E33")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(TITLES, "");
+/** Every way the record spells the person: the stored full name and the given name + surname. */
+const personNames = (p: PersonFields) =>
+  [p.name ?? "", [p.firstName, p.lastName].filter((part) => part?.trim()).join(" ")]
+    .map(cleanName)
+    .filter(Boolean);
+const personId = (value: string | null | undefined) => (value ?? "").replace(/[\s-]/g, "").toUpperCase();
+
+/**
+ * Two tenant records are the same person when the ID numbers match, or when any spelling of the name
+ * matches (after dropping titles, spaces and invisible characters). Two different Thai ID numbers mean two
+ * people; other different numbers alone do not, because one record may hold a passport number and the
+ * other a Thai ID.
+ */
+export function sameTenantPerson(a: PersonFields, b: PersonFields): boolean {
+  const idA = personId(a.identityNumber);
+  const idB = personId(b.identityNumber);
+  if (idA && idA === idB) return true;
+  // Two different 13-digit Thai ID numbers are two people, even with the same name.
+  const thaiId = (value: string) => /^\d{13}$/.test(value);
+  if (thaiId(idA) && thaiId(idB)) return false;
+  const names = new Set(personNames(a));
+  return personNames(b).some((name) => names.has(name));
+}
+
+export const TENANT_EMAIL_IN_USE =
+  "อีเมลนี้เป็นบัญชีของผู้เช่าคนอื่นอยู่แล้ว กรุณาแก้อีเมลในข้อมูลผู้เช่า แล้วบันทึกหนังสือจองอีกครั้ง";
+
+/**
+ * C3: refuse an email whose account already belongs to a different person's tenant record (another
+ * lead). Otherwise both people would share one account and the first person's name would be
+ * overwritten. The same person renting again keeps the account. The message never names the other
+ * tenant, who may belong to another agent. Runs inside ensurePartyLogin before any account is touched.
+ */
+export async function assertTenantEmailNotShared(
   db: DataSource,
-  input: {
-    email: string;
-    phone: string;
-    name?: string;
-    firstName?: string;
-    lastName?: string;
-    identityNumber?: string;
-    nationality?: string;
-    role: Extract<MasterRoleName, "landlord" | "tenant">;
-    who: string;
-  },
-): Promise<number> {
+  input: PersonFields & { email: string; leadId: number },
+): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  if (!email) return;
+  const user = await db
+    .getRepository(UserEntity)
+    .createQueryBuilder("u")
+    .where("LOWER(u.email) = :email", { email })
+    .getOne();
+  if (!user) return;
+  const linked = await db.getRepository(TenantEntity).find({ where: { user_id: user.id } });
+  const other = linked.find(
+    (row) =>
+      row.lead_id !== input.leadId &&
+      !sameTenantPerson(
+        { name: row.name, firstName: row.first_name, lastName: row.last_name, identityNumber: row.identity_number },
+        input,
+      ),
+  );
+  if (other) throw new ConflictException({ code: "TENANT_EMAIL_IN_USE", message: TENANT_EMAIL_IN_USE });
+}
+
+/** Create a login for this email, or attach the role when the email already exists. */
+type PartyLoginInput = {
+  email: string;
+  phone: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  identityNumber?: string;
+  nationality?: string;
+  who: string;
+} & (
+  /** A tenant login always names the lead whose tenant record it is for (checked by assertTenantEmailNotShared). */
+  | { role: Extract<MasterRoleName, "tenant">; tenantLeadId: number }
+  | { role: Extract<MasterRoleName, "landlord">; tenantLeadId?: never }
+);
+
+export async function ensurePartyLogin(db: DataSource, input: PartyLoginInput): Promise<number> {
   const email = input.email.trim().toLowerCase();
   const phone = input.phone.trim().replace(/[\s-]/g, "");
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new BadRequestException(`${input.who}ต้องมีอีเมลที่ถูกต้องเพื่อสร้างบัญชี`);
   if (phone.length < 6)
     throw new BadRequestException(`${input.who}ต้องมีเบอร์โทรอย่างน้อย 6 หลัก เพื่อใช้เป็นรหัสผ่าน`);
+  if (input.role === "tenant")
+    await assertTenantEmailNotShared(db, { ...input, email, leadId: input.tenantLeadId });
 
   const named = input.firstName?.trim()
     ? { first: input.firstName.trim(), last: input.lastName?.trim() ?? "" }

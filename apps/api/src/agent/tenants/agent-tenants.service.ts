@@ -17,6 +17,8 @@ import { LeadViewingEntity } from "../../entities/lead-viewing.entity";
 import { AgentContractsService } from "../contracts/agent-contracts.service";
 
 const ROOM_ALREADY_BOOKED = "ห้องนี้มีผู้จองแล้ว";
+export const TENANT_EMAIL_LOCKED =
+  "ผู้เช่ามีบัญชีเข้าใช้งานแล้ว จึงเปลี่ยนอีเมลไม่ได้ แก้ข้อมูลอื่นได้ตามปกติ";
 
 /** Postgres unique violation on `uq_leads_one_booked_per_room`: two bookings of one room raced. */
 function isRoomAlreadyBookedError(error: unknown): boolean {
@@ -160,6 +162,7 @@ export class AgentTenantsService {
       lastName: t.last_name ?? "",
       phone: t.phone,
       email: t.email,
+      hasAccount: t.user_id != null,
       note: t.note,
       identityNumber: t.identity_number ?? null,
       nationality: t.nationality ?? null,
@@ -375,15 +378,21 @@ export class AgentTenantsService {
       .andWhere("tenant.id = :id", { id })
       .getOne();
     if (!tenant) throw new NotFoundException("ไม่พบผู้เช่า");
+    // C2: once a reservation letter made a login for this email, the email is the account; keep it.
+    const sameEmail = (a: string | null | undefined) => (a ?? "").trim().toLowerCase();
+    if (tenant.user_id != null && sameEmail(b.email) !== sameEmail(tenant.email))
+      throw new ConflictException({ code: "TENANT_EMAIL_LOCKED", message: TENANT_EMAIL_LOCKED });
     tenant.name = b.name;
     tenant.first_name = b.firstName;
     tenant.last_name = b.lastName;
     tenant.phone = b.phone;
-    tenant.email = b.email || null;
+    // With a login the stored email stays exactly as it is (the check above allows only a case/space difference).
+    if (tenant.user_id == null) tenant.email = b.email || null;
     tenant.note = b.note || null;
     tenant.identity_number = b.identityNumber || null;
     tenant.nationality = b.nationality || null;
-    await this.db.getRepository(TenantEntity).save(tenant);
+    // Drafts nobody has signed or paid follow the new details (and their booking invoice).
+    await this.contracts.saveTenantAndRefreshDrafts(agentId, tenant);
     return this.view(agentId, id);
   }
 }

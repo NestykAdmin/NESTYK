@@ -495,6 +495,7 @@ export const ja: TranslationSchema = {
         profileMissing: '未入力: {fields}',
         pillMissing: '{count}件不足',
         fieldEmail: 'メール',
+        emailLocked: 'このメールは入居者のアプリのログインに使われているため変更できません',
         fieldIdentity: '身分証 / パスポート番号',
         fieldProperty: '物件',
         fieldRoom: '部屋',
