@@ -9,8 +9,9 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  *
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts)
- *   - บัญชีตัวอย่างมีลีดที่สถานะไม่ใช่ lost อย่างน้อย 1 ราย และห้องอย่างน้อย 2 ห้อง (ข้อมูลตัวอย่างของทีมมีลีด 9 ราย ห้อง 30 ห้อง)
- *   - ข้อมูลตัวอย่างยังไม่มีผู้เช่า เทสของรายการผู้เช่าจึงตรวจได้แค่ว่าตอบเป็นรายการ จนกว่าจะมีเทสที่สร้างผู้เช่า
+ *   - qa-agent มีลีดที่สถานะไม่ใช่ lost และยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย และห้องอย่างน้อย 2 ห้อง
+ *     (ผู้เรียกของไฟล์นี้คือ fixture agent = qa-agent ดู src/config/qa-accounts.ts)
+ *   - ถ้า qa-agent ยังไม่มีผู้เช่า เทสของรายการผู้เช่าตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   POST และ PATCH ส่งเฉพาะคำขอที่ระบบต้องปฏิเสธ และใช้ลีด ห้อง และผู้เช่าที่ไม่มีอยู่จริง (NO_SUCH_ID)
@@ -95,7 +96,7 @@ test.describe('GET /agent/tenants', () => {
     const tenants = await allTenants(agent);
 
     // ขั้นที่ 2: ถ้ามีผู้เช่า ทุกรายต้องมีช่องหลักครบ id ไม่ซ้ำ และเรียงจากรายที่สร้างล่าสุด (id มากไปน้อย)
-    //   ข้อมูลตัวอย่างตอนนี้ไม่มีผู้เช่า ขั้นนี้จึงยังไม่ได้ตรวจอะไร และบันทึกไว้ในรายงาน คนอ่านผลจะได้ไม่เข้าใจว่าตรวจแล้ว
+    //   ถ้ายังไม่มีผู้เช่า ขั้นนี้ไม่ได้ตรวจอะไร จึงบันทึกไว้ในรายงาน คนอ่านผลจะได้ไม่เข้าใจว่าตรวจแล้ว
     if (tenants.length === 0) {
       test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: 'ยังไม่มีผู้เช่า จึงตรวจได้แค่ว่าตอบเป็นรายการ' });
     }
@@ -138,7 +139,7 @@ test.describe('GET /agent/tenants/leads', () => {
     //   (leadOptions ใน agent-tenants.service.ts กรองด้วย lead.tenant_id IS NULL ซึ่งเป็นค่าเดียวกับ tenantId ของรายการลีด)
     const leads = await allLeads(agent);
     const eligible = leads.filter((lead) => lead.status !== 'lost' && lead.tenantId === null).sort((a, b) => b.id - a.id);
-    expect(eligible.length, 'บัญชีตัวอย่างต้องมีลีดที่สถานะไม่ใช่ lost และยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย').toBeGreaterThan(0);
+    expect(eligible.length, 'qa-agent ต้องมีลีดที่สถานะไม่ใช่ lost และยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย').toBeGreaterThan(0);
     const expected = eligible.slice(0, MAX_OPTIONS);
 
     // บันทึกลงรายงานว่าเงื่อนไขไหนข้อมูลชุดนี้ตรวจไม่ได้ คนอ่านผลจะได้ไม่เข้าใจว่าตรวจครบ
@@ -167,7 +168,7 @@ test.describe('GET /agent/tenants/leads', () => {
   test('search narrows the options by name, and an unknown name finds nothing', async ({ agent }) => {
     // ขั้นที่ 1: หยิบลีดรายแรกของตัวเลือก แล้วค้นด้วยชื่อของลีดรายนั้น
     const options = await expectJson<TenantLeadOption[]>(await agent.tenants.leadOptions(), 200);
-    expect(options.length, 'บัญชีตัวอย่างต้องมีตัวเลือกลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
+    expect(options.length, 'qa-agent ต้องมีตัวเลือกลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
     const target = options[0]!;
     const found = await expectJson<TenantLeadOption[]>(await agent.tenants.leadOptions(target.name), 200);
 
@@ -188,7 +189,7 @@ test.describe('GET /agent/tenants/rooms', () => {
   test("lists up to 30 of the agent's rooms, newest first", async ({ agent }) => {
     // ขั้นที่ 1: ขอตัวเลือกห้องโดยไม่ส่งตัวกรอง
     const rooms = await roomOptions(agent);
-    expect(rooms.length, 'บัญชีตัวอย่างต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
+    expect(rooms.length, 'qa-agent ต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
     expect(rooms.length).toBeLessThanOrEqual(MAX_OPTIONS);
 
     // ขั้นที่ 2: ไม่ได้ส่ง roomId และ leadId จึงไม่มีห้องที่ถูกดันขึ้นก่อน รายการต้องเรียงตาม id จากมากไปน้อย และไม่มีห้องซ้ำ
@@ -224,7 +225,7 @@ test.describe('GET /agent/tenants/rooms', () => {
   test('a roomId puts that room first', async ({ agent }) => {
     // ขั้นที่ 1: หยิบห้องที่อยู่ท้ายสุดของรายการปกติ
     const ids = (await roomOptions(agent)).map((room) => room.id);
-    expect(ids.length, 'ต้องมีห้องอย่างน้อย 2 ห้อง จึงจะเห็นว่าห้องที่เลือกถูกดันขึ้นก่อน').toBeGreaterThanOrEqual(2);
+    expect(ids.length, 'qa-agent ต้องมีห้องอย่างน้อย 2 ห้อง จึงจะเห็นว่าห้องที่เลือกถูกดันขึ้นก่อน').toBeGreaterThanOrEqual(2);
     const picked = ids.at(-1)!;
 
     // ขั้นที่ 2: ส่ง roomId ของห้องนั้น   ขั้นที่ 3: ห้องนั้นต้องขึ้นก่อน และห้องที่เหลือเรียงเหมือนรายการปกติ
@@ -263,7 +264,7 @@ test.describe('GET /agent/tenants/rooms', () => {
     //   id ที่เกินช่วงมีอยู่จริงไม่ได้ เทสนี้จึงยืนยันได้แค่ว่าตอบ 200 และรายการไม่เปลี่ยน
     // ขั้นที่ 1: เก็บรายการปกติไว้เทียบ ต้องมีห้องอย่างน้อย 1 ห้อง ไม่อย่างนั้นการเทียบรายการว่างกับรายการว่างไม่ได้ตรวจอะไร
     const expected = (await roomOptions(agent)).map((room) => room.id);
-    expect(expected.length, 'บัญชีตัวอย่างต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
+    expect(expected.length, 'qa-agent ต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
 
     // ขั้นที่ 2: ส่ง leadId ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 3: ต้องตอบ 200 และได้รายการเหมือนตอนไม่ส่ง leadId
     const ids = (await roomOptions(agent, { leadId: INT32_MAX + 1 })).map((room) => room.id);
@@ -276,7 +277,7 @@ test.describe('GET /agent/tenants/rooms', () => {
     //   id ที่เกินช่วงมีอยู่จริงไม่ได้ เทสนี้จึงยืนยันได้แค่ว่าตอบ 200 และรายการไม่เปลี่ยน
     // ขั้นที่ 1: เก็บรายการปกติไว้เทียบ ต้องมีห้องอย่างน้อย 1 ห้อง ไม่อย่างนั้นการเทียบรายการว่างกับรายการว่างไม่ได้ตรวจอะไร
     const expected = (await roomOptions(agent)).map((room) => room.id);
-    expect(expected.length, 'บัญชีตัวอย่างต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
+    expect(expected.length, 'qa-agent ต้องมีห้องอย่างน้อย 1 ห้อง').toBeGreaterThan(0);
 
     // ขั้นที่ 2: ส่ง roomId ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 3: ต้องตอบ 200 และได้รายการเหมือนตอนไม่ส่ง roomId
     const ids = (await roomOptions(agent, { roomId: INT32_MAX + 1 })).map((room) => room.id);

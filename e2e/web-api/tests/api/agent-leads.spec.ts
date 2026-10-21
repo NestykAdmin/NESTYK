@@ -16,7 +16,7 @@ import {
  *
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts)
- *   - บัญชีตัวอย่างมีลีดอย่างน้อย 1 ราย (ข้อมูลตัวอย่างของทีมให้ 9 ราย)
+ *   - qa-agent มีลีดอย่างน้อย 1 ราย (ผู้เรียกของไฟล์นี้คือ fixture agent = qa-agent ดู src/config/qa-accounts.ts)
  * เทสไฟล์นี้อ่านอย่างเดียว และไม่ผูกกับจำนวนลีดที่แน่นอน
  */
 
@@ -61,7 +61,7 @@ async function listLeads(agent: ApiSession, sort?: string): Promise<Paginated<Le
   if (sort) query.sort = sort;
   const body = await expectJson<Paginated<Lead>>(await agent.leads.list(query), 200);
   // รายการว่างทำให้การตรวจลำดับผ่านโดยไม่ได้ตรวจอะไร จึงยืนยันตรงนี้ที่เดียวว่ามีข้อมูล
-  expect(body.items.length, `sort=${sort ?? 'ค่าเริ่มต้น'}: บัญชีตัวอย่างต้องมีลีดอย่างน้อย 1 ราย`).toBeGreaterThan(0);
+  expect(body.items.length, `sort=${sort ?? 'ค่าเริ่มต้น'}: qa-agent ต้องมีลีดอย่างน้อย 1 ราย`).toBeGreaterThan(0);
   return body;
 }
 
@@ -70,10 +70,10 @@ test.describe('GET /agent/leads', () => {
     // ขั้นที่ 1: เรียกรายการลีดโดยไม่ส่งค่าแบ่งหน้า
     const body = await expectJson<Paginated<Lead>>(await agent.leads.list(), 200);
 
-    // ขั้นที่ 2: ต้องได้หน้า 1 ขนาดหน้าเริ่มต้น และมีลีดอย่างน้อย 1 ราย (จากข้อมูลตัวอย่าง)
+    // ขั้นที่ 2: ต้องได้หน้า 1 ขนาดหน้าเริ่มต้น และมีลีดอย่างน้อย 1 ราย (ลีดของ qa-agent)
     expect(body.page).toBe(1);
     expect(body.limit).toBe(DEFAULT_PAGE_SIZE);
-    expect(body.total, 'บัญชีตัวอย่างต้องมีลีดอย่างน้อย 1 ราย ถ้าเป็น 0 ให้ใส่ข้อมูลตัวอย่างของทีมก่อน').toBeGreaterThan(0);
+    expect(body.total, 'qa-agent ต้องมีลีดอย่างน้อย 1 ราย ถ้าเป็น 0 ให้แจ้งทีม (ห้ามสร้างข้อมูลเองในฐานข้อมูลของทีม)').toBeGreaterThan(0);
 
     // ขั้นที่ 3: จำนวนรายการในหน้านี้ = ค่าที่น้อยกว่าระหว่าง total กับขนาดหน้า
     expect(body.items).toHaveLength(Math.min(body.total, DEFAULT_PAGE_SIZE));
@@ -244,7 +244,7 @@ test.describe('GET /agent/leads', () => {
   test('status counts cover every display status and add up to the total', async ({ agent }) => {
     // ขั้นที่ 1: เรียกรายการโดยไม่กรองสถานะ
     const body = await expectJson<LeadList>(await agent.leads.list({ limit: 1 }), 200);
-    expect(body.total, 'บัญชีตัวอย่างต้องมีลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
+    expect(body.total, 'qa-agent ต้องมีลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
 
     // ขั้นที่ 2: statusCounts ต้องมีครบ 5 สถานะ ไม่ขาดไม่เกิน และทุกค่าเป็นจำนวนเต็มที่ไม่ติดลบ
     expect(Object.keys(body.statusCounts).sort()).toEqual([...DISPLAY_STATUSES].sort());
@@ -262,7 +262,7 @@ test.describe('GET /agent/leads', () => {
   test('each status filter returns only matching leads and agrees with its count', async ({ agent }) => {
     // ขั้นที่ 1: อ่านจำนวนของแต่ละสถานะจากรายการที่ไม่กรอง
     const all = await expectJson<LeadList>(await agent.leads.list({ limit: 1 }), 200);
-    expect(all.total, 'บัญชีตัวอย่างต้องมีลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
+    expect(all.total, 'qa-agent ต้องมีลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
     if (all.statusCounts.viewing === 0) {
       // บันทึกลงรายงานว่ากลุ่ม viewing ไม่ถูกตรวจในรอบนี้ คนอ่านผลจะได้ไม่เข้าใจว่าตรวจครบ 5 สถานะ
       test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: 'ไม่มีลีดที่มีนัดดูห้อง กลุ่ม viewing จึงได้รายการว่างและไม่ถูกตรวจรายลีด' });
@@ -282,7 +282,7 @@ test.describe('GET /agent/leads', () => {
       filteredTotal += body.total;
 
       // ขั้นที่ 4: ทุกรายในผลต้องตรงกับสถานะที่ขอ
-      //   (ข้อมูลตัวอย่างของทีมไม่มีนัดดูห้อง สถานะ viewing จึงได้รายการว่าง และวงนี้ไม่ได้ตรวจลีดรายไหนจนกว่าจะมีเทสที่สร้างนัด)
+      //   (ถ้า qa-agent ไม่มีนัดดูห้องที่ยังไม่ถึงเวลา สถานะ viewing จะได้รายการว่าง และวงนี้ไม่ได้ตรวจลีดรายไหน ซึ่งบันทึกไว้ในรายงานแล้วที่ขั้นที่ 1)
       for (const lead of body.items) {
         const leadLabel = `${label} ลีด id ${lead.id}`;
         if (status === 'viewing') {
@@ -304,7 +304,7 @@ test.describe('GET /agent/leads', () => {
   test('search finds a lead by name', async ({ agent }) => {
     // ขั้นที่ 1: หยิบชื่อของลีดจริง 1 รายมาเป็นคำค้น
     const all = await listLeads(agent);
-    expect(all.items.length, 'บัญชีตัวอย่างต้องมีลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
+    expect(all.items.length, 'qa-agent ต้องมีลีดอย่างน้อย 1 ราย').toBeGreaterThan(0);
     const target = all.items[0]!;
 
     // ขั้นที่ 2: ค้นด้วยชื่อนั้น ผลต้องมีลีดรายนั้นอยู่ด้วย
@@ -385,7 +385,7 @@ test.describe('GET /agent/leads/:id', () => {
   test('returns the same lead that the list shows', { tag: '@smoke' }, async ({ agent }) => {
     // ขั้นที่ 1: หยิบลีดแรกจากรายการ
     const list = await expectJson<LeadList>(await agent.leads.list({ limit: 1 }), 200);
-    expect(list.items, 'บัญชีตัวอย่างต้องมีลีดอย่างน้อย 1 ราย').toHaveLength(1);
+    expect(list.items, 'qa-agent ต้องมีลีดอย่างน้อย 1 ราย').toHaveLength(1);
     const summary = list.items[0]!;
 
     // ขั้นที่ 2: แยกช่อง lastMatch ออกจากรายการก่อนเทียบ

@@ -7,10 +7,10 @@ import { isDescending } from '../../src/support/pagination';
  * สัญญาฝั่งคู่สัญญา: สัญญาที่ส่งถึงผู้เช่าหรือเจ้าของห้อง (/contracts/mine) และลิงก์ลงนามที่เปิดได้โดยไม่ต้องล็อกอิน (/public/contract-sign)
  *
  * สิ่งที่ต้องมีก่อน
- *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) เทสใช้ผู้เรียก agent ซึ่งเป็นบัญชีตัวอย่างเดียวกัน
- *     บัญชีนี้มีบทบาท tenant และ landlord ด้วย จึงเรียกเส้นทางกลุ่ม /contracts/mine ได้
- *     (party-contracts.controller.ts:28 รับ tenant กับ landlord ที่ develop 84087e2 landlord คือชื่อใหม่ของ owner)
- *   - ข้อมูลตัวอย่างยังไม่มีสัญญา รายการสัญญาจึงตรวจได้แค่ว่าตอบเป็นรายการ
+ *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) เทสกลุ่ม /contracts/mine เรียกด้วย qa-tenant (ข้ามถ้ายังไม่ได้ตั้ง uuid)
+ *     เส้นทางกลุ่มนี้รับ tenant กับ landlord (party-contracts.controller.ts:28 ที่ develop 84087e2 landlord คือชื่อใหม่ของ owner)
+ *     qa-agent ไม่มี 2 บทบาทนี้ จึงใช้ไม่ได้ (403 ของ qa-agent ตรวจใน roles.spec.ts)
+ *   - ถ้า qa-tenant ยังไม่มีสัญญา รายการสัญญาตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   เส้นทาง POST ถูกเรียกกับสัญญาที่ไม่มีอยู่จริง และลิงก์ลงนามที่ไม่เคยถูกออก ทุกเส้นทางหาสัญญาหรือลิงก์ก่อนบันทึก
@@ -40,13 +40,14 @@ const MESSAGE = {
 const NEVER_ISSUED_TOKEN = `e2e-never-issued-${'A'.repeat(26)}`;
 
 test.describe('GET /contracts/mine', () => {
-  test('returns the contracts delivered to the signed-in user as a list', { tag: '@smoke' }, async ({ agent }) => {
-    // ขั้นที่ 1: เรียกรายการสัญญาของผู้ใช้
-    const contracts = await expectJson<{ id: number }[]>(await agent.partyContracts.mine(), 200);
+  test('returns the contracts delivered to the signed-in user as a list', { tag: '@smoke' }, async ({ qa }) => {
+    // ขั้นที่ 1: ล็อกอินด้วย qa-tenant แล้วเรียกรายการสัญญาของผู้ใช้
+    const tenant = await qa('tenant');
+    const contracts = await expectJson<{ id: number }[]>(await tenant.partyContracts.mine(), 200);
     expect(Array.isArray(contracts)).toBe(true);
 
     // ขั้นที่ 2: ถ้ามีสัญญา id ต้องไม่ซ้ำ และเรียงจากฉบับล่าสุด (id มากไปน้อย)
-    //   ข้อมูลตัวอย่างตอนนี้ไม่มีสัญญา ขั้นนี้จึงยังไม่ได้ตรวจอะไร และบันทึกไว้ในรายงาน
+    //   ถ้ายังไม่มีสัญญา ขั้นนี้ไม่ได้ตรวจอะไร จึงบันทึกไว้ในรายงาน
     if (contracts.length === 0) {
       test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: 'ยังไม่มีสัญญาที่ส่งถึงผู้ใช้นี้ จึงตรวจได้แค่ว่าตอบเป็นรายการ' });
     }
@@ -61,31 +62,35 @@ test.describe('party routes with a contract that does not exist', () => {
    * เส้นทางที่ต้องหาสัญญาของผู้เรียกก่อนทำอย่างอื่น (POST ส่งแบบไม่มีเนื้อหรือไม่แนบไฟล์)
    * เทสส่งสัญญาที่ไม่มีอยู่จริง การกันสัญญาที่มีอยู่แต่ผู้เรียกไม่ใช่คู่สัญญายังไม่ได้ตรวจ เพราะต้องมีสัญญาก่อน (ดู README หัวข้อยังไม่ครอบคลุม)
    */
-  const lookups: { name: string; call: (agent: ApiSession, id: number) => Promise<APIResponse> }[] = [
-    { name: 'GET /contracts/mine/:id/attachments', call: (agent, id) => agent.partyContracts.attachments(id) },
-    { name: 'GET /contracts/mine/:id/attachments/:documentId/url', call: (agent, id) => agent.partyContracts.attachmentUrl(id, 1) },
-    { name: 'GET /contracts/mine/:id/financial-documents/invoice', call: (agent, id) => agent.partyContracts.financialDocument(id, 'invoice') },
-    { name: 'POST /contracts/mine/:id/document', call: (agent, id) => agent.partyContracts.document(id) },
-    { name: 'POST /contracts/mine/:id/sign', call: (agent, id) => agent.partyContracts.sign(id, {}) },
-    { name: 'POST /contracts/mine/:id/payment-slip without a file', call: (agent, id) => agent.partyContracts.uploadPaymentSlip(id) },
-    { name: 'POST /contracts/mine/:id/attachments without a file', call: (agent, id) => agent.partyContracts.uploadAttachment(id) },
+  const lookups: { name: string; call: (party: ApiSession, id: number) => Promise<APIResponse> }[] = [
+    { name: 'GET /contracts/mine/:id/attachments', call: (party, id) => party.partyContracts.attachments(id) },
+    { name: 'GET /contracts/mine/:id/attachments/:documentId/url', call: (party, id) => party.partyContracts.attachmentUrl(id, 1) },
+    { name: 'GET /contracts/mine/:id/financial-documents/invoice', call: (party, id) => party.partyContracts.financialDocument(id, 'invoice') },
+    { name: 'POST /contracts/mine/:id/document', call: (party, id) => party.partyContracts.document(id) },
+    { name: 'POST /contracts/mine/:id/sign', call: (party, id) => party.partyContracts.sign(id, {}) },
+    { name: 'POST /contracts/mine/:id/payment-slip without a file', call: (party, id) => party.partyContracts.uploadPaymentSlip(id) },
+    { name: 'POST /contracts/mine/:id/attachments without a file', call: (party, id) => party.partyContracts.uploadAttachment(id) },
   ];
   for (const lookup of lookups) {
-    test(`${lookup.name} answers 404 for a contract that does not exist`, async ({ agent }) => {
-      // ขั้นที่ 1: ใช้ id ที่ไม่มีสัญญาไหนใช้   ขั้นที่ 2: ต้องได้ 404 พร้อมข้อความว่าไม่พบสัญญา (ไม่มีอะไรถูกบันทึก)
-      expect(await expectError(await lookup.call(agent, NO_SUCH_ID), 404)).toBe(MESSAGE.contractNotFound);
+    test(`${lookup.name} answers 404 for a contract that does not exist`, async ({ qa }) => {
+      // ขั้นที่ 1: ล็อกอินด้วย qa-tenant แล้วใช้ id ที่ไม่มีสัญญาไหนใช้
+      // ขั้นที่ 2: ต้องได้ 404 พร้อมข้อความว่าไม่พบสัญญา (ไม่มีอะไรถูกบันทึก)
+      const tenant = await qa('tenant');
+      expect(await expectError(await lookup.call(tenant, NO_SUCH_ID), 404)).toBe(MESSAGE.contractNotFound);
     });
   }
 
-  test('answers 400 for an id that is not a whole number', async ({ agent }) => {
-    // ขั้นที่ 1: ส่ง id ที่เป็นตัวอักษร   ขั้นที่ 2: ต้องได้ 400
-    await expectError(await agent.partyContracts.attachments('abc'), 400);
+  test('answers 400 for an id that is not a whole number', async ({ qa }) => {
+    // ขั้นที่ 1: ล็อกอินด้วย qa-tenant แล้วส่ง id ที่เป็นตัวอักษร   ขั้นที่ 2: ต้องได้ 400
+    const tenant = await qa('tenant');
+    await expectError(await tenant.partyContracts.attachments('abc'), 400);
   });
 
-  test('answers 400 for an id above the 32-bit integer range', async ({ agent }) => {
+  test('answers 400 for an id above the 32-bit integer range', async ({ qa }) => {
     // เดิมเป็นบั๊กที่รู้แล้ว (API ตอบ 500) ทีมแก้แล้วที่ DEV/main f7d52ed: ตัวตรวจ id (DatabaseIdPipe) ปฏิเสธก่อนถึงฐานข้อมูล
-    // ขั้นที่ 1: ส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของตัวตรวจ id
-    expect(await expectError(await agent.partyContracts.attachments(INT32_MAX + 1), 400)).toBe(ID_OUT_OF_RANGE);
+    // ขั้นที่ 1: ล็อกอินด้วย qa-tenant แล้วส่ง id ที่มากกว่าค่าสูงสุดของ integer อยู่ 1   ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของตัวตรวจ id
+    const tenant = await qa('tenant');
+    expect(await expectError(await tenant.partyContracts.attachments(INT32_MAX + 1), 400)).toBe(ID_OUT_OF_RANGE);
   });
 });
 

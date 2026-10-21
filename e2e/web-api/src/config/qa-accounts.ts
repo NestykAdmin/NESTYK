@@ -1,5 +1,9 @@
 /**
- * บัญชี QA แยกบทบาทของทีม (qa-<role>@nestyk.test) สำหรับเทสสิทธิ์ตามบทบาท (401/403)
+ * บัญชี QA แยกบทบาทของทีม (qa-<role>@nestyk.test) ที่เทสใช้เมื่อต้องล็อกอิน
+ *   - qa-agent เป็นผู้เรียกหลัก (fixture agent ใน src/fixtures/api.fixture.ts) เทสของกลุ่ม agent/* อ่านลีดและห้องของบัญชีนี้
+ *   - qa-tenant และ qa-landlord ใช้กับเส้นทางที่รับเฉพาะบทบาทนั้น (bills/mine/*, bills/received/*, contracts/mine*)
+ *     และ qa-landlord เป็นบัญชีเจ้าของห้องที่เทสค้นใน GET /agent/contracts/owner-users
+ *   - ทุกบัญชีใช้กับเทสสิทธิ์ตามบทบาท (401/403) ใน roles.spec.ts
  *
  * ที่มา: supabase/migrations/20261019100000_link_qa_accounts.sql บรรทัด 23-27 (ในไฟล์ migration) ที่ develop a09e6d2
  *   migration นี้ไม่สร้างบัญชีล็อกอิน ทีมสร้างบัญชีไว้ใน Supabase Authentication เอง แล้ว migration ผูกบัญชีกับตาราง users
@@ -9,7 +13,8 @@
  *   API หาผู้ใช้จาก uuid อย่างเดียว (คอลัมน์ users.supabase_user_id: auth.guard.ts canActivate และ findBySupabaseUserId)
  *   uuid ของบัญชีเหล่านี้ทีมไม่ได้กำหนดไว้ (Supabase สร้างให้ตอนสร้างล็อกอิน) และไม่อยู่ใน repo
  *   จึงต้องตั้งเป็นตัวแปรแวดล้อมตอนรัน เช่น E2E_QA_LANDLORD_UUID=<UID จากหน้า Supabase > Authentication > Users>
- *   บัญชีที่ไม่ได้ตั้งตัวแปร: เทสที่ต้องใช้บัญชีนั้นจะข้าม พร้อมเหตุผล
+ *   E2E_QA_AGENT_UUID ต้องตั้งทุกครั้ง: ถ้าไม่ได้ตั้ง global-setup หยุดทั้งชุด (เทสเกือบทุกข้อใช้ qa-agent)
+ *   บัญชีอื่นที่ไม่ได้ตั้งตัวแปร: เทสที่ต้องใช้บัญชีนั้นจะข้าม พร้อมเหตุผล
  *
  * ไม่ต้องใช้รหัสผ่าน และห้ามเขียน uuid จริงลงไฟล์ที่ commit (ใครรู้ uuid ก็ล็อกอินเป็นบัญชีนั้นได้กับ API ที่เปิดโหมดนักพัฒนา)
  */

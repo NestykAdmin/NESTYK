@@ -15,8 +15,8 @@ import {
  *
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts)
- *   - บัญชีตัวอย่างมีห้องอย่างน้อย 1 ห้อง (ข้อมูลตัวอย่างของทีมให้ 30 ห้อง)
- * เทสไฟล์นี้อ่านอย่างเดียว และไม่ผูกกับจำนวนห้องที่แน่นอน จึงยังใช้ได้เมื่อข้อมูลตัวอย่างเปลี่ยน
+ *   - qa-agent มีห้องอย่างน้อย 1 ห้อง (ผู้เรียกของไฟล์นี้คือ fixture agent = qa-agent ดู src/config/qa-accounts.ts)
+ * เทสไฟล์นี้อ่านอย่างเดียว และไม่ผูกกับจำนวนห้องที่แน่นอน จึงยังใช้ได้เมื่อข้อมูลของ qa-agent เปลี่ยน
  */
 
 /** ค่า visibility ที่ฐานข้อมูลยอมให้ห้องของนายหน้ามีได้ (ข้อบังคับ chk_rent_rooms_scout_invariant) */
@@ -38,10 +38,10 @@ test.describe('GET /agent/listings', () => {
     // ขั้นที่ 1: เรียกรายการห้องโดยไม่ส่งค่าแบ่งหน้า
     const body = await expectJson<Paginated<ListingSummary>>(await agent.listings.list(), 200);
 
-    // ขั้นที่ 2: ต้องได้หน้า 1 ขนาดหน้าเริ่มต้น และมีห้องอย่างน้อย 1 ห้อง (จากข้อมูลตัวอย่าง)
+    // ขั้นที่ 2: ต้องได้หน้า 1 ขนาดหน้าเริ่มต้น และมีห้องอย่างน้อย 1 ห้อง (ห้องของ qa-agent)
     expect(body.page).toBe(1);
     expect(body.limit).toBe(DEFAULT_PAGE_SIZE);
-    expect(body.total, 'บัญชีตัวอย่างต้องมีห้องอย่างน้อย 1 ห้อง ถ้าเป็น 0 ให้ใส่ข้อมูลตัวอย่างของทีมก่อน').toBeGreaterThan(0);
+    expect(body.total, 'qa-agent ต้องมีห้องอย่างน้อย 1 ห้อง ถ้าเป็น 0 ให้แจ้งทีม (ห้ามสร้างข้อมูลเองในฐานข้อมูลของทีม)').toBeGreaterThan(0);
 
     // ขั้นที่ 3: จำนวนรายการในหน้านี้ = ค่าที่น้อยกว่าระหว่าง total กับขนาดหน้า
     expect(body.items).toHaveLength(Math.min(body.total, DEFAULT_PAGE_SIZE));
@@ -281,7 +281,7 @@ test.describe('GET /agent/listings/:id', () => {
   test('returns the detail of a room taken from the list', { tag: '@smoke' }, async ({ agent }) => {
     // ขั้นที่ 1: หยิบห้องแรกจากรายการ
     const list = await expectJson<Paginated<ListingSummary>>(await agent.listings.list({ limit: 1 }), 200);
-    expect(list.items, 'บัญชีตัวอย่างต้องมีห้องอย่างน้อย 1 ห้อง').toHaveLength(1);
+    expect(list.items, 'qa-agent ต้องมีห้องอย่างน้อย 1 ห้อง').toHaveLength(1);
     const summary = list.items[0]!;
 
     // ขั้นที่ 2: เปิดรายละเอียดด้วย id ของห้องนั้น

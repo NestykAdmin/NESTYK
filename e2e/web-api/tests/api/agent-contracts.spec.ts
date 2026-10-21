@@ -9,14 +9,15 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  * สัญญาฝั่งนายหน้า: ประเภทและแม่แบบสัญญา รายการ เลขที่เอกสารถัดไป ข้อมูลตั้งต้น สัญญาที่ไม่มีอยู่ และการค้นบัญชีเจ้าของห้อง
  *
  * สิ่งที่ต้องมีก่อน
- *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) บัญชีตัวอย่างมีบทบาท agent และ landlord (เจ้าของห้อง)
+ *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) ผู้เรียกคือ qa-agent (fixture agent)
+ *     เทสการค้นบัญชีเจ้าของห้องใช้ qa-landlord เป็นบัญชีที่ถูกค้น (ข้ามถ้ายังไม่ได้ตั้ง uuid)
  *     ชื่อบทบาท owner เปลี่ยนเป็น landlord ตั้งแต่ develop 84087e2 (supabase/migrations/20261016100000_rename_owner_role_to_landlord.sql)
- *     ถ้าสร้างฐานข้อมูลใหม่แล้วใส่บัญชีด้วย docs/new-project/docker/seed-dev-user.sql บัญชีจะไม่ได้ landlord เพราะบรรทัด 66 ยังใช้ชื่อ owner (ที่ 84087e2)
- *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบจาก migration ของ apps/api และบัญชีตัวอย่างมีลีดอย่างน้อย 1 ราย
+ *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบจาก migration ของ apps/api และ qa-agent มีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย
  *   - API รุ่น DEV/main f7d52ed ขึ้นไป และฐานข้อมูลรัน migration ถึง 20261014-contract-closure.sql แล้ว
  *     ถ้ายังไม่รันถึง 20261012-lease-renewal-agreement.sql เทส GET /agent/contracts/types และ templates of lease_renewal
  *     จะไม่ผ่าน เพราะยังไม่มีประเภท lease_renewal ส่วน 20261014 ต้องมีเพราะ API รุ่นนี้อ่านคอลัมน์ leads.booking_released_at
- *   - ข้อมูลตัวอย่างยังไม่มีผู้เช่า สัญญา ใบแจ้งหนี้ และหนังสือยืนยันค่าคอมมิชชั่น เทสของรายการเหล่านี้จึงตรวจได้แค่ว่าตอบเป็นรายการ
+ *   - ถ้า qa-agent ยังไม่มีสัญญา ลีดที่จองแล้วและพร้อมทำสัญญา (candidates) ใบแจ้งหนี้ หรือหนังสือยืนยันค่าคอมมิชชั่น
+ *     เทสของรายการนั้นตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   เรียกเฉพาะเส้นทางที่อ่านข้อมูล (GET) กับ POST /auth/sync ด้วยบัญชีที่มีอยู่แล้ว ซึ่งไม่เขียนข้อมูล (sync ใน apps/api/src/auth/auth.service.ts)
@@ -64,12 +65,15 @@ function bangkokYear(date = new Date()): number {
   return Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric' }).format(date));
 }
 
-/** บัญชีตัวอย่างที่ล็อกอินอยู่ (จาก POST /auth/sync) พร้อมยืนยันว่ามีบทบาท landlord (เจ้าของห้อง) */
-async function signedInOwner(agent: ApiSession): Promise<AuthUser> {
-  const me = await expectJson<AuthUser>(await agent.auth.sync(), 201);
-  expect(me.roles, 'บัญชีตัวอย่างต้องมีบทบาท landlord (ฐานข้อมูลต้องขึ้น migration rename_owner_role_to_landlord แล้ว)').toContain('landlord');
+/**
+ * บัญชีเจ้าของห้องที่เทสใช้เป็นเป้าการค้น: qa-landlord จาก POST /auth/sync ของบัญชีนั้นเอง พร้อมยืนยันว่ามีบทบาท landlord
+ *   (global-setup ยืนยันแล้วว่าบัญชีมีอยู่ sync จึงไม่สร้างผู้ใช้ใหม่) ผู้ค้นยังเป็น qa-agent เพราะเส้นทางค้นรับเฉพาะบทบาท agent
+ */
+async function landlordAccount(landlord: ApiSession): Promise<AuthUser> {
+  const me = await expectJson<AuthUser>(await landlord.auth.sync(), 201);
+  expect(me.roles, 'qa-landlord ต้องมีบทบาท landlord (ฐานข้อมูลต้องขึ้น migration rename_owner_role_to_landlord แล้ว)').toContain('landlord');
   // API ตัด % _ และ \ ออกจากคำค้น ถ้าอีเมลมีอักขระเหล่านี้ การค้นด้วยอีเมลจะไม่เจอบัญชีนี้ เทสข้อค้นบัญชีจึงใช้ไม่ได้
-  expect(me.email, 'อีเมลของบัญชีตัวอย่างต้องไม่มี % _ หรือ \\').not.toMatch(/[%_\\]/);
+  expect(me.email, 'อีเมลของ qa-landlord ต้องไม่มี % _ หรือ \\').not.toMatch(/[%_\\]/);
   return me;
 }
 
@@ -127,7 +131,7 @@ test.describe('lists of the agent', () => {
       expect(Array.isArray(items)).toBe(true);
 
       // ขั้นที่ 2: ถ้ามีข้อมูล ทุกรายการต้องมีเลขอ้างอิงเป็นจำนวนเต็มบวก ไม่ซ้ำ และเรียงจากมากไปน้อย
-      //   ข้อมูลตัวอย่างตอนนี้ไม่มีรายการเหล่านี้ ขั้นนี้จึงยังไม่ได้ตรวจอะไร และบันทึกไว้ในรายงาน
+      //   ถ้ายังไม่มีรายการ ขั้นนี้ไม่ได้ตรวจอะไร จึงบันทึกไว้ในรายงาน
       if (items.length === 0) {
         test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: `${list.name} ยังไม่มีข้อมูล จึงตรวจได้แค่ว่าตอบเป็นรายการ` });
       }
@@ -178,7 +182,7 @@ test.describe('defaults for a new agreement', () => {
     // ขั้นที่ 1: หาลีดที่ยังไม่เป็นผู้เช่า (tenantId เป็น null ในรายการ GET /agent/leads)
     const leads = await expectJson<Paginated<Lead>>(await agent.leads.list({ limit: MAX_PAGE_SIZE }), 200);
     const lead = leads.items.find((item) => item.tenantId === null);
-    expect(lead, 'บัญชีตัวอย่างต้องมีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย').toBeDefined();
+    expect(lead, 'qa-agent ต้องมีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย ในหน้าแรกของ GET /agent/leads').toBeDefined();
 
     // ขั้นที่ 2: ลีดมีอยู่จริงแต่ยังไม่มีผู้เช่า จึงไม่มีข้อมูลให้ดึง ต้องได้ 404 ข้อความเดียวกับลีดที่ไม่มีจริง
     expect(await expectError(await agent.contracts.defaults('reservation', lead!.id), 404)).toBe(MESSAGE.noDefaults);
@@ -240,17 +244,20 @@ test.describe('a contract that does not exist', () => {
 test.describe('GET /agent/contracts/owner-users', () => {
   // ข้อควรระวัง: เส้นทางนี้คืนข้อมูลส่วนตัวของเจ้าของห้อง (อีเมล เบอร์โทร เลขบัตร)
   //   เทสจึงตรวจแค่จำนวนกับ id และไม่เทียบทั้งรายการ เพราะถ้าไม่ผ่าน Playwright จะพิมพ์ค่าที่เทียบออกมาในผลรัน
-  //   บัญชีตัวอย่างมีบทบาท landlord ซึ่งเป็นบทบาทที่เส้นทางนี้ค้น (agent-contracts.service.ts:2299 ที่ develop 84087e2)
-  //   ถ้าการตรวจคำค้นของ API หลุด คำตอบจะมีบัญชีนี้ เทสจึงจับได้
+  //   ผู้ค้นคือ qa-agent (fixture agent) บัญชีที่ถูกค้นคือ qa-landlord ซึ่งมีบทบาท landlord ที่เส้นทางนี้ค้น
+  //   (agent-contracts.service.ts:2299 ที่ develop 84087e2) ถ้าการตรวจคำค้นของ API หลุด คำตอบจะมีบัญชีนี้ เทสจึงจับได้
+  //   การกรองเฉพาะบทบาท landlord ตรวจใน roles.spec.ts (บัญชี QA ที่ไม่มี landlord ต้องค้นไม่เจอ)
 
-  test('answers an empty list when the search is empty or longer than 80 characters', async ({ agent }) => {
-    // ขั้นที่ 1: หาอีเมลของบัญชีตัวอย่าง (บัญชีนี้มีบทบาท landlord)
-    const me = await signedInOwner(agent);
+  test('answers an empty list when the search is empty or longer than 80 characters', async ({ agent, qa }) => {
+    // ทั้งข้อต้องใช้ qa-landlord ไม่ใช่แค่กรณี q ยาว 81 ตัว: กรณีไม่ส่ง q และ q ว่างจับบั๊กได้เฉพาะเมื่อมีบัญชี landlord ในฐานข้อมูล
+    //   (ถ้าการตรวจคำค้นว่างหาย คำค้นจะเป็น %% ซึ่งเจอทุกบัญชี landlord) qa-landlord คือบัญชีที่ยืนยันได้ว่ามีบทบาทนี้
+    // ขั้นที่ 1: หาอีเมลของ qa-landlord (ข้ามถ้ายังไม่ได้ตั้ง uuid)
+    const me = await landlordAccount(await qa('landlord'));
 
     // ขั้นที่ 2: สร้างคำค้นยาว 81 ตัว จากอีเมลต่อท้ายด้วย _
     //   searchOwnerUsers ใน agent-contracts.service.ts ตรวจความยาวก่อนตัด % _ และ \ ออก
     //   ถ้าการตรวจความยาวหาย คำค้นจะเหลือแค่อีเมลแล้วเจอบัญชีนี้ คำค้นแบบนี้จึงจับได้ (คำค้นธรรมดายาว 81 ตัวไม่เจอใครอยู่แล้ว จึงจับไม่ได้)
-    expect(me.email.length, 'อีเมลของบัญชีตัวอย่างต้องสั้นกว่า 81 ตัว').toBeLessThan(81);
+    expect(me.email.length, 'อีเมลของ qa-landlord ต้องสั้นกว่า 81 ตัว').toBeLessThan(81);
     const tooLong = me.email + '_'.repeat(81 - me.email.length);
 
     // ขั้นที่ 3: ไม่ส่ง q, q ว่าง และ q ยาว 81 ตัว ต้องได้รายการว่างทุกแบบ
@@ -267,11 +274,11 @@ test.describe('GET /agent/contracts/owner-users', () => {
     expect(owners.length).toBe(0);
   });
 
-  test('finds the signed-in account by its email', async ({ agent }) => {
-    // ขั้นที่ 1: หา id และอีเมลของบัญชีตัวอย่าง (บัญชีนี้มีบทบาท landlord)
-    const me = await signedInOwner(agent);
+  test('finds a landlord account by its email', async ({ agent, qa }) => {
+    // ขั้นที่ 1: หา id และอีเมลของ qa-landlord (ข้ามถ้ายังไม่ได้ตั้ง uuid)
+    const me = await landlordAccount(await qa('landlord'));
 
-    // ขั้นที่ 2: ค้นด้วยอีเมลที่ API ตอบมา   ขั้นที่ 3: ต้องเจอบัญชีนี้ ตรวจแค่ id
+    // ขั้นที่ 2: qa-agent ค้นด้วยอีเมลที่ API ตอบมา   ขั้นที่ 3: ต้องเจอบัญชีนี้ ตรวจแค่ id
     const owners = await expectJson<OwnerUserOption[]>(await agent.contracts.ownerUsers(me.email), 200);
     expect(owners.map((owner) => owner.id)).toContain(me.id);
   });

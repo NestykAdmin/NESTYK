@@ -132,7 +132,7 @@ for (const group of groups) {
 test.describe('the role check runs before the id check', () => {
   // NestJS ทำงานตามลำดับ guard → pipe → handler บทบาทผิดจึงต้องได้ 403 แม้ id ผิดรูปแบบ
   //   (ถ้าได้ 400 แปลว่าการกันสิทธิ์ทำงานหลังการตรวจ id และคนที่ไม่มีสิทธิ์ได้คำตอบจากส่วนที่ควรถูกกันไว้)
-  //   ตัวคุม: id 'abc' ที่ GET /bills/mine/:id/payment-slip ได้ 400 กับบัญชีที่มีบทบาท tenant (bills.spec.ts ตรวจด้วยบัญชีตัวอย่าง)
+  //   ตัวคุม: id 'abc' ที่ GET /bills/mine/:id/payment-slip ได้ 400 กับบัญชีที่มีบทบาท tenant (bills.spec.ts ตรวจด้วย qa-tenant)
 
   test('GET /bills/mine/abc/payment-slip answers 403 for qa-agent', async ({ qa }) => {
     // ขั้นที่ 1: ล็อกอินด้วย qa-agent (ไม่มีบทบาท tenant)   ขั้นที่ 2: ส่ง id ที่ไม่ใช่ตัวเลข ต้องได้ 403 ไม่ใช่ 400
@@ -173,7 +173,7 @@ test.describe('accounts with the role are accepted', () => {
 test.describe('GET /agent/contracts/owner-users searches landlord accounts only', () => {
   // ที่มา: searchOwnerUsers ใน agent-contracts.service.ts กรอง r.name = 'landlord' และค้นด้วย ILIKE ที่อีเมล ชื่อ เบอร์โทร และเลขบัตร
   // ข้อควรระวัง: คำตอบมีข้อมูลส่วนตัว เทสจึงเทียบแค่ id (ถ้าไม่ผ่าน Playwright พิมพ์เฉพาะ id ออกมา)
-  //   ผู้ค้นคือบัญชีตัวอย่างของทีม (fixture agent) เพราะเส้นทางนี้ไม่ได้ใช้ข้อมูลของผู้ค้น (controller ไม่ส่ง user.id ให้ service)
+  //   ผู้ค้นคือ qa-agent (fixture agent) เส้นทางนี้ไม่ได้ใช้ข้อมูลของผู้ค้น (controller ไม่ส่ง user.id ให้ service)
 
   /** id ของบัญชี QA จาก POST /auth/sync (global-setup ยืนยันแล้วว่าบัญชีมีอยู่ จึงไม่สร้างผู้ใช้ใหม่) */
   async function qaUserId(session: ApiSession, role: QaRole): Promise<number> {

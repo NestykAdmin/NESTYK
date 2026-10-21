@@ -1,12 +1,20 @@
 import { request, type APIRequestContext } from '@playwright/test';
-import { devToken, env } from './config/env';
+import { env } from './config/env';
 import { malformedQaUuidVariables, qaAccounts, qaDevToken, QA_ROLES, type QaAccount } from './config/qa-accounts';
 
 /**
  * ทำงาน 1 ครั้งก่อนเริ่มเทสทั้งชุด: ตรวจว่าระบบพร้อมให้เทส
  *
- * ทำไมต้องมี: ถ้า API ไม่ได้เปิด โหมดล็อกอินแบบนักพัฒนาปิดอยู่ ฐานข้อมูลยังไม่รัน migration ล่าสุด หรือ API เป็นรุ่นเก่า
- * เทสหลายข้อจะล้มด้วยข้อความที่อ่านยาก ตรวจตรงนี้ก่อนจะได้ข้อความเดียวที่บอกสาเหตุและวิธีแก้
+ * ทำไมต้องมี: ถ้า API ไม่ได้เปิด ไม่ได้ตั้ง uuid ของ qa-agent โหมดล็อกอินแบบนักพัฒนาปิดอยู่ ฐานข้อมูลยังไม่รัน migration ล่าสุด
+ * หรือ API เป็นรุ่นเก่า เทสหลายข้อจะล้มด้วยข้อความที่อ่านยาก ตรวจตรงนี้ก่อนจะได้ข้อความเดียวที่บอกสาเหตุและวิธีแก้
+ *
+ * ลำดับการตรวจ (ห้ามสลับ):
+ *   1. API ตอบที่ /health
+ *   2. ตั้ง uuid ของ qa-agent แล้ว (ผู้เรียกหลักของชุดเทส: fixture agent)
+ *   3. บัญชี QA ทุกบัญชีที่ตั้ง uuid (checkQaAccounts) ตรวจก่อนเรียกเส้นทางของนายหน้า
+ *      เพราะถ้าบัญชีมีปัญหา ขั้นนี้บอกสาเหตุได้ตรงกว่า และไม่เรียก POST /auth/sync กับบัญชีที่ยังไม่ยืนยันว่ามีอยู่
+ *   4. GET /agent/leads ด้วย qa-agent ได้ 200
+ *   5. รุ่นของ API (id ที่เกินช่วงได้ 400)
  */
 
 /** รุ่นต่ำสุดของ API ที่ชุดเทสนี้เขียนไว้ commit นี้อยู่ใน develop แล้ว (develop เป็นฐานหลักของงานเทสตั้งแต่ 16 ต.ค. 2026) */
@@ -18,6 +26,7 @@ const ID_OUT_OF_RANGE = 'ID must be an integer between 1 and 2147483647';
 export default async function globalSetup(): Promise<void> {
   const api = await request.newContext({ baseURL: `${env.apiBaseUrl}/` });
   try {
+    // ขั้นที่ 1: API ต้องตอบที่ /health
     const health = await api.get('health').catch((error: Error) => error);
     if (health instanceof Error || health.status() !== 200) {
       const detail = health instanceof Error ? health.message.split('\n')[0] : `ได้รหัส ${health.status()}`;
@@ -27,18 +36,22 @@ export default async function globalSetup(): Promise<void> {
       );
     }
 
-    // ตรวจการล็อกอินด้วยคำขอแบบอ่านอย่างเดียว (ไม่ใช้ POST /auth/sync เพราะเส้นทางนั้นสร้างผู้ใช้ใหม่ได้ถ้ายังไม่มี)
-    const leads = await api.get('agent/leads', {
-      params: { limit: '1' },
-      headers: { Authorization: `Bearer ${devToken()}` },
-    });
-    if (leads.status() === 403) {
+    // ขั้นที่ 2: เทสเกือบทุกข้อเรียก API ในบทบาทนายหน้าด้วย qa-agent ถ้าไม่ได้ตั้ง uuid ให้หยุดทั้งชุดตรงนี้
+    //   ดีกว่าปล่อยให้เทส 200 กว่าข้อแดงพร้อมกันด้วยข้อความเดียวกัน
+    const agent = qaAccounts.agent;
+    if (agent.uuid === null) {
       throw new Error(
-        `บัญชี ${env.devUser.email} ไม่มีบทบาท agent (ได้รหัส 403)\n` +
-          'วิธีแก้: ถ้า API ต่อฐานข้อมูลของทีม ห้ามใส่ข้อมูลเอง ให้แจ้งทีม\n' +
-          'ถ้าใช้ฐานข้อมูลในเครื่อง ให้ใส่ข้อมูลตัวอย่างของทีมอีกครั้ง (docs/new-project/docker/seed-dev-user.sql) เทสชุดนี้เรียก API ในบทบาทนายหน้า',
+        `ยังไม่ได้ตั้ง ${agent.uuidVariable} (uuid ของ ${agent.email} ผู้เรียกหลักของชุดเทส)\n` +
+          'วิธีแก้: ตั้งตัวแปรนี้ด้วย UID จาก Supabase > Authentication > Users ตอนสั่งรัน ตามวิธีใน README หัวข้อตัวแปรแวดล้อม',
       );
     }
+
+    // ขั้นที่ 3: ตรวจบัญชี QA ทุกบัญชีที่ตั้ง uuid (รวม qa-agent) ด้วยคำขอแบบอ่านอย่างเดียวก่อน แล้วจึงเรียก POST /auth/sync
+    await checkQaAccounts(api);
+
+    // ขั้นที่ 4: ตรวจว่า API อ่านลีดของนายหน้าได้ ด้วยคำขอแบบอ่านอย่างเดียว
+    const headers = { Authorization: `Bearer ${qaDevToken(agent)}` };
+    const leads = await api.get('agent/leads', { params: { limit: '1' }, headers });
     if (leads.status() >= 500) {
       throw new Error(
         `GET /agent/leads ตอบ ${leads.status()} (API ล้มระหว่างอ่านฐานข้อมูล)\n` +
@@ -51,18 +64,20 @@ export default async function globalSetup(): Promise<void> {
       );
     }
     if (leads.status() !== 200) {
-      const answer = (await leads.text()).slice(0, 200);
+      // ขั้นที่ 3 ยืนยันแล้วว่า qa-agent มีอยู่และมีบทบาท agent รหัสอื่นที่ไม่ใช่ 200 จึงไม่น่ามาจากบัญชี
+      //   พิมพ์เนื้อคำตอบเฉพาะรหัส 4xx ขึ้นไป (เป็นข้อความ error) รหัสกลุ่ม 2xx หรือ 3xx อาจมีข้อมูลลีด จึงไม่พิมพ์
+      const answer = leads.status() >= 400 ? (await leads.text()).slice(0, 200) : '(ไม่พิมพ์เนื้อคำตอบ)';
       throw new Error(
-        `ล็อกอินแบบนักพัฒนาด้วยบัญชี ${env.devUser.email} ไม่สำเร็จ (ได้รหัส ${leads.status()}: ${answer})\n` +
-          'วิธีแก้: ตรวจว่า .env.api ตั้ง ALLOW_DEV_AUTH=true และฐานข้อมูลมีบัญชีตัวอย่างแล้ว\n' +
-          'ถ้า API ต่อฐานข้อมูลของทีม ห้ามใส่ข้อมูลเอง และห้ามเรียก POST /auth/sync แม้ API จะบอกให้เรียก (เส้นทางนี้สร้างบัญชีในฐานข้อมูล) ให้แจ้งทีม\n' +
-          'ถ้าใช้ฐานข้อมูลในเครื่อง ใส่บัญชีด้วย docs/new-project/docker/seed-dev-user.sql',
+        `GET /agent/leads ด้วยบัญชี ${agent.email} ได้รหัส ${leads.status()} (คาด 200): ${answer}\n` +
+          'บัญชีนี้ผ่านการตรวจบัญชีและบทบาทแล้ว ให้ดู log ของ API แล้วแจ้งทีมพร้อมผลรัน ' +
+          '(ห้ามขอบทบาทเองด้วย POST /auth/dev/roles เพราะเส้นทางนั้นบันทึกบทบาทลงฐานข้อมูล)\n' +
+          'ถ้าได้ 403 แปลว่ารายการบทบาทของกลุ่ม agent/leads เปลี่ยน (@Roles ใน agent-leads.controller.ts) ถ้าทีมไม่ได้ตั้งใจให้แจ้งทีม',
       );
     }
 
-    // ตรวจรุ่นของ API ด้วยคำขอแบบอ่านอย่างเดียว: ตั้งแต่ f7d52ed id ที่เกินช่วง integer ถูกปฏิเสธด้วย 400 ก่อนถึงฐานข้อมูล
+    // ขั้นที่ 5: ตรวจรุ่นของ API ด้วยคำขอแบบอ่านอย่างเดียว: ตั้งแต่ f7d52ed id ที่เกินช่วง integer ถูกปฏิเสธด้วย 400 ก่อนถึงฐานข้อมูล
     //   รุ่นก่อนหน้าตอบ 500 ถ้าไม่ตรวจตรงนี้ เทส id และ query หลายข้อจะแดงพร้อมกัน และดูเหมือนระบบถอยหลัง
-    const probe = await api.get('agent/leads/2147483648', { headers: { Authorization: `Bearer ${devToken()}` } });
+    const probe = await api.get('agent/leads/2147483648', { headers });
     const probeText = await probe.text();
     if (probe.status() !== 400) {
       throw new Error(
@@ -78,8 +93,6 @@ export default async function globalSetup(): Promise<void> {
           'วิธีแก้: ตรวจ apps/api/src/common/database-id.pipe.ts แล้วแก้ค่าคงที่ ID_OUT_OF_RANGE ในชุดเทสให้ตรง',
       );
     }
-
-    await checkQaAccounts(api);
   } finally {
     await api.dispose();
   }
@@ -163,6 +176,14 @@ async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promi
         'ห้ามเรียก POST /auth/sync ด้วยบัญชีนี้ แม้ API จะบอกให้เรียก เพราะจะสร้างผู้ใช้ใหม่ในฐานข้อมูล ให้แจ้งทีม',
     );
   }
+  if (probe.status() === 401) {
+    // 401 ที่ไม่ใช่ข้อความข้างบนมาจาก AuthGuard ก่อนค้นตาราง users: API ไม่ได้อ่านบัตรผ่านนี้เป็นแบบนักพัฒนา
+    //   (auth.guard.ts resolveIdentity: ถ้า ALLOW_DEV_AUTH ไม่ใช่ true บัตรผ่าน dev|... ถูกส่งไปตรวจกับ Supabase แล้วได้ 401)
+    throw new Error(
+      `API ไม่รับบัตรผ่านแบบนักพัฒนาของบัญชี ${account.email} (GET /${path} ได้รหัส 401: ${probeText.slice(0, 200)})\n` +
+        'วิธีแก้: ตรวจว่า .env.api ตั้ง ALLOW_DEV_AUTH=true แล้วเปิด API ใหม่',
+    );
+  }
   if (probe.status() === 200) {
     // ไม่พิมพ์เนื้อคำตอบ เพราะเป็นข้อมูลของระบบ และไม่เรียก sync ต่อ (ยืนยันไม่ได้ว่าบัญชีมีอยู่)
     throw new Error(
@@ -177,7 +198,8 @@ async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promi
       `ตรวจบัญชี ${account.email} ไม่ได้: GET /${path} ได้รหัส ${probe.status()} ` +
         `(คาด 403 "${forbidden}") คำตอบ: ${probeText.slice(0, 200)}\n` +
         'ถ้าได้ 403 แต่ข้อความต่าง แปลว่ารายการบทบาทของเส้นทางนี้เปลี่ยน ถ้าทีมไม่ได้ตั้งใจถือเป็นช่องโหว่เรื่องสิทธิ์ ให้แจ้งทีม ' +
-        '(ถ้าตั้งใจ ต้องแก้ existenceProbe และ roles.spec.ts ให้ตรง)',
+        '(ถ้าตั้งใจ ต้องแก้ existenceProbe และ roles.spec.ts ให้ตรง) ' +
+        'ถ้าข้อความมีชื่อบทบาท owner แปลว่า API เป็นโค้ดก่อน develop 84087e2 ให้ใช้โค้ดของ develop แล้วเปิด API ใหม่',
     );
   }
 

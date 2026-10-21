@@ -9,8 +9,9 @@ import { expectError, expectJson } from '../../src/support/http';
  *
  * สิ่งที่ต้องมีก่อน
  *   - API ที่รวม DEV/main ถึง f7d52ed แล้ว (มีตัวตรวจ id DatabaseIdPipe และเส้นทาง mine/:id/confirm, agent/:id/return)
- *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) บัญชีตัวอย่างมีบทบาท tenant, landlord และ agent ครบ จึงเรียกได้ทั้ง 3 กลุ่มด้วยบัญชีเดียว
- *     (landlord คือชื่อใหม่ของ owner ตั้งแต่ develop 84087e2 กลุ่ม received ต้องมี landlord: owner-bills.controller.ts:14)
+ *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) แต่ละกลุ่มเรียกด้วยบัญชี QA ที่มีบทบาทของกลุ่มนั้น (ช่อง caller ของ idEndpoints)
+ *     mine ใช้ qa-tenant (tenant-bills.controller.ts:26) received ใช้ qa-landlord (owner-bills.controller.ts:14) agent ใช้ qa-agent (agent-bills.controller.ts:11)
+ *     (landlord คือชื่อใหม่ของ owner ตั้งแต่ develop 84087e2) ถ้ายังไม่ได้ตั้ง uuid ของ qa-tenant หรือ qa-landlord เทสของกลุ่มนั้นข้าม พร้อมเหตุผล
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   - ไม่เรียก GET mine, mine/next, received และ agent/tenants/:tenantId ด้วยบัญชีหรือ id ที่มีจริง เพราะ 4 เส้นทางนี้
@@ -53,32 +54,54 @@ const allEndpoints: { name: string; call: (session: ApiSession) => Promise<APIRe
   { name: 'POST /bills/agent/:id/return', call: (s) => s.bills.agentReturn(NO_SUCH_ID, { reason: 'e2e' }) },
 ];
 
+/** บัญชี QA ที่มีบทบาทของกลุ่มเส้นทาง ใช้เรียกผ่าน fixture qa (qa('agent') คือบัญชีเดียวกับ fixture agent) */
+type BillCaller = 'tenant' | 'landlord' | 'agent';
+
 /**
- * เส้นทางที่รับ id ใน path และไม่สร้างบิล พร้อมข้อความ 404 เมื่อไม่พบ
+ * เส้นทางที่รับ id ใน path และไม่สร้างบิล พร้อมบัญชีที่ใช้เรียก และข้อความ 404 เมื่อไม่พบ
  * (GET agent/tenants/:tenantId อยู่ในรายการนี้ได้ เพราะ API ตอบ 404 ก่อนถึงขั้นสร้างบิล: listForAgentTenant ใน tenant-billing.service.ts)
  */
-const idEndpoints: { name: string; notFound: string; call: (s: ApiSession, id: number | string) => Promise<APIResponse> }[] = [
-  { name: 'GET /bills/mine/:id/payment-slip', notFound: MESSAGE.billNotFound, call: (s, id) => s.bills.minePaymentSlip(id) },
+const idEndpoints: {
+  name: string;
+  caller: BillCaller;
+  notFound: string;
+  call: (s: ApiSession, id: number | string) => Promise<APIResponse>;
+}[] = [
+  {
+    name: 'GET /bills/mine/:id/payment-slip',
+    caller: 'tenant',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.minePaymentSlip(id),
+  },
   {
     name: 'POST /bills/mine/:id/payment-slip',
+    caller: 'tenant',
     notFound: MESSAGE.billNotFound,
     call: (s, id) => s.bills.uploadMinePaymentSlipWithoutFile(id),
   },
-  { name: 'POST /bills/mine/:id/confirm', notFound: MESSAGE.billNotFound, call: (s, id) => s.bills.confirmMine(id) },
+  { name: 'POST /bills/mine/:id/confirm', caller: 'tenant', notFound: MESSAGE.billNotFound, call: (s, id) => s.bills.confirmMine(id) },
   {
     name: 'GET /bills/received/:id/payment-slip',
+    caller: 'landlord',
     notFound: MESSAGE.billNotFound,
     call: (s, id) => s.bills.receivedPaymentSlip(id),
   },
   {
     name: 'GET /bills/agent/tenants/:tenantId',
+    caller: 'agent',
     notFound: MESSAGE.tenantNotFound,
     call: (s, id) => s.bills.agentTenantBilling(id),
   },
-  { name: 'GET /bills/agent/:id/payment-slip', notFound: MESSAGE.billNotFound, call: (s, id) => s.bills.agentPaymentSlip(id) },
-  { name: 'POST /bills/agent/:id/confirm', notFound: MESSAGE.billNotFound, call: (s, id) => s.bills.agentConfirm(id) },
+  {
+    name: 'GET /bills/agent/:id/payment-slip',
+    caller: 'agent',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.agentPaymentSlip(id),
+  },
+  { name: 'POST /bills/agent/:id/confirm', caller: 'agent', notFound: MESSAGE.billNotFound, call: (s, id) => s.bills.agentConfirm(id) },
   {
     name: 'POST /bills/agent/:id/return',
+    caller: 'agent',
     notFound: MESSAGE.billNotFound,
     call: (s, id) => s.bills.agentReturn(id, { reason: 'e2e' }),
   },
@@ -106,29 +129,33 @@ test.describe('bills without a login', () => {
 
 test.describe('bills of an id that does not exist', () => {
   for (const endpoint of idEndpoints) {
-    test(`${endpoint.name} answers 404 for an id that does not exist`, async ({ agent }) => {
-      // ขั้นที่ 1: ใช้ id ที่ไม่มีบิลหรือผู้เช่ารายไหนใช้
+    test(`${endpoint.name} answers 404 for an id that does not exist`, async ({ qa }) => {
+      // ขั้นที่ 1: ล็อกอินด้วยบัญชีที่มีบทบาทของเส้นทางนี้ (ข้ามถ้ายังไม่ได้ตั้ง uuid) แล้วใช้ id ที่ไม่มีบิลหรือผู้เช่ารายไหนใช้
+      const session = await qa(endpoint.caller);
       // ขั้นที่ 2: ต้องได้ 404 พร้อมข้อความว่าไม่พบ
       //   (จากโค้ด: บิลของผู้ใช้อื่นก็ได้ข้อความเดียวกัน แต่เทสข้อนี้ไม่ได้ยืนยันกรณีนั้น เพราะยังไม่มีบิลของผู้ใช้อื่น)
-      expect(await expectError(await endpoint.call(agent, NO_SUCH_ID), 404)).toBe(endpoint.notFound);
+      expect(await expectError(await endpoint.call(session, NO_SUCH_ID), 404)).toBe(endpoint.notFound);
     });
   }
 });
 
 test.describe('bills with an id that is not valid', () => {
   for (const endpoint of idEndpoints) {
-    test(`${endpoint.name} answers 400 for ids outside 1 to 2147483647`, async ({ agent }) => {
-      // ขั้นที่ 1: ส่ง id 0, -1 และค่าที่เกินช่วงของ integer อยู่ 1
+    test(`${endpoint.name} answers 400 for ids outside 1 to 2147483647`, async ({ qa }) => {
+      // ขั้นที่ 1: ล็อกอินด้วยบัญชีที่มีบทบาทของเส้นทางนี้ แล้วส่ง id 0, -1 และค่าที่เกินช่วงของ integer อยู่ 1
+      //   (ต้องเป็นบัญชีที่มีบทบาท ไม่อย่างนั้น RolesGuard ตอบ 403 ก่อนถึงตัวตรวจ id)
+      const session = await qa(endpoint.caller);
       // ขั้นที่ 2: ต้องได้ 400 พร้อมข้อความของ DatabaseIdPipe ทุกค่า (ปฏิเสธก่อนถึงฐานข้อมูล จึงไม่ได้ 404 หรือ 500)
       for (const id of OUT_OF_RANGE_IDS) {
-        expect(await expectError(await endpoint.call(agent, id), 400), `id ${id}`).toBe(MESSAGE.idOutOfRange);
+        expect(await expectError(await endpoint.call(session, id), 400), `id ${id}`).toBe(MESSAGE.idOutOfRange);
       }
     });
 
-    test(`${endpoint.name} answers 400 for ids that are not whole numbers`, async ({ agent }) => {
-      // ขั้นที่ 1: ส่ง id ที่เป็นตัวอักษร และ id ที่เป็นทศนิยม   ขั้นที่ 2: ต้องได้ 400 ทุกค่า
+    test(`${endpoint.name} answers 400 for ids that are not whole numbers`, async ({ qa }) => {
+      // ขั้นที่ 1: ล็อกอินด้วยบัญชีที่มีบทบาทของเส้นทางนี้ แล้วส่ง id ที่เป็นตัวอักษร และ id ที่เป็นทศนิยม   ขั้นที่ 2: ต้องได้ 400 ทุกค่า
+      const session = await qa(endpoint.caller);
       for (const id of NOT_INTEGER_IDS) {
-        await expectError(await endpoint.call(agent, id), 400);
+        await expectError(await endpoint.call(session, id), 400);
       }
     });
   }
@@ -147,8 +174,8 @@ test.describe('GET /bills/agent', () => {
     const bills = await expectJson<TenantBill[]>(await agent.bills.agentPending(), 200);
 
     // ถ้ายังไม่มีบิลในรายการ ข้ามเทสข้อนี้ (รายงานจะแสดงว่าข้าม ไม่ใช่ผ่าน)
-    //   รายการนี้มีบิลได้เมื่อผู้เช่าอัปสลิปและกดยืนยันส่งแล้วเท่านั้น ข้อมูลตัวอย่างตอนนี้ไม่มีบิล
-    //   (supabase/seed/demo.sql ที่ DEV/main f7d52ed ไม่มีแถวในตาราง tenant_bills)
+    //   รายการนี้มีบิลได้เมื่อผู้เช่าอัปสลิปและกดยืนยันส่งแล้วเท่านั้น
+    //   (supabase/seed/demo.sql ที่ DEV/main f7d52ed ไม่มีแถวในตาราง tenant_bills ฐานข้อมูลที่สร้างจาก seed นี้จึงข้ามข้อนี้)
     test.skip(bills.length === 0, 'ยังไม่มีบิลที่ผู้เช่าส่งสลิปให้นายหน้าบัญชีนี้ จึงตรวจกฎกรองและลำดับไม่ได้');
 
     // ขั้นที่ 2: ทุกรายการต้องยังไม่จ่าย มีสลิป และผู้เช่ากดยืนยันส่งแล้ว

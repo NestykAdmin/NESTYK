@@ -9,7 +9,7 @@ import { ListingsApi } from '../api/listings.api';
 import { PartyContractsApi, PublicContractSignApi } from '../api/party-contracts.api';
 import { PlacesApi } from '../api/places.api';
 import { TenantsApi } from '../api/tenants.api';
-import { devToken, env } from '../config/env';
+import { env } from '../config/env';
 import { qaAccounts, qaDevToken, qaSkipReason, type QaRole } from '../config/qa-accounts';
 
 /** ชุดตัวเรียก API ของผู้เรียก 1 คน แยกตามเรื่อง */
@@ -61,7 +61,10 @@ interface ApiFixtures {
   apiAs: (authorization: string | null) => Promise<ApiSession>;
   /** ผู้เรียกที่ไม่ได้ล็อกอิน */
   anonymous: ApiSession;
-  /** นายหน้าที่ล็อกอินแล้ว ด้วยบัญชีตัวอย่างของทีม (ดู src/config/env.ts) */
+  /**
+   * นายหน้าที่ล็อกอินแล้ว ด้วยบัญชี qa-agent (ดู src/config/qa-accounts.ts) บัญชีเดียวกับ qa('agent')
+   * global-setup หยุดทั้งชุดถ้าไม่ได้ตั้ง uuid ของบัญชีนี้ fixture นี้จึงไม่ข้ามเทส
+   */
   agent: ApiSession;
   /**
    * ผู้เรียกที่ล็อกอินด้วยบัญชี QA ของบทบาทที่ระบุ (ดู src/config/qa-accounts.ts)
@@ -95,7 +98,8 @@ export const test = base.extend<ApiFixtures>({
   },
 
   agent: async ({ apiAs }, use) => {
-    await use(await apiAs(`Bearer ${devToken()}`));
+    // qaDevToken โยน error ที่บอกชื่อตัวแปรถ้ายังไม่ได้ตั้ง uuid (ปกติไม่ถึงจุดนี้ เพราะ global-setup หยุดก่อน)
+    await use(await apiAs(`Bearer ${qaDevToken(qaAccounts.agent)}`));
   },
 
   qa: async ({ apiAs }, use, testInfo) => {
