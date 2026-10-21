@@ -3,6 +3,7 @@ import { validateSignaturePng } from './signature-image';
 import { financialKind, validateFinancialDocument, buildReceiptFromInvoice, financialTotals } from "./financial-document";
 import { createFinancialPdf } from "./financial-pdf";
 import { reservationInvoice } from "./reservation-invoice";
+import { tenantDraftPatch } from "../tenants/tenant-draft-sync";
 import { validateCommissionConfirmation } from "./commission-confirmation";
 import { createCommissionConfirmationPdf } from "./commission-confirmation-pdf";
 import {
@@ -34,6 +35,7 @@ import {
   shareLinkExpiresAt,
 } from "../../common/share-link-token";
 import { DataSource, EntityManager, IsNull, Raw } from "typeorm";
+import type { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
 import {
   MOCK_RESERVATION_VERSION,
   createReservationMock,
@@ -72,7 +74,7 @@ import {
   RENEWAL_ADVANCE_DAYS,
 } from "./lease-renewal";
 import { asIsoDate, isIsoDate, leaseTermEnd, shiftIsoDate } from "./lease-term";
-import { validateReservationLetter, emptyReservationLetter, stampReservationDocumentHeader, bangkokDate } from "./reservation-letter";
+import { validateReservationLetter, emptyReservationLetter, stampReservationDocumentHeader, bangkokDate, reservationTenantFields } from "./reservation-letter";
 import { ensurePartyLogin } from "./party-login";
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
 import { closeLeaseContract, contractEndReasons } from "./contract-closure";
@@ -2392,16 +2394,7 @@ export class AgentContractsService {
     return {
       ...emptyReservationLetter(),
       issueDate: bangkokDate(),
-      tenantName:
-        [tenant.first_name, tenant.last_name].filter((part) => part?.trim()).join(" ") ||
-        tenant.name ||
-        "",
-      tenantFirstName: tenant.first_name ?? "",
-      tenantLastName: tenant.last_name ?? "",
-      tenantPhone: tenant.phone ?? "",
-      tenantEmail: tenant.email ?? "",
-      tenantId: tenant.identity_number ?? "",
-      tenantNationality: tenant.nationality ?? "",
+      ...reservationTenantFields(tenant),
       landlordName,
       landlordFirstName: landlordIsUser ? ownerUser?.first_name ?? "" : "",
       landlordLastName: landlordIsUser ? ownerUser?.last_name ?? "" : "",
@@ -2606,6 +2599,74 @@ export class AgentContractsService {
       name: t.name, formKind: t.form_kind, dataSchema: t.data_schema };
   }
 
+  /**
+   * C1: save an edited tenant and bring that tenant's untouched drafts up to date in one transaction.
+   * Untouched means the same rule as editing a draft by hand (assertDraft): no signature, slip, receipt
+   * or generated document. A reservation draft's booking invoice is rebuilt with the same number and
+   * date, as saveDraft does, so the invoice and a later receipt show the new details. Drafts whose
+   * details are already current are not written, and unused sign links of changed drafts are revoked.
+   */
+  async saveTenantAndRefreshDrafts(agentId: number, tenant: TenantEntity): Promise<number[]> {
+    const stored: string[] = [];
+    const replaced: string[] = [];
+    const updated = await this.db
+      .transaction(async (manager) => {
+        await manager.getRepository(TenantEntity).save(tenant);
+        const drafts = await manager.find(LeaseContractEntity, {
+          where: { tenant_id: tenant.id, created_by_user_id: agentId, status: "draft" },
+          lock: { mode: "pessimistic_write" },
+        });
+        const ids: number[] = [];
+        for (const draft of drafts) {
+          try {
+            this.assertDraft(draft);
+          } catch (error) {
+            // A draft that may no longer be edited is skipped; anything else is a real failure.
+            if (error instanceof BadRequestException) continue;
+            throw error;
+          }
+          const patch = tenantDraftPatch(draft, tenant);
+          if (!patch) continue;
+          const update: Record<string, unknown> = { ...patch };
+          const previousFinancial = patch.data.financialDocuments as
+            | { invoice?: FinancialDocumentInput }
+            | undefined;
+          if (previousFinancial?.invoice) {
+            // Without document storage the invoice cannot be rebuilt; leave the whole draft as it is.
+            if (!this.documents) continue;
+            const invoice = reservationInvoice({ ...draft, ...patch } as LeaseContractEntity);
+            let file: { path: string };
+            try {
+              const pdf = await createFinancialPdf("invoice", invoice);
+              file = await this.documents.upload(agentId, draft.id, "invoice", { buffer: pdf, size: pdf.length });
+            } catch {
+              throw new ServiceUnavailableException(
+                "บันทึกข้อมูลผู้เช่าไม่สำเร็จ เพราะสร้างใบแจ้งหนี้ค่าจองใหม่ไม่ได้ ข้อมูลผู้เช่ายังไม่ถูกแก้ กรุณาลองอีกครั้ง",
+              );
+            }
+            stored.push(file.path);
+            if (draft.invoice_url && draft.invoice_url !== file.path) replaced.push(draft.invoice_url);
+            update.invoice_url = file.path;
+            update.data = { ...patch.data, financialDocuments: { ...previousFinancial, invoice } };
+          }
+          await manager.update(
+            LeaseContractEntity,
+            { id: draft.id, created_by_user_id: agentId },
+            update as QueryDeepPartialEntity<LeaseContractEntity>,
+          );
+          await this.revokeDraftInvites(manager, draft.id);
+          ids.push(draft.id);
+        }
+        return ids;
+      })
+      .catch(async (error) => {
+        for (const path of stored) await this.documents?.remove(path).catch(() => undefined);
+        throw error;
+      });
+    for (const path of replaced) await this.documents?.remove(path).catch(() => undefined);
+    return updated;
+  }
+
   private async revokeDraftInvites(manager: EntityManager, id: number) {
     await manager.update(AgreementSignInviteEntity,
       { agreement_id: id, used_at: IsNull(), revoked_at: IsNull() },
@@ -2783,6 +2844,7 @@ export class AgentContractsService {
             nationality: reservationLetter.tenantNationality,
             role: "tenant",
             who: "ผู้เช่า",
+            tenantLeadId: b.leadId,
           }),
           ownerUserId: await ensurePartyLogin(this.db, {
             email: reservationLetter.landlordEmail,

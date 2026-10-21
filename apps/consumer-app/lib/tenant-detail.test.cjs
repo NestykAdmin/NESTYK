@@ -24,6 +24,8 @@ const {
   confirmBill,
   withLiveSlips,
   tenantSlips,
+  tenantStage,
+  tenantDocuments,
 } = detail;
 const slip = (over = {}) => ({
   id: 41,
@@ -145,6 +147,53 @@ test('next action prefers a slip to review, then a missing contract, then signat
   assert.equal(tenantNextAction(tenant({ contracts: [] }), null).kind, 'reservation');
   assert.equal(tenantNextAction(tenant({ contracts: [contract({ status: 'awaiting_signatures' })] }), null).kind, 'sign');
   assert.equal(tenantNextAction(tenant(), demoTenantBilling(tenant(), new Date(2026, 9, 7))), null);
+});
+
+test('a fully signed document asks the agent to confirm it before any document still collecting signatures', () => {
+  const signing = contract({ id: 8, formKind: 'reservation', status: 'awaiting_signatures' });
+  const signed = contract({ id: 9, formKind: 'reservation', status: 'awaiting_agent_review' });
+  const next = tenantNextAction(tenant({ contracts: [signing, signed] }), null);
+  assert.equal(next.kind, 'confirm');
+  assert.equal(next.contract.id, 9);
+  const billing = withLiveSlips(demoTenantBilling(tenant(), new Date(2026, 9, 7)), [slip()]);
+  assert.equal(tenantNextAction(tenant({ contracts: [signed] }), billing).kind, 'review_slip');
+});
+
+test('a tenant whose only documents were cancelled is offered a new reservation', () => {
+  const cancelled = contract({ id: 8, formKind: 'reservation', status: 'cancelled' });
+  assert.equal(tenantNextAction(tenant({ contracts: [cancelled] }), null).kind, 'reservation');
+  const draft = contract({ id: 9, formKind: 'reservation', status: 'draft' });
+  assert.equal(tenantNextAction(tenant({ contracts: [cancelled, draft] }), null), null);
+});
+
+test('tenant stage separates an active lease, an ended lease and one still being drawn up', () => {
+  const today = new Date(2026, 9, 7);
+  assert.equal(tenantStage(tenant(), today), 'active');
+  assert.equal(tenantStage(tenant({ contracts: [contract({ status: 'expired' })] }), today), 'ended');
+  assert.equal(tenantStage(tenant({ contracts: [contract({ status: 'terminated' })] }), today), 'ended');
+  assert.equal(tenantStage(tenant({ contracts: [contract({ status: 'awaiting_signatures' })] }), today), 'signing');
+  assert.equal(tenantStage(tenant({ contracts: [contract({ status: 'cancelled' })] }), today), 'signing');
+  assert.equal(tenantStage(tenant({ contracts: [] }), today), 'signing');
+  // A new lease being drawn up after the old one ended counts as signing again.
+  const ended = contract({ id: 1, status: 'expired', startDate: '2025-06-01', endDate: '2026-05-31' });
+  const next = contract({ id: 2, status: 'draft', startDate: '2026-11-01', endDate: '2027-10-31' });
+  assert.equal(tenantStage(tenant({ contracts: [ended, next] }), today), 'signing');
+  // So does a new reservation in progress, but a cancelled one leaves the lease ended.
+  const reserving = contract({ id: 3, formKind: 'reservation', status: 'awaiting_signatures', startDate: '2026-11-01' });
+  assert.equal(tenantStage(tenant({ contracts: [ended, reserving] }), today), 'signing');
+  const dropped = contract({ id: 4, formKind: 'reservation', status: 'cancelled', startDate: '2026-11-01' });
+  assert.equal(tenantStage(tenant({ contracts: [ended, dropped] }), today), 'ended');
+  // The usual case: the reservation that led to the lease is itself active.
+  const booked = contract({ id: 5, formKind: 'reservation', status: 'active', startDate: '2025-05-20' });
+  assert.equal(tenantStage(tenant({ contracts: [booked, ended] }), today), 'ended');
+});
+
+test('tenant documents skip cancelled ones and list the newest first', () => {
+  const cancelled = contract({ id: 1, status: 'cancelled', startDate: '2026-09-01' });
+  assert.deepEqual(tenantDocuments(tenant({ contracts: [cancelled] })), []);
+  const older = contract({ id: 2, status: 'expired', startDate: '2025-06-01' });
+  const draft = contract({ id: 3, formKind: 'reservation', status: 'draft', startDate: '2026-11-01' });
+  assert.deepEqual(tenantDocuments(tenant({ contracts: [older, cancelled, draft] })).map((c) => c.id), [3, 2]);
 });
 
 test('confirming a slip pays the bill and records the payment once', () => {

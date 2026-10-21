@@ -13,7 +13,7 @@ function load(file, deps = {}) {
   return loaded.exports;
 }
 const detail = load('tenant-detail.ts');
-const { tenantWorkItems, workCounts, contractSignatures, tenantListStatus, groupByProperty } = load('tenant-work.ts', {
+const { tenantWorkItems, workCounts, contractSignatures, tenantListStatus, groupByProperty, matchesDirectoryFilter } = load('tenant-work.ts', {
   './tenant-detail': detail,
 });
 
@@ -72,6 +72,28 @@ test('directory status is the tenant own most urgent work, else lease state', ()
   assert.equal(tenantListStatus(active, items), 'slip');
   assert.equal(tenantListStatus(draft, items), 'none');
   assert.equal(tenantListStatus(active, []), 'active');
+  const ended = tenant(3, { contracts: [contract({ id: 3, status: 'terminated' })] });
+  assert.equal(tenantListStatus(ended, []), 'ended');
+});
+
+test('a fully signed document waiting for the agent stays in signing work', () => {
+  const row = tenant(1, {
+    contracts: [contract({ id: 5, formKind: 'lease', status: 'awaiting_agent_review', ownerSignedAt: 'x', tenantSignedAt: 'y' })],
+  });
+  const items = tenantWorkItems([row], [], today);
+  assert.deepEqual(items.map((i) => [i.kind, i.contract.id, i.signed, i.required]), [['signing', 5, 2, 2]]);
+  assert.equal(tenantListStatus(row, items), 'signing');
+});
+
+test('directory chips: an ended lease shows only under all', () => {
+  const active = tenant(1, { contracts: [contract({ id: 1 })] });
+  const signing = tenant(2, { contracts: [contract({ id: 2, status: 'awaiting_signatures' })] });
+  const ended = tenant(3, { contracts: [contract({ id: 3, status: 'expired' })] });
+  const none = tenant(4);
+  const pick = (key) => [active, signing, ended, none].filter((row) => matchesDirectoryFilter(row, key)).map((row) => row.id);
+  assert.deepEqual(pick('all'), [1, 2, 3, 4]);
+  assert.deepEqual(pick('signing'), [2, 4]);
+  assert.deepEqual(pick('active'), [1]);
 });
 
 test('tenants group by project in name order', () => {
@@ -88,11 +110,11 @@ test('tenants group by project in name order', () => {
 
 test('renewal work disappears once there is a draft, signable, or signed successor and returns after cancellation', () => {
   const original = contract({ id: 10, endDate: '2026-10-29' });
-  for (const status of ['draft', 'awaiting_signatures', 'active', 'cancelled']) {
+  for (const status of ['draft', 'awaiting_signatures', 'awaiting_agent_review', 'active', 'cancelled']) {
     const successor = contract({ id: 11, formKind: 'renewal', previousAgreementId: original.id, status, startDate: '2026-10-30', endDate: '2027-10-29' });
     const items = tenantWorkItems([tenant(1, { contracts: [original, successor] })], [], today);
     assert.equal(items.some(i => i.kind === 'renewal'), status === 'cancelled', status);
-    assert.equal(items.some(i => i.kind === 'signing'), status === 'awaiting_signatures', status);
+    assert.equal(items.some(i => i.kind === 'signing'), status.startsWith('awaiting_'), status);
   }
 });
 

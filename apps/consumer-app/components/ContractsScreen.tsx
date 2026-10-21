@@ -40,6 +40,7 @@ import {
   Linking,
   Modal,
   Alert,
+  Share,
 } from "react-native";
 import {
   SafeAreaProvider,
@@ -95,6 +96,7 @@ import {
   uploadAgentContractDocument,
   signAgentContract,
   deliverAgentContract,
+  createContractSignInvite,
   previewAgentReservation,
   generateAgentReservation,
   previewAgentBrokerAppointment,
@@ -116,6 +118,8 @@ import {
 } from "./ContractSignaturePad";
 import { bangkokDateKey, isIsoDate, leaseTermEnd, positiveMonths, shiftIsoDate } from "../lib/lease-term";
 import { renewalCandidates, renewalClosedMessage } from "../lib/contract-renewal";
+import { canCloseContract } from "../lib/contract-close";
+import { ContractCloseCard, closeResultNotice } from "./ContractCloseCard";
 
 const color = (status: AgentContractStatus) =>
   status === "active"
@@ -218,13 +222,18 @@ type ContractsScreenProps = {
   startCreate?: CreateDocumentKind | null;
   /** Clear the requested create kind after it has been opened. */
   onStartCreateHandled?: () => void;
+  /**
+   * Filled with this screen's own back step for the host's header back button.
+   * Returns true when the screen stepped back itself (type picker or a create menu opened from it).
+   */
+  backRef?: React.MutableRefObject<(() => boolean) | null>;
 };
 
 export function ContractsScreen(props: ContractsScreenProps = {}) {
   return <MobileThemeProvider defaultMode="light"><ContractsWorkspace {...props} /></MobileThemeProvider>;
 }
 
-function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled }: ContractsScreenProps) {
+function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled, backRef }: ContractsScreenProps) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
   const docs = t.agent.contracts;
@@ -548,7 +557,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     </Pressable>
   );
   const errorView = error ? (
-    <Text accessibilityRole="alert" style={[s.body, { color: "#C74747" }]}>
+    // selectable: a sign link that could not be shared is shown here for the agent to copy.
+    <Text accessibilityRole="alert" selectable style={[s.body, { color: "#C74747" }]}>
       {error}
     </Text>
   ) : null;
@@ -863,12 +873,52 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   }
   function confirmShare(party: ContractParty) {
     if (!selected || busy || documentLocked || !attachmentsReady) return;
-    if (partyDeliveredAt(selected, party)) return;
     const label = party === "owner" ? docs.owner : docs.tenant;
-    Alert.alert(docs.shareSign, docs.shareSignMessage.replace("{party}", label), [
-      { text: t.common.cancel, style: "cancel" },
-      { text: docs.shareSignSend, onPress: () => void shareSignInvite(party) },
-    ]);
+    // In the app goes to the party's account once; a sign link (15 minutes, from the API) can be sent any time.
+    const delivered = !!partyDeliveredAt(selected, party);
+    Alert.alert(
+      docs.shareSign,
+      fillTemplate(delivered ? docs.shareSignLinkOnly : docs.shareSignChoose, { party: label }),
+      [
+        { text: t.common.cancel, style: "cancel" },
+        ...(delivered ? [] : [{ text: docs.shareSignApp, onPress: () => void shareSignInvite(party) }]),
+        { text: docs.shareSignLink, onPress: () => void shareSignLink(party) },
+      ],
+    );
+  }
+  async function shareSignLink(party: ContractParty) {
+    if (!selected || busy || documentLocked || !attachmentsReady) return;
+    const contract = selected;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const invite = await createContractSignInvite(contract.id, party);
+      const time = new Date(invite.expiresAt).toLocaleTimeString(localeTag(locale), {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Bangkok",
+      });
+      const label = party === "owner" ? docs.owner : docs.tenant;
+      // The link exists from here on, and older links for this party no longer work.
+      try {
+        const shared = await Share.share({
+          message: fillTemplate(docs.shareSignLinkMessage, { no: contract.contractNo, party: label, time, url: invite.url }),
+        });
+        setNotice(
+          fillTemplate(shared.action === Share.dismissedAction ? docs.shareSignLinkNotSent : docs.shareSignLinkReady, {
+            party: label,
+            time,
+          }),
+        );
+      } catch {
+        setError(fillTemplate(docs.shareSignLinkCopy, { party: label, time, url: invite.url }));
+      }
+    } catch (e) {
+      setError(localizedError(e, docs.shareSignLinkError, locale));
+    } finally {
+      setBusy(false);
+    }
   }
   async function shareSignInvite(party: ContractParty) {
     if (!selected || busy || documentLocked || !attachmentsReady) return;
@@ -910,6 +960,29 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const reservationRequest = useRef(false);
   const [pdfAction, setPdfAction] = useState<"preview" | "generate" | null>(
     null,
+  );
+  useEffect(() => {
+    if (!backRef) return;
+    backRef.current = () => {
+      if (choosingType) {
+        setChoosingType(false);
+        setError("");
+        return true;
+      }
+      // These menus' own back buttons return to the type picker, so the header back does the same.
+      if (menuCreate === "renewal" || menuCreate === "agent_commission" || menuCreate === "invoice") {
+        setMenuCreate(null);
+        setChoosingType(true);
+        return true;
+      }
+      return false;
+    };
+  });
+  useEffect(
+    () => () => {
+      if (backRef) backRef.current = null;
+    },
+    [backRef],
   );
   async function openReservation(generate: boolean) {
     if (!selected || reservationRequest.current) return;
@@ -1633,16 +1706,17 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     setMenuCreate(kind);
   }
 
-  if (choosingType)
+  if (choosingType) {
+    const locks: Array<[CreateDocumentKind, string]> = [
+      ["lease", !loadingList && !finalizedReservation(tenant?.leadId ?? null) ? cn.leaseRequiresReservation : ""],
+      ["renewal", renewalClosedMessage(contracts, tc.renewalForm)],
+    ];
+    const locked = locks.filter(([, hint]) => !!hint);
     return (
       <ContractTypePicker
         message={error}
-        disabledKinds={
-          renewalClosedMessage(contracts, tc.renewalForm) ? ["renewal"] : []
-        }
-        disabledHint={
-          renewalClosedMessage(contracts, tc.renewalForm) || undefined
-        }
+        disabledKinds={locked.map(([kind]) => kind)}
+        disabledHint={locked.map(([, hint]) => hint).join("\n") || undefined}
         onBack={() => {
           setChoosingType(false);
           setError("");
@@ -1652,6 +1726,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         }}
       />
     );
+  }
   if (menuCreate === "renewal")
     return (
       <View style={s.root}>
@@ -2360,6 +2435,21 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
 
         </View>
         )}
+        {canCloseContract(selected) && (
+          <ContractCloseCard
+            key={selected.id}
+            contract={selected}
+            disabled={busy}
+            onClosed={(result) => {
+              setSelected(result.contract);
+              setContracts((rows) =>
+                rows.map((row) => (row.id === result.contract.id ? result.contract : row)),
+              );
+              setNotice(closeResultNotice(result, docs.closeContract));
+              onChanged?.();
+            }}
+          />
+        )}
         {(selected.formKind === "reservation" ||
           selected.formKind === "lease" ||
           selected.formKind === "renewal" ||
@@ -2611,6 +2701,11 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 {!party.signed && bookingPaymentBlocksSigning(selected, party.key) && (
                   <Text style={[s.small, muted]}>{t.mobile.partyContracts.bookingPaymentBeforeSigning}</Text>
                 )}
+                {!party.signed &&
+                  (party.key === "owner" || party.key === "tenant") &&
+                  !!partyDeliveredAt(selected, party.key) && (
+                    <Text style={[s.small, muted]}>{docs.shareSignDelivered}</Text>
+                  )}
               </View>
               {party.signed && party.signatureUrl ? (
                 <MobileButton
@@ -2635,15 +2730,11 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                     <MobileButton
                       variant="outline"
                       style={s.shareButton}
-                      disabled={
-                        busy ||
-                        !attachmentsReady ||
-                        !!partyDeliveredAt(selected, party.key)
-                      }
+                      disabled={busy || !attachmentsReady}
                       onPress={() => confirmShare(party.key === "owner" ? "owner" : "tenant")}
                     >
                       {partyDeliveredAt(selected, party.key)
-                        ? docs.shareSignSent
+                        ? docs.shareSignLink
                         : docs.shareSign}
                     </MobileButton>
                   )}

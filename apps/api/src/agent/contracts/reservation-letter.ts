@@ -1,5 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import type { ReservationLetterInput } from "@nestyk/types";
+import type { TenantEntity } from "../../entities/tenant.entity";
 
 const TEXT = [
   ["documentNo", 40],
@@ -74,6 +75,30 @@ export function stampReservationDocumentHeader(
       typeof savedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(savedDate)
         ? savedDate
         : bangkokDate(),
+  };
+}
+
+type TenantParty = Pick<
+  TenantEntity,
+  "name" | "first_name" | "last_name" | "phone" | "email" | "identity_number" | "nationality"
+>;
+
+/**
+ * The tenant fields a reservation letter always takes from the tenant record (they are locked in the app form).
+ * Used for new letters, on every draft save, and when the agent edits the tenant (draft sync).
+ */
+export function reservationTenantFields(tenant: TenantParty) {
+  return {
+    tenantName:
+      [tenant.first_name, tenant.last_name].filter((part) => part?.trim()).join(" ") ||
+      tenant.name ||
+      "",
+    tenantFirstName: tenant.first_name ?? "",
+    tenantLastName: tenant.last_name ?? "",
+    tenantPhone: tenant.phone ?? "",
+    tenantEmail: tenant.email ?? "",
+    tenantId: tenant.identity_number ?? "",
+    tenantNationality: tenant.nationality ?? "",
   };
 }
 

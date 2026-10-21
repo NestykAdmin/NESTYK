@@ -1,5 +1,5 @@
 import type { AgentContract, AgentTenant, TenantBill } from "@nestyk/types";
-import { dateKey, tenantLease, tenantSlips } from "./tenant-detail";
+import { dateKey, tenantLease, tenantSlips, tenantStage } from "./tenant-detail";
 
 /** Most urgent first; also the order of the summary tiles. */
 export const TENANT_WORK_KINDS = ["slip", "overdue", "signing", "renewal"] as const;
@@ -47,7 +47,8 @@ export function tenantWorkItems(tenants: AgentTenant[], slips: TenantBill[], tod
   for (const tenant of tenants) {
     for (const bill of tenantSlips(tenant, slips)) items.push({ kind: "slip", tenant, bill });
     for (const contract of tenant.contracts) {
-      if (contract.status === "awaiting_signatures") {
+      // Fully signed documents wait for the agent to confirm and build the PDF, so they stay in "signing".
+      if (contract.status === "awaiting_signatures" || contract.status === "awaiting_agent_review") {
         items.push({ kind: "signing", tenant, contract, ...contractSignatures(contract) });
       }
     }
@@ -78,13 +79,21 @@ export function workCounts(items: TenantWorkItem[]): Record<TenantWorkKind, numb
   return counts;
 }
 
-export type TenantListStatus = "slip" | "signing" | "renewal" | "active" | "none";
+export type TenantDirectoryFilter = "all" | "signing" | "active";
 
-/** One status per tenant for the directory row: its most urgent work, else whether a lease is active. */
+/** Directory chips: "signing" and "active" follow the tenant stage; an ended lease shows only under "all". */
+export function matchesDirectoryFilter(tenant: AgentTenant, key: TenantDirectoryFilter): boolean {
+  return key === "all" || tenantStage(tenant) === key;
+}
+
+export type TenantListStatus = "slip" | "signing" | "renewal" | "active" | "ended" | "none";
+
+/** One status per tenant for the directory row: its most urgent work, else where the lease stands. */
 export function tenantListStatus(tenant: AgentTenant, items: TenantWorkItem[]): TenantListStatus {
   const own = items.find((item) => item.tenant.id === tenant.id && item.kind !== "overdue");
-  if (own) return own.kind as Exclude<TenantListStatus, "active" | "none">;
-  return tenantLease(tenant)?.status === "active" ? "active" : "none";
+  if (own) return own.kind as Exclude<TenantListStatus, "active" | "ended" | "none">;
+  const stage = tenantStage(tenant);
+  return stage === "signing" ? "none" : stage;
 }
 
 /** Tenants grouped by project name, groups and members in name order. */

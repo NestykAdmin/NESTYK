@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { useLocale } from "@nestyk/i18n";
 import { useMobileTheme } from "@nestyk/ui/native";
 import type { AgentTenant } from "@nestyk/types";
+import { tenantDocuments } from "../lib/tenant-detail";
 import { AgreementAttachments } from "./AgreementAttachments";
 import { DetailCard, ps } from "./TenantDetailParts";
 
@@ -11,9 +12,7 @@ export function TenantAttachmentsBody({ tenant }: { tenant: AgentTenant }) {
   const { t } = useLocale();
   const d = t.agent.tenants.detail;
   const { theme } = useMobileTheme();
-  const contracts = tenant.contracts
-    .filter((c) => c.status !== "cancelled")
-    .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.id - a.id);
+  const contracts = tenantDocuments(tenant);
 
   if (!contracts.length) {
     return (

@@ -87,3 +87,27 @@ test('grouped create menu dispatches all six existing document kinds and keeps r
   const renewal = buttons.find(n => n.props.disabled);
   assert.match(renewal.props.accessibilityLabel, /ต่อสัญญา/);
 });
+
+test('inside a tenant the summary card drops the name the screen header already shows', () => {
+  const view=lib.emptyLibraryView();
+  const texts=r=>r.nodes.filter(n=>n.type==='text').map(n=>[].concat(n.props.children).join(''));
+  const inside=render(view, { tenantName: 'พิมพ์ ใจดี', commissions: [{ ...commission, pdfUrl: null }] });
+  assert.equal(texts(inside).some(t=>t.includes('พิมพ์ ใจดี')),false);
+  assert.equal(texts(inside).includes(contractsTh.screen.library.title),false);
+  assert.equal(texts(inside).includes('พใ'),false);
+  assert.ok(texts(inside).includes(contractsTh.screen.library.documentCount.replace('{count}', String(entries().length))));
+  assert.ok(inside.nodes.some(n=>n.type==='button' && n.props.onPress===base.onCreate));
+  assert.ok(inside.nodes.some(n=>n.type==='mark'));
+  const everyone=render(view);
+  assert.ok(texts(everyone).includes(contractsTh.screen.library.title));
+});
+
+test('create waits until the document list has loaded, with or without a tenant', () => {
+  // Otherwise the type picker would show lease and renewal locks worked out from an empty list.
+  const view=lib.emptyLibraryView();
+  const create=r=>r.nodes.find(n=>n.type==='button' && n.props.onPress===base.onCreate).props.disabled;
+  for (const tenantName of ['พิมพ์ ใจดี', undefined]) {
+    assert.equal(create(render(view, { tenantName, loading: true })),true,String(tenantName));
+    assert.equal(create(render(view, { tenantName })),false,String(tenantName));
+  }
+});

@@ -84,7 +84,9 @@ export function TenantWorkBody({
     item.kind === "slip"
       ? l.pillSlip
       : item.kind === "signing"
-        ? l.pillSigning.replace("{signed}", String(item.signed)).replace("{required}", String(item.required))
+        ? item.contract.status === "awaiting_agent_review"
+          ? l.pillConfirm
+          : l.pillSigning.replace("{signed}", String(item.signed)).replace("{required}", String(item.required))
         : item.kind === "renewal"
           ? item.daysLeft === 0
             ? l.pillRenewalToday

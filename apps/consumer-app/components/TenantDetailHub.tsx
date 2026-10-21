@@ -9,6 +9,8 @@ import {
   billingTotals,
   missingProfileFields,
   tenantLease,
+  tenantDocuments,
+  tenantStage,
   type TenantNextAction,
   type TenantProfileField,
   type TenantSection,
@@ -47,7 +49,8 @@ export function TenantDetailHub({
   const fmt = billFormatters(locale);
 
   const lease = tenantLease(tenant);
-  const active = lease?.status === "active";
+  const stage = tenantStage(tenant);
+  const active = stage === "active";
   const missing = missingProfileFields(tenant);
   const totals = billingTotals(billing);
   const fieldLabel: Record<TenantProfileField, string> = {
@@ -87,6 +90,13 @@ export function TenantDetailHub({
         cta: d.nowSlipCta,
       };
     }
+    if (next.kind === "confirm") {
+      return {
+        title: d.nowConfirmTitle,
+        body: d.nowConfirmBody.replace("{contract}", next.contract.agreementTypeName || next.contract.contractNo),
+        cta: d.nowConfirmCta,
+      };
+    }
     if (next.kind === "sign") {
       return {
         title: d.nowSignTitle,
@@ -113,8 +123,8 @@ export function TenantDetailHub({
               {tenant.name}
             </Text>
             <MobileStatusPill
-              label={active ? d.statusActive : d.statusSigning}
-              tone={active ? "green" : "yellow"}
+              label={active ? d.statusActive : stage === "ended" ? d.statusEnded : d.statusSigning}
+              tone={active ? "green" : stage === "ended" ? "slate" : "yellow"}
               style={s.pill}
             />
           </View>
@@ -237,7 +247,7 @@ export function TenantDetailHub({
         <DetailMenuRow
           icon="files"
           title={d.sectionAttachments}
-          summary={tenant.contracts.length ? d.attachmentsSummary : d.attachmentsEmpty}
+          summary={tenantDocuments(tenant).length ? d.attachmentsSummary : d.attachmentsEmpty}
           onPress={() => onOpen("attachments")}
           last
         />

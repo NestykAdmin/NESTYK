@@ -7,6 +7,8 @@ export interface AgentTenant {
   lastName: string;
   phone: string;
   email: string | null;
+  /** The tenant already has a login (made when a reservation letter was saved); the email can no longer change. */
+  hasAccount: boolean;
   note: string | null;
   identityNumber: string | null;
   nationality: string | null;

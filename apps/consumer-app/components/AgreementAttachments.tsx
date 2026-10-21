@@ -13,6 +13,7 @@ import * as DocumentPicker from "expo-document-picker";
 import {
   MobileBottomSheet,
   MobileButton,
+  MobileInput,
   tokens,
   useMobileTheme,
 } from "@nestyk/ui/native";
@@ -26,8 +27,10 @@ import {
   removeAgreementAttachment,
   openAgreementAttachment,
   reuseAgreementAttachment,
+  reviewAgreementAttachment,
   uploadAgreementAttachment,
 } from "../lib/agent-contracts-api";
+import { attachmentReviewText, canReviewAttachment } from "../lib/attachment-review";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 
@@ -171,6 +174,9 @@ export function AgreementAttachments({
   const [preview, setPreview] = useState<{ name: string; url: string; document: AgreementAttachment } | null>(
     null,
   );
+  const ar = t.agent.contracts.attachmentReview;
+  /** Reject note being typed in the preview; null while the reject form is closed. */
+  const [rejectNote, setRejectNote] = useState<string | null>(null);
   const [extraSubject, setExtraSubject] =
     useState<AgreementDocumentSubject>("tenant");
   const [extraType, setExtraType] = useState("national_id");
@@ -336,6 +342,26 @@ export function AgreementAttachments({
     });
   }
 
+  async function review(document: AgreementAttachment, status: "accepted" | "rejected", note?: string) {
+    await act(async () => {
+      const next = await reviewAgreementAttachment(contractId, document.id, status, note?.trim() || undefined);
+      setState(next);
+      setRejectNote(null);
+      setPreview(null);
+    });
+  }
+
+  function closePreview() {
+    setRejectNote(null);
+    setPreview(null);
+  }
+
+  function renderReviewLine(document: AgreementAttachment) {
+    const color =
+      document.reviewStatus === "accepted" ? "#198460" : document.reviewStatus === "rejected" ? "#C74747" : theme.textSecondary;
+    return <Text style={[s.docMeta, { color }]}>{attachmentReviewText(document, ar)}</Text>;
+  }
+
   function renderDocActions(document: AgreementAttachment) {
     return (
       <View style={s.actions}>
@@ -398,6 +424,7 @@ export function AgreementAttachments({
               {typeName(doc.documentTypeCode, state.documentTypes)} ·{" "}
               {new Date(doc.createdAt).toLocaleDateString("th-TH")}
             </Text>
+            {renderReviewLine(doc)}
 
             {renderDocActions(doc)}
           </View>
@@ -570,6 +597,7 @@ export function AgreementAttachments({
                         {subjects[document.subject]} ·{" "}
                         {typeName(document.documentTypeCode, state.documentTypes)}
                       </Text>
+                      {renderReviewLine(document)}
                       <View style={s.extraActions}>
                         <MobileButton
                           variant="outline"
@@ -794,21 +822,69 @@ export function AgreementAttachments({
 
       <Modal
         visible={!!preview}
-        onRequestClose={() => setPreview(null)}
+        onRequestClose={closePreview}
         animationType="slide"
       >
         <View style={[s.modal, { backgroundColor: theme.surface }]}>
           <Text style={[s.heading, ink]}>{preview?.name}</Text>
-          <MobileButton variant="outline" onPress={() => setPreview(null)}>
+          <MobileButton variant="outline" onPress={closePreview}>
             {tc.common.closeDocument}
           </MobileButton>
           {preview && <ContractDocumentPreview url={preview.url} />}
+          {preview && renderReviewLine(preview.document)}
+          {!!error && preview && (
+            <Text accessibilityRole="alert" style={[s.docMeta, { color: "#C74747" }]}>
+              {error}
+            </Text>
+          )}
+          {preview && state && canReviewAttachment(preview.document, state.editable) && (
+            rejectNote == null ? (
+              <View style={s.reviewActions}>
+                <MobileButton
+                  style={s.grow}
+                  disabled={busy}
+                  onPress={() => void review(preview.document, "accepted")}
+                >
+                  {ar.accept}
+                </MobileButton>
+                <MobileButton
+                  variant="outline"
+                  style={s.grow}
+                  disabled={busy}
+                  onPress={() => setRejectNote("")}
+                >
+                  {ar.reject}
+                </MobileButton>
+              </View>
+            ) : (
+              <>
+                <MobileInput
+                  label={ar.rejectNote}
+                  value={rejectNote}
+                  onChangeText={setRejectNote}
+                  editable={!busy}
+                  maxLength={1000}
+                  multiline
+                />
+                <Text style={[s.docMeta, muted]}>{ar.rejectHint}</Text>
+                <MobileButton
+                  disabled={busy || !rejectNote.trim()}
+                  onPress={() => void review(preview.document, "rejected", rejectNote)}
+                >
+                  {ar.confirmReject}
+                </MobileButton>
+                <MobileButton variant="outline" disabled={busy} onPress={() => setRejectNote(null)}>
+                  {tc.common.cancel}
+                </MobileButton>
+              </>
+            )
+          )}
           {preview && state?.editable && preview.document.isCurrent && (
             <MobileButton
               disabled={busy}
               onPress={() => {
                 const document = preview.document;
-                setPreview(null);
+                closePreview();
                 setTimeout(() => {
                   const requirement = state.requirements.find((item) =>
                     currentDocForRequirement(item, state.documents)?.id === document.id,
@@ -833,6 +909,7 @@ export function AgreementAttachments({
 
 const s = StyleSheet.create({
   stack: { gap: 12 },
+  reviewActions: { flexDirection: "row", gap: 10 },
   card: { padding: 16, gap: 14, borderWidth: 1, borderRadius: 16 },
   header: {
     flexDirection: "row",

@@ -121,12 +121,10 @@ test('updates tenant profile fields without requiring lead or room ids', async (
   const qb = {};
   for (const k of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[k] = () => qb;
   qb.getOne = async () => tenant;
+  const refreshed = [];
   const service = new AgentTenantsService({
-    getRepository: () => ({
-      createQueryBuilder: () => qb,
-      save: async (row) => row,
-    }),
-  }, { list: async () => [] });
+    getRepository: () => ({ createQueryBuilder: () => qb, save: async () => assert.fail('the tenant is saved by the contracts service, with its drafts') }),
+  }, { list: async () => [], saveTenantAndRefreshDrafts: async (agentId, row) => { refreshed.push([agentId, { ...row }]); return []; } });
   service.view = async (agent, id) => {
     assert.equal(agent, 7);
     assert.equal(id, 8);
@@ -153,6 +151,9 @@ test('updates tenant profile fields without requiring lead or room ids', async (
   assert.equal(tenant.identity_number, 'A1234567');
   assert.equal(tenant.nationality, 'ไทย');
   assert.equal(result.name, 'New Name');
+  assert.equal(refreshed.length, 1);
+  assert.equal(refreshed[0][0], 7);
+  assert.equal(refreshed[0][1].name, 'New Name', 'the drafts get the edited details, not the old ones');
 });
 test('rejects update for missing tenant after scoped lookup', async () => {
   const qb = {};
@@ -188,3 +189,160 @@ test('tenant HTTP routes require agent role and pass current identity to service
   assert.deepEqual(await patched.json(), { ...profile, ...names, agentId: 7, id: 8 });
   assert.equal((await fetch(`${path}/8`, { method: 'PATCH', headers: headers(8), body: JSON.stringify(profile) })).status, 403);
 });
+
+const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
+const { sameTenantPerson, ensurePartyLogin, TENANT_EMAIL_IN_USE } = require('../src/agent/contracts/party-login.ts');
+const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
+const { UserEntity } = require('../src/entities/user.entity.ts');
+const { AgreementSignInviteEntity } = require('../src/entities/agreement-sign-invite.entity.ts');
+
+const editedTenant = { id: 8, name: 'สมชาย ใจดี', first_name: 'สมชาย', last_name: 'ใจดี', phone: '0899999999', email: 'new@example.invalid', identity_number: 'A1234567', nationality: 'ไทย' };
+const draftRow = (over = {}) => ({ id: 1, contract_no: 'RS0001', status: 'draft', tenant_id: 8, created_by_user_id: 7, start_date: '2026-11-01',
+  document_url: null, invoice_url: null, receipt_url: null,
+  owner_signed_at: null, tenant_signed_at: null, agent_signed_at: null, owner_signature_url: null, tenant_signature_url: null, agent_signature_url: null,
+  party_snapshot: { tenantName: 'Old', tenantPhone: '0811111111', ownerName: 'Owner' },
+  data: { reservationLetter: { tenantName: 'Old', tenantEmail: 'old@example.invalid', project: 'Condo', reservationPayment: '1000' } }, ...over });
+function refreshHarness(rows, options = {}) {
+  const writes = [], invites = [], uploads = [], removed = [];
+  let saved = null, query = null;
+  const manager = {
+    getRepository: (entity) => { assert.equal(entity, TenantEntity); return { save: async (row) => { saved = row; return row; } }; },
+    find: async (entity, q) => { assert.equal(entity, LeaseContractEntity); query = q; return rows; },
+    update: async (entity, where, patch) => {
+      if (entity === AgreementSignInviteEntity) { invites.push(where.agreement_id); return; }
+      assert.equal(entity, LeaseContractEntity);
+      if (options.failWrite) throw new Error('write failed');
+      writes.push([where, patch]);
+    },
+  };
+  const documents = {
+    upload: async (agentId, id, kind, file) => { assert.equal(kind, 'invoice'); assert.ok(file.size > 0); const path = `invoice/${id}/new.pdf`; uploads.push(path); return { path }; },
+    remove: async (path) => { removed.push(path); },
+  };
+  const service = new AgentContractsService({ transaction: async (fn) => fn(manager) }, options.noStorage ? undefined : documents);
+  return { service, writes, invites, uploads, removed, get saved() { return saved; }, get query() { return query; } };
+}
+
+test('editing a tenant refreshes only untouched drafts, rebuilds the booking invoice, and leaves agent-typed lease fields alone', async () => {
+  const invoice = { documentNo: 'INV-RS0001', issueDate: '2026-10-01', dueDate: '2026-10-05', reference: 'RS0001', customerName: 'Old', items: [{ description: 'ค่าจอง', quantity: 1, unitPrice: 1000 }] };
+  const rows = [
+    draftRow({ id: 1, invoice_url: 'invoice/1/old.pdf', data: { ...draftRow().data, financialDocuments: { invoice } } }),
+    draftRow({ id: 2, data: { leaseAgreement: { tenantName: 'Typed by agent' } } }),
+    draftRow({ id: 3, party_snapshot: { tenantName: editedTenant.name, tenantPhone: editedTenant.phone, tenantEmail: editedTenant.email, tenantIdNumber: editedTenant.identity_number, tenantNationality: editedTenant.nationality }, data: { leaseAgreement: {} } }),
+    ...['owner_signed_at', 'tenant_signed_at', 'agent_signed_at'].map((key, i) => draftRow({ id: 10 + i, [key]: new Date() })),
+    ...['owner_signature_url', 'tenant_signature_url', 'agent_signature_url'].map((key, i) => draftRow({ id: 20 + i, [key]: 'sig.png' })),
+    draftRow({ id: 30, receipt_url: 'receipt.pdf' }),
+    draftRow({ id: 31, data: { reservationPayment: { slipPath: 'slip.jpg' } } }),
+    draftRow({ id: 32, document_url: 'https://x/generated/reservation_letter/32.pdf' }),
+    draftRow({ id: 33, document_url: 'https://x/generated/broker_appointment/33.pdf' }),
+  ];
+  const h = refreshHarness(rows);
+  assert.deepEqual(await h.service.saveTenantAndRefreshDrafts(7, editedTenant), [1, 2]);
+  assert.equal(h.saved, editedTenant, 'the tenant is saved in the same transaction');
+  assert.deepEqual(h.query.where, { tenant_id: 8, created_by_user_id: 7, status: 'draft' });
+  assert.equal(h.query.lock.mode, 'pessimistic_write');
+  const [[where1, first], [where2, second]] = h.writes;
+  assert.deepEqual(where1, { id: 1, created_by_user_id: 7 });
+  assert.deepEqual(first.party_snapshot, { tenantName: 'สมชาย ใจดี', tenantPhone: '0899999999', ownerName: 'Owner',
+    tenantEmail: 'new@example.invalid', tenantIdNumber: 'A1234567', tenantNationality: 'ไทย' });
+  assert.deepEqual(first.data.reservationLetter, { tenantName: 'สมชาย ใจดี', tenantFirstName: 'สมชาย', tenantLastName: 'ใจดี', tenantPhone: '0899999999',
+    tenantEmail: 'new@example.invalid', tenantId: 'A1234567', tenantNationality: 'ไทย', project: 'Condo', reservationPayment: '1000' });
+  // The booking invoice keeps its number and date but now names the edited tenant.
+  const rebuilt = first.data.financialDocuments.invoice;
+  assert.deepEqual([rebuilt.documentNo, rebuilt.issueDate, rebuilt.customerName, rebuilt.customerEmail], ['INV-RS0001', '2026-10-01', 'สมชาย ใจดี', 'new@example.invalid']);
+  assert.equal(first.invoice_url, 'invoice/1/new.pdf');
+  assert.deepEqual(h.removed, ['invoice/1/old.pdf'], 'the old invoice file is removed after commit');
+  assert.deepEqual(where2, { id: 2, created_by_user_id: 7 });
+  assert.deepEqual(second.data, { leaseAgreement: { tenantName: 'Typed by agent' } });
+  assert.equal(second.invoice_url, undefined);
+  assert.deepEqual(h.invites, [1, 2], 'unused sign links of changed drafts are revoked');
+  assert.equal(rows[0].data.reservationLetter.tenantName, 'Old', 'the loaded row is not mutated');
+});
+
+test('a failed refresh removes the invoice file it uploaded, and a draft with an invoice is skipped when storage is missing', async () => {
+  const invoice = { documentNo: 'INV-RS0001', issueDate: '2026-10-01', dueDate: '2026-10-05', reference: 'RS0001', customerName: 'Old', items: [{ description: 'ค่าจอง', quantity: 1, unitPrice: 1000 }] };
+  const withInvoice = () => draftRow({ invoice_url: 'invoice/1/old.pdf', data: { ...draftRow().data, financialDocuments: { invoice } } });
+  const failing = refreshHarness([withInvoice()], { failWrite: true });
+  await assert.rejects(() => failing.service.saveTenantAndRefreshDrafts(7, editedTenant), /write failed/);
+  assert.deepEqual(failing.removed, ['invoice/1/new.pdf']);
+  const noStorage = refreshHarness([withInvoice(), draftRow({ id: 2, data: {} })], { noStorage: true });
+  assert.deepEqual(await noStorage.service.saveTenantAndRefreshDrafts(7, editedTenant), [2]);
+  // Storage down while rebuilding the invoice: nothing is saved and the agent gets a Thai reason.
+  const down = refreshHarness([withInvoice()]);
+  down.service.documents.upload = async () => { throw new Error('storage down'); };
+  await assert.rejects(() => down.service.saveTenantAndRefreshDrafts(7, editedTenant), (e) => e.getStatus() === 503 && /ใบแจ้งหนี้ค่าจอง/.test(e.message));
+  assert.deepEqual(down.writes, []);
+  // A draft whose letter is current but whose invoice still names the old details is refreshed.
+  const current = { ...draftRow().data.reservationLetter, tenantName: 'สมชาย ใจดี', tenantFirstName: 'สมชาย', tenantLastName: 'ใจดี', tenantPhone: '0899999999', tenantEmail: 'new@example.invalid', tenantId: 'A1234567', tenantNationality: 'ไทย' };
+  const stale = refreshHarness([draftRow({ invoice_url: 'invoice/1/old.pdf',
+    party_snapshot: { tenantName: 'สมชาย ใจดี', tenantPhone: '0899999999', tenantEmail: 'new@example.invalid', tenantIdNumber: 'A1234567', tenantNationality: 'ไทย' },
+    data: { reservationLetter: current, financialDocuments: { invoice } } })]);
+  assert.deepEqual(await stale.service.saveTenantAndRefreshDrafts(7, editedTenant), [1]);
+  assert.equal(stale.writes[0][1].data.financialDocuments.invoice.customerName, 'สมชาย ใจดี');
+});
+
+test('same tenant person: matching ID, or any spelling of the name after titles and invisible characters are dropped', () => {
+  assert.equal(sameTenantPerson({ firstName: 'Somchai', lastName: 'Jaidee' }, { name: '  somchai   jaidee ' }), true);
+  assert.equal(sameTenantPerson({ name: 'นายสมชาย ใจดี' }, { firstName: 'สมชาย', lastName: 'ใจดี' }), true);
+  assert.equal(sameTenantPerson({ name: 'Mr. Somchai Jaidee' }, { name: 'Somchai Jaidee' }), true);
+  assert.equal(sameTenantPerson({ name: 'สม\u200Bชาย ใจดี' }, { name: 'สมชาย ใจดี' }), true);
+  assert.equal(sameTenantPerson({ name: 'น\u0E4D\u0E32ฝน' }, { name: 'นำฝน' }), true);
+  // first_name filled but the full name only in `name`
+  assert.equal(sameTenantPerson({ name: 'Wei Li', firstName: 'Wei', lastName: '' }, { firstName: 'Wei', lastName: 'Li' }), true);
+  assert.equal(sameTenantPerson({ name: 'Somchai', identityNumber: '1-2345-67890-12-3' }, { name: 'Somchai J.', identityNumber: '1234567890123' }), true);
+  // A passport on one record and a Thai ID on the other: the name decides.
+  assert.equal(sameTenantPerson({ name: 'Wei Li', identityNumber: 'E12345678' }, { name: 'Wei Li', identityNumber: '1234567890123' }), true);
+  assert.equal(sameTenantPerson({ name: 'Somchai Jaidee' }, { name: 'Somsri Jaidee' }), false);
+  assert.equal(sameTenantPerson({ name: 'Somchai Jaidee', identityNumber: '1111111111111' }, { name: 'Somsri Jaidee' }), false);
+  // Two different Thai ID numbers are two people even when the names match.
+  assert.equal(sameTenantPerson({ name: 'สมชาย ใจดี', identityNumber: '1111111111111' }, { name: 'สมชาย ใจดี', identityNumber: '2222222222222' }), false);
+  // An English title needs a dot or a space, so a name that only starts with those letters is kept.
+  assert.equal(sameTenantPerson({ name: 'Mrinal Shah' }, { name: 'Inal Shah' }), false);
+  assert.equal(sameTenantPerson({ name: 'Ms Pim Sukjai' }, { name: 'Pim Sukjai' }), true);
+});
+
+test('a tenant login is refused before any account is touched when the email belongs to a different person', async () => {
+  const db = (user, tenants, after) => ({
+    getRepository: (entity) => entity === UserEntity
+      ? { createQueryBuilder: () => { const qb = { where: (sql, params) => { assert.equal(sql, 'LOWER(u.email) = :email'); assert.deepEqual(params, { email: 'pim@example.invalid' }); return qb; }, getOne: async () => user }; return qb; },
+          findOneBy: async () => { throw new Error(after); } }
+      : { find: async (q) => { assert.deepEqual(q, { where: { user_id: 5 } }); return tenants; } },
+  });
+  const input = { email: ' Pim@Example.invalid ', phone: '0812345678', firstName: 'Pim', lastName: 'Sukjai', role: 'tenant', who: 'ผู้เช่า', tenantLeadId: 10 };
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5 }, [{ lead_id: 3, name: 'Wei Li', first_name: 'Wei', last_name: 'Li' }], 'account touched'), input),
+    (e) => e.getStatus() === 409 && e.getResponse().code === 'TENANT_EMAIL_IN_USE' && e.message === TENANT_EMAIL_IN_USE && !e.message.includes('Wei'));
+  // No account, the same person on another lead, or this lead's own record: the login carries on.
+  for (const [user, tenants] of [[null, []], [{ id: 5 }, [{ lead_id: 3, name: 'x', first_name: 'Pim', last_name: 'Sukjai' }]], [{ id: 5 }, [{ lead_id: 10, name: 'Someone else' }]]])
+    await assert.rejects(() => ensurePartyLogin(db(user, tenants, 'reached login'), input), /reached login/);
+  // Landlord logins are not checked; a tenant login is checked even if a caller forgets the lead
+  // (the type requires tenantLeadId for tenants, so tsc also catches that).
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5 }, [{ lead_id: 3, name: 'Wei Li' }], 'reached login'), { ...input, role: 'landlord', tenantLeadId: undefined }), /reached login/);
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5 }, [{ lead_id: 3, name: 'Wei Li' }], 'reached login'), { ...input, tenantLeadId: undefined }), (e) => e.getStatus() === 409);
+});
+
+test('C2: once the tenant has a login the email stays; other details still change and the list says so', async () => {
+  const qb = {}; let tenant;
+  for (const k of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[k] = () => qb;
+  qb.getOne = async () => tenant;
+  const refreshed = [];
+  const service = new AgentTenantsService({ getRepository: () => ({ createQueryBuilder: () => qb }) },
+    { list: async () => [], saveTenantAndRefreshDrafts: async (agentId, row) => { refreshed.push(row.email); return []; } });
+  service.view = async () => ({ id: 8 });
+  const base = { id: 8, lead_id: 1, name: 'Pim', phone: '0811111111', email: 'pim@example.invalid', note: null, identity_number: null, nationality: null, created_at: new Date('2026-09-11'), lead: null };
+  for (const email of ['other@example.invalid', '']) {
+    tenant = { ...base, user_id: 5 };
+    await assert.rejects(() => service.update(7, 8, { ...profile, email }), (e) => e.getStatus() === 409 && e.getResponse().code === 'TENANT_EMAIL_LOCKED' && /เปลี่ยนอีเมลไม่ได้/.test(e.message));
+  }
+  assert.deepEqual(refreshed, [], 'nothing is saved when the email change is refused');
+  tenant = { ...base, user_id: 5 };
+  await service.update(7, 8, { ...profile, name: 'Pim Sukjai', email: ' PIM@example.invalid ' });
+  assert.equal(tenant.name, 'Pim Sukjai', 'same email in another case is not a change');
+  assert.equal(tenant.email, 'pim@example.invalid', 'the stored email is kept as it was');
+  tenant = { ...base, user_id: null };
+  await service.update(7, 8, { ...profile, email: 'other@example.invalid' });
+  assert.equal(tenant.email, 'other@example.invalid', 'before any login the email can still change');
+  const row = (user_id) => service.serialize({ ...base, user_id, lead: null }, []);
+  assert.equal(row(5).hasAccount, true);
+  assert.equal(row(null).hasAccount, false);
+});
+
