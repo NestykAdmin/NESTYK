@@ -65,6 +65,7 @@ export function FinancialDocumentForm({
   kind,
   payer,
   fixedInvoiceId,
+  slipOnFile = false,
   onBack,
   onCreated,
   onStandaloneCreated,
@@ -83,6 +84,8 @@ export function FinancialDocumentForm({
     taxId: string;
   };
   fixedInvoiceId?: number;
+  /** D10: the tenant already sent the slip for this (deposit) invoice, so attaching one is optional. */
+  slipOnFile?: boolean;
   onBack: () => void;
   onCreated: (value: AgentContract) => void;
   onStandaloneCreated?: (value: StandaloneInvoice) => void;
@@ -370,7 +373,7 @@ export function FinancialDocumentForm({
     if (isReceipt) {
       if (!linked && invoiceId == null) return;
       const markingPaid = fixedInvoiceId != null;
-      if (markingPaid && !slip) {
+      if (markingPaid && !slip && !slipOnFile) {
         setError(labels.slipRequired);
         return;
       }
@@ -673,20 +676,29 @@ export function FinancialDocumentForm({
           {fixedInvoiceId != null ? (
             <>
               <Text style={{ color: theme.textHeading, lineHeight: 24 }}>
-                {labels.paymentSlip} *
+                {labels.paymentSlip}{slipOnFile ? "" : " *"}
               </Text>
-              <MobileButton
-                variant="outline"
-                disabled={busy}
-                onPress={() => setSlipSourceOpen(true)}
-              >
-                {labels.attachSlip}
-              </MobileButton>
-              {slip ? (
+              {slipOnFile ? (
+                // D10 (Aof, 21 Oct 2026): the tenant's slip is kept, so no other slip is attached over it.
                 <Text style={{ color: theme.textSecondary, lineHeight: 22 }}>
-                  {slip.name}
+                  {t.contracts.deposit.slipOnFile}
                 </Text>
-              ) : null}
+              ) : (
+                <>
+                  <MobileButton
+                    variant="outline"
+                    disabled={busy}
+                    onPress={() => setSlipSourceOpen(true)}
+                  >
+                    {labels.attachSlip}
+                  </MobileButton>
+                  {slip ? (
+                    <Text style={{ color: theme.textSecondary, lineHeight: 22 }}>
+                      {slip.name}
+                    </Text>
+                  ) : null}
+                </>
+              )}
             </>
           ) : (
             <>

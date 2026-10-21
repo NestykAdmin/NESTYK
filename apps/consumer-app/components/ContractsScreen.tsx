@@ -40,7 +40,6 @@ import {
   Linking,
   Modal,
   Alert,
-  Share,
 } from "react-native";
 import {
   SafeAreaProvider,
@@ -69,7 +68,9 @@ import type {
   AgentContractDocumentKind,
   CommissionConfirmation,
   StandaloneInvoice,
+  RejectedAttachmentNotice,
   AgentContractSignParty,
+  AgreementSignatureLogEntry,
   AgentContractStatus,
   ContractCandidate,
   AgentTenant,
@@ -86,6 +87,7 @@ import {
   listAgreementTemplates,
   getAgentContract,
   listContractCandidates,
+  listAgentContractSignatures,
   getReservationDefaults,
   getBrokerAppointmentLeadDefaults,
   getLeaseDefaults,
@@ -95,8 +97,9 @@ import {
   getAgentContractDraftTemplate,
   uploadAgentContractDocument,
   signAgentContract,
+  signAgentContractWitness,
+  issueAgentDepositInvoice,
   deliverAgentContract,
-  createContractSignInvite,
   previewAgentReservation,
   generateAgentReservation,
   previewAgentBrokerAppointment,
@@ -108,6 +111,8 @@ import {
   generateFinancialDocument,
 } from "../lib/agent-contracts-api";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
+import { DepositPaymentCard } from "./DepositPaymentCard";
+import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
 import { AgentContractLibrary } from "./AgentContractLibrary";
 import { emptyLibraryView, type ContractLibraryEntry } from "../lib/agent-contract-library";
@@ -118,6 +123,7 @@ import {
 } from "./ContractSignaturePad";
 import { bangkokDateKey, isIsoDate, leaseTermEnd, positiveMonths, shiftIsoDate } from "../lib/lease-term";
 import { renewalCandidates, renewalClosedMessage } from "../lib/contract-renewal";
+import { signatureChannelText } from "../lib/signature-log";
 import { canCloseContract } from "../lib/contract-close";
 import { ContractCloseCard, closeResultNotice } from "./ContractCloseCard";
 
@@ -233,6 +239,11 @@ export function ContractsScreen(props: ContractsScreenProps = {}) {
   return <MobileThemeProvider defaultMode="light"><ContractsWorkspace {...props} /></MobileThemeProvider>;
 }
 
+/** D1: the API marks a booked tenant whose room + tenant has no valid broker appointment; such a tenant cannot start a reservation letter. */
+export function appointmentBlocked(candidate: ContractCandidate | undefined): boolean {
+  return !!candidate && candidate.brokerAppointmentReady === false;
+}
+
 function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled, backRef }: ContractsScreenProps) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
@@ -240,7 +251,13 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const cn = docs.notice;
   const tc = t.contracts;
   const sc = tc.screen;
-  const message = (error: unknown) => localizedError(error, cn.connectError, locale);
+  // Errors the app can explain in the reader's language even when the API message is Thai only.
+  const message = (error: unknown) => {
+    const code = (error as { code?: unknown } | null)?.code;
+    if (code === "BROKER_APPOINTMENT_REQUIRED") return docs.reservationNeedsBroker;
+    if (code === "WITNESS_SIGNATURE_REQUIRED") return docs.witnessRequired;
+    return localizedError(error, cn.connectError, locale);
+  };
   const labels = tc.common.status;
   const money = (value: number | null) =>
     value == null
@@ -402,6 +419,11 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
       changeCreationStep(0);
       return;
     }
+    if (reservation && !editingDraft && appointmentBlocked(candidates.find((c) => c.leadId === leadId))) {
+      setError(docs.reservationNeedsBroker);
+      changeCreationStep(0);
+      return;
+    }
     if (
       lease &&
       !renewing &&
@@ -437,11 +459,15 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const [cancelReason, setCancelReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [financialKind, setFinancialKind] = useState<"invoice" | "receipt" | null>(null);
+  // D10: the agent is issuing the receipt for the lease deposit invoice.
+  const [payingDeposit, setPayingDeposit] = useState(false);
   const [attachmentsNonce, setAttachmentsNonce] = useState(0);
   const [focusDocuments, setFocusDocuments] = useState(false);
   const [attachmentReadiness, setAttachmentReadiness] = useState<{
     contractId: number;
     ready: boolean;
+    /** B3: attachments the agent rejected, shown to whoever still has to sign. */
+    rejected: RejectedAttachmentNotice[];
   } | null>(null);
   const pageScroll = useContext(ModePageScrollContext);
   const documentsAnchorRef = useRef<View>(null);
@@ -460,10 +486,41 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const [signParties, setSignParties] = useState<
     AgentContractSignParty[] | null
   >(null);
+  // D9: the lease witness signing sheet (asAgent: the agent is the witness; otherwise a named person signs here).
+  const [witnessSign, setWitnessSign] = useState<{ asAgent: boolean } | null>(null);
+  const [witnessName, setWitnessName] = useState("");
   const [viewSignature, setViewSignature] = useState<{
     label: string;
     url: string;
   } | null>(null);
+  // D17: how each party signed the open contract (null until loaded; a failed load just hides the lines).
+  const [signatureLog, setSignatureLog] = useState<AgreementSignatureLogEntry[] | null>(null);
+  const signatureKey = selected
+    ? `${selected.id}:${selected.ownerSignedAt}:${selected.tenantSignedAt}:${selected.agentSignedAt}`
+    : "";
+  useEffect(() => {
+    if (!selected) return;
+    let live = true;
+    setSignatureLog(null);
+    listAgentContractSignatures(selected.id)
+      .then((rows) => {
+        if (live) setSignatureLog(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [signatureKey]);
+  const witnessEntry = signatureLog?.find((row) => row.party === "witness") ?? null;
+  // Only known once the log has loaded; if it cannot load, the API still refuses to generate without a witness.
+  const leaseNeedsWitness = signatureLog != null && !witnessEntry;
+  function openWitnessSheet(asAgent: boolean) {
+    if (busy || signing.current) return;
+    setError("");
+    setWitnessName("");
+    setSignPadKey((key) => key + 1);
+    setWitnessSign({ asAgent });
+  }
   const [previewDoc, setPreviewDoc] = useState<{
     name: string;
     url: string;
@@ -477,6 +534,26 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [candidates, setCandidates] = useState<ContractCandidate[]>([]);
+  // D1: on the global screen, the booked tenants that could start a reservation letter (null until loaded, or if loading fails).
+  const [pickerCandidates, setPickerCandidates] = useState<ContractCandidate[] | null>(null);
+  const tenantMode = !!tenant;
+  useEffect(() => {
+    if (!choosingType || tenantMode) return;
+    let live = true;
+    setPickerCandidates(null);
+    listContractCandidates()
+      .then((rows) => {
+        if (live) setPickerCandidates(rows);
+      })
+      .catch(() => {
+        if (live) setPickerCandidates(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [choosingType, tenantMode]);
+  const noReadyReservationTenant =
+    !tenant && !!pickerCandidates && !pickerCandidates.some((c) => !appointmentBlocked(c));
   const [leadId, setLeadId] = useState<number | null>(null);
   const [form, setForm] = useState({
     startDate: "",
@@ -557,7 +634,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     </Pressable>
   );
   const errorView = error ? (
-    // selectable: a sign link that could not be shared is shown here for the agent to copy.
+    // selectable: the agent can copy an error to report it.
     <Text accessibilityRole="alert" selectable style={[s.body, { color: "#C74747" }]}>
       {error}
     </Text>
@@ -619,6 +696,23 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   ) {
     setError("");
     setPreviewDoc({ name, url, kind });
+  }
+  /** D10: issue the deposit invoice again when issuing it with the generated lease failed. */
+  async function issueDepositInvoice() {
+    if (!selected || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await issueAgentDepositInvoice(selected.id);
+      setSelected(updated);
+      setContracts((rows) => rows.map((row) => row.id === updated.id ? updated : row));
+      setNotice(tc.deposit.issued);
+      onChanged?.();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
   }
   async function createBookingInvoice() {
     if (!selected || busy) return;
@@ -873,52 +967,13 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   }
   function confirmShare(party: ContractParty) {
     if (!selected || busy || documentLocked || !attachmentsReady) return;
+    // The contract goes to the party's account once, and they sign in the app (signing by link was removed, 21 Oct 2026).
+    if (partyDeliveredAt(selected, party)) return;
     const label = party === "owner" ? docs.owner : docs.tenant;
-    // In the app goes to the party's account once; a sign link (15 minutes, from the API) can be sent any time.
-    const delivered = !!partyDeliveredAt(selected, party);
-    Alert.alert(
-      docs.shareSign,
-      fillTemplate(delivered ? docs.shareSignLinkOnly : docs.shareSignChoose, { party: label }),
-      [
-        { text: t.common.cancel, style: "cancel" },
-        ...(delivered ? [] : [{ text: docs.shareSignApp, onPress: () => void shareSignInvite(party) }]),
-        { text: docs.shareSignLink, onPress: () => void shareSignLink(party) },
-      ],
-    );
-  }
-  async function shareSignLink(party: ContractParty) {
-    if (!selected || busy || documentLocked || !attachmentsReady) return;
-    const contract = selected;
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const invite = await createContractSignInvite(contract.id, party);
-      const time = new Date(invite.expiresAt).toLocaleTimeString(localeTag(locale), {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Asia/Bangkok",
-      });
-      const label = party === "owner" ? docs.owner : docs.tenant;
-      // The link exists from here on, and older links for this party no longer work.
-      try {
-        const shared = await Share.share({
-          message: fillTemplate(docs.shareSignLinkMessage, { no: contract.contractNo, party: label, time, url: invite.url }),
-        });
-        setNotice(
-          fillTemplate(shared.action === Share.dismissedAction ? docs.shareSignLinkNotSent : docs.shareSignLinkReady, {
-            party: label,
-            time,
-          }),
-        );
-      } catch {
-        setError(fillTemplate(docs.shareSignLinkCopy, { party: label, time, url: invite.url }));
-      }
-    } catch (e) {
-      setError(localizedError(e, docs.shareSignLinkError, locale));
-    } finally {
-      setBusy(false);
-    }
+    Alert.alert(docs.shareSign, docs.shareSignMessage.replace("{party}", label), [
+      { text: t.common.cancel, style: "cancel" },
+      { text: docs.shareSignSend, onPress: () => void shareSignInvite(party) },
+    ]);
   }
   async function shareSignInvite(party: ContractParty) {
     if (!selected || busy || documentLocked || !attachmentsReady) return;
@@ -951,12 +1006,12 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     }
   }
   useEffect(() => {
-    if (!signParties) return;
+    if (!signParties && !witnessSign) return;
     const timer = setTimeout(() => {
       padRef.current?.reinitialize?.();
     }, 320);
     return () => clearTimeout(timer);
-  }, [signParties, signPadKey]);
+  }, [signParties, witnessSign, signPadKey]);
   const reservationRequest = useRef(false);
   const [pdfAction, setPdfAction] = useState<"preview" | "generate" | null>(
     null,
@@ -1086,7 +1141,39 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
       setPdfAction(null);
     }
   }
+  async function submitWitnessSignature(image: string) {
+    if (!selected || !witnessSign || signing.current) return;
+    if (!witnessSign.asAgent && !witnessName.trim()) {
+      setError(docs.witnessNameRequired);
+      return;
+    }
+    signing.current = true;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const latest = await signAgentContractWitness(selected.id, {
+        signaturePng: image,
+        asAgent: witnessSign.asAgent,
+        ...(witnessSign.asAgent ? {} : { signerName: witnessName.trim() }),
+      });
+      setWitnessSign(null);
+      setSelected(latest);
+      setContracts((current) =>
+        current.map((item) => (item.id === latest.id ? latest : item)),
+      );
+      setSignatureLog(await listAgentContractSignatures(latest.id).catch(() => null));
+      setNotice(docs.signSuccess);
+      onChanged?.();
+    } catch (e) {
+      setError(localizedError(e, docs.signError, locale));
+    } finally {
+      signing.current = false;
+      setBusy(false);
+    }
+  }
   async function submitSignature(image: string) {
+    if (witnessSign) return submitWitnessSignature(image);
     if (!selected || !signParties?.length || signing.current) return;
     signing.current = true;
     setBusy(true);
@@ -1123,6 +1210,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 tenant: tenant.name,
                 property: tenant.property,
                 room: tenant.room,
+                brokerAppointmentReady: tenant.brokerAppointmentReady,
               },
             ]
           : await listContractCandidates(),
@@ -1193,14 +1281,19 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                   tenant: tenant.name,
                   property: tenant.property,
                   room: tenant.room,
+                  brokerAppointmentReady: tenant.brokerAppointmentReady,
                 },
               ])
             : listContractCandidates(),
       ]);
       setTemplate(available[0] ?? null);
       setCandidates(people);
+      // D1: a reservation starts on the first tenant whose broker appointment is valid.
       const initialLead =
-        source?.leadId ?? tenant?.leadId ?? people[0]?.leadId ?? null;
+        source?.leadId ??
+        tenant?.leadId ??
+        (type.formKind === "reservation" ? people.find((c) => !appointmentBlocked(c)) : people[0])?.leadId ??
+        null;
       if (initialLead) setLeadId(initialLead);
       if (type.formKind === "reservation" && initialLead) {
         try {
@@ -1652,6 +1745,14 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   async function onCreateKind(kind: CreateDocumentKind, selectedSource?: AgentContract) {
     setError("");
     setNotice("");
+    if (kind === "reservation" && tenant && !tenant.brokerAppointmentReady) {
+      setError(docs.reservationNeedsBroker);
+      return;
+    }
+    if (kind === "reservation" && noReadyReservationTenant) {
+      setError(docs.reservationNoReadyTenant);
+      return;
+    }
     if (
       kind === "lease" &&
       !loadingList &&
@@ -1708,6 +1809,18 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
 
   if (choosingType) {
     const locks: Array<[CreateDocumentKind, string]> = [
+      // D1: inside a tenant, the API says whether this room + tenant has a valid broker appointment;
+      // on the global screen, the lock waits for the tenant list and applies when no tenant has one.
+      [
+        "reservation",
+        tenant
+          ? !tenant.brokerAppointmentReady
+            ? docs.reservationNeedsBroker
+            : ""
+          : noReadyReservationTenant
+            ? docs.reservationNoReadyTenant
+            : "",
+      ],
       ["lease", !loadingList && !finalizedReservation(tenant?.leadId ?? null) ? cn.leaseRequiresReservation : ""],
       ["renewal", renewalClosedMessage(contracts, tc.renewalForm)],
     ];
@@ -1951,9 +2064,12 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             {candidates.map((c) => (
               <Pressable
                 key={c.leadId}
-                disabled={busy || !!editingDraft}
+                disabled={busy || !!editingDraft || (reservation && appointmentBlocked(c))}
                 accessibilityRole="radio"
-                accessibilityState={{ checked: leadId === c.leadId }}
+                accessibilityState={{
+                  checked: leadId === c.leadId,
+                  disabled: busy || !!editingDraft || (reservation && appointmentBlocked(c)),
+                }}
                 onPress={() => {
                   setLeadId(c.leadId);
                   if (reservation) {
@@ -2014,6 +2130,9 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                   {c.property}
                   {roomSuffix(c.room)}
                 </Text>
+                {reservation && !editingDraft && appointmentBlocked(c) && (
+                  <Text style={[s.small, muted]}>{docs.candidateNeedsBroker}</Text>
+                )}
               </Pressable>
             ))}
             {!busy && !candidates.length && (
@@ -2299,6 +2418,22 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         </MobileBottomSheet>
       </View>
     );
+  if (selected && payingDeposit && selected.depositPayment?.invoiceId != null)
+    return <FinancialDocumentForm key={`deposit:${selected.depositPayment.invoiceId}`} kind="receipt"
+      fixedInvoiceId={selected.depositPayment.invoiceId} slipOnFile={!!selected.depositPayment.submittedAt} payer={tenantPayer}
+      onBack={() => setPayingDeposit(false)}
+      onStandaloneCreated={() => {
+        setPayingDeposit(false);
+        setNotice(docs.financial.success);
+        void getAgentContract(selected.id)
+          .then((row) => {
+            setSelected(row);
+            setContracts((rows) => rows.map((existing) => existing.id === row.id ? row : existing));
+          })
+          .catch((e) => setError(message(e)));
+        onChanged?.();
+      }}
+      onCreated={() => undefined} />;
   if (selected && financialKind && !draftCancelled && !["expired", "terminated"].includes(selected.status))
     return <FinancialDocumentForm key={`${selected.id}:${financialKind}`} contractId={selected.id} kind={financialKind} payer={tenantPayer}
       onBack={() => setFinancialKind(null)}
@@ -2672,6 +2807,19 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             onCreateInvoice={() => void createBookingInvoice()}
           />
         )}
+        {selected.formKind === "lease" && (
+          <DepositPaymentCard
+            contract={selected}
+            busy={busy}
+            onOpen={(kind) => {
+              const deposit = selected.depositPayment;
+              const url = kind === "deposit-invoice" ? deposit?.invoiceUrl : kind === "deposit-receipt" ? deposit?.receiptUrl : deposit?.paymentSlipUrl;
+              if (url) openDocumentPreview(kind === "deposit-invoice" ? tc.common.paymentDocuments.invoice : kind === "deposit-receipt" ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip, url, kind === "deposit-payment-slip" ? "payment_slip" : kind === "deposit-invoice" ? "invoice" : "receipt");
+            }}
+            onIssueReceipt={() => { setError(""); setPayingDeposit(true); }}
+            onIssueInvoice={() => void issueDepositInvoice()}
+          />
+        )}
         {(selected.formKind === "reservation" ||
           selected.formKind === "lease") && (
           <AgreementAttachments
@@ -2689,6 +2837,9 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
               {sc.attachBeforeSigning}
             </Text>
           ) : null}
+          {attachmentReadiness?.contractId === selected.id && partyMeta(selected).some((party) => !party.signed) ? (
+            <RejectedAttachmentsNotice items={attachmentReadiness.rejected} />
+          ) : null}
           {partyMeta(selected).map((party) => (
             <View key={party.key} style={s.signRow}>
               <View style={s.sourceCopy}>
@@ -2698,6 +2849,9 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                     ? `✓ ${new Date(party.signed).toLocaleString("th-TH")}`
                     : docs.unsigned}
                 </Text>
+                {!!party.signed && !!signatureChannelText(signatureLog, party.key, docs) && (
+                  <Text style={[s.small, muted]}>{signatureChannelText(signatureLog, party.key, docs)}</Text>
+                )}
                 {!party.signed && bookingPaymentBlocksSigning(selected, party.key) && (
                   <Text style={[s.small, muted]}>{t.mobile.partyContracts.bookingPaymentBeforeSigning}</Text>
                 )}
@@ -2730,11 +2884,15 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                     <MobileButton
                       variant="outline"
                       style={s.shareButton}
-                      disabled={busy || !attachmentsReady}
+                      disabled={
+                        busy ||
+                        !attachmentsReady ||
+                        !!partyDeliveredAt(selected, party.key)
+                      }
                       onPress={() => confirmShare(party.key === "owner" ? "owner" : "tenant")}
                     >
                       {partyDeliveredAt(selected, party.key)
-                        ? docs.shareSignLink
+                        ? docs.shareSignSent
                         : docs.shareSign}
                     </MobileButton>
                   )}
@@ -2749,6 +2907,41 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
               ) : null}
             </View>
           ))}
+          {selected.formKind === "lease" && (
+            <View style={s.signRow}>
+              <View style={s.sourceCopy}>
+                <Text style={[s.body, title]}>{docs.witness}</Text>
+                <Text style={[s.small, muted]}>
+                  {witnessEntry
+                    ? `✓ ${new Date(witnessEntry.signedAt).toLocaleString("th-TH")}`
+                    : docs.unsigned}
+                </Text>
+                {!!witnessEntry && (
+                  <Text style={[s.small, muted]}>{signatureChannelText(signatureLog, "witness", docs)}</Text>
+                )}
+                {!witnessEntry && <Text style={[s.small, muted]}>{docs.witnessHint}</Text>}
+              </View>
+              {!witnessEntry && signatureLog != null && !signingLocked(selected.status) && !documentLocked ? (
+                <View style={s.partyActions}>
+                  <MobileButton
+                    variant="outline"
+                    style={s.shareButton}
+                    disabled={busy}
+                    onPress={() => openWitnessSheet(false)}
+                  >
+                    {docs.witnessOther}
+                  </MobileButton>
+                  <MobileButton
+                    style={s.signatureButton}
+                    disabled={busy}
+                    onPress={() => openWitnessSheet(true)}
+                  >
+                    {docs.witnessAsAgent}
+                  </MobileButton>
+                </View>
+              ) : null}
+            </View>
+          )}
         </View>
         {selected.formKind === "reservation" && (
           <View style={[s.card, card]}>
@@ -2845,11 +3038,15 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                     ? tc.renewalForm.preview
                     : sc.leaseGenerateHint}
                 </Text>
+                {selected.formKind === "lease" && leaseNeedsWitness && (
+                  <Text style={[s.small, muted]}>{docs.witnessRequired}</Text>
+                )}
                 <MobileButton
                   disabled={
                     busy ||
                     selected.leaseAgreementStatus !== "ready_to_generate" ||
-                    !attachmentsReady
+                    !attachmentsReady ||
+                    (selected.formKind === "lease" && leaseNeedsWitness)
                   }
                   isLoading={pdfAction === "generate"}
                   onPress={() => void openLeaseAgreement(true)}
@@ -3028,16 +3225,29 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           </Pressable>
         </MobileBottomSheet>
         <MobileBottomSheet
-          visible={signParties != null}
-          onClose={() => !busy && setSignParties(null)}
+          visible={signParties != null || witnessSign != null}
+          onClose={() => {
+            if (busy) return;
+            setSignParties(null);
+            setWitnessSign(null);
+          }}
           maxHeight="90%"
           sheetStyle={s.sheetPanel}
         >
           <Text style={[s.sheetTitle, title]}>
-            {signParties ? signSheetTitle(signParties) : docs.signatories}
+            {witnessSign ? docs.witnessSignTitle : signParties ? signSheetTitle(signParties) : docs.signatories}
           </Text>
           <Text style={[s.sheetHint, muted]}>{docs.signHint}</Text>
-          {!!error && signParties ? (
+          {witnessSign && !witnessSign.asAgent ? (
+            <MobileInput
+              label={docs.witnessName}
+              value={witnessName}
+              onChangeText={setWitnessName}
+              editable={!busy}
+              maxLength={255}
+            />
+          ) : null}
+          {!!error && (signParties || witnessSign) ? (
             <Text
               accessibilityRole="alert"
               style={[s.body, { color: "#C74747", marginBottom: 8 }]}
@@ -3045,9 +3255,9 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
               {error}
             </Text>
           ) : null}
-          {signParties ? (
+          {signParties || witnessSign ? (
             <ContractSignaturePad
-              key={`${signPadKey}-${signParties.join("-")}`}
+              key={`${signPadKey}-${witnessSign ? `witness-${witnessSign.asAgent}` : signParties!.join("-")}`}
               ref={padRef}
               onOK={(image) => {
                 void submitSignature(image);

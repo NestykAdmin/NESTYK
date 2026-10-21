@@ -123,20 +123,27 @@ export async function signAgentContract(
   return apiPost(`/agent/contracts/${id}/sign`, input);
 }
 
+/** D9: the lease witness signs on the agent's device; asAgent when the agent is the witness. */
+export async function signAgentContractWitness(
+  id: number,
+  input: { signaturePng: string; asAgent: boolean; signerName?: string },
+): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/witness-sign`, input);
+}
+
+/** D10: issue the deposit invoice of a generated lease again (it is issued when the lease is generated). */
+export async function issueAgentDepositInvoice(id: number): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/deposit-invoice`, {});
+}
+
 export async function deliverAgentContract(
   id: number,
   party: ContractParty,
 ): Promise<import("@nestyk/types").ContractDelivery> {
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/deliveries`, { party });
-}
-
-export async function createContractSignInvite(
-  id: number,
-  party: ContractParty,
-): Promise<import("@nestyk/types").ContractSignInvite> {
-  await ensureAgentSession();
-  return apiPost(`/agent/contracts/${id}/sign-invites`, { party });
 }
 
 export async function uploadAgentContractDocument(
@@ -198,24 +205,19 @@ export async function getAgreementHistory(
   return apiGet(`/agent/contracts/${id}/history`);
 }
 
+/** D17: who signed a contract and through which channel. */
+export async function listAgentContractSignatures(
+  id: number,
+): Promise<import("@nestyk/types").AgreementSignatureLogEntry[]> {
+  await ensureAgentSession();
+  return apiGet(`/agent/contracts/${id}/signatures`);
+}
+
 export async function listAgreementAttachments(
   id: number,
 ): Promise<import("@nestyk/types").AgreementAttachmentChecklist> {
   await ensureAgentSession();
   return apiGet(`/agent/contracts/${id}/attachments`);
-}
-export async function getBrokerAppointmentDefaults(
-  id: number,
-): Promise<import("@nestyk/types").BrokerAppointmentInput> {
-  await ensureAgentSession();
-  return apiGet(`/agent/contracts/${id}/attachments/broker-appointment/defaults`);
-}
-export async function generateBrokerAppointment(
-  id: number,
-  body: import("@nestyk/types").BrokerAppointmentInput,
-): Promise<import("@nestyk/types").AgreementAttachmentChecklist> {
-  await ensureAgentSession();
-  return apiPost(`/agent/contracts/${id}/attachments/broker-appointment`, body);
 }
 
 export async function openAgreementAttachment(

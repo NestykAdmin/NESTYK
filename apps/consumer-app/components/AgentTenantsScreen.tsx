@@ -429,10 +429,17 @@ export function AgentTenantsScreen({
     const fmt = billFormatters(locale);
     const runAction = (action: TenantNextAction) => {
       setNotice("");
-      const focus = action.kind === "sign" || action.kind === "confirm" ? action.contract : null;
+      const focus =
+        action.kind === "sign" || action.kind === "confirm" || action.kind === "broker_appointment"
+          ? action.contract
+          : null;
       setContractFocus(focus);
       if (action.kind === "review_slip") setSection("payments");
       else if (focus) setSection("contracts");
+      else if (action.kind === "broker_appointment") {
+        setContractStart("broker_appointment");
+        setSection("contracts");
+      }
       else if (!selected.email) {
         setSection("profile");
         beginEdit(selected);

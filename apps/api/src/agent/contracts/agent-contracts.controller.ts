@@ -67,6 +67,28 @@ export class AgentContractsController {
   ) {
     return this.contracts.history(user.id, id);
   }
+  /** D9: the witness of a lease signs on the agent's device (the agent can be the witness). */
+  @Post(":id/witness-sign") witnessSign(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.witnessSign(user.id, id, body);
+  }
+  /** D10: issue the deposit invoice of a generated lease again (it is issued when the lease is generated). */
+  @Post(":id/deposit-invoice") issueDepositInvoice(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.contracts.issueDepositInvoice(user.id, id);
+  }
+  /** D17: who signed this contract and through which channel. */
+  @Get(":id/signatures") signatures(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.contracts.signatureLog(user.id, id);
+  }
   @Get("candidates") candidates(@CurrentUser() user: AuthRequestUser) {
     return this.contracts.candidates(user.id);
   }
@@ -255,15 +277,6 @@ export class AgentContractsController {
     @Body() body: unknown,
   ) {
     return this.contracts.deliverToParty(user.id, id, body);
-  }
-  @Post(":id/sign-invites")
-  @HttpCode(HttpStatus.OK)
-  createSignInvite(
-    @CurrentUser() user: AuthRequestUser,
-    @Param("id", DatabaseIdPipe) id: number,
-    @Body() body: unknown,
-  ) {
-    return this.contracts.createSignInvite(user.id, id, body);
   }
   @Get(":id/financial-documents/:kind")
   financialDefaults(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Param("kind") kind: string) {

@@ -106,10 +106,12 @@ const finalizedReservation = {
   status: 'active',
   document_url: '7/1/generated/reservation_letter/letter-v1/booked.pdf',
 };
-function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, successor = 0, draft = null, occupancy = null, endReason = { id: 77 }, reservations = [finalizedReservation] } = {}) {
+function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, successor = 0, draft = null, occupancy = null, endReason = { id: 77 }, reservations = [finalizedReservation], appointments = [[3, 2]] } = {}) {
   const saved = []; const calls = []; const uploads = []; const removed = []; let rolledBack = false;
   const qb = {};
-  for (const key of ['leftJoin', 'where', 'andWhere']) qb[key] = (...args) => { calls.push([key, ...args]); return qb; };
+  for (const key of ['leftJoin', 'where', 'andWhere', 'select', 'addSelect', 'distinct']) qb[key] = (...args) => { calls.push([key, ...args]); return qb; };
+  // [room, tenant] pairs with a valid broker appointment, read inside the transaction (D1).
+  qb.getRawMany = async () => appointments.map(([roomId, tenantId]) => ({ roomId, tenantId }));
   qb.getCount = async () => calls.some(c => c[1] === "c.previous_agreement_id = :previousId") ? successor : overlap;
   qb.getMany = async () => reservations;
   const manager = {
@@ -492,4 +494,107 @@ test('cancelling a broker appointment does not release the rental booking', asyn
   const f = fixture({ draft: draftRow(), previous: { form_kind: 'broker_appointment' } });
   await f.service.cancelDraft(7, 40, { reason: 'Cancel appointment only' });
   assert.equal(f.calls.some(c => c[0] === 'update' && c[1] === 'LeadEntity'), false);
+});
+
+test('D1: a new reservation letter needs a valid broker appointment for the room and tenant, checked before any login and again with the lead locked', async () => {
+  const body = { leadId: 1, agreementTypeCode: 'reservation', startDate: '2026-10-01', moveInDate: '2026-10-15', reservationFee: 5000 };
+  const appointmentQuery = (pairs, asked) => () => {
+    const qb = {}; for (const k of ['leftJoin', 'select', 'addSelect', 'distinct', 'where', 'andWhere']) qb[k] = (...args) => { asked.push([k, ...args]); return qb; };
+    qb.getRawMany = async () => pairs.map(([roomId, tenantId]) => ({ roomId: String(roomId), tenantId: String(tenantId) })); return qb;
+  };
+  const withLookup = (f, pairs, asked) => {
+    const base = f.service.db.getRepository;
+    f.service.db.getRepository = (entity) => {
+      if (entity === LeadEntity) return { findOneBy: async (where) => { assert.deepEqual(where, { id: 1, created_by_user_id: 7 }); return { id: 1, rent_room_id: 3, tenant_id: 2 }; } };
+      if (entity === LeaseContractEntity) return { ...base(entity), createQueryBuilder: appointmentQuery(pairs, asked) };
+      return base(entity);
+    };
+  };
+  // No appointment: refused before the letter is read or any login is made.
+  const refused = fixture(); const asked = [];
+  withLookup(refused, [], asked);
+  refused.service.reservationDefaults = () => assert.fail('D1 must refuse before reading the letter or creating logins');
+  await assert.rejects(() => refused.service.create(7, { ...body, data: { reservationLetter: {} } }),
+    (e) => e.getStatus() === 400 && e.getResponse().code === 'BROKER_APPOINTMENT_REQUIRED');
+  assert.equal(refused.calls.some((c) => c[0] === 'findOne'), false, 'the transaction never started');
+  assert.ok(asked.some((c) => c[0] === 'where' && c[2]?.agentId === 7));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[1] === "c.status = 'active'"));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[1] === "COALESCE(template.form_kind, agreementType.form_kind) = 'broker_appointment'"));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[2]?.roomIds?.[0] === 3));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[2]?.tenantIds?.[0] === 2));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[1] === "c.start_date + INTERVAL '1 year' > CAST(:today AS date)" && /^\d{4}-\d{2}-\d{2}$/.test(c[2]?.today)),
+    'only appointments under 1 year old count');
+  // A valid appointment for the same room but another tenant does not count.
+  const otherTenant = fixture(); withLookup(otherTenant, [[3, 9]], []);
+  otherTenant.service.reservationDefaults = () => assert.fail('another tenant\'s appointment must not let the letter start');
+  await assert.rejects(() => otherTenant.service.create(7, { ...body, data: { reservationLetter: {} } }), (e) => e.getResponse().code === 'BROKER_APPOINTMENT_REQUIRED');
+  // Appointment valid for this room and tenant: the draft is created.
+  const allowed = fixture(); withLookup(allowed, [[3, 2]], []);
+  assert.match((await allowed.service.create(7, body)).contract_no, /^RS/);
+  assert.ok(allowed.calls.some((c) => c[0] === 'andWhere' && c[2]?.roomIds?.[0] === 3), 'the locked check asks about the lead\'s room');
+  assert.ok(allowed.calls.some((c) => c[0] === 'andWhere' && c[2]?.tenantIds?.[0] === 2), 'the locked check asks about the lead\'s tenant');
+  // The check inside the transaction (lead locked) uses the appointments read there: here the only one belongs to another tenant, so it refuses too.
+  const raced = fixture({ appointments: [[3, 9]] }); withLookup(raced, [[3, 2]], []);
+  await assert.rejects(() => raced.service.create(7, body), (e) => e.getResponse().code === 'BROKER_APPOINTMENT_REQUIRED');
+  assert.equal(raced.rolledBack(), true);
+  // An unknown lead is a 404 before any login.
+  const missing = fixture(); const base = missing.service.db.getRepository;
+  missing.service.db.getRepository = (entity) => (entity === LeadEntity ? { findOneBy: async () => null } : base(entity));
+  missing.service.reservationDefaults = () => assert.fail('a missing lead must be refused before reading the letter');
+  await assert.rejects(() => missing.service.create(7, { ...body, data: { reservationLetter: {} } }), (e) => e.getStatus() === 404);
+});
+
+test('D1: the broker appointment lookup builds valid SQL with the real entities', async () => {
+  // The other D1 tests mock the query builder, so they cannot see the SQL TypeORM writes. This one builds the
+  // real query (no database connection) and checks it, e.g. that DISTINCT comes first in the SELECT list.
+  const fs = require('node:fs'); const path = require('node:path'); const { DataSource } = require('typeorm');
+  const dir = path.join(__dirname, '../src/entities');
+  const entities = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'))
+    .flatMap((f) => Object.values(require(path.join(dir, f))).filter((v) => typeof v === 'function'));
+  const ds = new DataSource({ type: 'postgres', entities });
+  await ds.buildMetadatas();
+  const built = [];
+  const db = { getRepository: (entity) => { const repo = ds.getRepository(entity); return { createQueryBuilder: (alias) => {
+    const qb = repo.createQueryBuilder(alias); qb.getRawMany = async () => { built.push(qb.getQueryAndParameters()); return []; }; return qb; } }; } };
+  const service = new AgentContractsService(db);
+  await service.activeBrokerAppointments(7);
+  await service.activeBrokerAppointments(7, { roomIds: [3], tenantIds: [2] });
+  for (const [sql] of built) {
+    assert.match(sql, /^SELECT DISTINCT "c"\."rent_room_id" AS "roomId", "c"\."tenant_id" AS "tenantId" FROM "lease_contracts" "c" /);
+    assert.equal((sql.match(/DISTINCT/g) ?? []).length, 1);
+    assert.match(sql, /"c"\."start_date" \+ INTERVAL '1 year' > CAST\(\$2 AS date\)/);
+  }
+  assert.deepEqual(built[0][1].slice(0, 1), [7]);
+  assert.match(built[1][0], /"c"\."rent_room_id" IN \(\$3\) AND "c"\."tenant_id" IN \(\$4\)$/);
+  assert.deepEqual(built[1][1].slice(2), [3, 2]);
+});
+
+test('D1: contract candidates say which booked tenants can start a reservation letter', async () => {
+  const leads = [{ id: 1, tenant: { id: 2, name: 'A' }, rent_room: { id: 3, room_id: '301', property: { name: 'P' } } },
+    { id: 4, tenant: { id: 5, name: 'B' }, rent_room: { id: 6, room_id: '601', property: null, listing_title: 'L' } }];
+  const leadQb = {}; for (const k of ['innerJoinAndSelect', 'leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) leadQb[k] = () => leadQb;
+  leadQb.getMany = async () => leads;
+  const asked = [];
+  const appointmentQb = {}; for (const k of ['leftJoin', 'select', 'addSelect', 'distinct', 'where', 'andWhere']) appointmentQb[k] = (...args) => { asked.push([k, ...args]); return appointmentQb; };
+  // Room 6 has an appointment, but for another tenant.
+  appointmentQb.getRawMany = async () => [{ roomId: '3', tenantId: '2' }, { roomId: '6', tenantId: '9' }];
+  const service = new AgentContractsService({ getRepository: (entity) => ({ createQueryBuilder: () => (entity === LeadEntity ? leadQb : appointmentQb) }) }, {});
+  const rows = await service.candidates(7);
+  assert.deepEqual(rows.map((r) => [r.leadId, r.brokerAppointmentReady]), [[1, true], [4, false]]);
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && JSON.stringify(c[2]?.roomIds) === '[3,6]'));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && JSON.stringify(c[2]?.tenantIds) === '[2,5]'));
+});
+
+test('D1: other document kinds and an existing reservation draft are not checked', async () => {
+  for (const agreementTypeCode of ['lease', 'broker']) {
+    const f = fixture({ appointments: [] }); const base = f.service.db.getRepository;
+    f.service.db.getRepository = (entity) => (entity === LeadEntity ? assert.fail(`${agreementTypeCode} drafts are not checked`) : base(entity));
+    await f.service.create(7, { ...valid, agreementTypeCode });
+  }
+  // A reservation draft saved before the rule can still be edited with no appointment.
+  const draft = { id: 40, lead_id: 1, created_by_user_id: 7, status: 'draft', agreement_type_code: 'reservation', template_id: 1, previous_agreement_id: null,
+    data: {}, updated_at: new Date('2026-10-01T00:00:00Z'), tenant_id: 2, rent_room_id: 3 };
+  const f = fixture({ draft, appointments: [] }); const base = f.service.db.getRepository;
+  f.service.db.getRepository = (entity) => (entity === LeadEntity ? assert.fail('an existing draft is not checked') : base(entity));
+  await f.service.updateDraft(7, 40, { leadId: 1, agreementTypeCode: 'reservation', startDate: '2026-10-01', moveInDate: '2026-10-15', reservationFee: 5000 });
 });

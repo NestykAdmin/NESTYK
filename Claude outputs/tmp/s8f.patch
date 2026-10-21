@@ -1,0 +1,1502 @@
+diff -ruN orig/apps/api/src/agent/contracts/agent-contracts.controller.ts new/apps/api/src/agent/contracts/agent-contracts.controller.ts
+--- orig/apps/api/src/agent/contracts/agent-contracts.controller.ts	2026-10-21 06:14:36.819027229 +0000
++++ new/apps/api/src/agent/contracts/agent-contracts.controller.ts	2026-10-21 06:35:13.134117813 +0000
+@@ -67,6 +67,21 @@
+   ) {
+     return this.contracts.history(user.id, id);
+   }
++  /** D9: the witness of a lease signs on the agent's device (the agent can be the witness). */
++  @Post(":id/witness-sign") witnessSign(
++    @CurrentUser() user: AuthRequestUser,
++    @Param("id", DatabaseIdPipe) id: number,
++    @Body() body: unknown,
++  ) {
++    return this.contracts.witnessSign(user.id, id, body);
++  }
++  /** D17: who signed this contract and through which channel. */
++  @Get(":id/signatures") signatures(
++    @CurrentUser() user: AuthRequestUser,
++    @Param("id", DatabaseIdPipe) id: number,
++  ) {
++    return this.contracts.signatureLog(user.id, id);
++  }
+   @Get("candidates") candidates(@CurrentUser() user: AuthRequestUser) {
+     return this.contracts.candidates(user.id);
+   }
+diff -ruN orig/apps/api/src/agent/contracts/agent-contracts.service.ts new/apps/api/src/agent/contracts/agent-contracts.service.ts
+--- orig/apps/api/src/agent/contracts/agent-contracts.service.ts	2026-10-21 06:14:36.810677193 +0000
++++ new/apps/api/src/agent/contracts/agent-contracts.service.ts	2026-10-21 06:46:41.046875190 +0000
+@@ -83,6 +83,7 @@
+   AgentContract,
+   AgentContractDocumentKind,
+   AgentContractSignParty,
++  AgreementSignatureLogEntry,
+   BrokerAppointmentInput,
+   CreateAgentContract,
+   CommissionConfirmation,
+@@ -94,6 +95,7 @@
+   StandaloneInvoice,
+ } from "@nestyk/types";
+ import { AgreementSignInviteEntity } from "../../entities/agreement-sign-invite.entity";
++import { AgreementSignatureEntity } from "../../entities/agreement-signature.entity";
+ import { LeaseContractEntity } from "../../entities/lease-contract.entity";
+ import { AgentInvoiceEntity } from "../../entities/agent-invoice.entity";
+ import { AgentCommissionConfirmationEntity } from "../../entities/agent-commission-confirmation.entity";
+@@ -108,6 +110,7 @@
+ } from "./contract-document-storage.service";
+ 
+ const SIGN_INVITE_TTL_MS = 15 * 60 * 1000;
++export const WITNESS_SIGNATURE_REQUIRED = "ต้องให้พยานลงนามในสัญญาเช่าก่อน จึงจะสร้างเอกสารได้ (นายหน้าเป็นพยานได้)";
+ export const brokerAppointmentKey = (roomId: number, tenantId: number) => `${roomId}:${tenantId}`;
+ export const BROKER_APPOINTMENT_REQUIRED =
+   "ยังไม่มีสัญญาแต่งตั้งนายหน้าที่มีผลสำหรับห้องและผู้เช่านี้ (สัญญาแต่งตั้งมีอายุ 1 ปี) ให้ผู้ให้เช่าและนายหน้าลงนามในสัญญาแต่งตั้งนายหน้าและออกเอกสารก่อน จึงจะทำหนังสือจองต่อได้";
+@@ -486,6 +489,85 @@
+       throw new BadRequestException({ code: "BROKER_APPOINTMENT_REQUIRED", message: BROKER_APPOINTMENT_REQUIRED });
+   }
+ 
++  /** D17: log signatures in the same transaction as the signature columns (still written until the cleanup migration). */
++  private async recordSignatures(manager: EntityManager, rows: QueryDeepPartialEntity<AgreementSignatureEntity>[]) {
++    if (rows.length) await manager.insert(AgreementSignatureEntity, rows);
++  }
++
++  /** D17: the live signatures of one of this agent's contracts, oldest first, with who pressed sign. */
++  async signatureLog(agentId: number, id: number): Promise<AgreementSignatureLogEntry[]> {
++    const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
++    if (!c) throw new NotFoundException("ไม่พบสัญญา");
++    const rows = await this.db.getRepository(AgreementSignatureEntity).find({
++      where: { agreement_id: c.id, voided_at: IsNull() },
++      relations: { signed_by: true },
++      order: { signed_at: "ASC", id: "ASC" },
++    });
++    return rows.map((row) => ({
++      party: row.party,
++      channel: row.channel,
++      signedAt: row.signed_at.toISOString(),
++      // A witness without an account is named by the agent who pressed sign for them.
++      signedBy:
++        row.signer_name?.trim() ||
++        [row.signed_by?.first_name, row.signed_by?.last_name].filter((part) => part?.trim()).join(" ").trim() ||
++        null,
++    }));
++  }
++
++  private async liveWitness(agreementId: number, manager?: EntityManager) {
++    return (manager ?? this.db).getRepository(AgreementSignatureEntity).findOne({
++      where: { agreement_id: agreementId, party: "witness", voided_at: IsNull() },
++      relations: { signed_by: true },
++    });
++  }
++
++  /**
++   * D9 (AC-4.4): the witness of a lease signs before the lease document is generated. The agent can be
++   * the witness (asAgent, logged as app), or someone without an account signs on the agent's device and the
++   * agent types their name (logged as on_site, pressed by the agent).
++   */
++  async witnessSign(agentId: number, id: number, input: unknown) {
++    const b = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
++    const asAgent = b.asAgent === true;
++    const signerName = typeof b.signerName === "string" ? b.signerName.trim() : "";
++    if (!asAgent && !signerName) throw new BadRequestException("กรุณาระบุชื่อพยาน");
++    if (signerName.length > 255) throw new BadRequestException("ชื่อพยานยาวเกินไป");
++    const { png } = await validateSign({ parties: ["agent"], signaturePng: b.signaturePng });
++    const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
++    if (!c) throw new NotFoundException("ไม่พบสัญญา");
++    if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "lease")
++      throw new BadRequestException("พยานลงนามได้เฉพาะสัญญาเช่า");
++    this.assertDocumentMutable(c);
++    if (CLOSED_STATUSES.includes(c.status as (typeof CLOSED_STATUSES)[number]) || c.status === "active")
++      throw new BadRequestException("สัญญานี้ไม่สามารถลงนามได้");
++    if (await this.liveWitness(c.id)) throw new BadRequestException("พยานลงนามแล้ว");
++    if (!this.documents)
++      throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสารสัญญา");
++    const stored = await this.documents.uploadSignature(agentId, c.id, { buffer: png, size: png.length });
++    try {
++      await this.db.transaction(async (manager) => {
++        const current = await manager.findOne(LeaseContractEntity, {
++          where: { id: c.id, created_by_user_id: agentId },
++          lock: { mode: "pessimistic_write" },
++        });
++        if (!current || current.status !== c.status || current.document_url !== c.document_url ||
++            JSON.stringify(current.data) !== JSON.stringify(c.data))
++          throw new ConflictException("สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม");
++        await this.recordSignatures(manager, [{
++          agreement_id: c.id, party: "witness", channel: asAgent ? "app" : "on_site",
++          signed_by_user_id: agentId, signer_name: asAgent ? null : signerName,
++          signature_url: stored.path, signed_at: new Date(),
++        }]);
++      });
++    } catch (error) {
++      await this.documents.remove(stored.path).catch(() => undefined);
++      if ((error as { code?: string }).code === "23505") throw new BadRequestException("พยานลงนามแล้ว");
++      throw error;
++    }
++    return this.view(agentId, c.id);
++  }
++
+   private inboxQuery() {
+     return this.db
+       .getRepository(LeaseContractEntity)
+@@ -1109,12 +1191,20 @@
+     const saved = (c.data?.leaseAgreement ?? null) as LeaseAgreementInput | null;
+     if (!saved)
+       throw new BadRequestException("ไม่พบข้อมูลฟอร์มสัญญาเช่า");
++    // D9: the generated lease carries the witness signature, so the witness signs first.
++    const witness = generate ? await this.liveWitness(c.id) : null;
++    if (generate && !witness)
++      throw new BadRequestException({ code: "WITNESS_SIGNATURE_REQUIRED", message: WITNESS_SIGNATURE_REQUIRED });
++    const witnessName = witness
++      ? witness.signer_name?.trim() ||
++        [witness.signed_by?.first_name, witness.signed_by?.last_name].filter((part) => part?.trim()).join(" ").trim()
++      : "";
+     const data: LeaseAgreementInput = {
+       ...saved,
+       documentNo: saved.documentNo || c.contract_no || `LS-${c.id}`,
+       landlordSignName: saved.landlordName || saved.landlordSignName || "",
+       tenantSignName: saved.tenantName || saved.tenantSignName || "",
+-      witnessSignName: saved.witnessSignName || saved.agentContact || "",
++      witnessSignName: witnessName || saved.witnessSignName || saved.agentContact || "",
+       landlordSignaturePng: "",
+       tenantSignaturePng: "",
+     };
+@@ -1123,15 +1213,18 @@
+     if (generate) {
+       const ownerPath = c.owner_signature_url!;
+       const tenantPath = c.tenant_signature_url!;
++      const witnessPath = witness!.signature_url ?? "";
+       if (
+         !ownerPath.startsWith(`${agentId}/${id}/signatures/`) ||
+-        !tenantPath.startsWith(`${agentId}/${id}/signatures/`)
++        !tenantPath.startsWith(`${agentId}/${id}/signatures/`) ||
++        !witnessPath.startsWith(`${agentId}/${id}/signatures/`)
+       )
+         throw new BadRequestException("ไฟล์ลายเซ็นไม่ตรงกับสัญญา");
+       try {
+         pdf = await stampLeaseAgreementSignatures(base, {
+           owner: await this.documents.download(ownerPath),
+           tenant: await this.documents.download(tenantPath),
++          witness: await this.documents.download(witnessPath),
+         });
+       } catch {
+         throw new BadRequestException(
+@@ -1729,15 +1822,22 @@
+       patch.status = complete ? "awaiting_agent_review" : "awaiting_signatures";
+     }
+     try {
+-      const result = await this.db
+-        .getRepository(LeaseContractEntity)
+-        .update({ id: c.id, created_by_user_id: agentId, status: c.status,
++      await this.db.transaction(async (manager) => {
++        const result = await manager.update(LeaseContractEntity, { id: c.id, created_by_user_id: agentId, status: c.status,
+           receipt_url: c.receipt_url ?? IsNull(),
+           data: Raw(alias => `${alias} = :expectedData`, { expectedData: JSON.stringify(c.data ?? {}) }),
+         }, patch);
+-      if (result.affected !== 1) throw new ConflictException("สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม");
++        if (result.affected !== 1) throw new ConflictException("สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม");
++        // D17: the agent's own signature is made in the app; any other party here is signed for by the agent.
++        await this.recordSignatures(manager, pending.map((party) => ({
++          agreement_id: c.id, party, channel: party === "agent" ? "app" as const : "on_site" as const,
++          signed_by_user_id: agentId, signature_url: stored.path, signed_at: now,
++        })));
++      });
+     } catch (error) {
+       await this.documents.remove(stored.path).catch(() => undefined);
++      // D17: one live signature per party; a second signature that raced in is the same answer as "already signed".
++      if ((error as { code?: string }).code === "23505") throw new BadRequestException("ฝ่ายนี้ลงนามแล้ว");
+       if ((error as { code?: string }).code === "23514")
+         throw new BadRequestException(
+           "กรุณาแนบเอกสารที่จำเป็นให้ครบก่อนลงนาม",
+@@ -2109,21 +2209,30 @@
+       patch.status = complete ? "awaiting_agent_review" : "awaiting_signatures";
+     }
+     try {
+-      const result = await this.db.getRepository(LeaseContractEntity).update(
+-        {
+-          id: c.id,
+-          status: c.status,
+-          receipt_url: c.receipt_url ?? IsNull(),
+-          data: Raw((alias) => `${alias} = :expectedData`, {
+-            expectedData: JSON.stringify(c.data ?? {}),
+-          }),
+-        },
+-        patch,
+-      );
+-      if (result.affected !== 1)
+-        throw new ConflictException("สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม");
++      await this.db.transaction(async (manager) => {
++        const result = await manager.update(
++          LeaseContractEntity,
++          {
++            id: c.id,
++            status: c.status,
++            receipt_url: c.receipt_url ?? IsNull(),
++            data: Raw((alias) => `${alias} = :expectedData`, {
++              expectedData: JSON.stringify(c.data ?? {}),
++            }),
++          },
++          patch,
++        );
++        if (result.affected !== 1)
++          throw new ConflictException("สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม");
++        // D17: the party signed in their own app.
++        await this.recordSignatures(manager, [{
++          agreement_id: c.id, party, channel: "app", signed_by_user_id: userId, signature_url: stored.path, signed_at: now,
++        }]);
++      });
+     } catch (error) {
+       await this.documents.remove(stored.path).catch(() => undefined);
++      // D17: one live signature per party; a second signature that raced in is the same answer as "already signed".
++      if ((error as { code?: string }).code === "23505") throw new BadRequestException("ฝ่ายนี้ลงนามแล้ว");
+       if ((error as { code?: string }).code === "23514")
+         throw new BadRequestException("กรุณาแนบเอกสารของคุณให้ครบก่อนลงนาม");
+       throw error;
+@@ -2296,9 +2405,16 @@
+           { id: invite.id },
+           { used_at: now },
+         );
++        // D17: signed through a sign link; the person behind the link has no session, so no user is recorded.
++        await this.recordSignatures(manager, [{
++          agreement_id: c.id, party: invite.party, channel: "link", sign_invite_id: invite.id,
++          signature_url: stored.path, signed_at: now,
++        }]);
+       });
+     } catch (error) {
+       await this.documents.remove(stored.path).catch(() => undefined);
++      // D17: one live signature per party; a second signature that raced in is the same answer as "already signed".
++      if ((error as { code?: string }).code === "23505") throw new BadRequestException("ฝ่ายนี้ลงนามแล้ว");
+       if ((error as { code?: string }).code === "23514")
+         throw new BadRequestException(
+           "กรุณาแนบเอกสารที่จำเป็นให้ครบก่อนลงนาม",
+diff -ruN orig/apps/api/src/agent/contracts/lease-agreement-pdf.ts new/apps/api/src/agent/contracts/lease-agreement-pdf.ts
+--- orig/apps/api/src/agent/contracts/lease-agreement-pdf.ts	2026-10-21 06:35:22.873172166 +0000
++++ new/apps/api/src/agent/contracts/lease-agreement-pdf.ts	2026-10-21 06:35:22.891580506 +0000
+@@ -385,10 +385,13 @@
+   return Buffer.from(await pdf.save());
+ }
+ 
+-/** Stamp owner (landlord) + tenant PNGs onto a filled lease PDF (every page). */
++/** D9: the witness signs once, in the box above the witness name on page 7. */
++export const WITNESS_SIGNATURE_SLOT = { page: 6, x: 206.0, y: 164.0, maxW: 130, maxH: 36 } as const;
++
++/** Stamp owner (landlord) + tenant PNGs onto a filled lease PDF (every page), and the witness PNG on page 7. */
+ export async function stampLeaseAgreementSignatures(
+   base: Buffer,
+-  signatures: { owner: Buffer; tenant: Buffer },
++  signatures: { owner: Buffer; tenant: Buffer; witness?: Buffer },
+ ): Promise<Buffer> {
+   const pdf = await PDFDocument.load(base);
+   const pages = pdf.getPages();
+@@ -397,6 +400,17 @@
+     tenantSignaturePng: signatures.tenant,
+   } as const;
+   const embedded = new Map<keyof typeof byKey, Awaited<ReturnType<PDFDocument["embedPng"]>>>();
++  const witnessPage = pages[WITNESS_SIGNATURE_SLOT.page];
++  if (signatures.witness && witnessPage) {
++    const image = await pdf.embedPng(signatures.witness);
++    const size = image.scaleToFit(WITNESS_SIGNATURE_SLOT.maxW, WITNESS_SIGNATURE_SLOT.maxH);
++    witnessPage.drawImage(image, {
++      x: WITNESS_SIGNATURE_SLOT.x + (WITNESS_SIGNATURE_SLOT.maxW - size.width) / 2,
++      y: WITNESS_SIGNATURE_SLOT.y,
++      width: size.width,
++      height: size.height,
++    });
++  }
+   for (const slot of SIGNATURE_SLOTS) {
+     const page = pages[slot.page];
+     if (!page) continue;
+diff -ruN orig/apps/api/src/entities/agreement-signature.entity.ts new/apps/api/src/entities/agreement-signature.entity.ts
+--- orig/apps/api/src/entities/agreement-signature.entity.ts	1970-01-01 00:00:00.000000000 +0000
++++ new/apps/api/src/entities/agreement-signature.entity.ts	2026-10-21 06:31:19.323717424 +0000
+@@ -0,0 +1,54 @@
++import type { AgreementSignatureChannel, AgreementSignatureParty } from "@nestyk/types";
++import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
++import { SerialEntity } from "./base.entity";
++import { AgreementDocumentEntity } from "./agreement-document.entity";
++import { AgreementSignInviteEntity } from "./agreement-sign-invite.entity";
++import { LeaseContractEntity } from "./lease-contract.entity";
++import { UserEntity } from "./user.entity";
++
++/**
++ * D17 + D9: one row per signature (who pressed, through which channel). Migration
++ * supabase/migrations/20261021120000_agreement_signatures.sql. The old signature columns on
++ * lease_contracts are still written too until the cleanup migration (S3 round 2).
++ */
++@Index("uq_agreement_signatures_live_party", ["agreement_id", "party"], { unique: true, where: "(voided_at IS NULL)" })
++@Check("chk_agreement_signatures_party", "((party)::text = ANY ((ARRAY['owner'::character varying, 'tenant'::character varying, 'agent'::character varying, 'witness'::character varying])::text[]))")
++@Check("chk_agreement_signatures_channel", "((channel)::text = ANY ((ARRAY['app'::character varying, 'link'::character varying, 'on_site'::character varying, 'uploaded_file'::character varying, 'legacy'::character varying])::text[]))")
++@Check("chk_agreement_signatures_evidence", "(((channel)::text = 'legacy'::text) OR (((channel)::text = 'uploaded_file'::text) AND (signed_file_document_id IS NOT NULL)) OR (((channel)::text = ANY ((ARRAY['app'::character varying, 'link'::character varying, 'on_site'::character varying])::text[])) AND (signature_url IS NOT NULL)))")
++@Check("chk_agreement_signatures_legacy", "(((channel)::text <> 'legacy'::text) OR ((party)::text = ANY ((ARRAY['owner'::character varying, 'tenant'::character varying, 'agent'::character varying])::text[])))")
++@Check("chk_agreement_signatures_link", "(((channel)::text <> 'link'::text) OR (sign_invite_id IS NOT NULL))")
++@Check("chk_agreement_signatures_witness_name", "(((party)::text <> 'witness'::text) OR (signed_by_user_id IS NOT NULL) OR (btrim((COALESCE(signer_name, ''::character varying))::text) <> ''::text))")
++@Entity({ name: "agreement_signatures" })
++export class AgreementSignatureEntity extends SerialEntity {
++  @Column({ type: "int" }) agreement_id: number;
++  @ManyToOne(() => LeaseContractEntity, { onDelete: "RESTRICT" })
++  @JoinColumn({ name: "agreement_id", foreignKeyConstraintName: "agreement_signatures_agreement_id_fkey" })
++  agreement: LeaseContractEntity;
++
++  @Column({ type: "varchar", length: 16 }) party: AgreementSignatureParty;
++
++  @Column({ type: "varchar", length: 16 }) channel: AgreementSignatureChannel;
++
++  @Column({ type: "int", nullable: true }) signed_by_user_id: number | null;
++  @ManyToOne(() => UserEntity, { onDelete: "SET NULL", nullable: true })
++  @JoinColumn({ name: "signed_by_user_id", foreignKeyConstraintName: "agreement_signatures_signed_by_user_id_fkey" })
++  signed_by: UserEntity | null;
++
++  @Column({ type: "varchar", length: 255, nullable: true }) signer_name: string | null;
++
++  @Column({ type: "int", nullable: true }) sign_invite_id: number | null;
++  @ManyToOne(() => AgreementSignInviteEntity, { onDelete: "RESTRICT", nullable: true })
++  @JoinColumn({ name: "sign_invite_id", foreignKeyConstraintName: "agreement_signatures_sign_invite_id_fkey" })
++  sign_invite: AgreementSignInviteEntity | null;
++
++  @Column({ type: "text", nullable: true }) signature_url: string | null;
++
++  @Column({ type: "int", nullable: true }) signed_file_document_id: number | null;
++  @ManyToOne(() => AgreementDocumentEntity, { onDelete: "RESTRICT", nullable: true })
++  @JoinColumn({ name: "signed_file_document_id", foreignKeyConstraintName: "agreement_signatures_signed_file_document_id_fkey" })
++  signed_file_document: AgreementDocumentEntity | null;
++
++  @Column({ type: "timestamptz", default: () => "now()" }) signed_at: Date;
++
++  @Column({ type: "timestamptz", nullable: true }) voided_at: Date | null;
++}
+diff -ruN orig/apps/api/src/entities/index.ts new/apps/api/src/entities/index.ts
+--- orig/apps/api/src/entities/index.ts	2026-10-21 06:31:31.309609100 +0000
++++ new/apps/api/src/entities/index.ts	2026-10-21 06:31:31.323954278 +0000
+@@ -12,6 +12,7 @@
+ export * from "./agreement-sign-invite.entity";
+ export * from "./room-share-link.entity";
+ import { AgreementSignInviteEntity } from "./agreement-sign-invite.entity";
++import { AgreementSignatureEntity } from "./agreement-signature.entity";
+ import { RoomShareLinkEntity } from "./room-share-link.entity";
+ import { MasterAgreementTypeEntity } from './master-agreement-type.entity';
+ export * from './base.entity';
+@@ -92,6 +93,7 @@
+   MasterDocumentTypeEntity, AgreementDocumentRequirementEntity, AgreementDocumentEntity,
+   AgreementTemplateEntity,
+   AgreementSignInviteEntity,
++  AgreementSignatureEntity,
+   RoomShareLinkEntity,
+   MasterAgreementTypeEntity,
+   UserEntity,
+diff -ruN orig/apps/api/test/agent-contract-documents.test.cjs new/apps/api/test/agent-contract-documents.test.cjs
+--- orig/apps/api/test/agent-contract-documents.test.cjs	2026-10-21 06:14:36.811455248 +0000
++++ new/apps/api/test/agent-contract-documents.test.cjs	2026-10-21 06:46:59.906218978 +0000
+@@ -11,6 +11,8 @@
+ const { PDFDocument, PDFName, PDFDict } = require('pdf-lib');
+ const sharp = require('sharp');
+ const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
++const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
++const { emptyLeaseAgreement } = require('../src/agent/contracts/lease-agreement.ts');
+ const { AuthService } = require('../src/auth/auth.service.ts');
+ const { Module } = require('@nestjs/common');
+ const { NestFactory } = require('@nestjs/core');
+@@ -227,7 +229,9 @@
+ function pdfHarness(overrides = {}) {
+   const row = reservationRow(overrides);
+   const qb = {};
+-  for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
++  const scoped = [];
++  for (const key of ['leftJoinAndSelect', 'andWhere', 'orderBy']) qb[key] = () => qb;
++  qb.where = (sql, params) => { scoped.push(params); return qb; };
+   qb.getOne = async () => row;
+   // D1: broker appointments as [roomId, tenantId] (the row's own pair unless a test changes it), answered only for its agent.
+   let appointments = [[row.rent_room_id, row.tenant_id]];
+@@ -236,8 +240,27 @@
+   const { storage, objects, cloud } = storageDouble();
+   cloud.download = async path => ({ data: objects.has(path) ? new Blob([objects.get(path).buffer]) : null, error: objects.has(path) ? null : new Error('missing') });
+   cloud.remove = async paths => { paths.forEach(path => objects.delete(path)); return { error: null }; };
+-  const repo = { createQueryBuilder: () => qb, update: async (where, patch) => { Object.assign(row, patch); return { affected: 1 }; } };
+-  return { row, storage, objects, repo, asked, setAppointments: (pairs) => { appointments = pairs; }, service: new AgentContractsService({ getRepository: () => repo }, storage) };
++  // D9 + D17: the live witness signature of this lease (null until a test sets one) and the rows the service logs.
++  // `locked` is what the transaction reads back (a test can make it differ), `insertError` makes the log insert fail.
++  let witness = null; let locked = null; let insertError = null; const logged = [];
++  const repo = { createQueryBuilder: () => qb, update: async (where, patch) => { Object.assign(row, patch); return { affected: 1 }; },
++    findOne: async (options) => {
++      assert.deepEqual({ ...options.where, voided_at: options.where.voided_at?._type }, { agreement_id: row.id, party: 'witness', voided_at: 'isNull' });
++      assert.deepEqual(options.relations, { signed_by: true }, 'the witness comes with the account that pressed sign');
++      return witness;
++    } };
++  const db = { getRepository: () => repo, transaction: async (fn) => fn({
++    getRepository: () => repo,
++    findOne: async (entity, options) => {
++      assert.equal(entity, LeaseContractEntity); assert.equal(options.lock.mode, 'pessimistic_write');
++      assert.equal(options.where.created_by_user_id, 7);
++      return locked ? { ...row, ...locked } : { ...row };
++    },
++    insert: async (entity, rows) => { assert.equal(entity, AgreementSignatureEntity); if (insertError) throw insertError; logged.push(...rows); },
++  }) };
++  return { row, storage, objects, repo, asked, logged, scoped, setWitness: (value) => { witness = value; },
++    setLocked: (value) => { locked = value; }, failInsert: (error) => { insertError = error; },
++    setAppointments: (pairs) => { appointments = pairs; }, service: new AgentContractsService(db, storage) };
+ }
+ test('D1: a reservation not generated yet cannot be generated, sent or signed once its broker appointment is not valid', async () => {
+   const h = pdfHarness();
+@@ -308,6 +331,119 @@
+   assert.equal(h.row.agent_signed_at, null);
+ });
+ 
++function leaseHarness(overrides = {}) {
++  return pdfHarness({ agreement_type_code: 'lease', agreement_type: { name_th: 'สัญญาเช่า', form_kind: 'lease' },
++    template: { form_kind: 'lease', document_template_key: 'lease/v1' },
++    data: { leaseAgreement: { ...emptyLeaseAgreement(), landlordName: 'Landlord A', tenantName: 'Tenant B', witnessSignName: 'Typed In Form' } },
++    ...overrides });
++}
++const pageImages = async (buffer, index) =>
++  (await PDFDocument.load(buffer)).getPages()[index].node.Resources().lookup(PDFName.of('XObject'), PDFDict)?.keys().length ?? 0;
++
++test('D9: a lease is generated only after the witness signs, and the witness signature and name go on page 7', async () => {
++  const h = leaseHarness();
++  const png = await signaturePng();
++  for (const party of ['owner', 'tenant']) {
++    h.row[`${party}_signed_at`] = new Date('2026-10-20T03:00:00Z');
++    h.row[`${party}_signature_url`] = `7/11/signatures/${party}.png`;
++    h.objects.set(`7/11/signatures/${party}.png`, { buffer: png });
++  }
++  const before = h.objects.size;
++  await assert.rejects(() => h.service.leaseAgreementPdf(7, 11, true),
++    (e) => e.getStatus() === 400 && e.getResponse().code === 'WITNESS_SIGNATURE_REQUIRED');
++  assert.equal(h.objects.size, before, 'nothing was generated');
++  assert.equal(h.row.status, 'draft');
++  // The preview still opens without a witness.
++  await h.service.leaseAgreementPdf(7, 11, false);
++  assert.match(h.row.document_url, /mock\/lease_agreement/);
++  // A witness file from another contract is refused.
++  h.setWitness({ signature_url: '9/99/signatures/w.png', signer_name: 'Witness C', signed_by: null });
++  await assert.rejects(() => h.service.leaseAgreementPdf(7, 11, true), (e) => e.getStatus() === 400 && /ลายเซ็นไม่ตรง/.test(e.message));
++  h.setWitness({ signature_url: '7/11/signatures/w.png', signer_name: 'Witness C', signed_by: null });
++  h.objects.set('7/11/signatures/w.png', { buffer: png });
++  const result = await h.service.leaseAgreementPdf(7, 11, true);
++  assert.equal(result.leaseAgreementStatus, 'ready');
++  assert.equal(h.row.status, 'active');
++  const generated = h.objects.get(h.row.document_url).buffer;
++  assert.equal(await pageImages(generated, 6), 3, 'page 7 has the landlord, tenant and witness signatures');
++  assert.equal(await pageImages(generated, 0), 2, 'other pages carry only the landlord and tenant');
++});
++
++test('D9: the witness name on the generated lease is the person who signed, or the agent when the agent is the witness', async () => {
++  // createLeaseAgreementPdf is read from the module at call time, so wrapping the export shows the data it gets.
++  const pdfModule = require('../src/agent/contracts/lease-agreement-pdf.ts');
++  const original = pdfModule.createLeaseAgreementPdf;
++  const named = [];
++  pdfModule.createLeaseAgreementPdf = async (data) => { named.push(data.witnessSignName); return original(data); };
++  try {
++    for (const witness of [
++      { signature_url: '7/11/signatures/w.png', signer_name: ' Witness C ', signed_by: { first_name: 'QA', last_name: 'Agent' } },
++      { signature_url: '7/11/signatures/w.png', signer_name: null, signed_by: { first_name: 'QA', last_name: 'Agent' } },
++    ]) {
++      const h = leaseHarness();
++      const png = await signaturePng();
++      for (const party of ['owner', 'tenant']) {
++        h.row[`${party}_signed_at`] = new Date('2026-10-20T03:00:00Z');
++        h.row[`${party}_signature_url`] = `7/11/signatures/${party}.png`;
++        h.objects.set(`7/11/signatures/${party}.png`, { buffer: png });
++      }
++      h.objects.set('7/11/signatures/w.png', { buffer: png });
++      h.setWitness(witness);
++      await h.service.leaseAgreementPdf(7, 11, true);
++    }
++  } finally { pdfModule.createLeaseAgreementPdf = original; }
++  assert.deepEqual(named, ['Witness C', 'QA Agent'], 'not the name typed in the form ("Typed In Form")');
++});
++
++test('D9: the lease witness signs once on the agent\'s device; the agent can be the witness', async () => {
++  const signature = `data:image/png;base64,${(await signaturePng()).toString('base64')}`;
++  const notLease = pdfHarness();
++  await assert.rejects(() => notLease.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400 && /เฉพาะสัญญาเช่า/.test(e.message));
++  const h = leaseHarness();
++  await assert.rejects(() => h.service.witnessSign(7, 11, { asAgent: false, signerName: '  ', signaturePng: signature }), (e) => e.getStatus() === 400 && /ชื่อพยาน/.test(e.message));
++  await assert.rejects(() => h.service.witnessSign(7, 11, { asAgent: true, signaturePng: 'not a png' }), (e) => e.getStatus() === 400);
++  assert.deepEqual(h.logged, []);
++  await h.service.witnessSign(7, 11, { asAgent: true, signerName: 'ignored', signaturePng: signature });
++  assert.equal(h.logged.length, 1);
++  assert.deepEqual({ ...h.logged[0], signed_at: undefined, signature_url: undefined },
++    { agreement_id: 11, party: 'witness', channel: 'app', signed_by_user_id: 7, signer_name: null, signed_at: undefined, signature_url: undefined });
++  assert.match(h.logged[0].signature_url, /^7\/11\/signatures\//);
++  assert.ok(h.logged[0].signed_at instanceof Date);
++  // Once a witness has signed, a second one is refused.
++  h.setWitness({ signature_url: h.logged[0].signature_url, signer_name: null, signed_by: { first_name: 'QA', last_name: 'Agent' } });
++  await assert.rejects(() => h.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400 && /พยานลงนามแล้ว/.test(e.message));
++  assert.equal(h.logged.length, 1);
++  // Someone else signs on the agent's device: pressed by the agent, named as typed.
++  const other = leaseHarness();
++  await other.service.witnessSign(7, 11, { asAgent: false, signerName: ' Witness C ', signaturePng: signature });
++  assert.equal(other.logged[0].channel, 'on_site');
++  assert.equal(other.logged[0].signed_by_user_id, 7);
++  assert.equal(other.logged[0].signer_name, 'Witness C');
++  assert.ok(other.scoped.some((params) => params?.agentId === 7), 'the lease is looked up for this agent');
++  // A generated lease cannot get a witness any more.
++  const done = leaseHarness({ status: 'active' });
++  await assert.rejects(() => done.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400);
++});
++
++test('D9: a witness signature that loses a race or meets a changed lease is refused and its file removed', async () => {
++  const signature = `data:image/png;base64,${(await signaturePng()).toString('base64')}`;
++  const uploadedSignatures = (h) => [...h.objects.keys()].filter((key) => key.startsWith('7/11/signatures/'));
++  // Another witness signed between the check and the insert: the unique index answers.
++  const raced = leaseHarness();
++  raced.failInsert(Object.assign(new Error('duplicate key'), { code: '23505' }));
++  await assert.rejects(() => raced.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400 && /พยานลงนามแล้ว/.test(e.message));
++  assert.deepEqual(raced.logged, []);
++  assert.deepEqual(uploadedSignatures(raced), [], 'the uploaded signature file was removed');
++  // The lease was edited (or generated) while the witness was signing.
++  for (const change of [{ data: { leaseAgreement: { edited: true } } }, { status: 'awaiting_agent_review' }, { document_url: '7/11/generated/lease_agreement/v1/x.pdf' }]) {
++    const changed = leaseHarness();
++    changed.setLocked(change);
++    await assert.rejects(() => changed.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 409, JSON.stringify(change));
++    assert.deepEqual(changed.logged, []);
++    assert.deepEqual(uploadedSignatures(changed), []);
++  }
++});
++
+ test('mock preview works before signing, generation stamps three images and persists once', async () => {
+   const h = pdfHarness();
+   const preview = await h.service.reservationPdf(7, 11, false);
+diff -ruN orig/apps/api/test/agent-contract-sign.test.cjs new/apps/api/test/agent-contract-sign.test.cjs
+--- orig/apps/api/test/agent-contract-sign.test.cjs	2026-10-21 06:14:36.811550818 +0000
++++ new/apps/api/test/agent-contract-sign.test.cjs	2026-10-21 06:47:11.589367891 +0000
+@@ -7,6 +7,7 @@
+ const { AgentContractsService, validateSign } = require('../src/agent/contracts/agent-contracts.service.ts');
+ const { AgentContractsController } = require('../src/agent/contracts/agent-contracts.controller.ts');
+ const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
++const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
+ const { AuthService } = require('../src/auth/auth.service.ts');
+ const { Module } = require('@nestjs/common');
+ const { NestFactory } = require('@nestjs/core');
+@@ -52,10 +53,10 @@
+   qb.getOne = async () => current;
+   // D1: the contract's own room + tenant has a valid broker appointment, answered only for its own agent.
+   qb.leftJoin = (...args) => brokerAppointmentLookup(() => [[current.rent_room_id, current.tenant_id]], current.created_by_user_id).leftJoin(...args);
+-  const updates = [];
++  const updates = []; const signatures = []; const removed = [];
+   const documents = {
+     uploadSignature: async () => ({ path: '7/11/signatures/sig.png' }),
+-    remove: async () => undefined,
++    remove: async (path) => { removed.push(path); },
+     signPaths: async (paths) => new Map(paths.filter(Boolean).map((path) => [path, `https://signed.example/${path}`])),
+   };
+   const db = {
+@@ -70,8 +71,13 @@
+         },
+       };
+     },
++    // D17: signing writes the contract and its signature log in one transaction.
++    transaction: async (fn) => fn({
++      update: async (entity, where, patch) => { assert.equal(entity, LeaseContractEntity); return db.getRepository(entity).update(where, patch); },
++      insert: async (entity, rows) => { assert.equal(entity, AgreementSignatureEntity); signatures.push(...rows); },
++    }),
+   };
+-  return { service: new AgentContractsService(db, documents), updates, current };
++  return { service: new AgentContractsService(db, documents), updates, current, signatures, removed };
+ }
+ 
+ test('validateSign accepts decodable png data urls and unique parties', async () => {
+@@ -94,6 +100,60 @@
+   await assert.rejects(() => service.sign(7, 11, { parties: ['owner'], signaturePng }), error => error.getStatus() === 400);
+ });
+ 
++test('D17: the agent signing logs its own signature as app and the others as signed on their behalf', async () => {
++  const { service, updates, signatures } = serviceFor(row({ receipt_url: '7/11/receipt/paid.pdf', owner_signed_at: new Date('2026-10-01T00:00:00Z'), owner_signature_url: 'old.png' }));
++  await service.sign(7, 11, { parties: ['owner', 'tenant', 'agent'], signaturePng });
++  const at = updates[0][1].tenant_signed_at;
++  assert.ok(at instanceof Date);
++  // The owner had already signed, so only the tenant and the agent are logged.
++  assert.deepEqual(signatures, [
++    { agreement_id: 11, party: 'tenant', channel: 'on_site', signed_by_user_id: 7, signature_url: '7/11/signatures/sig.png', signed_at: at },
++    { agreement_id: 11, party: 'agent', channel: 'app', signed_by_user_id: 7, signature_url: '7/11/signatures/sig.png', signed_at: at },
++  ]);
++  assert.equal(updates[0][1].agent_signed_at, at, 'the log time is the time written to the contract');
++});
++
++test('D17: the signature log lists live signatures with the name to show (a typed witness name, else who pressed sign), only for the agent\'s own contract', async () => {
++  const qb = {}; const scoped = [];
++  for (const key of ['leftJoinAndSelect', 'andWhere', 'orderBy']) qb[key] = () => qb;
++  qb.where = (sql, params) => { scoped.push(params); return qb; };
++  let found = row();
++  qb.getOne = async () => found;
++  const asked = [];
++  const rows = [
++    { party: 'owner', channel: 'on_site', signed_at: new Date('2026-10-21T03:00:00Z'), signed_by: { first_name: 'QA', last_name: 'Agent' }, signer_name: null },
++    // A witness without an account: the agent pressed sign, the row is named after the witness.
++    { party: 'witness', channel: 'on_site', signed_at: new Date('2026-10-21T03:05:00Z'), signed_by: { first_name: 'QA', last_name: 'Agent' }, signer_name: ' Witness A ' },
++    { party: 'tenant', channel: 'legacy', signed_at: new Date('2026-10-01T00:00:00Z'), signed_by: null, signer_name: null },
++  ];
++  const db = { getRepository: (entity) => entity === AgreementSignatureEntity
++    ? { find: async (options) => { asked.push(options); assert.deepEqual(options.relations, { signed_by: true }); return rows; } }
++    : { createQueryBuilder: () => qb } };
++  const service = new AgentContractsService(db, {});
++  assert.deepEqual(await service.signatureLog(7, 11), [
++    { party: 'owner', channel: 'on_site', signedAt: '2026-10-21T03:00:00.000Z', signedBy: 'QA Agent' },
++    { party: 'witness', channel: 'on_site', signedAt: '2026-10-21T03:05:00.000Z', signedBy: 'Witness A' },
++    { party: 'tenant', channel: 'legacy', signedAt: '2026-10-01T00:00:00.000Z', signedBy: null },
++  ]);
++  assert.ok(scoped.some((params) => params?.agentId === 7), 'the contract is looked up for this agent');
++  assert.equal(asked[0].where.agreement_id, 11);
++  assert.equal(asked[0].where.voided_at?._type, 'isNull', 'voided signatures are left out');
++  assert.deepEqual(asked[0].order, { signed_at: 'ASC', id: 'ASC' });
++  found = null;
++  await assert.rejects(() => service.signatureLog(9, 11), (e) => e.getStatus() === 404);
++  assert.equal(asked.length, 1, 'no log is read for someone else\'s contract');
++});
++
++test('D17: a signature that races another one for the same party is refused as already signed, and its file removed', async () => {
++  const f = serviceFor(row());
++  const transaction = f.service.db.transaction;
++  f.service.db.transaction = (fn) => transaction((manager) => fn({ ...manager,
++    insert: async () => { throw Object.assign(new Error('duplicate key'), { code: '23505' }); } }));
++  await assert.rejects(() => f.service.sign(7, 11, { parties: ['owner'], signaturePng }), (e) => e.getStatus() === 400 && /ลงนามแล้ว/.test(e.message));
++  assert.deepEqual(f.signatures, []);
++  assert.deepEqual(f.removed, ['7/11/signatures/sig.png']);
++});
++
+ test('signing every remaining party moves the contract to agent review', async () => {
+   const { service, updates } = serviceFor(row({ receipt_url: '7/11/receipt/paid.pdf' }));
+   const result = await service.sign(7, 11, { parties: ['owner', 'tenant', 'agent'], signaturePng });
+@@ -140,6 +200,8 @@
+         received.push({ agentId, id, body });
+         return { id, status: 'awaiting_signatures' };
+       },
++      signatureLog: async (agentId, id) => [{ agentId, id }],
++      witnessSign: async (agentId, id, body) => ({ agentId, id, body }),
+     } },
+     { provide: AuthService, useValue: {
+       findBySupabaseUserId: async id => ({ id: Number(id) }),
+@@ -161,12 +223,31 @@
+   assert.equal(ok.status, 200);
+   assert.equal(received[0].agentId, 7);
+   assert.deepEqual(received[0].body.parties, ['agent']);
++  // D17: the signature log is for the signed-in agent only.
++  const logUrl = `${await app.getUrl()}/agent/contracts/11/signatures`;
++  const log = (auth) => fetch(logUrl, { headers: auth ? { Authorization: `Bearer ${auth}` } : {} });
++  assert.equal((await log()).status, 401);
++  assert.equal((await log('dev|8|test@example.invalid')).status, 403);
++  const logged = await log('dev|7|test@example.invalid');
++  assert.equal(logged.status, 200);
++  assert.deepEqual(await logged.json(), [{ agentId: 7, id: 11 }]);
++  // D9: the witness signs through the agent's session.
++  const witnessUrl = `${await app.getUrl()}/agent/contracts/11/witness-sign`;
++  const witness = (auth) => fetch(witnessUrl, {
++    method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
++    body: JSON.stringify({ asAgent: true, signaturePng: 'x' }) });
++  assert.equal((await witness()).status, 401);
++  assert.equal((await witness('dev|8|test@example.invalid')).status, 403);
++  const signed = await witness('dev|7|test@example.invalid');
++  assert.equal(signed.status, 201);
++  assert.deepEqual(await signed.json(), { agentId: 7, id: 11, body: { asAgent: true, signaturePng: 'x' } });
+ });
+ 
+ test('a concurrent edit or cancellation prevents a stale signature from being committed', async () => {
+-  const { service, current, updates } = serviceFor(row(), 0);
++  const { service, current, updates, signatures } = serviceFor(row(), 0);
+   await assert.rejects(() => service.sign(7, 11, { parties: ['owner'], signaturePng }), e => e.getStatus() === 409);
+   assert.equal(current.owner_signed_at, null);
++  assert.deepEqual(signatures, [], 'D17: nothing is logged when the contract write is refused');
+   assert.equal(updates[0][0].status, 'draft');
+   assert.ok(updates[0][0].data);
+ });
+diff -ruN orig/apps/api/test/agreement-sign-invites.test.cjs new/apps/api/test/agreement-sign-invites.test.cjs
+--- orig/apps/api/test/agreement-sign-invites.test.cjs	2026-10-21 06:14:36.811652631 +0000
++++ new/apps/api/test/agreement-sign-invites.test.cjs	2026-10-21 06:52:16.979954202 +0000
+@@ -9,6 +9,7 @@
+ const { PublicContractSignController } = require('../src/agent/contracts/public-contract-sign.controller.ts');
+ const { AgreementSignInviteEntity } = require('../src/entities/agreement-sign-invite.entity.ts');
+ const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
++const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
+ const { Module } = require('@nestjs/common');
+ const { NestFactory } = require('@nestjs/core');
+ 
+@@ -51,7 +52,7 @@
+ test('createSignInvite returns public url and publicSign records party', async () => {
+   process.env.PUBLIC_WEB_URL = 'https://web.example';
+   const current = contractRow();
+-  const invites = [];
++  const invites = []; const signatures = []; const removed = [];
+   const qb = {};
+   for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
+   qb.getOne = async () => current;
+@@ -59,7 +60,7 @@
+   qb.leftJoin = (...args) => brokerAppointmentLookup(() => [[current.rent_room_id, current.tenant_id]], current.created_by_user_id).leftJoin(...args);
+   const documents = {
+     uploadSignature: async () => ({ path: '7/11/signatures/sig.png' }),
+-    remove: async () => undefined,
++    remove: async (path) => { removed.push(path); },
+     signPaths: async () => new Map(),
+   };
+   const db = {
+@@ -119,6 +120,7 @@
+             if (row) Object.assign(row, patch);
+           }
+         },
++        insert: async (entity, rows) => { assert.equal(entity, AgreementSignatureEntity); signatures.push(...rows); },
+       }),
+   };
+   const service = new AgentContractsService(db, documents);
+@@ -150,14 +152,28 @@
+   await assert.rejects(() => service.publicSign(token, { signaturePng: invalidPng }), e => e.getStatus() === 400);
+   assert.equal(current.tenant_signed_at, null);
+   assert.equal(invites[0].used_at, null);
++  assert.deepEqual(signatures, [], 'D17: refused attempts log nothing');
+ 
+   assert.equal((await service.publicSignPreview(token)).signingBlockedReason, null);
++  // D17: another signature for the tenant raced in: refused as already signed, and the uploaded file removed.
++  const before = { ...current }; const usedBefore = invites[0].used_at;
++  const transaction = db.transaction;
++  db.transaction = (fn) => transaction((manager) => fn({ ...manager,
++    insert: async () => { throw Object.assign(new Error('duplicate key'), { code: '23505' }); } }));
++  await assert.rejects(() => service.publicSign(token, { signaturePng }), (e) => e.getStatus() === 400 && /ลงนามแล้ว/.test(e.message));
++  assert.deepEqual(signatures, []);
++  assert.deepEqual(removed, ['7/11/signatures/sig.png']);
++  // A real transaction rolls back the contract and invite writes; this mock does not, so undo them by hand.
++  db.transaction = transaction; Object.assign(current, before); invites[0].used_at = usedBefore; removed.length = 0;
+   const result = await service.publicSign(token, { signaturePng });
+   assert.deepEqual(result, { ok: true, party: 'tenant' });
+   assert.ok(current.tenant_signed_at);
+   assert.equal(current.tenant_signature_url, '7/11/signatures/sig.png');
+   assert.equal(current.status, 'awaiting_signatures');
+   assert.equal(invites[0].used_at != null, true);
++  // D17: logged as signed through this link; nobody is logged in behind a link, so no user.
++  assert.deepEqual(signatures, [{ agreement_id: 11, party: 'tenant', channel: 'link', sign_invite_id: invites[0].id,
++    signature_url: '7/11/signatures/sig.png', signed_at: current.tenant_signed_at }]);
+ });
+ 
+ test('public contract sign routes are unauthenticated', async () => {
+diff -ruN orig/apps/api/test/contract-delivery.test.cjs new/apps/api/test/contract-delivery.test.cjs
+--- orig/apps/api/test/contract-delivery.test.cjs	2026-10-21 06:14:36.811738634 +0000
++++ new/apps/api/test/contract-delivery.test.cjs	2026-10-21 06:52:06.718898913 +0000
+@@ -5,6 +5,8 @@
+ require('reflect-metadata');
+ require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(require('node:fs').readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
+ const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
++const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
++const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
+ const rentSchedule = require('../src/billing/rent-schedule.ts');
+ 
+ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEElEQVQImWNgYGD4D8UQBgAd9AP9JAD7OgAAAABJRU5ErkJggg==', 'base64');
+@@ -60,10 +62,10 @@
+   qb.getMany = async () => inboxRows;
+   // D1: the contract's own room + tenant has a valid broker appointment, answered only for its own agent.
+   qb.leftJoin = (...args) => brokerAppointmentLookup(() => [[current.rent_room_id, current.tenant_id]], current.created_by_user_id).leftJoin(...args);
+-  const updates = [];
++  const updates = []; const signatures = []; const removed = [];
+   const documents = {
+     uploadSignature: async () => ({ path: '7/11/signatures/sig.png' }),
+-    remove: async () => undefined,
++    remove: async (path) => { removed.push(path); },
+     signPaths: async (paths) => new Map(paths.filter(Boolean).map((path) => [path, `https://signed.example/${path}`])),
+   };
+   const db = {
+@@ -75,8 +77,13 @@
+         return { affected: 1 };
+       },
+     }),
++    // D17: signing writes the contract and its signature log in one transaction.
++    transaction: async (fn) => fn({
++      update: async (entity, where, patch) => { assert.equal(entity, LeaseContractEntity); return db.getRepository(entity).update(where, patch); },
++      insert: async (entity, rows) => { assert.equal(entity, AgreementSignatureEntity); signatures.push(...rows); },
++    }),
+   };
+-  return { service: new AgentContractsService(db, documents), updates, current };
++  return { service: new AgentContractsService(db, documents), updates, current, signatures, removed };
+ }
+ 
+ test('deliver sends the contract to the tenant or owner account', async () => {
+@@ -125,6 +132,16 @@
+   );
+ });
+ 
++test('D17: a party signature that races another one is refused as already signed, and its file removed', async () => {
++  const f = serviceFor(contract({ tenant_delivered_at: new Date() }));
++  const transaction = f.service.db.transaction;
++  f.service.db.transaction = (fn) => transaction((manager) => fn({ ...manager,
++    insert: async () => { throw Object.assign(new Error('duplicate key'), { code: '23505' }); } }));
++  await assert.rejects(() => f.service.signAsParty(8, 11, { party: 'tenant', signaturePng }), (e) => e.getStatus() === 400 && /ลงนามแล้ว/.test(e.message));
++  assert.deepEqual(f.signatures, []);
++  assert.deepEqual(f.removed, ['7/11/signatures/sig.png']);
++});
++
+ test('the recipient can sign only the delivered party', async () => {
+   const f = serviceFor(contract({ tenant_delivered_at: new Date() }));
+   const signed = await f.service.signAsParty(8, 11, { party: 'tenant', signaturePng });
+@@ -132,6 +149,9 @@
+   assert.ok(f.current.tenant_signed_at instanceof Date);
+   assert.equal(f.current.tenant_signature_url, '7/11/signatures/sig.png');
+   assert.equal(f.current.owner_signed_at, null);
++  // D17: the party signed in their own app, logged with their account.
++  assert.deepEqual(f.signatures, [{ agreement_id: 11, party: 'tenant', channel: 'app', signed_by_user_id: 8,
++    signature_url: '7/11/signatures/sig.png', signed_at: f.current.tenant_signed_at }]);
+ 
+   const stranger = serviceFor(contract({ tenant_delivered_at: new Date() }));
+   await assert.rejects(
+diff -ruN orig/apps/consumer-app/components/ContractsScreen.tsx new/apps/consumer-app/components/ContractsScreen.tsx
+--- orig/apps/consumer-app/components/ContractsScreen.tsx	2026-10-21 06:14:36.810413954 +0000
++++ new/apps/consumer-app/components/ContractsScreen.tsx	2026-10-21 06:36:28.444854805 +0000
+@@ -70,6 +70,7 @@
+   CommissionConfirmation,
+   StandaloneInvoice,
+   AgentContractSignParty,
++  AgreementSignatureLogEntry,
+   AgentContractStatus,
+   ContractCandidate,
+   AgentTenant,
+@@ -86,6 +87,7 @@
+   listAgreementTemplates,
+   getAgentContract,
+   listContractCandidates,
++  listAgentContractSignatures,
+   getReservationDefaults,
+   getBrokerAppointmentLeadDefaults,
+   getLeaseDefaults,
+@@ -95,6 +97,7 @@
+   getAgentContractDraftTemplate,
+   uploadAgentContractDocument,
+   signAgentContract,
++  signAgentContractWitness,
+   deliverAgentContract,
+   createContractSignInvite,
+   previewAgentReservation,
+@@ -118,6 +121,7 @@
+ } from "./ContractSignaturePad";
+ import { bangkokDateKey, isIsoDate, leaseTermEnd, positiveMonths, shiftIsoDate } from "../lib/lease-term";
+ import { renewalCandidates, renewalClosedMessage } from "../lib/contract-renewal";
++import { signatureChannelText } from "../lib/signature-log";
+ import { canCloseContract } from "../lib/contract-close";
+ import { ContractCloseCard, closeResultNotice } from "./ContractCloseCard";
+ 
+@@ -246,10 +250,12 @@
+   const tc = t.contracts;
+   const sc = tc.screen;
+   // Errors the app can explain in the reader's language even when the API message is Thai only.
+-  const message = (error: unknown) =>
+-    (error as { code?: unknown } | null)?.code === "BROKER_APPOINTMENT_REQUIRED"
+-      ? docs.reservationNeedsBroker
+-      : localizedError(error, cn.connectError, locale);
++  const message = (error: unknown) => {
++    const code = (error as { code?: unknown } | null)?.code;
++    if (code === "BROKER_APPOINTMENT_REQUIRED") return docs.reservationNeedsBroker;
++    if (code === "WITNESS_SIGNATURE_REQUIRED") return docs.witnessRequired;
++    return localizedError(error, cn.connectError, locale);
++  };
+   const labels = tc.common.status;
+   const money = (value: number | null) =>
+     value == null
+@@ -474,10 +480,41 @@
+   const [signParties, setSignParties] = useState<
+     AgentContractSignParty[] | null
+   >(null);
++  // D9: the lease witness signing sheet (asAgent: the agent is the witness; otherwise a named person signs here).
++  const [witnessSign, setWitnessSign] = useState<{ asAgent: boolean } | null>(null);
++  const [witnessName, setWitnessName] = useState("");
+   const [viewSignature, setViewSignature] = useState<{
+     label: string;
+     url: string;
+   } | null>(null);
++  // D17: how each party signed the open contract (null until loaded; a failed load just hides the lines).
++  const [signatureLog, setSignatureLog] = useState<AgreementSignatureLogEntry[] | null>(null);
++  const signatureKey = selected
++    ? `${selected.id}:${selected.ownerSignedAt}:${selected.tenantSignedAt}:${selected.agentSignedAt}`
++    : "";
++  useEffect(() => {
++    if (!selected) return;
++    let live = true;
++    setSignatureLog(null);
++    listAgentContractSignatures(selected.id)
++      .then((rows) => {
++        if (live) setSignatureLog(rows);
++      })
++      .catch(() => undefined);
++    return () => {
++      live = false;
++    };
++  }, [signatureKey]);
++  const witnessEntry = signatureLog?.find((row) => row.party === "witness") ?? null;
++  // Only known once the log has loaded; if it cannot load, the API still refuses to generate without a witness.
++  const leaseNeedsWitness = signatureLog != null && !witnessEntry;
++  function openWitnessSheet(asAgent: boolean) {
++    if (busy || signing.current) return;
++    setError("");
++    setWitnessName("");
++    setSignPadKey((key) => key + 1);
++    setWitnessSign({ asAgent });
++  }
+   const [previewDoc, setPreviewDoc] = useState<{
+     name: string;
+     url: string;
+@@ -985,12 +1022,12 @@
+     }
+   }
+   useEffect(() => {
+-    if (!signParties) return;
++    if (!signParties && !witnessSign) return;
+     const timer = setTimeout(() => {
+       padRef.current?.reinitialize?.();
+     }, 320);
+     return () => clearTimeout(timer);
+-  }, [signParties, signPadKey]);
++  }, [signParties, witnessSign, signPadKey]);
+   const reservationRequest = useRef(false);
+   const [pdfAction, setPdfAction] = useState<"preview" | "generate" | null>(
+     null,
+@@ -1120,7 +1157,39 @@
+       setPdfAction(null);
+     }
+   }
++  async function submitWitnessSignature(image: string) {
++    if (!selected || !witnessSign || signing.current) return;
++    if (!witnessSign.asAgent && !witnessName.trim()) {
++      setError(docs.witnessNameRequired);
++      return;
++    }
++    signing.current = true;
++    setBusy(true);
++    setError("");
++    setNotice("");
++    try {
++      const latest = await signAgentContractWitness(selected.id, {
++        signaturePng: image,
++        asAgent: witnessSign.asAgent,
++        ...(witnessSign.asAgent ? {} : { signerName: witnessName.trim() }),
++      });
++      setWitnessSign(null);
++      setSelected(latest);
++      setContracts((current) =>
++        current.map((item) => (item.id === latest.id ? latest : item)),
++      );
++      setSignatureLog(await listAgentContractSignatures(latest.id).catch(() => null));
++      setNotice(docs.signSuccess);
++      onChanged?.();
++    } catch (e) {
++      setError(localizedError(e, docs.signError, locale));
++    } finally {
++      signing.current = false;
++      setBusy(false);
++    }
++  }
+   async function submitSignature(image: string) {
++    if (witnessSign) return submitWitnessSignature(image);
+     if (!selected || !signParties?.length || signing.current) return;
+     signing.current = true;
+     setBusy(true);
+@@ -2764,6 +2833,9 @@
+                     ? `✓ ${new Date(party.signed).toLocaleString("th-TH")}`
+                     : docs.unsigned}
+                 </Text>
++                {!!party.signed && !!signatureChannelText(signatureLog, party.key, docs) && (
++                  <Text style={[s.small, muted]}>{signatureChannelText(signatureLog, party.key, docs)}</Text>
++                )}
+                 {!party.signed && bookingPaymentBlocksSigning(selected, party.key) && (
+                   <Text style={[s.small, muted]}>{t.mobile.partyContracts.bookingPaymentBeforeSigning}</Text>
+                 )}
+@@ -2815,6 +2887,41 @@
+               ) : null}
+             </View>
+           ))}
++          {selected.formKind === "lease" && (
++            <View style={s.signRow}>
++              <View style={s.sourceCopy}>
++                <Text style={[s.body, title]}>{docs.witness}</Text>
++                <Text style={[s.small, muted]}>
++                  {witnessEntry
++                    ? `✓ ${new Date(witnessEntry.signedAt).toLocaleString("th-TH")}`
++                    : docs.unsigned}
++                </Text>
++                {!!witnessEntry && (
++                  <Text style={[s.small, muted]}>{signatureChannelText(signatureLog, "witness", docs)}</Text>
++                )}
++                {!witnessEntry && <Text style={[s.small, muted]}>{docs.witnessHint}</Text>}
++              </View>
++              {!witnessEntry && signatureLog != null && !signingLocked(selected.status) && !documentLocked ? (
++                <View style={s.partyActions}>
++                  <MobileButton
++                    variant="outline"
++                    style={s.shareButton}
++                    disabled={busy}
++                    onPress={() => openWitnessSheet(false)}
++                  >
++                    {docs.witnessOther}
++                  </MobileButton>
++                  <MobileButton
++                    style={s.signatureButton}
++                    disabled={busy}
++                    onPress={() => openWitnessSheet(true)}
++                  >
++                    {docs.witnessAsAgent}
++                  </MobileButton>
++                </View>
++              ) : null}
++            </View>
++          )}
+         </View>
+         {selected.formKind === "reservation" && (
+           <View style={[s.card, card]}>
+@@ -2911,11 +3018,15 @@
+                     ? tc.renewalForm.preview
+                     : sc.leaseGenerateHint}
+                 </Text>
++                {selected.formKind === "lease" && leaseNeedsWitness && (
++                  <Text style={[s.small, muted]}>{docs.witnessRequired}</Text>
++                )}
+                 <MobileButton
+                   disabled={
+                     busy ||
+                     selected.leaseAgreementStatus !== "ready_to_generate" ||
+-                    !attachmentsReady
++                    !attachmentsReady ||
++                    (selected.formKind === "lease" && leaseNeedsWitness)
+                   }
+                   isLoading={pdfAction === "generate"}
+                   onPress={() => void openLeaseAgreement(true)}
+@@ -3094,16 +3205,29 @@
+           </Pressable>
+         </MobileBottomSheet>
+         <MobileBottomSheet
+-          visible={signParties != null}
+-          onClose={() => !busy && setSignParties(null)}
++          visible={signParties != null || witnessSign != null}
++          onClose={() => {
++            if (busy) return;
++            setSignParties(null);
++            setWitnessSign(null);
++          }}
+           maxHeight="90%"
+           sheetStyle={s.sheetPanel}
+         >
+           <Text style={[s.sheetTitle, title]}>
+-            {signParties ? signSheetTitle(signParties) : docs.signatories}
++            {witnessSign ? docs.witnessSignTitle : signParties ? signSheetTitle(signParties) : docs.signatories}
+           </Text>
+           <Text style={[s.sheetHint, muted]}>{docs.signHint}</Text>
+-          {!!error && signParties ? (
++          {witnessSign && !witnessSign.asAgent ? (
++            <MobileInput
++              label={docs.witnessName}
++              value={witnessName}
++              onChangeText={setWitnessName}
++              editable={!busy}
++              maxLength={255}
++            />
++          ) : null}
++          {!!error && (signParties || witnessSign) ? (
+             <Text
+               accessibilityRole="alert"
+               style={[s.body, { color: "#C74747", marginBottom: 8 }]}
+@@ -3111,9 +3235,9 @@
+               {error}
+             </Text>
+           ) : null}
+-          {signParties ? (
++          {signParties || witnessSign ? (
+             <ContractSignaturePad
+-              key={`${signPadKey}-${signParties.join("-")}`}
++              key={`${signPadKey}-${witnessSign ? `witness-${witnessSign.asAgent}` : signParties!.join("-")}`}
+               ref={padRef}
+               onOK={(image) => {
+                 void submitSignature(image);
+diff -ruN orig/apps/consumer-app/components/contracts-renewal-flow.test.cjs new/apps/consumer-app/components/contracts-renewal-flow.test.cjs
+--- orig/apps/consumer-app/components/contracts-renewal-flow.test.cjs	2026-10-21 06:14:36.810589933 +0000
++++ new/apps/consumer-app/components/contracts-renewal-flow.test.cjs	2026-10-21 06:47:34.542099034 +0000
+@@ -45,6 +45,8 @@
+       deliverAgentContract:async(id,party)=>{options.deliveries?.push([id,party]);return {party,deliveredAt:'2026-10-12T05:00:00Z'};},
+       // D1: booked tenants for the type picker and the create form (an Error is thrown as a failed load).
+       listContractCandidates:async()=>{options.candidateCalls?.push('called');const value=typeof options.candidates==='function'?options.candidates():options.candidates??[];options.candidateCalls?.push('returned');if (value instanceof Error) throw value;return value;},
++      // D17: how each party signed (the detail view loads it).
++      listAgentContractSignatures:async(id)=>{options.signatureLogCalls?.push(id);return options.signatureLog ?? [];},
+       ...options.api,
+     },
+     './ReservationLetterFields':{ReservationLetterFields:'reservation-fields',emptyReservationLetterForm:()=>({}),reservationLetterFieldErrors:()=>({})},
+@@ -55,6 +57,7 @@
+     './AgentContractLibrary':{AgentContractLibrary:'contract-library'},
+     '../lib/agent-contract-library':load('../lib/agent-contract-library.ts'),
+     '../lib/contract-close':load('../lib/contract-close.ts', id=>id==='./lease-term'?term:require(id)),
++    '../lib/signature-log':load('../lib/signature-log.ts', id=>id==='@nestyk/i18n'?{fillTemplate:require('./test-i18n.cjs').fillTemplate}:require(id)),
+     './ContractCloseCard':{ContractCloseCard:'close-card',closeResultNotice:()=>'closed'},
+   };
+   for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ReservationPaymentCard','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
+@@ -295,6 +298,97 @@
+   assert.equal(backRef.current(),false);
+ }));
+ 
++test('D17: a signed party shows how it was signed', async () => atBangkokOctober12(async()=>{
++  const agent=thai.th.agent.contracts;
++  const signing=row({id:5,formKind:'renewal',status:'awaiting_signatures',contractNo:'RN005',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:null,ownerSignatureUrl:'https://x/o.png'});
++  const signatureLogCalls=[];
++  const signatureLog=[{party:'owner',channel:'link',signedAt:'2026-10-11T03:00:00.000Z',signedBy:null},{party:'tenant',channel:'on_site',signedAt:'2026-10-11T03:00:00.000Z',signedBy:'QA Agent'}];
++  const h=harness([signing], {props:{startCreate:null,initialContract:signing},signatureLog,signatureLogCalls});
++  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
++  const texts=()=>nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
++  assert.ok(texts().includes(agent.signedVia.link),'the signed owner shows the channel');
++  // The tenant has a log row but is not signed on the contract itself, so no channel line is shown for it.
++  assert.equal(texts().some(t=>typeof t==='string' && t.startsWith(agent.signedVia.on_site)),false);
++  assert.deepEqual(signatureLogCalls,[5],'loaded once for the open contract');
++}));
++
++test('D9: a lease asks for a witness before generating; the agent signs as witness or types the witness name', async () => atBangkokOctober12(async()=>{
++  const agent=thai.th.agent.contracts;
++  const lease=row({id:6,formKind:'lease',status:'awaiting_agent_review',contractNo:'LS006',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:'2026-10-11T03:00:00Z',leaseAgreementStatus:'ready_to_generate',ownerSignatureUrl:'https://x/o.png',tenantSignatureUrl:'https://x/t.png'});
++  const witnessCalls=[],signatureLogCalls=[];
++  const signed={...lease};
++  const h=harness([lease], {props:{startCreate:null,initialContract:lease},signatureLog:[],signatureLogCalls,
++    api:{signAgentContractWitness:async(id,input)=>{witnessCalls.push([id,input]);return signed;}}});
++  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
++  const tree=()=>nodes(h.render());
++  const texts=()=>tree().filter(n=>n.type==='span').map(n=>n.props.children);
++  const button=(label)=>tree().find(n=>n.type==='button'&&n.props.children===label);
++  assert.ok(texts().includes(agent.witness));
++  assert.ok(texts().includes(agent.witnessRequired),'the generate step says the witness must sign first');
++  // Someone else witnesses: the name is required before anything is sent.
++  button(agent.witnessOther).props.onPress();
++  const sheet=tree().find(n=>n.type==='aside'&&nodes(n).some(c=>typeof c.props?.onOK==='function'));
++  assert.equal(sheet.props.visible,true,'the signing sheet opens');
++  assert.ok(tree().some(n=>n.type==='input'&&n.props.label===agent.witnessName));
++  const pad=()=>tree().find(n=>typeof n.props?.onOK==='function');
++  await pad().props.onOK('data:image/png;base64,AAAA');
++  assert.deepEqual(witnessCalls,[]);
++  assert.ok(texts().includes(agent.witnessNameRequired));
++  tree().find(n=>n.type==='input'&&n.props.label===agent.witnessName).props.onChangeText(' Witness C ');
++  await pad().props.onOK('data:image/png;base64,AAAA');
++  assert.deepEqual(witnessCalls,[[6,{signaturePng:'data:image/png;base64,AAAA',asAgent:false,signerName:'Witness C'}]]);
++  assert.deepEqual(signatureLogCalls,[6,6],'the log is read again after the witness signs');
++}));
++
++test('D9: the agent signing as witness sends no name, and a signed witness shows instead of the buttons', async () => atBangkokOctober12(async()=>{
++  const agent=thai.th.agent.contracts;
++  const lease=row({id:6,formKind:'lease',status:'awaiting_agent_review',contractNo:'LS006',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:'2026-10-11T03:00:00Z',leaseAgreementStatus:'ready_to_generate'});
++  const witnessCalls=[];
++  const h=harness([lease], {props:{startCreate:null,initialContract:lease},signatureLog:[],
++    api:{signAgentContractWitness:async(id,input)=>{witnessCalls.push([id,input]);return lease;}}});
++  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
++  const tree=()=>nodes(h.render());
++  tree().find(n=>n.type==='button'&&n.props.children===agent.witnessAsAgent).props.onPress();
++  assert.equal(tree().some(n=>n.type==='input'&&n.props.label===agent.witnessName),false,'no name field when the agent is the witness');
++  await tree().find(n=>typeof n.props?.onOK==='function').props.onOK('data:image/png;base64,AAAA');
++  assert.deepEqual(witnessCalls,[[6,{signaturePng:'data:image/png;base64,AAAA',asAgent:true}]]);
++  // With a witness in the log: no buttons, the witness line shows, and no "witness first" hint.
++  const done=harness([lease], {props:{startCreate:null,initialContract:lease},
++    signatureLog:[{party:'witness',channel:'on_site',signedAt:'2026-10-11T04:00:00.000Z',signedBy:'Witness C'}]});
++  done.render(); done.resolve(); await done.tick(); done.render(); await done.tick();
++  const doneTree=nodes(done.render());
++  assert.equal(doneTree.some(n=>n.type==='button'&&[agent.witnessAsAgent,agent.witnessOther].includes(n.props.children)),false);
++  const doneTexts=doneTree.filter(n=>n.type==='span').map(n=>n.props.children);
++  assert.ok(doneTexts.includes(`${agent.signedVia.on_site} ${agent.signedBy.replace('{name}','Witness C')}`));
++  assert.equal(doneTexts.includes(agent.witnessRequired),false);
++}));
++
++test('D9: the generate button waits for the witness, unless the log could not be read (the API still checks)', async () => atBangkokOctober12(async()=>{
++  const agent=thai.th.agent.contracts;
++  const lease=row({id:6,formKind:'lease',status:'awaiting_agent_review',contractNo:'LS006',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:'2026-10-11T03:00:00Z',leaseAgreementStatus:'ready_to_generate'});
++  const open=async(options)=>{
++    const h=harness([lease], {props:{startCreate:null,initialContract:lease},...options});
++    h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
++    // Attachments are complete, so only the witness can hold the button.
++    nodes(h.render()).find(n=>typeof n.props?.onReadinessChange==='function').props.onReadinessChange({contractId:6,ready:true});
++    const tree=nodes(h.render());
++    return {h,tree,generate:tree.find(n=>n.type==='button'&&n.props.children===contractsTh.screen.confirmGenerate)};
++  };
++  const waiting=await open({signatureLog:[]});
++  assert.equal(waiting.generate.props.disabled,true);
++  const witnessed=await open({signatureLog:[{party:'witness',channel:'app',signedAt:'2026-10-11T04:00:00.000Z',signedBy:'QA Agent'}]});
++  assert.equal(witnessed.generate.props.disabled,false);
++  // The log could not be read: no witness buttons (nothing to decide on) and the button is not held.
++  const failed=await open({api:{listAgentContractSignatures:async()=>{throw new Error('offline');}}});
++  assert.equal(failed.generate.props.disabled,false);
++  assert.equal(failed.tree.some(n=>n.type==='button'&&[agent.witnessAsAgent,agent.witnessOther].includes(n.props.children)),false);
++  // If the API refuses for the missing witness, the app explains it in its own words.
++  const refused=await open({signatureLog:[{party:'witness',channel:'app',signedAt:'2026-10-11T04:00:00.000Z',signedBy:'QA Agent'}],
++    api:{generateAgentLeaseAgreement:async()=>{throw Object.assign(new Error('ต้องให้พยานลงนาม'),{code:'WITNESS_SIGNATURE_REQUIRED'});}}});
++  refused.generate.props.onPress(); await refused.h.tick();
++  assert.ok(nodes(refused.h.render()).filter(n=>n.type==='span').map(n=>n.props.children).includes(agent.witnessRequired));
++}));
++
+ test('sign link: the share button offers a web link next to sending to the app, and still offers it once delivered', async () => atBangkokOctober12(async()=>{
+   const agent=thai.th.agent.contracts;
+   const alerts=[],shared=[],invites=[],deliveries=[];
+diff -ruN orig/apps/consumer-app/lib/agent-contracts-api.ts new/apps/consumer-app/lib/agent-contracts-api.ts
+--- orig/apps/consumer-app/lib/agent-contracts-api.ts	2026-10-21 06:14:36.810248615 +0000
++++ new/apps/consumer-app/lib/agent-contracts-api.ts	2026-10-21 06:36:21.252302154 +0000
+@@ -123,6 +123,15 @@
+   return apiPost(`/agent/contracts/${id}/sign`, input);
+ }
+ 
++/** D9: the lease witness signs on the agent's device; asAgent when the agent is the witness. */
++export async function signAgentContractWitness(
++  id: number,
++  input: { signaturePng: string; asAgent: boolean; signerName?: string },
++): Promise<AgentContract> {
++  await ensureAgentSession();
++  return apiPost(`/agent/contracts/${id}/witness-sign`, input);
++}
++
+ export async function deliverAgentContract(
+   id: number,
+   party: ContractParty,
+@@ -198,6 +207,14 @@
+   return apiGet(`/agent/contracts/${id}/history`);
+ }
+ 
++/** D17: who signed a contract and through which channel. */
++export async function listAgentContractSignatures(
++  id: number,
++): Promise<import("@nestyk/types").AgreementSignatureLogEntry[]> {
++  await ensureAgentSession();
++  return apiGet(`/agent/contracts/${id}/signatures`);
++}
++
+ export async function listAgreementAttachments(
+   id: number,
+ ): Promise<import("@nestyk/types").AgreementAttachmentChecklist> {
+diff -ruN orig/apps/consumer-app/lib/signature-log.test.cjs new/apps/consumer-app/lib/signature-log.test.cjs
+--- orig/apps/consumer-app/lib/signature-log.test.cjs	1970-01-01 00:00:00.000000000 +0000
++++ new/apps/consumer-app/lib/signature-log.test.cjs	2026-10-21 06:16:19.219736418 +0000
+@@ -0,0 +1,35 @@
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const ts = require('typescript');
++const { fillTemplate } = require('../components/test-i18n.cjs');
++
++function load(file) {
++  const module = { exports: {} };
++  const output = ts.transpileModule(fs.readFileSync(path.join(__dirname, file), 'utf8'), {
++    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
++  }).outputText;
++  new Function('require', 'module', 'exports', output)((id) => (id === '@nestyk/i18n' ? { fillTemplate } : require(id)), module, module.exports);
++  return module.exports;
++}
++const { signatureChannelText } = load('signature-log.ts');
++const copy = {
++  signedVia: { app: 'ลงนามในแอป', link: 'ลงนามผ่านลิงก์', on_site: 'นายหน้ากดลงนามแทน', uploaded_file: 'แนบไฟล์ที่ลงนามแล้ว' },
++  signedBy: 'โดย {name}',
++};
++const row = (patch) => ({ party: 'owner', channel: 'app', signedAt: '2026-10-21T03:00:00.000Z', signedBy: null, ...patch });
++
++test('D17: each channel gets its own line, with who pressed sign when known', () => {
++  assert.equal(signatureChannelText([row({ signedBy: 'Somchai Owner' })], 'owner', copy), 'ลงนามในแอป โดย Somchai Owner');
++  assert.equal(signatureChannelText([row({ party: 'tenant', channel: 'link' })], 'tenant', copy), 'ลงนามผ่านลิงก์');
++  assert.equal(signatureChannelText([row({ channel: 'on_site', signedBy: 'QA Agent' })], 'owner', copy), 'นายหน้ากดลงนามแทน โดย QA Agent');
++  assert.equal(signatureChannelText([row({ channel: 'uploaded_file' })], 'owner', copy), 'แนบไฟล์ที่ลงนามแล้ว');
++});
++
++test('D17: no line for a party without a row, an old (legacy) signature, or a log that has not loaded', () => {
++  assert.equal(signatureChannelText([row({ party: 'tenant' })], 'owner', copy), '');
++  assert.equal(signatureChannelText([row({ channel: 'legacy' })], 'owner', copy), '');
++  assert.equal(signatureChannelText(null, 'owner', copy), '');
++  assert.equal(signatureChannelText([], 'owner', copy), '');
++});
+diff -ruN orig/apps/consumer-app/lib/signature-log.ts new/apps/consumer-app/lib/signature-log.ts
+--- orig/apps/consumer-app/lib/signature-log.ts	1970-01-01 00:00:00.000000000 +0000
++++ new/apps/consumer-app/lib/signature-log.ts	2026-10-21 06:16:05.433802979 +0000
+@@ -0,0 +1,22 @@
++import type { AgreementSignatureLogEntry, AgreementSignatureParty } from "@nestyk/types";
++import { fillTemplate } from "@nestyk/i18n";
++
++export type SignatureLogCopy = {
++  signedVia: { app: string; link: string; on_site: string; uploaded_file: string };
++  signedBy: string;
++};
++
++/**
++ * D17: the line under a signed party saying how it was signed ("ลงผ่านลิงก์", "นายหน้ากดลงนามแทน โดย ...").
++ * Signatures copied from the old columns (legacy) have no known channel, so they get no line.
++ */
++export function signatureChannelText(
++  log: AgreementSignatureLogEntry[] | null,
++  party: AgreementSignatureParty,
++  copy: SignatureLogCopy,
++): string {
++  const entry = log?.find((row) => row.party === party);
++  if (!entry || entry.channel === "legacy") return "";
++  const via = copy.signedVia[entry.channel];
++  return entry.signedBy ? `${via} ${fillTemplate(copy.signedBy, { name: entry.signedBy })}` : via;
++}
+diff -ruN orig/packages/i18n/src/locales/en.ts new/packages/i18n/src/locales/en.ts
+--- orig/packages/i18n/src/locales/en.ts	2026-10-21 06:14:36.812954815 +0000
++++ new/packages/i18n/src/locales/en.ts	2026-10-21 06:36:38.550009819 +0000
+@@ -1201,6 +1201,16 @@
+       tenant: 'Tenant',
+       agent: 'Agent',
+       unsigned: 'Not signed',
++      signedVia: { app: 'Signed in the app', link: 'Signed through a sign link', on_site: 'Signed by the agent on their behalf', uploaded_file: 'Signed file attached' },
++      signedBy: 'by {name}',
++      witness: 'Witness',
++      witnessHint: 'A lease needs one witness signature. The agent can be the witness',
++      witnessAsAgent: 'Sign as witness',
++      witnessOther: 'Someone else witnesses',
++      witnessName: 'Witness name',
++      witnessNameRequired: 'Enter the witness name',
++      witnessRequired: 'The witness must sign before the lease document can be generated',
++      witnessSignTitle: 'Witness signature',
+       signFor: 'Sign',
+       shareSign: 'Share',
+       shareSignMessage: 'Send this contract to the {party} account so they can open and sign it in the app',
+diff -ruN orig/packages/i18n/src/locales/ja.ts new/packages/i18n/src/locales/ja.ts
+--- orig/packages/i18n/src/locales/ja.ts	2026-10-21 06:14:36.813488326 +0000
++++ new/packages/i18n/src/locales/ja.ts	2026-10-21 06:36:38.551958660 +0000
+@@ -1201,6 +1201,16 @@
+       tenant: '借主',
+       agent: '仲介',
+       unsigned: '未署名',
++      signedVia: { app: 'アプリで署名', link: '署名リンクで署名', on_site: '仲介者が代理で署名', uploaded_file: '署名済みファイルを添付' },
++      signedBy: '署名者：{name}',
++      witness: '立会人',
++      witnessHint: '賃貸借契約には立会人 1 名の署名が必要です。仲介者が立会人になれます',
++      witnessAsAgent: '立会人として署名',
++      witnessOther: '他の人が立会人',
++      witnessName: '立会人の氏名',
++      witnessNameRequired: '立会人の氏名を入力してください',
++      witnessRequired: '立会人が署名してから賃貸借契約書を作成できます',
++      witnessSignTitle: '立会人の署名',
+       signFor: '署名',
+       shareSign: '共有',
+       shareSignMessage: 'この契約を{party}のアカウントへ送り、アプリで開いて署名してもらいます',
+diff -ruN orig/packages/i18n/src/locales/th.ts new/packages/i18n/src/locales/th.ts
+--- orig/packages/i18n/src/locales/th.ts	2026-10-21 06:14:36.812581480 +0000
++++ new/packages/i18n/src/locales/th.ts	2026-10-21 06:36:38.549101024 +0000
+@@ -1201,6 +1201,16 @@
+       tenant: 'ผู้เช่า',
+       agent: 'นายหน้า',
+       unsigned: 'ยังไม่ลงนาม',
++      signedVia: { app: 'ลงนามในแอป', link: 'ลงนามผ่านลิงก์', on_site: 'นายหน้ากดลงนามแทน', uploaded_file: 'แนบไฟล์ที่ลงนามแล้ว' },
++      signedBy: 'โดย {name}',
++      witness: 'พยาน',
++      witnessHint: 'สัญญาเช่าต้องมีพยานลงนาม 1 คน นายหน้าเป็นพยานได้',
++      witnessAsAgent: 'ลงนามเป็นพยาน',
++      witnessOther: 'ให้คนอื่นเป็นพยาน',
++      witnessName: 'ชื่อพยาน',
++      witnessNameRequired: 'กรุณาระบุชื่อพยาน',
++      witnessRequired: 'ต้องให้พยานลงนามก่อน จึงจะสร้างเอกสารสัญญาเช่าได้',
++      witnessSignTitle: 'ลงนามพยาน',
+       signFor: 'ลงนาม',
+       shareSign: 'แชร์',
+       shareSignMessage: 'ส่งสัญญานี้เข้าบัญชี{party} เพื่อให้เปิดและลงนามในแอป',
+diff -ruN orig/packages/i18n/src/locales/zh.ts new/packages/i18n/src/locales/zh.ts
+--- orig/packages/i18n/src/locales/zh.ts	2026-10-21 06:14:36.813200517 +0000
++++ new/packages/i18n/src/locales/zh.ts	2026-10-21 06:36:38.550923667 +0000
+@@ -1199,6 +1199,16 @@
+       tenant: '承租人',
+       agent: '中介',
+       unsigned: '尚未签署',
++      signedVia: { app: '在应用内签署', link: '通过签署链接签署', on_site: '由经纪人代为签署', uploaded_file: '已上传签署文件' },
++      signedBy: '签署人：{name}',
++      witness: '见证人',
++      witnessHint: '租赁合同需要 1 名见证人签署，经纪人可担任见证人',
++      witnessAsAgent: '以见证人身份签署',
++      witnessOther: '由他人担任见证人',
++      witnessName: '见证人姓名',
++      witnessNameRequired: '请输入见证人姓名',
++      witnessRequired: '见证人签署后才能生成租赁合同文件',
++      witnessSignTitle: '见证人签署',
+       signFor: '签署',
+       shareSign: '分享',
+       shareSignMessage: '将此合同发送到{party}账户，以便在应用中打开并签署',
+diff -ruN orig/packages/i18n/src/types.ts new/packages/i18n/src/types.ts
+--- orig/packages/i18n/src/types.ts	2026-10-21 06:14:36.813722805 +0000
++++ new/packages/i18n/src/types.ts	2026-10-21 06:36:38.552465360 +0000
+@@ -1207,6 +1207,16 @@
+       tenant: string;
+       agent: string;
+       unsigned: string;
++      signedVia: { app: string; link: string; on_site: string; uploaded_file: string };
++      signedBy: string;
++      witness: string;
++      witnessHint: string;
++      witnessAsAgent: string;
++      witnessOther: string;
++      witnessName: string;
++      witnessNameRequired: string;
++      witnessRequired: string;
++      witnessSignTitle: string;
+       signFor: string;
+       shareSign: string;
+       shareSignMessage: string;
+diff -ruN orig/packages/types/src/agent-contracts.ts new/packages/types/src/agent-contracts.ts
+--- orig/packages/types/src/agent-contracts.ts	2026-10-21 06:14:36.813933196 +0000
++++ new/packages/types/src/agent-contracts.ts	2026-10-21 06:46:59.905316599 +0000
+@@ -111,6 +111,21 @@
+   /** Next scheduled rent round, independently of any outstanding bills. */
+   nextRentBill?: Pick<TenantNextBill, "period" | "issueDate" | "dueDate" | "graceUntil"> | null;
+ }
++/**
++ * D17: how a signature was made. app = the party signed in their own app, link = through a sign link,
++ * on_site = the agent signed for that party on the agent's device, uploaded_file = a signed file was attached,
++ * legacy = copied from the old signature columns (channel unknown).
++ */
++export type AgreementSignatureChannel = "app" | "link" | "on_site" | "uploaded_file" | "legacy";
++export type AgreementSignatureParty = AgentContractSignParty | "witness";
++/** One live signature of a contract (`GET /agent/contracts/:id/signatures`). */
++export interface AgreementSignatureLogEntry {
++  party: AgreementSignatureParty;
++  channel: AgreementSignatureChannel;
++  signedAt: string;
++  /** The name to show: the name typed for a witness without an account, otherwise the account that pressed sign. */
++  signedBy: string | null;
++}
+ export interface ContractCandidate {
+   leadId: number;
+   tenant: string;
+diff -ruN orig/supabase/MIGRATION-RULES.md new/supabase/MIGRATION-RULES.md
+--- orig/supabase/MIGRATION-RULES.md	2026-10-21 06:38:24.172762586 +0000
++++ new/supabase/MIGRATION-RULES.md	2026-10-21 06:38:24.195941264 +0000
+@@ -98,6 +98,7 @@
+ 
+ | วันที่ | ไฟล์ | เรื่อง |
+ |---|---|---|
++| 2026-10-21 | `20261021120000_agreement_signatures.sql` | ตารางบันทึกการลงนาม `agreement_signatures` (D17: ใครกด ช่องทาง ลิงก์ และ D9: พยาน) คัดลอกลายเซ็นเดิมเป็นช่องทาง `legacy` คอลัมน์ลายเซ็นเดิมใน `lease_contracts` ยังอยู่และยังถูกเขียน จนกว่าจะมีไฟล์ cleanup รอบที่ 2 |
+ | 2026-10-19 | `20261019100000_link_qa_accounts.sql` | ผูกบัญชีเทส `qa-<role>@nestyk.test` ที่สร้างไว้ใน Supabase Authentication กับชื่อ เบอร์ และ role (ไม่สร้างบัญชี ไม่มีรหัสผ่าน ถ้าไม่มีบัญชีพวกนี้จะไม่ทำอะไร) |
+ | 2026-10-16 | `railway.json` | ให้ Railway รัน `db-push` ก่อน deploy ทุกครั้ง (ข้อ 10) |
+ | 2026-10-16 | `20261016100000_rename_owner_role_to_landlord.sql`, `seed/masters.sql` | เปลี่ยน role `owner` → `landlord` (id 2 เดิม) และ `setval` ของ `master_roles_id_seq` ใช้ `max(id)` ดู `docs/ROLE-CHANGE-PLAN.md` |
+diff -ruN orig/supabase/migrations/20261021120000_agreement_signatures.sql new/supabase/migrations/20261021120000_agreement_signatures.sql
+--- orig/supabase/migrations/20261021120000_agreement_signatures.sql	1970-01-01 00:00:00.000000000 +0000
++++ new/supabase/migrations/20261021120000_agreement_signatures.sql	2026-10-21 06:31:36.193890316 +0000
+@@ -0,0 +1,51 @@
++-- D17 + D9: บันทึกการลงนาม 1 แถวต่อ 1 ลายเซ็น (ใครกด ลงผ่านช่องทางไหน ลิงก์ไหน) และพยานในสัญญาเช่า
++-- รอบที่ 1 ของการย้ายลายเซ็น (S3 ใน nestyk-contract-schema-plan.md): คอลัมน์ลายเซ็นเดิมใน lease_contracts
++-- และ trigger ด่านเอกสารแนบยังอยู่และยังถูกเขียนตามเดิม ไฟล์ cleanup รอบที่ 2 จะลบทีหลัง
++-- ช่องทาง:
++--   app           ฝ่ายนั้นลงนามในแอปของตัวเอง (นายหน้าลงนามของตัวเองก็นับเป็น app)
++--   link          ลงนามผ่านลิงก์ลงนาม (ต้องอ้าง sign_invite_id)
++--   on_site       นายหน้ากดลงนามแทนฝ่ายนั้นในเครื่องของนายหน้า (พยานที่ไม่มีบัญชีก็ใช้ช่องทางนี้)
++--   uploaded_file แนบไฟล์เอกสารที่เซ็นแล้ว (ต้องอ้าง signed_file_document_id) ยังไม่มีโค้ดใช้
++--   legacy        ลายเซ็นที่คัดลอกมาจากคอลัมน์เดิม ไม่รู้ช่องทาง ระบบใหม่ห้ามใช้ค่านี้
++
++CREATE TABLE public.agreement_signatures (
++    id serial PRIMARY KEY,
++    agreement_id integer NOT NULL,
++    party character varying(16) NOT NULL,
++    channel character varying(16) NOT NULL,
++    signed_by_user_id integer,
++    signer_name character varying(255),
++    sign_invite_id integer,
++    signature_url text,
++    signed_file_document_id integer,
++    signed_at timestamp with time zone DEFAULT now() NOT NULL,
++    voided_at timestamp with time zone,
++    CONSTRAINT agreement_signatures_agreement_id_fkey FOREIGN KEY (agreement_id) REFERENCES public.lease_contracts(id) ON DELETE RESTRICT,
++    CONSTRAINT agreement_signatures_signed_by_user_id_fkey FOREIGN KEY (signed_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL,
++    CONSTRAINT agreement_signatures_sign_invite_id_fkey FOREIGN KEY (sign_invite_id) REFERENCES public.agreement_sign_invites(id) ON DELETE RESTRICT,
++    CONSTRAINT agreement_signatures_signed_file_document_id_fkey FOREIGN KEY (signed_file_document_id) REFERENCES public.agreement_documents(id) ON DELETE RESTRICT,
++    CONSTRAINT chk_agreement_signatures_party CHECK (party IN ('owner', 'tenant', 'agent', 'witness')),
++    CONSTRAINT chk_agreement_signatures_channel CHECK (channel IN ('app', 'link', 'on_site', 'uploaded_file', 'legacy')),
++    CONSTRAINT chk_agreement_signatures_evidence CHECK (
++        channel = 'legacy'
++        OR (channel = 'uploaded_file' AND signed_file_document_id IS NOT NULL)
++        OR (channel IN ('app', 'link', 'on_site') AND signature_url IS NOT NULL)),
++    CONSTRAINT chk_agreement_signatures_legacy CHECK (channel <> 'legacy' OR party IN ('owner', 'tenant', 'agent')),
++    CONSTRAINT chk_agreement_signatures_link CHECK (channel <> 'link' OR sign_invite_id IS NOT NULL),
++    -- พยานไม่ต้องมีบัญชี แต่ต้องมีชื่อ (D9)
++    CONSTRAINT chk_agreement_signatures_witness_name CHECK (party <> 'witness' OR signed_by_user_id IS NOT NULL OR btrim(coalesce(signer_name, '')) <> '')
++);
++-- ลายเซ็นที่ยังใช้ได้มีฝ่ายละ 1 แถว ถ้าต้องเซ็นใหม่ ให้ใส่ voided_at แถวเดิมก่อน
++CREATE UNIQUE INDEX uq_agreement_signatures_live_party ON public.agreement_signatures (agreement_id, party) WHERE voided_at IS NULL;
++ALTER TABLE public.agreement_signatures ENABLE ROW LEVEL SECURITY;
++
++-- คัดลอกลายเซ็นเดิมทุกตัว (S3 รอบที่ 1)
++INSERT INTO public.agreement_signatures (agreement_id, party, channel, signature_url, signed_at)
++SELECT c.id, p.party, 'legacy', p.url, p.at
++FROM public.lease_contracts c
++CROSS JOIN LATERAL (VALUES
++    ('owner', c.owner_signed_at, c.owner_signature_url),
++    ('tenant', c.tenant_signed_at, c.tenant_signature_url),
++    ('agent', c.agent_signed_at, c.agent_signature_url)
++) AS p(party, at, url)
++WHERE p.at IS NOT NULL;

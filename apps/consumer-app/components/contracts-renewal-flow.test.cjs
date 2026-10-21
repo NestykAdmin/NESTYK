@@ -29,7 +29,7 @@ function harness(rows, options = {}) {
   };
   const dependencies={
     react:hookedReact,
-    'react-native':{View:'section',Text:'span',Pressable:'button',StyleSheet:{create:s=>s},ActivityIndicator:'progress',Modal:'aside',Linking:{},Alert:{alert:(...args)=>options.alerts?.push(args)},Share:{dismissedAction:'dismissedAction',share:async message=>{options.shared?.push(message);if (options.shareResult instanceof Error) throw options.shareResult;return {action:options.shareResult ?? 'sharedAction'};}}},
+    'react-native':{View:'section',Text:'span',Pressable:'button',StyleSheet:{create:s=>s},ActivityIndicator:'progress',Modal:'aside',Linking:{},Alert:{alert:(...args)=>options.alerts?.push(args)},Share:{dismissedAction:'dismissedAction',share:async()=>assert.fail('Share is not used: there is no sign link to share')}},
     'react-native-safe-area-context':{SafeAreaProvider:'section',SafeAreaView:'section'},
     '@nestyk/ui/native':{tokens:{colors:{brand:{500:'#ff0'},roles:{agent:'#ff0'},onBrand:'#000'},typography:{native:{}}},useMobileTheme:()=>({theme:{}}),MobileThemeProvider:'light-theme',MobileIcon:'i',MobileButton:'button',MobileInput:'input',MobileBottomSheet:'aside'},
     '@nestyk/i18n':i18nMock({agent:thai.th.agent,common:thai.th.common,mobile:thai.th.mobile}), '../lib/lead-format':leadFormat,
@@ -37,22 +37,29 @@ function harness(rows, options = {}) {
     '../lib/contract-signing':{bookingPaymentBlocksSigning:()=>false},
     './BookingInvoiceListCard':{bookingInvoicesForTenant:()=>[],BookingInvoiceListCard:()=>null},
     '../lib/agent-contracts-api':{
-      listAgentContracts:()=>list,listStandaloneInvoices:async()=>options.invoices ?? [],listCommissionConfirmations:async()=>options.commissions ?? [],
+      listAgentContracts:()=>options.listFails?Promise.reject(options.listFails):list,listStandaloneInvoices:async()=>options.invoices ?? [],listCommissionConfirmations:async()=>options.commissions ?? [],
       getAgentContract:async id=>rows.find(row=>row.id===id),
       listAgreementTypes:async()=>[{code:'lease_renewal',formKind:'renewal'}],
       listAgreementTemplates:async()=>[{id:2,dataSchema:{type:'object'}}],
-      createContractSignInvite:async(id,party)=>{options.invites?.push([id,party]);return {party,url:'https://nestyk.test/sign/abc',expiresAt:'2026-10-12T05:15:00Z'};},
       deliverAgentContract:async(id,party)=>{options.deliveries?.push([id,party]);return {party,deliveredAt:'2026-10-12T05:00:00Z'};},
+      // D1: booked tenants for the type picker and the create form (an Error is thrown as a failed load).
+      listContractCandidates:async()=>{options.candidateCalls?.push('called');const value=typeof options.candidates==='function'?options.candidates():options.candidates??[];options.candidateCalls?.push('returned');if (value instanceof Error) throw value;return value;},
+      // D17: how each party signed (the detail view loads it).
+      listAgentContractSignatures:async(id)=>{options.signatureLogCalls?.push(id);return options.signatureLog ?? [];},
+      ...options.api,
     },
-    './ReservationLetterFields':{ReservationLetterFields:'reservation-fields',emptyReservationLetterForm:()=>({})},
-    './BrokerAppointmentFields':{BrokerAppointmentFields:'broker-fields',emptyBrokerAppointmentForm:()=>({})},
-    './LeaseAgreementFields':{LeaseAgreementFields:'lease-fields',emptyLeaseAgreementForm:()=>({})},
+    './ReservationLetterFields':{ReservationLetterFields:'reservation-fields',emptyReservationLetterForm:()=>({}),reservationLetterFieldErrors:()=>({})},
+    './BrokerAppointmentFields':{BrokerAppointmentFields:'broker-fields',emptyBrokerAppointmentForm:()=>({}),completeBrokerNames:form=>form},
+    './LeaseAgreementFields':{LeaseAgreementFields:'lease-fields',emptyLeaseAgreementForm:()=>({}),completeLeaseNames:form=>form},
     './LeaseRenewalFields':{LeaseRenewalFields:'renewal-fields',emptyLeaseRenewalForm:blankRenewal},
     './ContractTypePicker':{ContractTypePicker:'type-picker'},
     './AgentContractLibrary':{AgentContractLibrary:'contract-library'},
     '../lib/agent-contract-library':load('../lib/agent-contract-library.ts'),
     '../lib/contract-close':load('../lib/contract-close.ts', id=>id==='./lease-term'?term:require(id)),
+    '../lib/signature-log':load('../lib/signature-log.ts', id=>id==='@nestyk/i18n'?{fillTemplate:require('./test-i18n.cjs').fillTemplate}:require(id)),
     './ContractCloseCard':{ContractCloseCard:'close-card',closeResultNotice:()=>'closed'},
+    './DepositPaymentCard':{DepositPaymentCard:'deposit-card'},
+    './RejectedAttachmentsNotice':{RejectedAttachmentsNotice:'rejected-notice'},
   };
   for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ReservationPaymentCard','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
   for (const name of ['expo-document-picker','expo-image-picker','expo-image']) dependencies[name]={};
@@ -138,9 +145,128 @@ test('type picker locks the lease until a reservation is issued and explains why
   assert.equal(locked(await picker([booking()])),false);
   // Inside a tenant only that tenant's own booking counts.
   const tenant={id:1,leadId:1,name:'Tenant A',phone:'0812345678',email:null,identityNumber:null,nationality:null,fullAddress:null,contracts:[]};
-  assert.equal(locked(await picker([booking({leadId:2})],{tenant})),true);
-  assert.equal(locked(await picker([booking({leadId:1})],{tenant})),false);
+  assert.equal(locked(await picker([booking({leadId:2})],{tenant:{...tenant,brokerAppointmentReady:true}})),true);
+  assert.equal(locked(await picker([booking({leadId:1})],{tenant:{...tenant,brokerAppointmentReady:true}})),false);
 });
+
+test('D1: inside a tenant the reservation stays locked until the room has an active broker appointment', async () => {
+  const brokerHint=thai.th.agent.contracts.reservationNeedsBroker;
+  const open=async(ready)=>{
+    const tenant={id:1,leadId:1,name:'Tenant A',phone:'0812345678',email:'a@b.co',identityNumber:null,nationality:null,fullAddress:null,contracts:[],brokerAppointmentReady:ready};
+    const h=harness([], {props:{startCreate:null,tenant}});
+    h.render(); h.resolve(); await h.tick();
+    nodes(h.render()).find(n=>n.type==='contract-library').props.onCreate();
+    return {h,picker:nodes(h.render()).find(n=>n.type==='type-picker').props};
+  };
+  const {h,picker}=await open(false);
+  assert.ok(picker.disabledKinds.includes('reservation'));
+  assert.ok(picker.disabledHint.split('\n').includes(brokerHint));
+  assert.equal(picker.disabledKinds.includes('broker_appointment'),false);
+  // Even if a reservation start is forced, the screen refuses before opening the form.
+  picker.onSelect('reservation'); await h.tick();
+  assert.equal(nodes(h.render()).find(n=>n.type==='type-picker').props.message,brokerHint);
+  assert.equal(nodes(h.render()).some(n=>n.type==='reservation-fields'),false);
+  const ready=(await open(true)).picker;
+  assert.equal(ready.disabledKinds.includes('reservation'),false);
+});
+
+test('D1: on the contracts screen the reservation is locked before entering when no booked tenant has a valid broker appointment', async () => {
+  const agent=thai.th.agent.contracts;
+  const cand=(leadId,ready)=>({leadId,tenant:`Tenant ${leadId}`,property:'P',room:'1',brokerAppointmentReady:ready});
+  const open=async(candidates,api)=>{
+    const candidateCalls=[];
+    const h=harness([], {props:{startCreate:null},candidates,candidateCalls,api});
+    h.render(); h.resolve(); await h.tick();
+    nodes(h.render()).find(n=>n.type==='contract-library').props.onCreate();
+    h.render(); await h.tick();
+    assert.deepEqual(candidateCalls,['called','returned'],'the picker asked for the tenant list once');
+    return {h,picker:nodes(h.render()).find(n=>n.type==='type-picker').props};
+  };
+  const none=await open([cand(1,false)]);
+  assert.ok(none.picker.disabledKinds.includes('reservation'));
+  assert.ok(none.picker.disabledHint.split('\n').includes(agent.reservationNoReadyTenant));
+  assert.equal(none.picker.disabledKinds.includes('broker_appointment'),false);
+  // Even if a reservation start is forced, the screen refuses before opening the form.
+  none.picker.onSelect('reservation'); await none.h.tick();
+  assert.equal(nodes(none.h.render()).find(n=>n.type==='type-picker').props.message,agent.reservationNoReadyTenant);
+  assert.equal(nodes(none.h.render()).some(n=>n.type==='reservation-fields'),false);
+  assert.equal((await open([])).picker.disabledKinds.includes('reservation'),true,'no booked tenant at all');
+  assert.equal((await open([cand(1,false),cand(2,true)])).picker.disabledKinds.includes('reservation'),false);
+  // If the list cannot load, the button stays open and opens the form: the API still refuses on save, and the app shows why.
+  const lists=[new Error('offline'),[cand(1,true)]];
+  const failed=await open(()=>lists.shift(),{listAgreementTypes:async()=>[{code:'reservation',formKind:'reservation'}],getReservationDefaults:async()=>({})});
+  assert.equal(failed.picker.disabledKinds.includes('reservation'),false);
+  failed.picker.onSelect('reservation');
+  for (let i=0;i<10&&!nodes(failed.h.render()).some(n=>n.type==='reservation-fields');i++) await failed.h.tick();
+  assert.ok(nodes(failed.h.render()).some(n=>n.type==='reservation-fields'));
+});
+
+test('D1: the reservation form only offers tenants with a valid appointment, and stops one that lapsed at the next step', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  const cand=(leadId,ready)=>({leadId,tenant:`Tenant ${leadId}`,property:'P',room:'1',brokerAppointmentReady:ready});
+  // 1st load: type picker; 2nd: the form; 3rd: "reload" after tenant 2's appointment lapsed.
+  const lists=[[cand(1,false),cand(2,true)],[cand(1,false),cand(2,true)],[cand(1,false),cand(2,false)]];
+  const h=harness([], {props:{startCreate:null},candidates:()=>lists.shift(),
+    api:{listAgreementTypes:async()=>[{code:'reservation',formKind:'reservation'}],getReservationDefaults:async()=>({})}});
+  h.render(); h.resolve(); await h.tick();
+  nodes(h.render()).find(n=>n.type==='contract-library').props.onCreate();
+  h.render(); await h.tick();
+  h.render().props.onSelect('reservation');
+  for (let i=0;i<10&&!nodes(h.render()).some(n=>n.type==='reservation-fields');i++) await h.tick();
+  assert.equal(lists.length,1,'the picker and the form each loaded the list once');
+  const label=n=>nodes(n).filter(x=>x.type==='span').flatMap(x=>[x.props.children].flat()).join('');
+  let tree=nodes(h.render());
+  assert.ok(tree.some(n=>n.type==='reservation-fields'),'the form opened');
+  const radios=()=>nodes(h.render()).filter(n=>n.type==='button'&&n.props.accessibilityRole==='radio');
+  assert.deepEqual(radios().map(r=>[r.props.disabled,r.props.accessibilityState.checked,r.props.accessibilityState.disabled]),
+    [[true,false,true],[false,true,false]],'tenant 1 is locked and the form starts on tenant 2');
+  assert.ok(label(radios()[0]).includes(agent.candidateNeedsBroker));
+  assert.equal(label(radios()[1]).includes(agent.candidateNeedsBroker),false);
+  tree.find(n=>n.type==='button'&&label(n)===contractsTh.screen.reloadTenants).props.onPress(); await h.tick();
+  assert.equal(radios()[1].props.disabled,true);
+  const next=nodes(h.render()).find(n=>n.type==='button'&&label(n).startsWith(contractsTh.screen.nextStep.split('{')[0]));
+  const shown=()=>nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.equal(shown().includes(agent.reservationNeedsBroker),false,'no reason is shown before pressing next');
+  const raf=global.requestAnimationFrame; global.requestAnimationFrame=()=>0; // the step change scrolls the page
+  try { next.props.onPress(); } finally { global.requestAnimationFrame=raf; }
+  const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.ok(texts.includes(agent.reservationNeedsBroker),'the next step explains the lapsed appointment');
+}));
+
+test('D1: only the reservation checks the appointment: the broker appointment form offers a tenant who has none', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  const h=harness([], {props:{startCreate:null},candidates:[{leadId:1,tenant:'Tenant 1',property:'P',room:'1',brokerAppointmentReady:false}],
+    api:{listAgreementTypes:async()=>[{code:'broker_appointment',formKind:'broker_appointment'}],getBrokerAppointmentLeadDefaults:async()=>({})}});
+  h.render(); h.resolve(); await h.tick();
+  nodes(h.render()).find(n=>n.type==='contract-library').props.onCreate();
+  h.render(); await h.tick();
+  h.render().props.onSelect('broker_appointment');
+  for (let i=0;i<10&&!nodes(h.render()).some(n=>n.type==='broker-fields');i++) await h.tick();
+  const radio=nodes(h.render()).find(n=>n.type==='button'&&n.props.accessibilityRole==='radio');
+  assert.equal(radio.props.disabled,false);
+  assert.equal(radio.props.accessibilityState.checked,true);
+  assert.equal(nodes(radio).some(n=>n.type==='span'&&n.props.children===agent.candidateNeedsBroker),false);
+}));
+
+test('D1: an existing reservation draft can still be edited and moved on when the tenant has no valid appointment', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  const draft=row({id:7,formKind:'reservation',status:'draft',agreementTypeCode:'reservation',agreementTypeName:'Reservation',contractNo:'RS007',endDate:null,
+    ownerSignedAt:null,tenantSignedAt:null,agentSignedAt:null,data:{reservationLetter:{}}});
+  const tenant={id:1,leadId:1,name:'Tenant A',phone:'0812345678',email:'a@b.co',identityNumber:null,nationality:null,fullAddress:null,contracts:[],brokerAppointmentReady:false};
+  const h=harness([draft], {props:{startCreate:null,tenant,initialContract:draft},api:{getAgentContractDraftTemplate:async()=>({id:2,dataSchema:{type:'object'}})}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const label=n=>nodes(n).filter(x=>x.type==='span').flatMap(x=>[x.props.children].flat()).join('');
+  nodes(h.render()).find(n=>n.type==='button'&&label(n)===contractsTh.screen.editDraft).props.onPress();
+  for (let i=0;i<10&&!nodes(h.render()).some(n=>n.type==='reservation-fields');i++) await h.tick();
+  const radio=nodes(h.render()).find(n=>n.type==='button'&&n.props.accessibilityRole==='radio');
+  assert.equal(radio.props.accessibilityState.checked,true);
+  const raf=global.requestAnimationFrame; global.requestAnimationFrame=()=>0;
+  try { nodes(h.render()).find(n=>n.type==='button'&&label(n).startsWith(contractsTh.screen.nextStep.split('{')[0])).props.onPress(); }
+  finally { global.requestAnimationFrame=raf; }
+  const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.equal(texts.includes(agent.reservationNeedsBroker),false,'the draft is not stopped for the appointment');
+  assert.ok(nodes(h.render()).some(n=>n.type==='button'&&label(n)===contractsTh.screen.previousStep),'the form moved on to the next step');
+}));
 
 test('header back steps out of the type picker and its menus before leaving the contracts section', async () => {
   const backRef={current:null};
@@ -173,36 +299,120 @@ test('header back leaves an open create form to the host, as before', async () =
   assert.equal(backRef.current(),false);
 }));
 
-test('sign link: the share button offers a web link next to sending to the app, and still offers it once delivered', async () => atBangkokOctober12(async()=>{
+test('D17: a signed party shows how it was signed', async () => atBangkokOctober12(async()=>{
   const agent=thai.th.agent.contracts;
-  const alerts=[],shared=[],invites=[],deliveries=[];
-  const signing=row({id:5,formKind:'renewal',status:'awaiting_signatures',contractNo:'RN005',ownerSignedAt:null,tenantSignedAt:null,ownerDeliveredAt:'2026-10-11T03:00:00Z',tenantDeliveredAt:null});
-  const h=harness([signing], {props:{startCreate:null,initialContract:signing},alerts,shared,invites,deliveries});
+  const signing=row({id:5,formKind:'renewal',status:'awaiting_signatures',contractNo:'RN005',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:null,ownerSignatureUrl:'https://x/o.png'});
+  const signatureLogCalls=[];
+  const signatureLog=[{party:'owner',channel:'link',signedAt:'2026-10-11T03:00:00.000Z',signedBy:null},{party:'tenant',channel:'on_site',signedAt:'2026-10-11T03:00:00.000Z',signedBy:'QA Agent'}];
+  const h=harness([signing], {props:{startCreate:null,initialContract:signing},signatureLog,signatureLogCalls});
   h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
-  const shareButtons=()=>nodes(h.render()).filter(n=>n.type==='button' && [agent.shareSign,agent.shareSignLink].includes(n.props.children));
-  const [owner,tenant]=shareButtons();
-  // The owner already has it in the app: the button now sends a link, and the row says it was delivered.
-  assert.equal(owner.props.children,agent.shareSignLink);
-  assert.equal(owner.props.disabled,false);
-  assert.ok(nodes(h.render()).some(n=>n.type==='span' && n.props.children===agent.shareSignDelivered));
+  const texts=()=>nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.ok(texts().includes(agent.signedVia.link),'the signed owner shows the channel');
+  // The tenant has a log row but is not signed on the contract itself, so no channel line is shown for it.
+  assert.equal(texts().some(t=>typeof t==='string' && t.startsWith(agent.signedVia.on_site)),false);
+  assert.deepEqual(signatureLogCalls,[5],'loaded once for the open contract');
+}));
+
+test('D9: a lease asks for a witness before generating; the agent signs as witness or types the witness name', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  const lease=row({id:6,formKind:'lease',status:'awaiting_agent_review',contractNo:'LS006',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:'2026-10-11T03:00:00Z',leaseAgreementStatus:'ready_to_generate',ownerSignatureUrl:'https://x/o.png',tenantSignatureUrl:'https://x/t.png'});
+  const witnessCalls=[],signatureLogCalls=[];
+  const signed={...lease};
+  const h=harness([lease], {props:{startCreate:null,initialContract:lease},signatureLog:[],signatureLogCalls,
+    api:{signAgentContractWitness:async(id,input)=>{witnessCalls.push([id,input]);return signed;}}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const tree=()=>nodes(h.render());
+  const texts=()=>tree().filter(n=>n.type==='span').map(n=>n.props.children);
+  const button=(label)=>tree().find(n=>n.type==='button'&&n.props.children===label);
+  assert.ok(texts().includes(agent.witness));
+  assert.ok(texts().includes(agent.witnessRequired),'the generate step says the witness must sign first');
+  // Someone else witnesses: the name is required before anything is sent.
+  button(agent.witnessOther).props.onPress();
+  const sheet=tree().find(n=>n.type==='aside'&&nodes(n).some(c=>typeof c.props?.onOK==='function'));
+  assert.equal(sheet.props.visible,true,'the signing sheet opens');
+  assert.ok(tree().some(n=>n.type==='input'&&n.props.label===agent.witnessName));
+  const pad=()=>tree().find(n=>typeof n.props?.onOK==='function');
+  await pad().props.onOK('data:image/png;base64,AAAA');
+  assert.deepEqual(witnessCalls,[]);
+  assert.ok(texts().includes(agent.witnessNameRequired));
+  tree().find(n=>n.type==='input'&&n.props.label===agent.witnessName).props.onChangeText(' Witness C ');
+  await pad().props.onOK('data:image/png;base64,AAAA');
+  assert.deepEqual(witnessCalls,[[6,{signaturePng:'data:image/png;base64,AAAA',asAgent:false,signerName:'Witness C'}]]);
+  assert.deepEqual(signatureLogCalls,[6,6],'the log is read again after the witness signs');
+}));
+
+test('D9: the agent signing as witness sends no name, and a signed witness shows instead of the buttons', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  const lease=row({id:6,formKind:'lease',status:'awaiting_agent_review',contractNo:'LS006',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:'2026-10-11T03:00:00Z',leaseAgreementStatus:'ready_to_generate'});
+  const witnessCalls=[];
+  const h=harness([lease], {props:{startCreate:null,initialContract:lease},signatureLog:[],
+    api:{signAgentContractWitness:async(id,input)=>{witnessCalls.push([id,input]);return lease;}}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const tree=()=>nodes(h.render());
+  tree().find(n=>n.type==='button'&&n.props.children===agent.witnessAsAgent).props.onPress();
+  assert.equal(tree().some(n=>n.type==='input'&&n.props.label===agent.witnessName),false,'no name field when the agent is the witness');
+  await tree().find(n=>typeof n.props?.onOK==='function').props.onOK('data:image/png;base64,AAAA');
+  assert.deepEqual(witnessCalls,[[6,{signaturePng:'data:image/png;base64,AAAA',asAgent:true}]]);
+  // With a witness in the log: no buttons, the witness line shows, and no "witness first" hint.
+  const done=harness([lease], {props:{startCreate:null,initialContract:lease},
+    signatureLog:[{party:'witness',channel:'on_site',signedAt:'2026-10-11T04:00:00.000Z',signedBy:'Witness C'}]});
+  done.render(); done.resolve(); await done.tick(); done.render(); await done.tick();
+  const doneTree=nodes(done.render());
+  assert.equal(doneTree.some(n=>n.type==='button'&&[agent.witnessAsAgent,agent.witnessOther].includes(n.props.children)),false);
+  const doneTexts=doneTree.filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.ok(doneTexts.includes(`${agent.signedVia.on_site} ${agent.signedBy.replace('{name}','Witness C')}`));
+  assert.equal(doneTexts.includes(agent.witnessRequired),false);
+}));
+
+test('D9: the generate button waits for the witness, unless the log could not be read (the API still checks)', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  const lease=row({id:6,formKind:'lease',status:'awaiting_agent_review',contractNo:'LS006',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:'2026-10-11T03:00:00Z',leaseAgreementStatus:'ready_to_generate'});
+  const open=async(options)=>{
+    const h=harness([lease], {props:{startCreate:null,initialContract:lease},...options});
+    h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+    // Attachments are complete, so only the witness can hold the button.
+    nodes(h.render()).find(n=>typeof n.props?.onReadinessChange==='function').props.onReadinessChange({contractId:6,ready:true});
+    const tree=nodes(h.render());
+    return {h,tree,generate:tree.find(n=>n.type==='button'&&n.props.children===contractsTh.screen.confirmGenerate)};
+  };
+  const waiting=await open({signatureLog:[]});
+  assert.equal(waiting.generate.props.disabled,true);
+  const witnessed=await open({signatureLog:[{party:'witness',channel:'app',signedAt:'2026-10-11T04:00:00.000Z',signedBy:'QA Agent'}]});
+  assert.equal(witnessed.generate.props.disabled,false);
+  // The log could not be read: no witness buttons (nothing to decide on) and the button is not held.
+  const failed=await open({api:{listAgentContractSignatures:async()=>{throw new Error('offline');}}});
+  assert.equal(failed.generate.props.disabled,false);
+  assert.equal(failed.tree.some(n=>n.type==='button'&&[agent.witnessAsAgent,agent.witnessOther].includes(n.props.children)),false);
+  // If the API refuses for the missing witness, the app explains it in its own words.
+  const refused=await open({signatureLog:[{party:'witness',channel:'app',signedAt:'2026-10-11T04:00:00.000Z',signedBy:'QA Agent'}],
+    api:{generateAgentLeaseAgreement:async()=>{throw Object.assign(new Error('ต้องให้พยานลงนาม'),{code:'WITNESS_SIGNATURE_REQUIRED'});}}});
+  refused.generate.props.onPress(); await refused.h.tick();
+  assert.ok(nodes(refused.h.render()).filter(n=>n.type==='span').map(n=>n.props.children).includes(agent.witnessRequired));
+}));
+
+test('share: the contract goes to the party\'s app once, with no sign link (removed on 21 Oct 2026)', async () => atBangkokOctober12(async()=>{
+  const agent=thai.th.agent.contracts;
+  for (const k of ['shareSign','shareSignSend','shareSignSent','shareSignMessage','shareSignDelivered']) assert.ok(agent[k],k);
+  const alerts=[],deliveries=[];
+  const signing=row({id:5,formKind:'renewal',status:'awaiting_signatures',contractNo:'RN005',ownerSignedAt:null,tenantSignedAt:null,ownerDeliveredAt:'2026-10-11T03:00:00Z',tenantDeliveredAt:null});
+  const h=harness([signing], {props:{startCreate:null,initialContract:signing},alerts,deliveries});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const tree=()=>nodes(h.render());
+  assert.equal(tree().some(n=>n.type==='button' && n.props.children===agent.shareSignLink),false,'no sign link button');
+  // The owner already has it: the button says so and cannot send again.
+  const owner=tree().find(n=>n.type==='button' && n.props.children===agent.shareSignSent);
+  assert.equal(owner.props.disabled,true);
+  assert.ok(tree().some(n=>n.type==='span' && n.props.children===agent.shareSignDelivered),'the row says it is in their app');
   owner.props.onPress();
-  assert.deepEqual(alerts[0][2].map(b=>b.text),[thai.th.common.cancel,agent.shareSignLink]);
+  assert.deepEqual(alerts,[],'nothing to choose once delivered');
+  // The tenant: sending to the app is the only choice.
+  const tenant=tree().find(n=>n.type==='button' && n.props.children===agent.shareSign);
   tenant.props.onPress();
-  assert.deepEqual(alerts[1][2].map(b=>b.text),[thai.th.common.cancel,agent.shareSignApp,agent.shareSignLink]);
-  alerts[1][2][2].onPress(); await h.tick();
-  assert.deepEqual(invites,[[5,'tenant']]);
-  assert.equal(shared.length,1);
-  assert.match(shared[0].message,/RN005/);
-  assert.match(shared[0].message,/https:\/\/nestyk\.test\/sign\/abc/);
-  assert.match(shared[0].message,/12:15/);
-  const tree=nodes(h.render());
-  assert.ok(tree.some(n=>n.type==='span' && n.props.children===agent.shareSignLinkReady.replace('{time}','12:15').replace('{party}',agent.tenant)));
-  assert.equal(shareButtons()[1].props.disabled,false,'busy is cleared after sharing');
-  assert.deepEqual(deliveries,[]);
-  // "Send to app" still goes through the one-time delivery, not the link.
-  alerts[1][2][1].onPress(); await h.tick();
+  assert.deepEqual(alerts[0][2].map(b=>b.text),[thai.th.common.cancel,agent.shareSignSend]);
+  assert.equal(alerts[0][1],agent.shareSignMessage.replace('{party}',agent.tenant));
+  alerts[0][2][1].onPress(); await h.tick();
   assert.deepEqual(deliveries,[[5,'tenant']]);
-  assert.deepEqual(invites,[[5,'tenant']]);
+  assert.equal(tree().filter(n=>n.type==='button' && n.props.children===agent.shareSignSent).length,2,'both parties now show as sent');
 }));
 
 test('close contract: only an active lease or renewal gets the close card, and closing updates the screen', async () => atBangkokOctober12(async()=>{
@@ -224,20 +434,80 @@ test('close contract: only an active lease or renewal gets the close card, and c
   assert.equal(nodes(other.render()).some(n=>n.type==='close-card'),false);
 }));
 
-test('sign link: a dismissed share sheet says the link was not sent, and a failed one shows the link to copy', async () => atBangkokOctober12(async()=>{
-  const agent=thai.th.agent.contracts;
-  for (const [shareResult,expected] of [
-    ['dismissedAction',agent.shareSignLinkNotSent.replace('{party}',agent.tenant)],
-    [new Error('no sheet'),agent.shareSignLinkCopy.replace('{party}',agent.tenant).replace('{time}','12:15').replace('{url}','https://nestyk.test/sign/abc')],
-  ]) {
-    const alerts=[];
-    const signing=row({id:5,formKind:'renewal',status:'awaiting_signatures',templateId:2,ownerSignedAt:null,tenantSignedAt:null,ownerDeliveredAt:null,tenantDeliveredAt:null});
-    const h=harness([signing], {props:{startCreate:null,initialContract:signing},alerts,shared:[],invites:[],shareResult});
-    h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
-    nodes(h.render()).filter(n=>n.type==='button' && n.props.children===agent.shareSign)[1].props.onPress();
-    alerts[0][2].find(b=>b.text===agent.shareSignLink).onPress(); await h.tick();
-    const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
-    assert.ok(texts.includes(expected),String(shareResult));
-    assert.equal(texts.includes(agent.shareSignLinkReady.replace('{time}','12:15').replace('{party}',agent.tenant)),false);
+// The harness serves Thai only; this checks that the code, not the API's own text, decides the message.
+// The list load and the draft save both turn errors into text with the same message() helper.
+test('D1: an API refusal for a missing broker appointment shows the app\'s own reason, not a connection error', async () => {
+  const err=Object.assign(new Error('ห้องนี้ยังไม่มีสัญญาแต่งตั้งนายหน้าที่มีผล'),{code:'BROKER_APPOINTMENT_REQUIRED'});
+  const h=harness([], {props:{startCreate:null},listFails:err});
+  h.render(); await h.tick(); await h.tick();
+  const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.ok(texts.includes(thai.th.agent.contracts.reservationNeedsBroker));
+  assert.equal(texts.includes(thai.th.agent.contracts.notice.connectError),false);
+});
+
+test('D10: a generated lease shows the deposit card; the agent issues the invoice again, then the receipt from the tenant\'s slip', async () => atBangkokOctober12(async()=>{
+  const deposit={status:'not_issued',total:30000,invoiceId:null,invoiceDocumentNo:null,dueDate:null,invoiceUrl:null,receiptDocumentNo:null,receiptUrl:null,paymentSlipUrl:null,submittedAt:null};
+  const lease=row({id:7,contractNo:'LS007',leaseAgreementStatus:'ready',depositPayment:deposit});
+  const issued={...lease,depositPayment:{...deposit,status:'submitted',invoiceId:100,invoiceDocumentNo:'DEP-LS007',dueDate:'2026-11-01',invoiceUrl:'dep.pdf',paymentSlipUrl:'slip.jpg',submittedAt:'2026-10-11T03:00:00Z'}};
+  const paid={...issued,depositPayment:{...issued.depositPayment,status:'paid',receiptDocumentNo:'REC-DEP-LS007',receiptUrl:'rec.pdf'}};
+  const issueCalls=[]; let current=lease;
+  const h=harness([lease], {props:{startCreate:null,initialContract:lease},
+    api:{issueAgentDepositInvoice:async(id)=>{issueCalls.push(id);current=issued;return issued;},getAgentContract:async()=>current}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const tree=()=>nodes(h.render());
+  const card=()=>tree().find(n=>n.type==='deposit-card');
+  assert.equal(card().props.contract.depositPayment.status,'not_issued');
+  card().props.onIssueInvoice(); await h.tick();
+  assert.deepEqual(issueCalls,[7]);
+  assert.equal(card().props.contract.depositPayment.invoiceId,100,'the screen shows the issued invoice');
+  assert.ok(tree().some(n=>n.type==='span'&&n.props.children===contractsTh.deposit.issued));
+  // Opening the deposit documents previews the signed URLs from the contract.
+  for (const [kind,url] of [['deposit-payment-slip','slip.jpg'],['deposit-invoice','dep.pdf']]) {
+    card().props.onOpen(kind);
+    assert.ok(tree().some(n=>n.props?.url===url),kind);
   }
+  card().props.onIssueReceipt();
+  const form=tree().find(n=>n.props?.fixedInvoiceId!=null);
+  assert.deepEqual({kind:form.props.kind,invoice:form.props.fixedInvoiceId,slipOnFile:form.props.slipOnFile},{kind:'receipt',invoice:100,slipOnFile:true});
+  current=paid;
+  form.props.onStandaloneCreated({id:100}); await h.tick();
+  assert.equal(tree().some(n=>n.props?.fixedInvoiceId!=null),false,'back on the contract');
+  assert.equal(card().props.contract.depositPayment.status,'paid','the contract is loaded again after the receipt');
+  card().props.onOpen('deposit-receipt');
+  assert.ok(tree().some(n=>n.props?.url==='rec.pdf'));
+}));
+
+test('D10: without a slip the tenant sent (none, or only one the agent attached) the agent attaches one; a reservation has no deposit card', async () => atBangkokOctober12(async()=>{
+  for (const paymentSlipUrl of [null,'agent.jpg']) {
+    const unpaid={status:'unpaid',total:30000,invoiceId:100,invoiceDocumentNo:'DEP-LS008',dueDate:'2026-11-01',invoiceUrl:'dep.pdf',receiptDocumentNo:null,receiptUrl:null,paymentSlipUrl,submittedAt:null};
+    const lease=row({id:8,contractNo:'LS008',leaseAgreementStatus:'ready',depositPayment:unpaid});
+    const h=harness([lease], {props:{startCreate:null,initialContract:lease}});
+    h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+    nodes(h.render()).find(n=>n.type==='deposit-card').props.onIssueReceipt();
+    assert.equal(nodes(h.render()).find(n=>n.props?.fixedInvoiceId!=null).props.slipOnFile,false,String(paymentSlipUrl));
+  }
+  const booking=row({id:9,formKind:'reservation',status:'active',contractNo:'RS009',endDate:null,reservationLetterStatus:'ready'});
+  const r=harness([booking], {props:{startCreate:null,initialContract:booking}});
+  r.render(); r.resolve(); await r.tick(); r.render(); await r.tick();
+  assert.equal(nodes(r.render()).some(n=>n.type==='deposit-card'),false);
+}));
+
+test('B3: the signing card tells whoever still signs which attached documents the agent rejected', async () => atBangkokOctober12(async()=>{
+  const rejected=[{name:'สำเนาบัตรประชาชน',note:'ภาพไม่ชัด'}];
+  const lease=row({id:10,formKind:'lease',status:'awaiting_signatures',contractNo:'LS010',leaseAgreementStatus:'awaiting_signatures',ownerSignedAt:null,tenantSignedAt:null});
+  const h=harness([lease], {props:{startCreate:null,initialContract:lease}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const tree=()=>nodes(h.render());
+  const attachments=tree().find(n=>typeof n.props?.onReadinessChange==='function');
+  attachments.props.onReadinessChange({contractId:10,ready:true,rejected});
+  assert.deepEqual(tree().find(n=>n.type==='rejected-notice').props.items,rejected);
+  // Another contract's list is not shown here.
+  attachments.props.onReadinessChange({contractId:99,ready:true,rejected});
+  assert.equal(tree().some(n=>n.type==='rejected-notice'),false);
+  // Everyone has signed: nothing left to warn about.
+  const signed=row({id:11,formKind:'lease',status:'awaiting_agent_review',contractNo:'LS011',leaseAgreementStatus:'ready_to_generate',ownerSignedAt:'2026-10-11T03:00:00Z',tenantSignedAt:'2026-10-11T03:00:00Z',agentSignedAt:'2026-10-11T03:00:00Z'});
+  const g=harness([signed], {props:{startCreate:null,initialContract:signed}});
+  g.render(); g.resolve(); await g.tick(); g.render(); await g.tick();
+  nodes(g.render()).find(n=>typeof n.props?.onReadinessChange==='function').props.onReadinessChange({contractId:11,ready:true,rejected});
+  assert.equal(nodes(g.render()).some(n=>n.type==='rejected-notice'),false);
 }));

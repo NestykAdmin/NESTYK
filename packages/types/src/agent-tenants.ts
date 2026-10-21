@@ -9,6 +9,8 @@ export interface AgentTenant {
   email: string | null;
   /** The tenant already has a login (made when a reservation letter was saved); the email can no longer change. */
   hasAccount: boolean;
+  /** The tenant's room has an active broker appointment, so a reservation letter can start (D1, AC-3.2). */
+  brokerAppointmentReady: boolean;
   note: string | null;
   identityNumber: string | null;
   nationality: string | null;

@@ -98,6 +98,8 @@ baseline ตั้ง `search_path` เป็นค่าว่างระห�
 
 | วันที่ | ไฟล์ | เรื่อง |
 |---|---|---|
+| 2026-10-21 | `20261021130000_deposit_invoices.sql` | ใบแจ้งหนี้เงินประกัน (D10): `agent_invoices` เพิ่ม `invoice_kind` (`general`/`deposit`), `lease_contract_id`, `issuer_party`, `amount`, `due_date`, `slip_submitted_at` ใบเดิมทั้งหมดเป็น `general` ในนามนายหน้าตามเดิม ใบ `deposit` ต้องผูกสัญญา ออกในนามผู้ให้เช่า ยอดมากกว่า 0 และมีได้ 1 ใบต่อสัญญา (`uq_agent_invoices_one_deposit`) |
+| 2026-10-21 | `20261021120000_agreement_signatures.sql` | ตารางบันทึกการลงนาม `agreement_signatures` (D17: ใครกด ช่องทาง ลิงก์ และ D9: พยาน) คัดลอกลายเซ็นเดิมเป็นช่องทาง `legacy` คอลัมน์ลายเซ็นเดิมใน `lease_contracts` ยังอยู่และยังถูกเขียน จนกว่าจะมีไฟล์ cleanup รอบที่ 2 |
 | 2026-10-19 | `20261019100000_link_qa_accounts.sql` | ผูกบัญชีเทส `qa-<role>@nestyk.test` ที่สร้างไว้ใน Supabase Authentication กับชื่อ เบอร์ และ role (ไม่สร้างบัญชี ไม่มีรหัสผ่าน ถ้าไม่มีบัญชีพวกนี้จะไม่ทำอะไร) |
 | 2026-10-16 | `railway.json` | ให้ Railway รัน `db-push` ก่อน deploy ทุกครั้ง (ข้อ 10) |
 | 2026-10-16 | `20261016100000_rename_owner_role_to_landlord.sql`, `seed/masters.sql` | เปลี่ยน role `owner` → `landlord` (id 2 เดิม) และ `setval` ของ `master_roles_id_seq` ใช้ `max(id)` ดู `docs/ROLE-CHANGE-PLAN.md` |

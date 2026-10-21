@@ -13,6 +13,8 @@ type Preview = {
   agreementTypeName: string;
   alreadySigned: boolean;
   signingBlockedReason: string | null;
+  /** B3: attached documents the agent rejected; shown before signing (signing is not blocked). */
+  rejectedAttachments?: Array<{ name: string; note: string | null }>;
   expiresAt: string;
 };
 
@@ -242,6 +244,22 @@ export default function PublicSignPage() {
                   gap: 12,
                 }}
               >
+                {preview.rejectedAttachments?.length ? (
+                  <div
+                    role="alert"
+                    style={{ padding: 12, borderRadius: 12, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', fontSize: 14 }}
+                  >
+                    <p style={{ margin: 0, fontWeight: 600 }}>
+                      เอกสารแนบที่นายหน้าตีกลับ {preview.rejectedAttachments.length} รายการ
+                    </p>
+                    <ul style={{ margin: '6px 0', paddingLeft: 20 }}>
+                      {preview.rejectedAttachments.map((item, index) => (
+                        <li key={index}>{item.note ? `${item.name}: ${item.note}` : item.name}</li>
+                      ))}
+                    </ul>
+                    <p style={{ margin: 0 }}>ยังลงนามได้ แต่ควรอ่านเหตุผลก่อนลงนาม</p>
+                  </div>
+                ) : null}
                 <p style={{ margin: 0, color: '#64748B', fontSize: 14 }}>
                   วาดลายเซ็นในกรอบ แล้วกดยืนยันเพื่อส่งกลับเข้าสู่ระบบ
                 </p>

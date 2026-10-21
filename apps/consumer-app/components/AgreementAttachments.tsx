@@ -21,6 +21,7 @@ import type {
   AgreementAttachment,
   AgreementAttachmentChecklist,
   AgreementDocumentSubject,
+  RejectedAttachmentNotice,
 } from "@nestyk/types";
 import {
   listAgreementAttachments,
@@ -30,7 +31,7 @@ import {
   reviewAgreementAttachment,
   uploadAgreementAttachment,
 } from "../lib/agent-contracts-api";
-import { attachmentReviewText, canReviewAttachment } from "../lib/attachment-review";
+import { attachmentReviewText, canReviewAttachment, rejectedAttachments } from "../lib/attachment-review";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 
@@ -159,7 +160,8 @@ export function AgreementAttachments({
   contractId: number;
   refreshKey?: string;
   formKind?: string | null;
-  onReadinessChange?: (value: { contractId: number; ready: boolean }) => void;
+  /** B3: `rejected` lists the current attachments the agent rejected, for the signing card. */
+  onReadinessChange?: (value: { contractId: number; ready: boolean; rejected: RejectedAttachmentNotice[] }) => void;
 }) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
@@ -186,10 +188,13 @@ export function AgreementAttachments({
   const contractIdRef = useRef(contractId);
   const extraSlots = useMemo(() => extraSlotsFor(formKind), [formKind]);
   const namedExtras = useMemo(() => namedExtraCodes(extraSlots), [extraSlots]);
+  const rejected = useMemo(() => rejectedAttachments(state), [state]);
+  const rejectedKey = JSON.stringify(rejected);
   useEffect(() => {
     // Keep last known readiness while reloading — do not treat busy/null as "not ready".
-    onReadinessChange?.({ contractId, ready: !!state?.readyToSign });
-  }, [contractId, state?.readyToSign, onReadinessChange]);
+    onReadinessChange?.({ contractId, ready: !!state?.readyToSign, rejected });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `rejected` changes only when its content (rejectedKey) does
+  }, [contractId, state?.readyToSign, rejectedKey, onReadinessChange]);
   const ink = { color: theme.textHeading };
   const muted = { color: theme.textSecondary };
 

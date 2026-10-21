@@ -2,6 +2,7 @@ import type { ContractParty } from "@nestyk/types";
 import { Platform } from "react-native";
 import type {
   AgreementAttachmentChecklist,
+  DepositFinancialDocumentKind,
   PartyContract,
 } from "@nestyk/types";
 import { apiGet, apiPost, apiRequest } from "./api";
@@ -20,13 +21,22 @@ export function openMyContractDocument(id: number): Promise<{ url: string }> {
   return apiPost(`/contracts/mine/${id}/document`, {});
 }
 
-export function openMyFinancialDocument(id: number, kind: "invoice" | "receipt" | "payment-slip"): Promise<{ url: string }> {
+export function openMyFinancialDocument(id: number, kind: "invoice" | "receipt" | "payment-slip" | DepositFinancialDocumentKind): Promise<{ url: string }> {
   return apiGet(`/contracts/mine/${id}/financial-documents/${kind}`);
+}
+
+/** D10: the tenant sends the slip for the deposit invoice of a generated lease. */
+export function uploadMyDepositPaymentSlip(
+  id: number,
+  file: { uri: string; name: string; mimeType: string; file?: File },
+): Promise<PartyContract> {
+  return uploadMyReservationPaymentSlip(id, file, "deposit-payment-slip");
 }
 
 export async function uploadMyReservationPaymentSlip(
   id: number,
   file: { uri: string; name: string; mimeType: string; file?: File },
+  route: "payment-slip" | "deposit-payment-slip" = "payment-slip",
 ): Promise<PartyContract> {
   const form = new FormData();
   if (Platform.OS === "web")
@@ -36,7 +46,7 @@ export async function uploadMyReservationPaymentSlip(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);
   try {
-    return await apiRequest(`/contracts/mine/${id}/payment-slip`, { method: "POST", body: form, signal: controller.signal });
+    return await apiRequest(`/contracts/mine/${id}/${route}`, { method: "POST", body: form, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }

@@ -14,7 +14,7 @@ import { TenantEntity } from "../../entities/tenant.entity";
 import { LeadEntity } from "../../entities/lead.entity";
 import { RentRoomEntity } from "../../entities/rent-room.entity";
 import { LeadViewingEntity } from "../../entities/lead-viewing.entity";
-import { AgentContractsService } from "../contracts/agent-contracts.service";
+import { AgentContractsService, brokerAppointmentKey } from "../contracts/agent-contracts.service";
 
 const ROOM_ALREADY_BOOKED = "ห้องนี้มีผู้จองแล้ว";
 export const TENANT_EMAIL_LOCKED =
@@ -140,6 +140,7 @@ export class AgentTenantsService {
   private serialize(
     t: TenantEntity,
     contracts: AgentTenant["contracts"],
+    appointments: Set<string> = new Set(),
   ): AgentTenant {
     const property = t.lead?.rent_room?.property;
     const fullAddress = property
@@ -163,6 +164,7 @@ export class AgentTenantsService {
       phone: t.phone,
       email: t.email,
       hasAccount: t.user_id != null,
+      brokerAppointmentReady: t.lead?.rent_room_id != null && appointments.has(brokerAppointmentKey(t.lead.rent_room_id, t.id)),
       note: t.note,
       identityNumber: t.identity_number ?? null,
       nationality: t.nationality ?? null,
@@ -177,18 +179,24 @@ export class AgentTenantsService {
     };
   }
   async list(agentId: number) {
-    const [tenants, contracts] = await Promise.all([
+    const [tenants, contracts, appointments] = await Promise.all([
       this.query(agentId).orderBy("tenant.id", "DESC").getMany(),
       this.contracts.list(agentId),
+      this.contracts.activeBrokerAppointments(agentId),
     ]);
-    return tenants.map((t) => this.serialize(t, contracts));
+    return tenants.map((t) => this.serialize(t, contracts, appointments));
   }
   async view(agentId: number, id: number) {
     const tenant = await this.query(agentId)
       .andWhere("tenant.id = :id", { id })
       .getOne();
     if (!tenant) throw new NotFoundException("ไม่พบผู้เช่า");
-    return this.serialize(tenant, await this.contracts.list(agentId));
+    const roomId = tenant.lead?.rent_room_id;
+    const [contracts, appointments] = await Promise.all([
+      this.contracts.list(agentId),
+      this.contracts.activeBrokerAppointments(agentId, { roomIds: roomId != null ? [roomId] : [], tenantIds: [tenant.id] }),
+    ]);
+    return this.serialize(tenant, contracts, appointments);
   }
   async leadOptions(agentId: number, q = "") {
     const leads = await this.db

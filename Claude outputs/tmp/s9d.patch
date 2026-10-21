@@ -1,0 +1,1767 @@
+diff -ruN orig/apps/api/src/agent/contracts/agent-contracts.controller.ts new/apps/api/src/agent/contracts/agent-contracts.controller.ts
+--- orig/apps/api/src/agent/contracts/agent-contracts.controller.ts	2026-10-21 07:05:05.095166222 +0000
++++ new/apps/api/src/agent/contracts/agent-contracts.controller.ts	2026-10-21 07:09:42.106267275 +0000
+@@ -75,6 +75,13 @@
+   ) {
+     return this.contracts.witnessSign(user.id, id, body);
+   }
++  /** D10: issue the deposit invoice of a generated lease again (it is issued when the lease is generated). */
++  @Post(":id/deposit-invoice") issueDepositInvoice(
++    @CurrentUser() user: AuthRequestUser,
++    @Param("id", DatabaseIdPipe) id: number,
++  ) {
++    return this.contracts.issueDepositInvoice(user.id, id);
++  }
+   /** D17: who signed this contract and through which channel. */
+   @Get(":id/signatures") signatures(
+     @CurrentUser() user: AuthRequestUser,
+diff -ruN orig/apps/api/src/agent/contracts/agent-contracts.service.ts new/apps/api/src/agent/contracts/agent-contracts.service.ts
+--- orig/apps/api/src/agent/contracts/agent-contracts.service.ts	2026-10-21 07:05:05.089970516 +0000
++++ new/apps/api/src/agent/contracts/agent-contracts.service.ts	2026-10-21 07:09:30.437775086 +0000
+@@ -3,6 +3,7 @@
+ import { financialKind, validateFinancialDocument, buildReceiptFromInvoice, financialTotals } from "./financial-document";
+ import { createFinancialPdf } from "./financial-pdf";
+ import { reservationInvoice } from "./reservation-invoice";
++import { depositInvoice, depositInvoiceNo, depositReceiptNo, leaseDepositAmount } from "./deposit-invoice";
+ import { tenantDraftPatch } from "../tenants/tenant-draft-sync";
+ import { validateCommissionConfirmation } from "./commission-confirmation";
+ import { createCommissionConfirmationPdf } from "./commission-confirmation-pdf";
+@@ -22,6 +23,7 @@
+   ConflictException,
+   ForbiddenException,
+   Injectable,
++  Logger,
+   Optional,
+   NotFoundException,
+   ServiceUnavailableException,
+@@ -34,7 +36,7 @@
+   isShareLinkExpired,
+   shareLinkExpiresAt,
+ } from "../../common/share-link-token";
+-import { DataSource, EntityManager, IsNull, Raw } from "typeorm";
++import { DataSource, EntityManager, In, IsNull, Raw } from "typeorm";
+ import type { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
+ import {
+   MOCK_RESERVATION_VERSION,
+@@ -88,6 +90,7 @@
+   CreateAgentContract,
+   CommissionConfirmation,
+   CommissionConfirmationInput,
++  DepositPayment,
+   FinancialDocumentInput,
+   LeaseAgreementInput,
+   LeaseRenewalInput,
+@@ -425,8 +428,12 @@
+   };
+ }
+ 
++/** D10: a lease row with its deposit invoice attached by signedFor (undefined = not loaded). */
++type WithDepositInvoice = LeaseContractEntity & { depositInvoice?: AgentInvoiceEntity | null };
++
+ @Injectable()
+ export class AgentContractsService {
++  private readonly logger = new Logger(AgentContractsService.name);
+   constructor(
+     private readonly db: DataSource,
+     private readonly documents?: ContractDocumentStorageService,
+@@ -818,8 +825,44 @@
+         paymentSlipUrl: url(payment?.slipPath),
+         submittedAt: payment?.submittedAt ?? null,
+       } : null,
++      depositPayment: this.depositPayment(c, url),
+     };
+   }
++  /** D10: a generated lease with a deposit above 0 has (or should have) one deposit invoice. */
++  private depositEligible(c: LeaseContractEntity) {
++    return this.leaseDocument(c)?.status === "ready" && leaseDepositAmount(c) > 0;
++  }
++  private depositPayment(c: LeaseContractEntity, url: (path: string | null | undefined) => string | null): DepositPayment | null {
++    const row = (c as WithDepositInvoice).depositInvoice;
++    if (!this.depositEligible(c) || row === undefined) return null;
++    if (!row)
++      return {
++        status: "not_issued", total: leaseDepositAmount(c), invoiceId: null, invoiceDocumentNo: null, dueDate: null,
++        invoiceUrl: null, receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null,
++      };
++    return {
++      status: row.receipt_pdf_path ? "paid" : row.payment_slip_path ? "submitted" : "unpaid",
++      total: financialTotals(row.data).total,
++      invoiceId: row.id,
++      invoiceDocumentNo: row.document_no,
++      dueDate: row.due_date ? String(row.due_date).slice(0, 10) : null,
++      invoiceUrl: url(row.pdf_path),
++      receiptDocumentNo: row.receipt_document_no ?? null,
++      receiptUrl: url(row.receipt_pdf_path),
++      paymentSlipUrl: url(row.payment_slip_path),
++      submittedAt: row.slip_submitted_at ? new Date(row.slip_submitted_at).toISOString() : null,
++    };
++  }
++  private async loadDepositInvoices(rows: LeaseContractEntity[]) {
++    const ids = rows.filter((row) => this.depositEligible(row)).map((row) => row.id);
++    if (!ids.length) return;
++    const found = await this.db.getRepository(AgentInvoiceEntity).find({
++      where: { lease_contract_id: In(ids), invoice_kind: "deposit" },
++    });
++    const byContract = new Map(found.map((row) => [row.lease_contract_id, row]));
++    for (const row of rows)
++      if (ids.includes(row.id)) (row as WithDepositInvoice).depositInvoice = byContract.get(row.id) ?? null;
++  }
+   private documentPaths(c: LeaseContractEntity) {
+     return [
+       this.reservationDocument(c)?.path,
+@@ -839,9 +882,18 @@
+     ];
+   }
+   private async signedFor(rows: LeaseContractEntity[]) {
++    await this.loadDepositInvoices(rows);
+     if (!this.documents) return new Map<string, string>();
+     return this.documents.signPaths(
+-      rows.flatMap((row) => this.documentPaths(row)),
++      rows.flatMap((row) => {
++        const deposit = (row as WithDepositInvoice).depositInvoice;
++        return [
++          ...this.documentPaths(row),
++          deposit?.pdf_path,
++          deposit?.receipt_pdf_path,
++          deposit?.payment_slip_path,
++        ];
++      }),
+     );
+   }
+   async types() {
+@@ -1263,9 +1315,92 @@
+       await this.documents.remove(stored.path).catch(() => undefined);
+       throw error;
+     }
++    // D10: the generated lease is final, so its deposit invoice is issued now. A failure does not undo the
++    // lease; the contract then shows the deposit as not issued and the agent issues it again.
++    if (generate)
++      await this.ensureDepositInvoice(agentId, id).catch((error: unknown) =>
++        this.logger.warn(`deposit invoice for contract ${id} not issued: ${error instanceof Error ? error.message : String(error)}`),
++      );
+     return this.view(agentId, id);
+   }
+ 
++  /** D10: POST /agent/contracts/:id/deposit-invoice, the agent issues the deposit invoice again after a failure. */
++  async issueDepositInvoice(agentId: number, id: number) {
++    const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
++    if (!c) throw new NotFoundException("ไม่พบสัญญา");
++    if (this.leaseDocument(c)?.status !== "ready")
++      throw new BadRequestException("ออกใบแจ้งหนี้เงินประกันได้หลังสร้างเอกสารสัญญาเช่าแล้ว");
++    if (leaseDepositAmount(c) <= 0) throw new BadRequestException("สัญญานี้ไม่มีเงินประกัน");
++    await this.ensureDepositInvoice(agentId, id);
++    return this.view(agentId, id);
++  }
++
++  /**
++   * D10 (AC-5.1 to 5.5): the one deposit invoice of a generated lease, in the landlord's name. Idempotent:
++   * the lease row is locked, so a second request waits and then returns the invoice the first one saved.
++   * Returns null when there is nothing to issue (not a generated lease, or the deposit is 0).
++   */
++  private async ensureDepositInvoice(agentId: number, id: number): Promise<AgentInvoiceEntity | null> {
++    const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
++    if (!c) throw new NotFoundException("ไม่พบสัญญา");
++    if (!this.depositEligible(c)) return null;
++    const find = (manager?: EntityManager) =>
++      (manager ?? this.db).getRepository(AgentInvoiceEntity).findOne({
++        where: { lease_contract_id: c.id, invoice_kind: "deposit" },
++      });
++    const existing = await find();
++    if (existing) return existing;
++    this.assertNotEnded(c);
++    if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
++    const documents = this.documents;
++    const data = depositInvoice(c, bangkokDate());
++    const bytes = await createFinancialPdf("invoice", data);
++    const stored = await documents.uploadStandaloneInvoice(agentId, bytes);
++    let unused = false;
++    try {
++      const saved = await this.db.transaction(async (manager) => {
++        const current = await manager.findOne(LeaseContractEntity, {
++          where: { id: c.id, created_by_user_id: agentId },
++          lock: { mode: "pessimistic_write" },
++        });
++        if (!current || current.document_url !== c.document_url || current.deposit !== c.deposit)
++          throw new ConflictException("สัญญาถูกเปลี่ยนแล้ว กรุณาลองอีกครั้ง");
++        this.assertNotEnded(current);
++        const again = await find(manager);
++        if (again) {
++          unused = true;
++          return again;
++        }
++        return manager.getRepository(AgentInvoiceEntity).save(
++          manager.getRepository(AgentInvoiceEntity).create({
++            created_by_user_id: agentId,
++            tenant_id: c.tenant_id,
++            document_no: data.documentNo,
++            issue_date: data.issueDate,
++            customer_name: data.customerName,
++            data,
++            pdf_path: stored.path,
++            invoice_kind: "deposit",
++            lease_contract_id: c.id,
++            issuer_party: "landlord",
++            amount: financialTotals(data).total.toFixed(2),
++            due_date: data.dueDate,
++          }),
++        );
++      });
++      if (unused) await documents.remove(stored.path).catch(() => undefined);
++      return saved;
++    } catch (error) {
++      await documents.remove(stored.path).catch(() => undefined);
++      // Another request saved it between our check and our insert.
++      if ((error as { code?: string }).code === "23505") {
++        const raced = await find();
++        if (raced) return raced;
++      }
++      throw error;
++    }
++  }
++
+   async financialDocumentDefaults(agentId: number, id: number, kindInput: string) {
+     const kind = financialKind(kindInput);
+     const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
+@@ -1377,8 +1512,9 @@
+   }
+ 
+   async listStandaloneInvoices(agentId: number): Promise<StandaloneInvoice[]> {
++    // D10: deposit invoices belong to their lease and are shown there, not in the invoice menu.
+     const rows = await this.db.getRepository(AgentInvoiceEntity).find({
+-      where: { created_by_user_id: agentId },
++      where: { created_by_user_id: agentId, invoice_kind: "general" },
+       order: { id: "DESC" },
+     });
+     const signed = this.documents
+@@ -1594,7 +1730,9 @@
+     const prev = row.receipt_data;
+     const documentNo =
+       row.receipt_document_no ??
+-      (await this.db.transaction((manager) => nextReceiptNo(manager)));
++      (row.invoice_kind === "deposit"
++        ? depositReceiptNo(row.document_no)
++        : await this.db.transaction((manager) => nextReceiptNo(manager)));
+     return {
+       ...row.data,
+       documentNo,
+@@ -1621,7 +1759,11 @@
+         : {};
+     const method = String(body.paymentMethod ?? "").trim();
+     const hasSlip = Boolean(file?.buffer?.length);
+-    if (!method && !hasSlip)
++    // D10: a deposit receipt can rest on the slip the tenant already sent.
++    const slipOnFile = (row: AgentInvoiceEntity | null) =>
++      row?.invoice_kind === "deposit" && Boolean(row.payment_slip_path);
++    if (!method && !hasSlip &&
++        !slipOnFile(await this.db.getRepository(AgentInvoiceEntity).findOne({ where: { id: invoiceId, created_by_user_id: agentId } })))
+       throw new BadRequestException("กรุณาแนบสลิปการชำระเงิน");
+     const documents = this.documents;
+     let storedPath: string | null = null;
+@@ -1640,6 +1782,8 @@
+           lock: { mode: "pessimistic_write" },
+         });
+         if (!row) throw new NotFoundException("ไม่พบใบแจ้งหนี้");
++        if (!method && !hasSlip && !slipOnFile(row))
++          throw new BadRequestException("กรุณาแนบสลิปการชำระเงิน");
+         const today = new Intl.DateTimeFormat("en-CA", {
+           timeZone: "Asia/Bangkok",
+           year: "numeric",
+@@ -1647,7 +1791,10 @@
+           day: "2-digit",
+         }).format(new Date());
+         const documentNo =
+-          row.receipt_document_no ?? (await nextReceiptNo(manager));
++          row.receipt_document_no ??
++          (row.invoice_kind === "deposit"
++            ? depositReceiptNo(row.document_no)
++            : await nextReceiptNo(manager));
+         const data = buildReceiptFromInvoice(
+           row.data,
+           { ...body, documentNo },
+@@ -1946,9 +2093,16 @@
+   }
+   async financialDocumentForParty(userId: number, id: number, kind: string) {
+     const { contract: c } = await this.contractForParty(userId, id);
++    // D10: both parties of a lease can open its deposit invoice, slip and receipt.
++    const deposit = kind.startsWith("deposit-") && this.depositEligible(c)
++      ? await this.db.getRepository(AgentInvoiceEntity).findOne({ where: { lease_contract_id: c.id, invoice_kind: "deposit" } })
++      : null;
+     const path = kind === "invoice" ? c.invoice_url
+       : kind === "receipt" ? c.receipt_url
+       : kind === "payment-slip" ? (c.data?.reservationPayment as { slipPath?: string } | undefined)?.slipPath
++      : kind === "deposit-invoice" ? deposit?.pdf_path
++      : kind === "deposit-receipt" ? deposit?.receipt_pdf_path
++      : kind === "deposit-payment-slip" ? deposit?.payment_slip_path
+       : null;
+     if (!path) throw new NotFoundException("ไม่พบเอกสารการชำระเงิน");
+     if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
+@@ -2006,7 +2160,50 @@
+     const { contract: updated, parties: mine } = await this.contractForParty(userId, id);
+     return { ...this.serialize(updated, await this.signedFor([updated])), myParties: mine };
+   }
++  /** D10: the tenant of a generated lease sends the deposit slip; the agent then issues the receipt. */
++  async uploadDepositPaymentSlip(userId: number, id: number, file: { buffer: Buffer; size: number; originalname?: string } | undefined) {
++    const { contract: c, parties } = await this.contractForParty(userId, id);
++    if (!parties.includes("tenant")) throw new ForbiddenException("เฉพาะผู้เช่าในสัญญาเท่านั้นที่ส่งสลิปเงินประกันได้");
++    this.assertNotEnded(c);
++    const invoice = this.depositEligible(c)
++      ? await this.db.getRepository(AgentInvoiceEntity).findOne({ where: { lease_contract_id: c.id, invoice_kind: "deposit" } })
++      : null;
++    if (!invoice) throw new BadRequestException("ยังไม่มีใบแจ้งหนี้เงินประกัน");
++    if (invoice.receipt_pdf_path) throw new BadRequestException("ออกใบเสร็จแล้ว ไม่สามารถเปลี่ยนสลิปได้");
++    if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
++    const documents = this.documents;
++    const stored = await documents.uploadPaymentSlip(c.created_by_user_id, file);
++    let oldPath: string | null = null;
++    try {
++      await this.db.transaction(async (manager) => {
++        const current = await manager.findOne(AgentInvoiceEntity, {
++          where: { id: invoice.id, lease_contract_id: c.id, invoice_kind: "deposit" },
++          lock: { mode: "pessimistic_write" },
++        });
++        if (!current) throw new NotFoundException("ไม่พบใบแจ้งหนี้เงินประกัน");
++        if (current.receipt_pdf_path) throw new ConflictException("ออกใบเสร็จแล้ว ไม่สามารถเปลี่ยนสลิปได้");
++        const lease = await manager.findOne(LeaseContractEntity, { where: { id: c.id } });
++        if (!lease || !lease.tenant_delivered_at || lease.tenant_id !== c.tenant_id)
++          throw new NotFoundException("ไม่พบสัญญา");
++        this.assertNotEnded(lease);
++        const tenant = await manager.findOneBy(TenantEntity, { id: lease.tenant_id, user_id: userId });
++        if (!tenant) throw new NotFoundException("ไม่พบสัญญา");
++        oldPath = current.payment_slip_path;
++        await manager.update(AgentInvoiceEntity, { id: current.id }, {
++          payment_slip_path: stored.path,
++          slip_submitted_at: new Date(),
++        });
++      });
++    } catch (error) {
++      await documents.remove(stored.path).catch(() => undefined);
++      throw error;
++    }
++    if (oldPath) await documents.remove(oldPath).catch(() => undefined);
++    const { contract: updated, parties: mine } = await this.contractForParty(userId, id);
++    return { ...this.serialize(updated, await this.signedFor([updated])), myParties: mine };
++  }
+   async documentForParty(userId: number, id: number) {
++
+     const c = await this.inboxQuery().andWhere("c.id = :id", { id }).getOne();
+     if (!c || !this.partiesFor(userId, c).length)
+       throw new NotFoundException("ไม่พบสัญญา");
+diff -ruN orig/apps/api/src/agent/contracts/deposit-invoice.ts new/apps/api/src/agent/contracts/deposit-invoice.ts
+--- orig/apps/api/src/agent/contracts/deposit-invoice.ts	1970-01-01 00:00:00.000000000 +0000
++++ new/apps/api/src/agent/contracts/deposit-invoice.ts	2026-10-21 07:07:01.853099467 +0000
+@@ -0,0 +1,79 @@
++import type { FinancialDocumentInput, LeaseAgreementInput } from "@nestyk/types";
++import type { LeaseContractEntity } from "../../entities/lease-contract.entity";
++import { validateFinancialDocument } from "./financial-document";
++
++const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
++const TAX_ID = /^\d{13}$/;
++
++/** D10: DEP-<contract no>. Contract numbers are at most 32 characters, so the receipt REC-DEP-<no> fits in 40. */
++export function depositInvoiceNo(c: Pick<LeaseContractEntity, "id" | "contract_no">) {
++  return `DEP-${c.contract_no || `LS${c.id}`}`;
++}
++export function depositReceiptNo(invoiceNo: string) {
++  return `REC-${invoiceNo}`;
++}
++
++/** The deposit amount of a lease, or 0 when there is none (no invoice is issued for 0). */
++export function leaseDepositAmount(c: Pick<LeaseContractEntity, "deposit">) {
++  const amount = Number(c.deposit ?? 0);
++  return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : 0;
++}
++
++/**
++ * D10 (AC-5.1 to 5.5): the deposit invoice of a generated lease. It is issued in the landlord's name
++ * (the landlord receives the deposit), to the tenant, from the lease form the parties signed.
++ * Due on the lease start date, or on the issue date when the lease has already started.
++ */
++export function depositInvoice(c: LeaseContractEntity, today: string): FinancialDocumentInput {
++  const lease = (c.data?.leaseAgreement ?? {}) as Partial<LeaseAgreementInput>;
++  const snapshot = c.party_snapshot ?? {};
++  const text = (value: unknown, max: number) => String(value ?? "").trim().slice(0, max);
++  const pick = (...values: unknown[]) => values.map((value) => String(value ?? "").trim()).find(Boolean) ?? "";
++  const project = pick(lease.project, snapshot.property, c.rent_room?.property?.name, c.rent_room?.listing_title, "ห้องพัก");
++  const room = pick(lease.houseNo, snapshot.room, c.rent_room?.room_id);
++  const place = pick(lease.propertyAddress, snapshot.propertyAddress, project);
++  const email = (value: unknown) => (EMAIL.test(text(value, 120)) ? text(value, 120) : "");
++  const taxId = (value: unknown) => (TAX_ID.test(text(value, 13)) ? text(value, 13) : "");
++  const start = String(c.start_date ?? "").slice(0, 10);
++  const documentNo = depositInvoiceNo(c);
++  return validateFinancialDocument(
++    {
++      documentNo,
++      issueDate: today,
++      dueDate: start && start > today ? start : today,
++      reference: text(c.contract_no || `LS${c.id}`, 60),
++      customerName: text(pick(lease.tenantName, snapshot.tenantName, c.tenant?.name), 120),
++      customerFirstName: text(pick(lease.tenantFirstName, c.tenant?.first_name), 120),
++      customerLastName: text(pick(lease.tenantLastName, c.tenant?.last_name), 120),
++      customerAddress: text(pick(lease.tenantAddress, snapshot.tenantAddress, place), 240),
++      customerTaxId: "",
++      customerPhone: text(pick(lease.tenantPhone, snapshot.tenantPhone, c.tenant?.phone), 40),
++      customerEmail: email(pick(lease.tenantEmail, snapshot.tenantEmail, c.tenant?.email)),
++      issuerName: text(pick(lease.landlordName, snapshot.ownerName), 120),
++      issuerAddress: text(pick(lease.landlordAddress, snapshot.ownerAddress, place), 240),
++      issuerTaxId: taxId(snapshot.ownerTaxId),
++      issuerPhone: text(pick(lease.landlordPhone, snapshot.ownerPhone), 40),
++      issuerEmail: email(lease.landlordEmail),
++      items: [
++        {
++          description: text(`เงินประกันการเช่า ${project}${room ? ` ห้อง ${room}` : ""}`, 160),
++          quantity: 1,
++          unitPrice: leaseDepositAmount(c),
++        },
++      ],
++      vatRate: 0,
++      discount: 0,
++      paymentMethod: "",
++      paymentDetails: text(
++        pick(
++          [lease.bankName, lease.accountName, lease.accountNo].map((part) => String(part ?? "").trim()).filter(Boolean).join(" "),
++          [c.rent_room?.owner_bank_name, c.rent_room?.owner_bank_account].filter(Boolean).join(" "),
++        ),
++        200,
++      ),
++      receiverName: "",
++      notes: "",
++    },
++    "invoice",
++  );
++}
+diff -ruN orig/apps/api/src/agent/contracts/party-contracts.controller.ts new/apps/api/src/agent/contracts/party-contracts.controller.ts
+--- orig/apps/api/src/agent/contracts/party-contracts.controller.ts	2026-10-21 07:05:05.100559050 +0000
++++ new/apps/api/src/agent/contracts/party-contracts.controller.ts	2026-10-21 07:09:42.106585977 +0000
+@@ -123,6 +123,20 @@
+     return this.contracts.uploadReservationPaymentSlip(user.id, id, file);
+   }
+ 
++  /** D10: the tenant sends the slip for the deposit invoice of a generated lease. */
++  @Post("mine/:id/deposit-payment-slip")
++  @HttpCode(HttpStatus.OK)
++  @UseInterceptors(FileInterceptor("file", {
++    limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 0 },
++  }))
++  depositPaymentSlip(
++    @CurrentUser() user: AuthRequestUser,
++    @Param("id", DatabaseIdPipe) id: number,
++    @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
++  ) {
++    return this.contracts.uploadDepositPaymentSlip(user.id, id, file);
++  }
++
+   @Post("mine/:id/sign")
+   @HttpCode(HttpStatus.OK)
+   sign(
+diff -ruN orig/apps/api/src/entities/agent-invoice.entity.ts new/apps/api/src/entities/agent-invoice.entity.ts
+--- orig/apps/api/src/entities/agent-invoice.entity.ts	2026-10-21 07:05:05.110015755 +0000
++++ new/apps/api/src/entities/agent-invoice.entity.ts	2026-10-21 07:11:27.719757171 +0000
+@@ -1,15 +1,23 @@
+-import { Entity, Column, ManyToOne, JoinColumn, Index, Unique } from "typeorm";
++import { Entity, Column, ManyToOne, JoinColumn, Index, Unique, Check } from "typeorm";
+ import { SerialTimestampEntity } from "./base.entity";
+ import { UserEntity } from "./user.entity";
+ import { TenantEntity } from "./tenant.entity";
++import { LeaseContractEntity } from "./lease-contract.entity";
+ import type { FinancialDocumentInput } from "@nestyk/types";
+ 
++/** D10: general = issued by the agent from the invoice menu; deposit = the lease deposit, issued for the landlord. */
++export type AgentInvoiceKind = "general" | "deposit";
++
+ @Unique("uq_agent_invoices_document", ["created_by_user_id", "document_no"])
+ @Index("idx_agent_invoices_agent", ["created_by_user_id", "id"])
+ @Index("idx_agent_invoices_tenant", ["tenant_id", "id"])
+ @Index("uq_agent_invoices_document_no", ["document_no"], { unique: true })
+ @Index("uq_agent_invoices_receipt_document_no", ["receipt_document_no"], { unique: true, where: "(receipt_document_no IS NOT NULL)" })
+ @Index("uq_agent_invoices_receipt_no", ["created_by_user_id", "receipt_document_no"], { unique: true, where: "(receipt_document_no IS NOT NULL)" })
++@Index("uq_agent_invoices_one_deposit", ["lease_contract_id"], { unique: true, where: "((invoice_kind)::text = 'deposit'::text)" })
++@Check("chk_agent_invoices_kind", "((invoice_kind)::text = ANY ((ARRAY['general'::character varying, 'deposit'::character varying])::text[]))")
++@Check("chk_agent_invoices_issuer", "((issuer_party)::text = ANY ((ARRAY['landlord'::character varying, 'agent'::character varying])::text[]))")
++@Check("chk_agent_invoices_deposit", "(((invoice_kind)::text <> 'deposit'::text) OR ((lease_contract_id IS NOT NULL) AND ((issuer_party)::text = 'landlord'::text) AND (amount IS NOT NULL) AND (amount > (0)::numeric) AND (due_date IS NOT NULL)))")
+ @Entity({ name: "agent_invoices" })
+ export class AgentInvoiceEntity extends SerialTimestampEntity {
+   @Column({ type: "int" })
+@@ -55,4 +63,28 @@
+ 
+   @Column({ type: "text", nullable: true })
+   payment_slip_path: string | null;
++
++  /** D10, migration 20261021130000_deposit_invoices.sql */
++  @Column({ type: "varchar", length: 24, default: "general" })
++  invoice_kind: AgentInvoiceKind;
++
++  @Column({ type: "int", nullable: true })
++  lease_contract_id: number | null;
++
++  @ManyToOne(() => LeaseContractEntity, { nullable: true, onDelete: "RESTRICT" })
++  @JoinColumn({ name: "lease_contract_id", foreignKeyConstraintName: "agent_invoices_lease_contract_id_fkey" })
++  lease_contract: LeaseContractEntity | null;
++
++  @Column({ type: "varchar", length: 16, default: "agent" })
++  issuer_party: "landlord" | "agent";
++
++  @Column({ type: "decimal", precision: 12, scale: 2, nullable: true })
++  amount: string | null;
++
++  @Column({ type: "date", nullable: true })
++  due_date: string | null;
++
++  /** When the tenant sent the slip in the app (a slip the agent attaches with the receipt leaves this empty). */
++  @Column({ type: "timestamptz", nullable: true })
++  slip_submitted_at: Date | null;
+ }
+diff -ruN orig/apps/api/test/deposit-invoices.test.cjs new/apps/api/test/deposit-invoices.test.cjs
+--- orig/apps/api/test/deposit-invoices.test.cjs	1970-01-01 00:00:00.000000000 +0000
++++ new/apps/api/test/deposit-invoices.test.cjs	2026-10-21 07:13:51.921286383 +0000
+@@ -0,0 +1,363 @@
++// D10 (AC-5.1 to 5.5): the deposit invoice of a generated lease, issued in the landlord's name, once per lease.
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const ts = require('typescript');
++require('reflect-metadata');
++require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
++const sharp = require('sharp');
++const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
++const { AgentContractsController } = require('../src/agent/contracts/agent-contracts.controller.ts');
++const { PartyContractsController } = require('../src/agent/contracts/party-contracts.controller.ts');
++const { ContractDocumentStorageService } = require('../src/agent/contracts/contract-document-storage.service.ts');
++const { emptyLeaseAgreement } = require('../src/agent/contracts/lease-agreement.ts');
++const { bangkokDate } = require('../src/agent/contracts/reservation-letter.ts');
++const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
++const { AgentInvoiceEntity } = require('../src/entities/agent-invoice.entity.ts');
++const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
++const { TenantEntity } = require('../src/entities/tenant.entity.ts');
++
++const GENERATED = '7/11/generated/lease_agreement/v1/lease.pdf';
++const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
++const slip = { buffer: jpeg, size: jpeg.length, originalname: 'slip.jpg' };
++const invoiceData = { items: [{ description: 'เงินประกันการเช่า', quantity: 1, unitPrice: 40000 }], vatRate: 0, discount: 0 };
++
++function leaseRow(overrides = {}) {
++  return {
++    id: 11, tenant_id: 2, rent_room_id: 3, lead_id: 1, created_by_user_id: 7, contract_no: 'LS202600011',
++    rent_room: { property: { name: 'Aria' }, listing_title: null, room_id: '1201' },
++    tenant: { id: 2, name: 'Tenant B', user_id: 8 }, owner_user_id: 9,
++    agreement_type_code: 'lease', agreement_type: { name_th: 'สัญญาเช่า', form_kind: 'lease' },
++    template: { form_kind: 'lease', document_template_key: 'lease/v1' },
++    status: 'active', start_date: '2099-01-01', end_date: '2099-12-31', monthly_rent: '20000.00', deposit: '40000.00',
++    owner_signed_at: new Date('2026-10-20T03:00:00Z'), owner_signature_url: '7/11/signatures/owner.png',
++    tenant_signed_at: new Date('2026-10-20T03:00:00Z'), tenant_signature_url: '7/11/signatures/tenant.png',
++    agent_signed_at: null, document_url: GENERATED, invoice_url: null, receipt_url: null,
++    tenant_delivered_at: new Date('2026-10-20T04:00:00Z'), owner_delivered_at: new Date('2026-10-20T04:00:00Z'),
++    data: { leaseAgreement: { ...emptyLeaseAgreement(), landlordName: 'Landlord A', landlordAddress: '9 Owner Rd', landlordPhone: '0899999999',
++      landlordEmail: 'not-an-email', tenantName: 'Tenant B', tenantAddress: '5 Tenant Rd', tenantEmail: 'tenant@example.com',
++      project: 'Aria', houseNo: '1201', bankName: 'KBank', accountName: 'Landlord A', accountNo: '123-4-56789-0', depositAmount: '40000' } },
++    ...overrides,
++  };
++}
++
++function storageDouble() {
++  const objects = new Map();
++  const cloud = {
++    upload: async (key, buffer, options) => { assert.equal(options.upsert, false); objects.set(key, { buffer }); return { error: null }; },
++    createSignedUrls: async (paths) => ({ data: paths.map((path) => ({ path, signedUrl: `https://signed.example/${path}` })), error: null }),
++    download: async (path) => ({ data: objects.has(path) ? new Blob([objects.get(path).buffer]) : null, error: objects.has(path) ? null : new Error('missing') }),
++    remove: async (paths) => { paths.forEach((path) => objects.delete(path)); return { error: null }; },
++  };
++  const storage = new ContractDocumentStorageService();
++  storage.storage = () => cloud;
++  storage.client = { storage: { listBuckets: async () => ({ data: [{ name: 'contract-documents', public: false }], error: null }) } };
++  return { storage, objects };
++}
++
++const matches = (row, where = {}) => Object.entries(where).every(([key, value]) =>
++  value && typeof value === 'object' && value._type === 'in' ? value.value.includes(row[key]) : row[key] === value);
++
++/** An in-memory lease (id 11, agent 7, tenant user 8, owner user 9) and agent_invoices table. */
++function harness(overrides = {}) {
++  const row = leaseRow(overrides);
++  const invoices = [];
++  const removed = [];
++  const { storage, objects } = storageDouble();
++  const remove = storage.remove.bind(storage);
++  storage.remove = async (path) => { removed.push(path); return remove(path); };
++  let witness = null;
++  let nextId = 100;
++  const hooks = { beforeSave: null, inTransaction: null };
++  const qbFor = () => {
++    let scope = null;
++    const qb = {};
++    for (const key of ['leftJoinAndSelect', 'andWhere', 'orderBy']) qb[key] = () => qb;
++    qb.where = (_sql, params) => { scope = params ?? null; return qb; };
++    const visible = () => !(scope && 'agentId' in scope && scope.agentId !== row.created_by_user_id);
++    qb.getOne = async () => (visible() ? structuredClone(row) : null);
++    qb.getMany = async () => (visible() ? [structuredClone(row)] : []);
++    return qb;
++  };
++  const invoiceRepo = {
++    find: async ({ where }) => invoices.filter((invoice) => matches(invoice, where)).map((invoice) => ({ ...invoice })),
++    findOne: async ({ where }) => { const found = invoices.find((invoice) => matches(invoice, where)); return found ? { ...found } : null; },
++    create: (value) => ({ ...value }),
++    save: async (value) => {
++      if (hooks.beforeSave) await hooks.beforeSave(value);
++      const existing = value.id ? invoices.find((invoice) => invoice.id === value.id) : null;
++      if (existing) { Object.assign(existing, value); return { ...existing }; }
++      if (value.invoice_kind === 'deposit' && invoices.some((invoice) => invoice.invoice_kind === 'deposit' && invoice.lease_contract_id === value.lease_contract_id))
++        throw Object.assign(new Error('duplicate key value violates unique constraint "uq_agent_invoices_one_deposit"'), { code: '23505' });
++      const saved = { id: nextId++, invoice_kind: 'general', issuer_party: 'agent', receipt_pdf_path: null, receipt_document_no: null,
++        payment_slip_path: null, slip_submitted_at: null, receipt_data: null, ...value };
++      invoices.push(saved);
++      return { ...saved };
++    },
++  };
++  const leaseRepo = {
++    createQueryBuilder: qbFor,
++    update: async (_where, patch) => { Object.assign(row, patch); return { affected: 1 }; },
++  };
++  const signatureRepo = { findOne: async () => witness };
++  const repoFor = (entity) => (entity === AgentInvoiceEntity ? invoiceRepo : entity === AgreementSignatureEntity ? signatureRepo : leaseRepo);
++  const locks = [];
++  const manager = {
++    getRepository: repoFor,
++    findOne: async (entity, options) => {
++      if (options.lock) locks.push([entity.name, options.lock.mode]);
++      if (entity === LeaseContractEntity) {
++        if (options.where.created_by_user_id !== undefined) assert.equal(options.where.created_by_user_id, 7);
++        return structuredClone(row);
++      }
++      return invoiceRepo.findOne(options);
++    },
++    findOneBy: async (entity, where) => {
++      assert.equal(entity, TenantEntity);
++      return where.id === row.tenant_id && where.user_id === row.tenant.user_id ? row.tenant : null;
++    },
++    update: async (entity, where, patch) => {
++      assert.equal(entity, AgentInvoiceEntity);
++      Object.assign(invoices.find((invoice) => invoice.id === where.id), patch);
++    },
++  };
++  const db = {
++    getRepository: repoFor,
++    transaction: async (fn) => { if (hooks.inTransaction) await hooks.inTransaction(); return fn(manager); },
++  };
++  const service = new AgentContractsService(db, storage);
++  service.logger = { warn: () => undefined };
++  return { service, row, invoices, objects, removed, locks, hooks, storage, setWitness: (value) => { witness = value; } };
++}
++
++async function signaturePng() {
++  return sharp(Buffer.from('<svg width="240" height="100"><path d="M20 65 Q50 0 65 55 T110 50 Q140 10 150 65 L210 40" fill="none" stroke="#203854" stroke-width="4"/></svg>')).png().toBuffer();
++}
++/** A lease signed by both parties and the witness, not generated yet. */
++async function readyToGenerate(overrides = {}) {
++  const h = harness({ status: 'awaiting_signatures', document_url: null, ...overrides });
++  const png = await signaturePng();
++  for (const path of ['7/11/signatures/owner.png', '7/11/signatures/tenant.png', '7/11/signatures/w.png']) h.objects.set(path, { buffer: png });
++  h.setWitness({ signature_url: '7/11/signatures/w.png', signer_name: 'Witness C', signed_by: null });
++  return h;
++}
++
++test('generating a lease issues its deposit invoice in the landlord\'s name, once', async () => {
++  const h = await readyToGenerate();
++  const result = await h.service.leaseAgreementPdf(7, 11, true);
++  assert.equal(result.leaseAgreementStatus, 'ready');
++  assert.equal(h.row.status, 'active');
++  assert.equal(h.invoices.length, 1);
++  const invoice = h.invoices[0];
++  assert.deepEqual(
++    { kind: invoice.invoice_kind, issuer: invoice.issuer_party, lease: invoice.lease_contract_id, tenant: invoice.tenant_id, agent: invoice.created_by_user_id,
++      no: invoice.document_no, amount: invoice.amount, due: invoice.due_date, issued: invoice.issue_date, customer: invoice.customer_name },
++    { kind: 'deposit', issuer: 'landlord', lease: 11, tenant: 2, agent: 7,
++      no: 'DEP-LS202600011', amount: '40000.00', due: '2099-01-01', issued: bangkokDate(), customer: 'Tenant B' });
++  const data = invoice.data;
++  assert.equal(data.issuerName, 'Landlord A', 'issued by the landlord, not NESTYK');
++  assert.equal(data.issuerAddress, '9 Owner Rd');
++  assert.equal(data.issuerEmail, '', 'an invalid e-mail in the form is left out instead of failing the invoice');
++  assert.equal(data.customerAddress, '5 Tenant Rd');
++  assert.equal(data.reference, 'LS202600011');
++  assert.deepEqual(data.items, [{ description: 'เงินประกันการเช่า Aria ห้อง 1201', quantity: 1, unitPrice: 40000 }]);
++  assert.equal(data.paymentDetails, 'KBank Landlord A 123-4-56789-0', 'paid into the landlord\'s account from the lease');
++  assert.match(invoice.pdf_path, /^7\/invoices\/.+\.pdf$/);
++  assert.equal(h.objects.get(invoice.pdf_path).buffer.subarray(0, 5).toString(), '%PDF-');
++  assert.deepEqual(result.depositPayment, {
++    status: 'unpaid', total: 40000, invoiceId: invoice.id, invoiceDocumentNo: 'DEP-LS202600011', dueDate: '2099-01-01',
++    invoiceUrl: `https://signed.example/${invoice.pdf_path}`, receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null,
++  });
++  assert.ok(h.locks.some(([entity, mode]) => entity === 'LeaseContractEntity' && mode === 'pessimistic_write'), 'the lease is locked while issuing');
++  // Asking again (or generating again) issues nothing new.
++  const files = h.objects.size;
++  const again = await h.service.issueDepositInvoice(7, 11);
++  assert.equal(h.invoices.length, 1);
++  assert.equal(h.objects.size, files, 'no second PDF');
++  assert.equal(again.depositPayment.invoiceId, invoice.id);
++  await h.service.leaseAgreementPdf(7, 11, true);
++  assert.equal(h.invoices.length, 1);
++});
++
++test('a deposit of 0 (or none) issues no invoice and shows no deposit card', async () => {
++  for (const deposit of ['0.00', null]) {
++    const h = await readyToGenerate({ deposit });
++    const result = await h.service.leaseAgreementPdf(7, 11, true);
++    assert.equal(h.row.status, 'active');
++    assert.equal(h.invoices.length, 0);
++    assert.equal(result.depositPayment, null);
++    await assert.rejects(() => h.service.issueDepositInvoice(7, 11), (e) => e.getStatus() === 400 && /ไม่มีเงินประกัน/.test(e.message));
++    assert.equal(h.invoices.length, 0);
++  }
++});
++
++test('nothing is issued before the lease is generated, for a preview, for another agent, or for a closed lease', async () => {
++  const preview = await readyToGenerate();
++  const result = await preview.service.leaseAgreementPdf(7, 11, false);
++  assert.match(preview.row.document_url, /mock\/lease_agreement/);
++  assert.equal(preview.invoices.length, 0);
++  assert.equal(result.depositPayment, null);
++  await assert.rejects(() => preview.service.issueDepositInvoice(7, 11), (e) => e.getStatus() === 400 && /หลังสร้างเอกสารสัญญาเช่า/.test(e.message));
++  const reservation = harness({ agreement_type_code: 'reservation', agreement_type: { form_kind: 'reservation' }, template: { form_kind: 'reservation' } });
++  await assert.rejects(() => reservation.service.issueDepositInvoice(7, 11), (e) => e.getStatus() === 400);
++  const other = harness();
++  await assert.rejects(() => other.service.issueDepositInvoice(8, 11), (e) => e.getStatus() === 404);
++  for (const status of ['terminated', 'expired']) {
++    const closed = harness({ status });
++    await assert.rejects(() => closed.service.issueDepositInvoice(7, 11), (e) => e.getStatus() === 400);
++    assert.equal(closed.invoices.length, 0);
++    assert.equal(closed.objects.size, 0, 'no PDF uploaded');
++  }
++});
++
++test('if issuing fails the lease is still generated, shows "not issued", and the agent issues it again', async () => {
++  const h = await readyToGenerate();
++  const upload = h.storage.uploadStandaloneInvoice.bind(h.storage);
++  h.storage.uploadStandaloneInvoice = async () => { throw new Error('storage down'); };
++  const result = await h.service.leaseAgreementPdf(7, 11, true);
++  assert.equal(result.leaseAgreementStatus, 'ready');
++  assert.equal(h.row.status, 'active');
++  assert.equal(h.invoices.length, 0);
++  assert.equal(result.depositPayment.status, 'not_issued');
++  assert.equal(result.depositPayment.total, 40000);
++  assert.equal(result.depositPayment.invoiceId, null);
++  // A failed save removes the uploaded PDF.
++  h.storage.uploadStandaloneInvoice = upload;
++  h.hooks.beforeSave = async () => { throw new Error('DB failure'); };
++  await assert.rejects(() => h.service.issueDepositInvoice(7, 11), /DB failure/);
++  assert.equal(h.removed.length, 1);
++  assert.equal(h.objects.has(h.removed[0]), false);
++  h.hooks.beforeSave = null;
++  const issued = await h.service.issueDepositInvoice(7, 11);
++  assert.equal(issued.depositPayment.status, 'unpaid');
++  assert.equal(h.invoices.length, 1);
++});
++
++test('two requests at once still give one invoice, and the extra PDF is removed', async () => {
++  // The second request finds the first invoice once it gets the lease lock.
++  const waited = harness();
++  waited.hooks.inTransaction = async () => {
++    waited.hooks.inTransaction = null;
++    waited.invoices.push({ id: 50, invoice_kind: 'deposit', lease_contract_id: 11, document_no: 'DEP-LS202600011', pdf_path: '7/invoices/first.pdf', data: invoiceData, due_date: '2099-01-01' });
++  };
++  const view = await waited.service.issueDepositInvoice(7, 11);
++  assert.equal(waited.invoices.length, 1);
++  assert.equal(view.depositPayment.invoiceId, 50);
++  assert.equal(waited.removed.length, 1, 'our PDF is not used');
++  assert.match(waited.removed[0], /^7\/invoices\//);
++  // The unique index catches an insert that slipped past the check.
++  const raced = harness();
++  raced.hooks.beforeSave = async () => {
++    raced.hooks.beforeSave = null;
++    raced.invoices.push({ id: 51, invoice_kind: 'deposit', lease_contract_id: 11, document_no: 'DEP-LS202600011', pdf_path: '7/invoices/first.pdf', data: invoiceData, due_date: '2099-01-01' });
++  };
++  const result = await raced.service.issueDepositInvoice(7, 11);
++  assert.equal(raced.invoices.length, 1);
++  assert.equal(result.depositPayment.invoiceId, 51);
++  assert.equal(raced.removed.length, 1);
++});
++
++test('a lease that already started is due on the issue date', async () => {
++  const h = harness({ start_date: '2020-01-01' });
++  await h.service.issueDepositInvoice(7, 11);
++  assert.equal(h.invoices[0].due_date, bangkokDate());
++  assert.equal(h.invoices[0].due_date, h.invoices[0].issue_date);
++});
++
++test('tenant and landlord open the deposit documents; only the tenant sends the slip', async () => {
++  const h = harness();
++  await h.service.issueDepositInvoice(7, 11);
++  const invoice = h.invoices[0];
++  for (const user of [8, 9]) assert.equal((await h.service.financialDocumentForParty(user, 11, 'deposit-invoice')).url, `https://signed.example/${invoice.pdf_path}`);
++  await assert.rejects(() => h.service.financialDocumentForParty(99, 11, 'deposit-invoice'), (e) => e.getStatus() === 404);
++  await assert.rejects(() => h.service.financialDocumentForParty(8, 11, 'deposit-receipt'), (e) => e.getStatus() === 404, 'no receipt yet');
++  await assert.rejects(() => h.service.financialDocumentForParty(8, 11, 'deposit-other'), (e) => e.getStatus() === 404);
++  const mine = await h.service.listForUser(8);
++  assert.equal(mine[0].depositPayment.status, 'unpaid');
++  // The landlord cannot send it, the tenant can and can replace it.
++  await assert.rejects(() => h.service.uploadDepositPaymentSlip(9, 11, slip), (e) => e.getStatus() === 403);
++  const sent = await h.service.uploadDepositPaymentSlip(8, 11, slip);
++  assert.deepEqual(sent.myParties, ['tenant']);
++  assert.equal(sent.depositPayment.status, 'submitted');
++  const first = invoice.payment_slip_path;
++  assert.match(first, /^7\/payment-slips\/.+\.jpg$/);
++  assert.ok(invoice.slip_submitted_at instanceof Date);
++  assert.equal(sent.depositPayment.paymentSlipUrl, `https://signed.example/${first}`);
++  assert.equal(sent.depositPayment.submittedAt, invoice.slip_submitted_at.toISOString());
++  assert.ok(h.locks.some(([entity, mode]) => entity === 'AgentInvoiceEntity' && mode === 'pessimistic_write'));
++  await h.service.uploadDepositPaymentSlip(8, 11, slip);
++  assert.notEqual(invoice.payment_slip_path, first);
++  assert.ok(h.removed.includes(first), 'the replaced slip is removed');
++  assert.equal((await h.service.financialDocumentForParty(9, 11, 'deposit-payment-slip')).url, `https://signed.example/${invoice.payment_slip_path}`);
++});
++
++test('no slip without a deposit invoice, after the receipt, for a closed lease, or for someone not on the lease', async () => {
++  const none = harness();
++  await assert.rejects(() => none.service.uploadDepositPaymentSlip(8, 11, slip), (e) => e.getStatus() === 400 && /ยังไม่มีใบแจ้งหนี้เงินประกัน/.test(e.message));
++  for (const [user, patch] of [[99, {}], [8, { tenant_delivered_at: null }], [8, { status: 'terminated' }], [8, { status: 'expired' }]]) {
++    const h = harness();
++    await h.service.issueDepositInvoice(7, 11);
++    Object.assign(h.row, patch);
++    const files = h.objects.size;
++    await assert.rejects(() => h.service.uploadDepositPaymentSlip(user, 11, slip));
++    assert.equal(h.invoices[0].payment_slip_path, null);
++    assert.equal(h.objects.size, files, 'nothing uploaded');
++  }
++  // The receipt is issued while the tenant uploads: the new slip is removed and the receipt stays.
++  const h = harness();
++  await h.service.issueDepositInvoice(7, 11);
++  h.hooks.inTransaction = async () => { h.invoices[0].receipt_pdf_path = '7/receipts/r.pdf'; };
++  await assert.rejects(() => h.service.uploadDepositPaymentSlip(8, 11, slip), (e) => e.getStatus() === 409);
++  assert.equal(h.invoices[0].payment_slip_path, null);
++  assert.equal(h.removed.length, 1);
++  h.hooks.inTransaction = null;
++  await assert.rejects(() => h.service.uploadDepositPaymentSlip(8, 11, slip), (e) => e.getStatus() === 400 && /ออกใบเสร็จแล้ว/.test(e.message));
++});
++
++test('the agent issues the deposit receipt REC-DEP-<no> from the tenant\'s slip; the invoice menu does not list deposits', async () => {
++  const h = harness();
++  await h.service.issueDepositInvoice(7, 11);
++  await h.service.uploadDepositPaymentSlip(8, 11, slip);
++  const invoice = h.invoices[0];
++  const tenantSlip = invoice.payment_slip_path;
++  const defaults = await h.service.receiptDefaults(7, invoice.id);
++  assert.equal(defaults.documentNo, 'REC-DEP-LS202600011');
++  assert.equal(defaults.reference, 'DEP-LS202600011');
++  const receipt = await h.service.createReceiptForInvoice(7, invoice.id, { documentNo: 'HACKED', paymentMethod: '', receiverName: 'Agent', notes: '' });
++  assert.equal(invoice.receipt_document_no, 'REC-DEP-LS202600011');
++  assert.equal(receipt.receiptDocumentNo, 'REC-DEP-LS202600011');
++  assert.equal(invoice.payment_slip_path, tenantSlip, 'the tenant\'s slip is the evidence');
++  assert.equal(invoice.receipt_data.issuerName, 'Landlord A');
++  assert.equal(invoice.receipt_data.items[0].unitPrice, 40000);
++  const view = await h.service.view(7, 11);
++  assert.equal(view.depositPayment.status, 'paid');
++  assert.equal(view.depositPayment.receiptDocumentNo, 'REC-DEP-LS202600011');
++  assert.equal(view.depositPayment.receiptUrl, `https://signed.example/${invoice.receipt_pdf_path}`);
++  assert.equal((await h.service.financialDocumentForParty(8, 11, 'deposit-receipt')).url, `https://signed.example/${invoice.receipt_pdf_path}`);
++  // Only general invoices are listed in the invoice menu.
++  h.invoices.push({ id: 7001, created_by_user_id: 7, invoice_kind: 'general', document_no: 'INV2026-0001', customer_name: 'X', issue_date: '2026-10-21',
++    data: invoice.data, pdf_path: '7/invoices/g.pdf', receipt_pdf_path: null, payment_slip_path: null, tenant_id: null });
++  const listed = await h.service.listStandaloneInvoices(7);
++  assert.deepEqual(listed.map((row) => row.id), [7001]);
++});
++
++test('a deposit receipt without a slip on file, and a general invoice without a slip, are still refused', async () => {
++  const h = harness();
++  await h.service.issueDepositInvoice(7, 11);
++  const files = h.objects.size;
++  await assert.rejects(() => h.service.createReceiptForInvoice(7, h.invoices[0].id, { paymentMethod: '', receiverName: 'Agent' }), (e) => e.getStatus() === 400 && /แนบสลิป/.test(e.message));
++  h.invoices.push({ id: 7002, created_by_user_id: 7, invoice_kind: 'general', document_no: 'INV2026-0002', customer_name: 'X', issue_date: '2026-10-21',
++    data: h.invoices[0].data, pdf_path: '7/invoices/g.pdf', receipt_pdf_path: null, receipt_document_no: null, payment_slip_path: '7/payment-slips/agent.jpg', tenant_id: null });
++  await assert.rejects(() => h.service.createReceiptForInvoice(7, 7002, { paymentMethod: '', receiverName: 'Agent' }), (e) => e.getStatus() === 400 && /แนบสลิป/.test(e.message),
++    'an old slip on a general invoice is not reused');
++  assert.equal(h.objects.size, files);
++  assert.equal(h.invoices[0].receipt_pdf_path, null);
++});
++
++test('routes: the agent issues again at POST /agent/contracts/:id/deposit-invoice, the tenant sends the slip at POST /contracts/mine/:id/deposit-payment-slip', () => {
++  assert.equal(Reflect.getMetadata('path', AgentContractsController.prototype.issueDepositInvoice), ':id/deposit-invoice');
++  assert.equal(Reflect.getMetadata('method', AgentContractsController.prototype.issueDepositInvoice), 1); // POST
++  assert.equal(Reflect.getMetadata('path', PartyContractsController.prototype.depositPaymentSlip), 'mine/:id/deposit-payment-slip');
++  assert.equal(Reflect.getMetadata('method', PartyContractsController.prototype.depositPaymentSlip), 1);
++  assert.ok(Reflect.getMetadata('__interceptors__', PartyContractsController.prototype.depositPaymentSlip)?.length, 'reads one uploaded file');
++});
+diff -ruN orig/apps/consumer-app/components/ContractsScreen.tsx new/apps/consumer-app/components/ContractsScreen.tsx
+--- orig/apps/consumer-app/components/ContractsScreen.tsx	2026-10-21 07:05:05.133227559 +0000
++++ new/apps/consumer-app/components/ContractsScreen.tsx	2026-10-21 07:16:50.907371590 +0000
+@@ -98,6 +98,7 @@
+   uploadAgentContractDocument,
+   signAgentContract,
+   signAgentContractWitness,
++  issueAgentDepositInvoice,
+   deliverAgentContract,
+   createContractSignInvite,
+   previewAgentReservation,
+@@ -111,6 +112,7 @@
+   generateFinancialDocument,
+ } from "../lib/agent-contracts-api";
+ import { ReservationPaymentCard } from "./ReservationPaymentCard";
++import { DepositPaymentCard } from "./DepositPaymentCard";
+ import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
+ import { AgentContractLibrary } from "./AgentContractLibrary";
+ import { emptyLibraryView, type ContractLibraryEntry } from "../lib/agent-contract-library";
+@@ -457,6 +459,8 @@
+   const [cancelReason, setCancelReason] = useState("");
+   const [busy, setBusy] = useState(false);
+   const [financialKind, setFinancialKind] = useState<"invoice" | "receipt" | null>(null);
++  // D10: the agent is issuing the receipt for the lease deposit invoice.
++  const [payingDeposit, setPayingDeposit] = useState(false);
+   const [attachmentsNonce, setAttachmentsNonce] = useState(0);
+   const [focusDocuments, setFocusDocuments] = useState(false);
+   const [attachmentReadiness, setAttachmentReadiness] = useState<{
+@@ -691,6 +695,23 @@
+     setError("");
+     setPreviewDoc({ name, url, kind });
+   }
++  /** D10: issue the deposit invoice again when issuing it with the generated lease failed. */
++  async function issueDepositInvoice() {
++    if (!selected || busy) return;
++    setBusy(true);
++    setError("");
++    try {
++      const updated = await issueAgentDepositInvoice(selected.id);
++      setSelected(updated);
++      setContracts((rows) => rows.map((row) => row.id === updated.id ? updated : row));
++      setNotice(tc.deposit.issued);
++      onChanged?.();
++    } catch (e) {
++      setError(message(e));
++    } finally {
++      setBusy(false);
++    }
++  }
+   async function createBookingInvoice() {
+     if (!selected || busy) return;
+     setBusy(true);
+@@ -2434,6 +2455,22 @@
+         </MobileBottomSheet>
+       </View>
+     );
++  if (selected && payingDeposit && selected.depositPayment?.invoiceId != null)
++    return <FinancialDocumentForm key={`deposit:${selected.depositPayment.invoiceId}`} kind="receipt"
++      fixedInvoiceId={selected.depositPayment.invoiceId} slipOnFile={!!selected.depositPayment.paymentSlipUrl} payer={tenantPayer}
++      onBack={() => setPayingDeposit(false)}
++      onStandaloneCreated={() => {
++        setPayingDeposit(false);
++        setNotice(docs.financial.success);
++        void getAgentContract(selected.id)
++          .then((row) => {
++            setSelected(row);
++            setContracts((rows) => rows.map((existing) => existing.id === row.id ? row : existing));
++          })
++          .catch((e) => setError(message(e)));
++        onChanged?.();
++      }}
++      onCreated={() => undefined} />;
+   if (selected && financialKind && !draftCancelled && !["expired", "terminated"].includes(selected.status))
+     return <FinancialDocumentForm key={`${selected.id}:${financialKind}`} contractId={selected.id} kind={financialKind} payer={tenantPayer}
+       onBack={() => setFinancialKind(null)}
+@@ -2807,6 +2844,19 @@
+             onCreateInvoice={() => void createBookingInvoice()}
+           />
+         )}
++        {selected.formKind === "lease" && (
++          <DepositPaymentCard
++            contract={selected}
++            busy={busy}
++            onOpen={(kind) => {
++              const deposit = selected.depositPayment;
++              const url = kind === "deposit-invoice" ? deposit?.invoiceUrl : kind === "deposit-receipt" ? deposit?.receiptUrl : deposit?.paymentSlipUrl;
++              if (url) openDocumentPreview(kind === "deposit-invoice" ? tc.common.paymentDocuments.invoice : kind === "deposit-receipt" ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip, url, kind === "deposit-payment-slip" ? "payment_slip" : kind === "deposit-invoice" ? "invoice" : "receipt");
++            }}
++            onIssueReceipt={() => { setError(""); setPayingDeposit(true); }}
++            onIssueInvoice={() => void issueDepositInvoice()}
++          />
++        )}
+         {(selected.formKind === "reservation" ||
+           selected.formKind === "lease") && (
+           <AgreementAttachments
+diff -ruN orig/apps/consumer-app/components/DepositPaymentCard.tsx new/apps/consumer-app/components/DepositPaymentCard.tsx
+--- orig/apps/consumer-app/components/DepositPaymentCard.tsx	1970-01-01 00:00:00.000000000 +0000
++++ new/apps/consumer-app/components/DepositPaymentCard.tsx	2026-10-21 07:16:02.701131617 +0000
+@@ -0,0 +1,128 @@
++import React from "react";
++import { Text, View } from "react-native";
++import { MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
++import type { AgentContract, DepositFinancialDocumentKind } from "@nestyk/types";
++import { fillTemplate, useLocale } from "@nestyk/i18n";
++import { localeTag } from "../lib/lead-format";
++
++/**
++ * D10: the deposit of a generated lease, issued in the landlord's name. The tenant sends the slip
++ * (onUpload), the agent issues the receipt (onIssueReceipt) or issues the invoice again (onIssueInvoice).
++ */
++export function DepositPaymentCard({
++  contract,
++  busy,
++  onOpen,
++  onUpload,
++  onIssueReceipt,
++  onIssueInvoice,
++}: {
++  contract: AgentContract;
++  busy: boolean;
++  onOpen: (kind: DepositFinancialDocumentKind) => void;
++  onUpload?: () => void;
++  onIssueReceipt?: () => void;
++  onIssueInvoice?: () => void;
++}) {
++  const { theme } = useMobileTheme();
++  const { t, locale } = useLocale();
++  const dc = t.contracts.deposit;
++  const deposit = contract.depositPayment;
++  if (!deposit) return null;
++  const status = {
++    not_issued: { color: "#6B7280", background: "#F3F4F6" },
++    unpaid: { color: "#B45309", background: "#FFFBEB" },
++    submitted: { color: "#1D4ED8", background: "#EFF6FF" },
++    paid: { color: "#15803D", background: "#F0FDF4" },
++  }[deposit.status];
++  const label = dc.status[deposit.status];
++  const closed = ["cancelled", "expired", "terminated"].includes(contract.status);
++  const open = !closed && deposit.status !== "paid";
++  const text = {
++    color: theme.textSecondary,
++    fontFamily: tokens.typography.native.body,
++    fontSize: 14,
++    lineHeight: 22,
++  };
++  const amount = `฿${deposit.total.toLocaleString(localeTag(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
++  const due = deposit.dueDate
++    ? new Date(`${deposit.dueDate}T00:00:00`).toLocaleDateString(localeTag(locale), { day: "numeric", month: "short", year: "numeric" })
++    : null;
++  return (
++    <View
++      style={{
++        backgroundColor: theme.card,
++        borderColor: theme.border,
++        borderWidth: 1,
++        borderRadius: 16,
++        padding: 16,
++        gap: 10,
++      }}
++    >
++      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
++        <Text
++          style={{
++            color: theme.textHeading,
++            fontFamily: tokens.typography.native.headingTh,
++            fontSize: 18,
++            lineHeight: 27,
++          }}
++        >
++          {dc.title}
++        </Text>
++        <View style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: status.background }}>
++          <Text
++            accessibilityLabel={fillTemplate(dc.statusA11y, { status: label })}
++            style={{ ...text, color: status.color, fontSize: 13 }}
++          >
++            {label}
++          </Text>
++        </View>
++      </View>
++      <Text style={text}>{fillTemplate(dc.linked, { no: contract.contractNo })}</Text>
++      <Text style={text}>{fillTemplate(dc.total, { amount })}</Text>
++      {due && <Text style={text}>{fillTemplate(dc.due, { date: due })}</Text>}
++      {deposit.status === "submitted" && <Text style={text}>{dc.submittedHint}</Text>}
++      {deposit.status === "paid" && <Text style={text}>{dc.paidHint}</Text>}
++      {closed && <Text style={text}>{dc.closed}</Text>}
++      {deposit.status === "not_issued" ? (
++        <>
++          <Text style={text}>{dc.notIssued}</Text>
++          {onIssueInvoice && !closed && (
++            <MobileButton disabled={busy} isLoading={busy} onPress={onIssueInvoice}>
++              {dc.issue}
++            </MobileButton>
++          )}
++        </>
++      ) : (
++        <MobileButton variant="outline" disabled={busy} onPress={() => onOpen("deposit-invoice")}>
++          {dc.viewInvoice}
++          {deposit.invoiceDocumentNo ? ` ${deposit.invoiceDocumentNo}` : ""}
++        </MobileButton>
++      )}
++      {deposit.paymentSlipUrl && (
++        <MobileButton variant="outline" disabled={busy} onPress={() => onOpen("deposit-payment-slip")}>
++          {dc.viewSlip}
++        </MobileButton>
++      )}
++      {onUpload && open && deposit.status !== "not_issued" && (
++        <>
++          <MobileButton disabled={busy} isLoading={busy} onPress={onUpload}>
++            {deposit.status === "submitted" ? dc.reuploadSlip : dc.uploadSlip}
++          </MobileButton>
++          <Text style={text}>{dc.uploadHint}</Text>
++        </>
++      )}
++      {deposit.receiptUrl ? (
++        <MobileButton variant="outline" disabled={busy} onPress={() => onOpen("deposit-receipt")}>
++          {dc.viewReceipt}
++          {deposit.receiptDocumentNo ? ` ${deposit.receiptDocumentNo}` : ""}
++        </MobileButton>
++      ) : onIssueReceipt && open && deposit.status !== "not_issued" ? (
++        <MobileButton disabled={busy} onPress={onIssueReceipt}>
++          {dc.verify}
++        </MobileButton>
++      ) : null}
++    </View>
++  );
++}
+diff -ruN orig/apps/consumer-app/components/FinancialDocumentForm.tsx new/apps/consumer-app/components/FinancialDocumentForm.tsx
+--- orig/apps/consumer-app/components/FinancialDocumentForm.tsx	2026-10-21 07:05:05.137416449 +0000
++++ new/apps/consumer-app/components/FinancialDocumentForm.tsx	2026-10-21 07:16:33.785322652 +0000
+@@ -65,6 +65,7 @@
+   kind,
+   payer,
+   fixedInvoiceId,
++  slipOnFile = false,
+   onBack,
+   onCreated,
+   onStandaloneCreated,
+@@ -83,6 +84,8 @@
+     taxId: string;
+   };
+   fixedInvoiceId?: number;
++  /** D10: the tenant already sent the slip for this (deposit) invoice, so attaching one is optional. */
++  slipOnFile?: boolean;
+   onBack: () => void;
+   onCreated: (value: AgentContract) => void;
+   onStandaloneCreated?: (value: StandaloneInvoice) => void;
+@@ -370,7 +373,7 @@
+     if (isReceipt) {
+       if (!linked && invoiceId == null) return;
+       const markingPaid = fixedInvoiceId != null;
+-      if (markingPaid && !slip) {
++      if (markingPaid && !slip && !slipOnFile) {
+         setError(labels.slipRequired);
+         return;
+       }
+@@ -673,8 +676,13 @@
+           {fixedInvoiceId != null ? (
+             <>
+               <Text style={{ color: theme.textHeading, lineHeight: 24 }}>
+-                {labels.paymentSlip} *
++                {labels.paymentSlip}{slipOnFile ? "" : " *"}
+               </Text>
++              {slipOnFile ? (
++                <Text style={{ color: theme.textSecondary, lineHeight: 22 }}>
++                  {t.contracts.deposit.slipOnFile}
++                </Text>
++              ) : null}
+               <MobileButton
+                 variant="outline"
+                 disabled={busy}
+diff -ruN orig/apps/consumer-app/components/PartyContractDetail.tsx new/apps/consumer-app/components/PartyContractDetail.tsx
+--- orig/apps/consumer-app/components/PartyContractDetail.tsx	2026-10-21 07:05:05.128753591 +0000
++++ new/apps/consumer-app/components/PartyContractDetail.tsx	2026-10-21 07:16:27.998178999 +0000
+@@ -14,6 +14,7 @@
+ import type {
+   AgreementAttachmentChecklist,
+   AgreementDocumentSubject,
++  DepositFinancialDocumentKind,
+   PartyContract,
+ } from "@nestyk/types";
+ import {
+@@ -24,6 +25,7 @@
+   uploadMyAttachment,
+   openMyFinancialDocument,
+   uploadMyReservationPaymentSlip,
++  uploadMyDepositPaymentSlip,
+ } from "../lib/party-contracts-api";
+ import {
+   ContractSignaturePad,
+@@ -31,6 +33,7 @@
+ } from "./ContractSignaturePad";
+ import { ContractDocumentPreview } from "./ContractDocumentPreview";
+ import { ReservationPaymentCard } from "./ReservationPaymentCard";
++import { DepositPaymentCard } from "./DepositPaymentCard";
+ import { TenantContractAttachments } from "./TenantContractList";
+ import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
+ import { localeTag } from "../lib/lead-format";
+@@ -108,6 +111,8 @@
+   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+   const [previewTitle, setPreviewTitle] = useState("");
+   const [slipSourceOpen, setSlipSourceOpen] = useState(false);
++  // D10: which payment the picked slip is for (the reservation fee, or the lease deposit).
++  const slipTarget = useRef<"reservation" | "deposit">("reservation");
+   const [previewBusy, setPreviewBusy] = useState(false);
+   const [signing, setSigning] = useState<ContractParty | null>(null);
+   const [signPadKey, setSignPadKey] = useState(0);
+@@ -227,12 +232,12 @@
+     }
+   }
+ 
+-  async function openPaymentDocument(kind: "invoice" | "receipt" | "payment-slip") {
++  async function openPaymentDocument(kind: "invoice" | "receipt" | "payment-slip" | DepositFinancialDocumentKind) {
+     setPreviewBusy(true);
+     setError("");
+     try {
+       const doc = await openMyFinancialDocument(contract.id, kind);
+-      setPreviewTitle(kind === "invoice" ? tc.common.paymentDocuments.invoice : kind === "receipt" ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip);
++      setPreviewTitle(kind.endsWith("invoice") ? tc.common.paymentDocuments.invoice : kind.endsWith("receipt") ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip);
+       setPreviewUrl(doc.url);
+     } catch (e) {
+       setError(localizedError(e, pc.openDocumentFailed, locale));
+@@ -269,7 +274,9 @@
+         file = { uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? "application/octet-stream", file: asset.file };
+       }
+       setBusy(true);
+-      const updated = await uploadMyReservationPaymentSlip(contract.id, file);
++      const updated = slipTarget.current === "deposit"
++        ? await uploadMyDepositPaymentSlip(contract.id, file)
++        : await uploadMyReservationPaymentSlip(contract.id, file);
+       onUpdated(updated);
+       setNotice(pc.slipSent);
+     } catch (e) {
+@@ -374,7 +381,16 @@
+           contract={contract}
+           busy={busy || previewBusy || refreshing || picking != null}
+           onOpen={(kind) => void openPaymentDocument(kind)}
+-          onUpload={mine.includes("tenant") ? () => setSlipSourceOpen(true) : undefined}
++          onUpload={mine.includes("tenant") ? () => { slipTarget.current = "reservation"; setSlipSourceOpen(true); } : undefined}
++        />
++      )}
++
++      {contract.formKind === "lease" && (
++        <DepositPaymentCard
++          contract={contract}
++          busy={busy || previewBusy || refreshing || picking != null}
++          onOpen={(kind) => void openPaymentDocument(kind)}
++          onUpload={mine.includes("tenant") ? () => { slipTarget.current = "deposit"; setSlipSourceOpen(true); } : undefined}
+         />
+       )}
+ 
+diff -ruN orig/apps/consumer-app/components/contracts-renewal-flow.test.cjs new/apps/consumer-app/components/contracts-renewal-flow.test.cjs
+--- orig/apps/consumer-app/components/contracts-renewal-flow.test.cjs	2026-10-21 07:05:05.213180009 +0000
++++ new/apps/consumer-app/components/contracts-renewal-flow.test.cjs	2026-10-21 07:19:13.494022440 +0000
+@@ -59,6 +59,7 @@
+     '../lib/contract-close':load('../lib/contract-close.ts', id=>id==='./lease-term'?term:require(id)),
+     '../lib/signature-log':load('../lib/signature-log.ts', id=>id==='@nestyk/i18n'?{fillTemplate:require('./test-i18n.cjs').fillTemplate}:require(id)),
+     './ContractCloseCard':{ContractCloseCard:'close-card',closeResultNotice:()=>'closed'},
++    './DepositPaymentCard':{DepositPaymentCard:'deposit-card'},
+   };
+   for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ReservationPaymentCard','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
+   for (const name of ['expo-document-picker','expo-image-picker','expo-image']) dependencies[name]={};
+@@ -468,3 +469,44 @@
+   assert.ok(texts.includes(thai.th.agent.contracts.reservationNeedsBroker));
+   assert.equal(texts.includes(thai.th.agent.contracts.notice.connectError),false);
+ });
++
++test('D10: a generated lease shows the deposit card; the agent issues the invoice again, then the receipt from the tenant\'s slip', async () => atBangkokOctober12(async()=>{
++  const deposit={status:'not_issued',total:30000,invoiceId:null,invoiceDocumentNo:null,dueDate:null,invoiceUrl:null,receiptDocumentNo:null,receiptUrl:null,paymentSlipUrl:null,submittedAt:null};
++  const lease=row({id:7,contractNo:'LS007',leaseAgreementStatus:'ready',depositPayment:deposit});
++  const issued={...lease,depositPayment:{...deposit,status:'submitted',invoiceId:100,invoiceDocumentNo:'DEP-LS007',dueDate:'2026-11-01',invoiceUrl:'dep.pdf',paymentSlipUrl:'slip.jpg'}};
++  const paid={...issued,depositPayment:{...issued.depositPayment,status:'paid',receiptDocumentNo:'REC-DEP-LS007',receiptUrl:'rec.pdf'}};
++  const issueCalls=[]; let current=lease;
++  const h=harness([lease], {props:{startCreate:null,initialContract:lease},
++    api:{issueAgentDepositInvoice:async(id)=>{issueCalls.push(id);current=issued;return issued;},getAgentContract:async()=>current}});
++  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
++  const tree=()=>nodes(h.render());
++  const card=()=>tree().find(n=>n.type==='deposit-card');
++  assert.equal(card().props.contract.depositPayment.status,'not_issued');
++  card().props.onIssueInvoice(); await h.tick();
++  assert.deepEqual(issueCalls,[7]);
++  assert.equal(card().props.contract.depositPayment.invoiceId,100,'the screen shows the issued invoice');
++  assert.ok(tree().some(n=>n.type==='span'&&n.props.children===contractsTh.deposit.issued));
++  // Opening the deposit documents previews the signed URLs from the contract.
++  card().props.onOpen('deposit-payment-slip');
++  assert.ok(tree().some(n=>n.props?.url==='slip.jpg'));
++  card().props.onIssueReceipt();
++  const form=tree().find(n=>n.props?.fixedInvoiceId!=null);
++  assert.deepEqual({kind:form.props.kind,invoice:form.props.fixedInvoiceId,slipOnFile:form.props.slipOnFile},{kind:'receipt',invoice:100,slipOnFile:true});
++  current=paid;
++  form.props.onStandaloneCreated({id:100}); await h.tick();
++  assert.equal(tree().some(n=>n.props?.fixedInvoiceId!=null),false,'back on the contract');
++  assert.equal(card().props.contract.depositPayment.status,'paid','the contract is loaded again after the receipt');
++}));
++
++test('D10: without the tenant\'s slip the agent attaches one for the deposit receipt; a reservation has no deposit card', async () => atBangkokOctober12(async()=>{
++  const unpaid={status:'unpaid',total:30000,invoiceId:100,invoiceDocumentNo:'DEP-LS008',dueDate:'2026-11-01',invoiceUrl:'dep.pdf',receiptDocumentNo:null,receiptUrl:null,paymentSlipUrl:null,submittedAt:null};
++  const lease=row({id:8,contractNo:'LS008',leaseAgreementStatus:'ready',depositPayment:unpaid});
++  const h=harness([lease], {props:{startCreate:null,initialContract:lease}});
++  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
++  nodes(h.render()).find(n=>n.type==='deposit-card').props.onIssueReceipt();
++  assert.equal(nodes(h.render()).find(n=>n.props?.fixedInvoiceId!=null).props.slipOnFile,false);
++  const booking=row({id:9,formKind:'reservation',status:'active',contractNo:'RS009',endDate:null,reservationLetterStatus:'ready'});
++  const r=harness([booking], {props:{startCreate:null,initialContract:booking}});
++  r.render(); r.resolve(); await r.tick(); r.render(); await r.tick();
++  assert.equal(nodes(r.render()).some(n=>n.type==='deposit-card'),false);
++}));
+diff -ruN orig/apps/consumer-app/components/deposit-payment-card.test.cjs new/apps/consumer-app/components/deposit-payment-card.test.cjs
+--- orig/apps/consumer-app/components/deposit-payment-card.test.cjs	1970-01-01 00:00:00.000000000 +0000
++++ new/apps/consumer-app/components/deposit-payment-card.test.cjs	2026-10-21 07:18:41.984816329 +0000
+@@ -0,0 +1,106 @@
++// D10: the deposit card of a generated lease, for the agent and for the tenant and landlord.
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const ts = require('typescript');
++const React = require('react');
++const { renderToStaticMarkup } = require('react-dom/server');
++const { i18nMock, leadFormat } = require('./test-i18n.cjs');
++const loaded = { exports: {} };
++const pressed = [];
++const mockRequire = name => {
++  if (name === 'react') return React;
++  if (name === 'react-native') return { View: 'section', Text: 'span' };
++  if (name === '@nestyk/ui/native') return {
++    useMobileTheme: () => ({ theme: {} }),
++    tokens: { typography: { native: {} } },
++    MobileButton: ({ children, disabled, onPress }) => { pressed.push([[].concat(children).join(''), onPress]); return React.createElement('button', { disabled }, children); },
++  };
++  if (name === '@nestyk/i18n') return i18nMock();
++  if (name === '../lib/lead-format') return leadFormat;
++  throw new Error(`Unexpected dependency: ${name}`);
++};
++new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, 'DepositPaymentCard.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);
++const { DepositPaymentCard } = loaded.exports;
++const deposit = { status: 'unpaid', total: 40000, invoiceId: 100, invoiceDocumentNo: 'DEP-LS202600011', dueDate: '2026-11-01',
++  invoiceUrl: 'invoice.pdf', receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null };
++const base = { contractNo: 'LS202600011', status: 'active', formKind: 'lease', depositPayment: deposit };
++const render = (patch = {}, props = {}) => {
++  pressed.length = 0;
++  return renderToStaticMarkup(React.createElement(DepositPaymentCard, { contract: { ...base, ...patch }, busy: false, onOpen() {}, ...props }));
++};
++const withDeposit = (patch) => ({ depositPayment: { ...deposit, ...patch } });
++
++test('no card when there is no deposit to pay (not a generated lease, or a deposit of 0)', () => {
++  assert.equal(render({ depositPayment: null }, { onUpload() {}, onIssueReceipt() {}, onIssueInvoice() {} }), '');
++  assert.equal(render({ depositPayment: undefined }), '');
++});
++
++test('tenant sees the landlord\'s deposit invoice, the amount and the due date, and sends the slip', () => {
++  const opened = [];
++  const markup = render({}, { onUpload() {}, onOpen: (kind) => opened.push(kind) });
++  assert.match(markup, /การชำระเงินประกัน/);
++  assert.match(markup, /ออกในนามผู้ให้เช่า · ผูกกับสัญญาเช่า LS202600011/);
++  assert.match(markup, /ยอดเงินประกัน ฿40,000.00/);
++  assert.match(markup, /ครบกำหนดชำระ /);
++  assert.match(markup, /ดูใบแจ้งหนี้เงินประกัน DEP-LS202600011/);
++  assert.match(markup, /อัปโหลดสลิปชำระเงินประกัน/);
++  assert.doesNotMatch(markup, /<button>(ตรวจสอบการชำระและออกใบเสร็จ|ออกใบแจ้งหนี้เงินประกัน)/);
++  pressed.find(([label]) => label.startsWith('ดูใบแจ้งหนี้เงินประกัน'))[1]();
++  assert.deepEqual(opened, ['deposit-invoice']);
++});
++
++test('a submitted slip can be viewed and replaced by the tenant, and the agent verifies it', () => {
++  const patch = withDeposit({ status: 'submitted', paymentSlipUrl: 'slip.jpg' });
++  const tenant = render(patch, { onUpload() {} });
++  assert.match(tenant, /รอตรวจสอบ/);
++  assert.match(tenant, /ดูสลิปชำระเงินประกัน/);
++  assert.match(tenant, /อัปโหลดสลิปใหม่/);
++  const landlord = render(patch);
++  assert.doesNotMatch(landlord, /<button>(อัปโหลดสลิป|ตรวจสอบการชำระ)/, 'the landlord only views');
++  let verified = false;
++  const agent = render(patch, { onIssueReceipt: () => { verified = true; } });
++  assert.match(agent, /ตรวจสอบการชำระและออกใบเสร็จ/);
++  assert.doesNotMatch(agent, /<button>อัปโหลดสลิป/);
++  pressed.find(([label]) => label === 'ตรวจสอบการชำระและออกใบเสร็จ')[1]();
++  assert.equal(verified, true);
++});
++
++test('paid deposits show the receipt; closed leases keep the documents but hide payment actions', () => {
++  const paid = render(withDeposit({ status: 'paid', paymentSlipUrl: 'slip.jpg', receiptUrl: 'receipt.pdf', receiptDocumentNo: 'REC-DEP-LS202600011' }), { onUpload() {}, onIssueReceipt() {} });
++  assert.match(paid, /ชำระแล้ว/);
++  assert.match(paid, /ดูใบเสร็จเงินประกัน REC-DEP-LS202600011/);
++  assert.doesNotMatch(paid, /<button>(อัปโหลดสลิป|ตรวจสอบการชำระ)/);
++  for (const status of ['cancelled', 'expired', 'terminated']) {
++    const closed = render({ status }, { onUpload() {}, onIssueReceipt() {}, onIssueInvoice() {} });
++    assert.match(closed, /ดูใบแจ้งหนี้เงินประกัน/);
++    assert.match(closed, /สัญญาเช่าปิดแล้ว/);
++    assert.doesNotMatch(closed, /<button>(อัปโหลดสลิป|ตรวจสอบการชำระ)/);
++  }
++});
++
++test('a deposit invoice that failed to issue shows "not issued"; only the agent can issue it again', () => {
++  const notIssued = withDeposit({ status: 'not_issued', invoiceId: null, invoiceDocumentNo: null, dueDate: null, invoiceUrl: null });
++  let issued = false;
++  const agent = render(notIssued, { onIssueReceipt() {}, onIssueInvoice: () => { issued = true; } });
++  assert.match(agent, /ยังไม่ออกใบแจ้งหนี้/);
++  assert.match(agent, /ยอดเงินประกัน ฿40,000.00/);
++  assert.doesNotMatch(agent, /<button>(ดูใบแจ้งหนี้|ตรวจสอบการชำระ)|ครบกำหนดชำระ/);
++  pressed.find(([label]) => label === 'ออกใบแจ้งหนี้เงินประกัน')[1]();
++  assert.equal(issued, true);
++  const tenant = render(notIssued, { onUpload() {} });
++  assert.match(tenant, /ยังไม่ได้ออกใบแจ้งหนี้เงินประกัน/);
++  assert.doesNotMatch(tenant, /<button/, 'nothing to press yet');
++  const closed = render({ ...notIssued, status: 'terminated' }, { onIssueInvoice() {} });
++  assert.doesNotMatch(closed, /<button/);
++});
++
++test('every locale has the same deposit copy keys', () => {
++  const load = (file) => { const out = { exports: {} }; new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(() => ({}), out, out.exports); return out.exports; };
++  const dir = path.join(__dirname, '../../../packages/i18n/src/locales/contracts');
++  const keys = (value) => Object.entries(value).flatMap(([key, item]) => (item && typeof item === 'object' ? keys(item).map((sub) => `${key}.${sub}`) : [key])).sort();
++  const th = keys(load(path.join(dir, 'th.ts')).contractsTh.deposit);
++  for (const [file, name] of [['en.ts', 'contractsEn'], ['ja.ts', 'contractsJa'], ['zh.ts', 'contractsZh']])
++    assert.deepEqual(keys(load(path.join(dir, file))[name].deposit), th, file);
++});
+diff -ruN orig/apps/consumer-app/components/party-payment-signing.test.cjs new/apps/consumer-app/components/party-payment-signing.test.cjs
+--- orig/apps/consumer-app/components/party-payment-signing.test.cjs	2026-10-21 07:05:05.151160063 +0000
++++ new/apps/consumer-app/components/party-payment-signing.test.cjs	2026-10-21 07:18:41.984494806 +0000
+@@ -21,7 +21,7 @@
+ };
+ 
+ function harness(contract) {
+-  const states = [], effects = [], buttons = [];
++  const states = [], effects = [], buttons = [], cards = {}, calls = [];
+   let index = 0, first = true;
+   const mockedReact = { ...React,
+     useState: initial => {
+@@ -29,23 +29,35 @@
+       if (!(i in states)) states[i] = initial;
+       return [states[i], next => { states[i] = typeof next === 'function' ? next(states[i]) : next; }];
+     },
+-    useRef: initial => ({ current: initial }),
++    // Refs keep their value between renders, like React's.
++    useRef: initial => { const i = index++; if (!(i in states)) states[i] = { current: initial }; return states[i]; },
+     useEffect: fn => { if (first) effects.push(fn); },
+   };
+   const requireMock = name => {
+     if (name === 'react') return mockedReact;
+     if (name === 'react-native') return { View: 'section', Text: 'span', ActivityIndicator: () => null, StyleSheet: { create: styles => styles } };
+-    if (name === 'expo-document-picker' || name === 'expo-image-picker') return {};
++    if (name === 'expo-document-picker') return {};
++    if (name === 'expo-image-picker') return {
++      requestMediaLibraryPermissionsAsync: async () => ({ granted: true }),
++      launchImageLibraryAsync: async () => ({ canceled: false, assets: [{ uri: 'file:///slip.jpg', fileName: 'slip.jpg', mimeType: 'image/jpeg', fileSize: 10 }] }),
++      UIImagePickerPreferredAssetRepresentationMode: { Compatible: 'compatible' },
++    };
+     if (name === '@nestyk/ui/native') return {
+       useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { brand: { 500: '#f8b615' }, roles: { owner: '#f8b615' } } },
+-      MobileBottomSheet: () => null, MobileIcon: () => null,
++      MobileBottomSheet: ({ visible, children }) => (visible ? React.createElement('section', null, children) : null), MobileIcon: () => null,
+       MobileButton: ({ children, disabled, onPress }) => { buttons.push({ label: React.Children.toArray(children).join(''), disabled, onPress }); return React.createElement('button', { disabled }, children); },
+     };
+-    if (name === '../lib/party-contracts-api') return { listMyAttachments: async () => ({ requirements: [], documents: [], documentTypes: [] }) };
++    if (name === '../lib/party-contracts-api') return {
++      listMyAttachments: async () => ({ requirements: [], documents: [], documentTypes: [] }),
++      uploadMyReservationPaymentSlip: async (id, file) => { calls.push(['reservation', id, file.name]); return contract; },
++      uploadMyDepositPaymentSlip: async (id, file) => { calls.push(['deposit', id, file.name]); return contract; },
++      openMyFinancialDocument: async (id, kind) => { calls.push(['open', id, kind]); return { url: `https://signed.example/${kind}` }; },
++    };
+     if (name === '../lib/contract-signing') return load('../lib/contract-signing.ts');
+     if (name === '@nestyk/i18n') return i18nMock;
+     if (name === '../lib/lead-format') return leadFormat;
+-    if (name === './ReservationPaymentCard') return { ReservationPaymentCard: () => null };
++    if (name === './ReservationPaymentCard') return { ReservationPaymentCard: (props) => { cards.reservation = props; return null; } };
++    if (name === './DepositPaymentCard') return { DepositPaymentCard: (props) => { cards.deposit = props; return null; } };
+     if (name === './TenantContractList') return { TenantContractAttachments: () => null };
+     if (name === './ContractDocumentPreview') return { ContractDocumentPreview: () => null };
+     if (name === './ContractSignaturePad') return { ContractSignaturePad: () => null };
+@@ -63,7 +75,7 @@
+     first = false;
+     return markup;
+   };
+-  return { render, buttons, ready: async () => { render(); effects.forEach(effect => effect()); await new Promise(resolve => setImmediate(resolve)); } };
++  return { render, buttons, cards, calls, ready: async () => { render(); effects.forEach(effect => effect()); await new Promise(resolve => setImmediate(resolve)); } };
+ }
+ const booking = { id: 11, formKind: 'reservation', status: 'draft', myParties: ['tenant'], receiptUrl: null, reservationFee: 5000, contractNo: 'RS202600011' };
+ 
+@@ -83,3 +95,41 @@
+     assert.equal(h.buttons.find(button => button.label === label).disabled, false);
+   }
+ });
++
++const lease = { id: 12, formKind: 'lease', status: 'active', myParties: ['tenant'], contractNo: 'LS202600012', startDate: '2026-11-01', endDate: '2027-10-31',
++  depositPayment: { status: 'unpaid', total: 40000, invoiceId: 100, invoiceDocumentNo: 'DEP-LS202600012', dueDate: '2026-11-01', invoiceUrl: 'i.pdf', receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null } };
++/** Press "from photos" in the slip sheet and wait for the picker and the upload (the sheet closes first, 400 ms). */
++async function sendSlipFromPhotos(h) {
++  h.render();
++  const photos = h.buttons.find((button) => button.label === contractsTh.party.fromPhotos);
++  assert.ok(photos, 'the slip sheet is open');
++  photos.onPress();
++  await new Promise((resolve) => setTimeout(resolve, 500));
++}
++
++test('D10: on a lease the tenant gets the deposit card, and the slip they pick goes to the deposit', async () => {
++  const h = harness(lease);
++  await h.ready();
++  h.render();
++  assert.equal(h.cards.reservation, undefined, 'a lease has no reservation payment card');
++  assert.equal(h.cards.deposit.contract, lease);
++  h.cards.deposit.onUpload();
++  await sendSlipFromPhotos(h);
++  assert.deepEqual(h.calls, [['deposit', 12, 'slip.jpg']]);
++  await h.cards.deposit.onOpen('deposit-invoice');
++  assert.deepEqual(h.calls.at(-1), ['open', 12, 'deposit-invoice']);
++});
++
++test('D10: the landlord only views the deposit; the reservation slip still goes to the reservation', async () => {
++  const owner = harness({ ...lease, myParties: ['owner'] });
++  await owner.ready();
++  owner.render();
++  assert.equal(owner.cards.deposit.onUpload, undefined);
++  const h = harness({ ...booking, reservationPayment: { status: 'unpaid' } });
++  await h.ready();
++  h.render();
++  assert.equal(h.cards.deposit, undefined, 'a reservation has no deposit card');
++  h.cards.reservation.onUpload();
++  await sendSlipFromPhotos(h);
++  assert.deepEqual(h.calls, [['reservation', 11, 'slip.jpg']]);
++});
+diff -ruN orig/apps/consumer-app/lib/agent-contracts-api.ts new/apps/consumer-app/lib/agent-contracts-api.ts
+--- orig/apps/consumer-app/lib/agent-contracts-api.ts	2026-10-21 07:05:05.166246786 +0000
++++ new/apps/consumer-app/lib/agent-contracts-api.ts	2026-10-21 07:16:13.465132257 +0000
+@@ -132,6 +132,12 @@
+   return apiPost(`/agent/contracts/${id}/witness-sign`, input);
+ }
+ 
++/** D10: issue the deposit invoice of a generated lease again (it is issued when the lease is generated). */
++export async function issueAgentDepositInvoice(id: number): Promise<AgentContract> {
++  await ensureAgentSession();
++  return apiPost(`/agent/contracts/${id}/deposit-invoice`, {});
++}
++
+ export async function deliverAgentContract(
+   id: number,
+   party: ContractParty,
+diff -ruN orig/apps/consumer-app/lib/party-contracts-api.ts new/apps/consumer-app/lib/party-contracts-api.ts
+--- orig/apps/consumer-app/lib/party-contracts-api.ts	2026-10-21 07:05:05.161113330 +0000
++++ new/apps/consumer-app/lib/party-contracts-api.ts	2026-10-21 07:16:10.860676142 +0000
+@@ -2,6 +2,7 @@
+ import { Platform } from "react-native";
+ import type {
+   AgreementAttachmentChecklist,
++  DepositFinancialDocumentKind,
+   PartyContract,
+ } from "@nestyk/types";
+ import { apiGet, apiPost, apiRequest } from "./api";
+@@ -20,13 +21,22 @@
+   return apiPost(`/contracts/mine/${id}/document`, {});
+ }
+ 
+-export function openMyFinancialDocument(id: number, kind: "invoice" | "receipt" | "payment-slip"): Promise<{ url: string }> {
++export function openMyFinancialDocument(id: number, kind: "invoice" | "receipt" | "payment-slip" | DepositFinancialDocumentKind): Promise<{ url: string }> {
+   return apiGet(`/contracts/mine/${id}/financial-documents/${kind}`);
+ }
+ 
++/** D10: the tenant sends the slip for the deposit invoice of a generated lease. */
++export function uploadMyDepositPaymentSlip(
++  id: number,
++  file: { uri: string; name: string; mimeType: string; file?: File },
++): Promise<PartyContract> {
++  return uploadMyReservationPaymentSlip(id, file, "deposit-payment-slip");
++}
++
+ export async function uploadMyReservationPaymentSlip(
+   id: number,
+   file: { uri: string; name: string; mimeType: string; file?: File },
++  route: "payment-slip" | "deposit-payment-slip" = "payment-slip",
+ ): Promise<PartyContract> {
+   const form = new FormData();
+   if (Platform.OS === "web")
+@@ -36,7 +46,7 @@
+   const controller = new AbortController();
+   const timeout = setTimeout(() => controller.abort(), 60_000);
+   try {
+-    return await apiRequest(`/contracts/mine/${id}/payment-slip`, { method: "POST", body: form, signal: controller.signal });
++    return await apiRequest(`/contracts/mine/${id}/${route}`, { method: "POST", body: form, signal: controller.signal });
+   } finally {
+     clearTimeout(timeout);
+   }
+diff -ruN orig/packages/i18n/src/locales/contracts/en.ts new/packages/i18n/src/locales/contracts/en.ts
+--- orig/packages/i18n/src/locales/contracts/en.ts	2026-10-21 07:05:05.174974479 +0000
++++ new/packages/i18n/src/locales/contracts/en.ts	2026-10-21 07:15:47.062916531 +0000
+@@ -347,6 +347,33 @@
+     submittedShort: 'Slip sent · under review',
+     unpaidShort: 'Awaiting payment',
+   },
++  deposit: {
++    status: {
++      not_issued: 'Invoice not issued',
++      unpaid: 'Unpaid',
++      submitted: 'Under review',
++      paid: 'Paid',
++    },
++    title: 'Security deposit',
++    statusA11y: 'Security deposit status: {status}',
++    linked: "Issued in the landlord's name · linked to lease {no}",
++    total: 'Deposit {amount}',
++    due: 'Due {date}',
++    notIssued: 'The deposit invoice has not been issued yet',
++    issue: 'Issue deposit invoice',
++    issued: 'Deposit invoice issued',
++    viewInvoice: 'View deposit invoice',
++    viewSlip: 'View deposit slip',
++    uploadSlip: 'Upload deposit slip',
++    reuploadSlip: 'Upload a new slip',
++    uploadHint: 'Attach a PDF, JPG or PNG up to 10 MB. The receipt will appear here once the agent verifies it.',
++    submittedHint: 'Slip sent, waiting for the agent to verify the payment',
++    paidHint: 'The agent confirmed the payment and issued a receipt',
++    viewReceipt: 'View deposit receipt',
++    verify: 'Verify payment and issue receipt',
++    closed: 'Lease closed',
++    slipOnFile: "The tenant's slip is used, or attach a new one instead",
++  },
+   renewalForm: {
+     title: 'Lease renewal addendum',
+     disabled: 'A first lease must exist before you can renew',
+diff -ruN orig/packages/i18n/src/locales/contracts/ja.ts new/packages/i18n/src/locales/contracts/ja.ts
+--- orig/packages/i18n/src/locales/contracts/ja.ts	2026-10-21 07:05:05.178948471 +0000
++++ new/packages/i18n/src/locales/contracts/ja.ts	2026-10-21 07:15:47.063425004 +0000
+@@ -347,6 +347,33 @@
+     submittedShort: '明細送信済み · 確認中',
+     unpaidShort: '支払い待ち',
+   },
++  deposit: {
++    status: {
++      not_issued: '請求書未発行',
++      unpaid: '未払い',
++      submitted: '確認中',
++      paid: '支払い済み',
++    },
++    title: '敷金の支払い',
++    statusA11y: '敷金の支払い状況：{status}',
++    linked: '貸主名義で発行 · 賃貸借契約 {no} に紐づけ',
++    total: '敷金 {amount}',
++    due: '支払期日 {date}',
++    notIssued: '敷金の請求書はまだ発行されていません',
++    issue: '敷金の請求書を発行',
++    issued: '敷金の請求書を発行しました',
++    viewInvoice: '敷金の請求書を表示',
++    viewSlip: '敷金の振込明細を表示',
++    uploadSlip: '敷金の振込明細をアップロード',
++    reuploadSlip: '振込明細を再アップロード',
++    uploadHint: 'PDF、JPG または PNG（10 MB まで）を添付してください。エージェントが確認すると、ここに領収書が表示されます',
++    submittedHint: '振込明細を送信しました。エージェントの入金確認待ちです',
++    paidHint: 'エージェントが入金を確認し、領収書を発行しました',
++    viewReceipt: '敷金の領収書を表示',
++    verify: '入金を確認して領収書を発行',
++    closed: '賃貸借契約はクローズされました',
++    slipOnFile: '借主が送信した振込明細を使用します。新しい明細を添付することもできます',
++  },
+   renewalForm: {
+     title: '賃貸借更新合意書',
+     disabled: '最初の賃貸借契約がある場合のみ更新できます',
+diff -ruN orig/packages/i18n/src/locales/contracts/th.ts new/packages/i18n/src/locales/contracts/th.ts
+--- orig/packages/i18n/src/locales/contracts/th.ts	2026-10-21 07:05:05.170869116 +0000
++++ new/packages/i18n/src/locales/contracts/th.ts	2026-10-21 07:15:47.062404574 +0000
+@@ -345,6 +345,33 @@
+     submittedShort: 'ส่งสลิปแล้ว · รอตรวจสอบ',
+     unpaidShort: 'รอชำระเงิน',
+   },
++  deposit: {
++    status: {
++      not_issued: 'ยังไม่ออกใบแจ้งหนี้',
++      unpaid: 'รอชำระ',
++      submitted: 'รอตรวจสอบ',
++      paid: 'ชำระแล้ว',
++    },
++    title: 'การชำระเงินประกัน',
++    statusA11y: 'สถานะการชำระเงินประกัน: {status}',
++    linked: 'ออกในนามผู้ให้เช่า · ผูกกับสัญญาเช่า {no}',
++    total: 'ยอดเงินประกัน {amount}',
++    due: 'ครบกำหนดชำระ {date}',
++    notIssued: 'ยังไม่ได้ออกใบแจ้งหนี้เงินประกัน',
++    issue: 'ออกใบแจ้งหนี้เงินประกัน',
++    issued: 'ออกใบแจ้งหนี้เงินประกันแล้ว',
++    viewInvoice: 'ดูใบแจ้งหนี้เงินประกัน',
++    viewSlip: 'ดูสลิปชำระเงินประกัน',
++    uploadSlip: 'อัปโหลดสลิปชำระเงินประกัน',
++    reuploadSlip: 'อัปโหลดสลิปใหม่',
++    uploadHint: 'แนบไฟล์ PDF, JPG หรือ PNG ไม่เกิน 10 MB เมื่อเอเจนต์ตรวจสอบแล้ว ใบเสร็จจะแสดงที่นี่',
++    submittedHint: 'ส่งสลิปแล้ว กำลังรอเอเจนต์ตรวจสอบการชำระเงิน',
++    paidHint: 'เอเจนต์ยืนยันการชำระและออกใบเสร็จแล้ว',
++    viewReceipt: 'ดูใบเสร็จเงินประกัน',
++    verify: 'ตรวจสอบการชำระและออกใบเสร็จ',
++    closed: 'สัญญาเช่าปิดแล้ว',
++    slipOnFile: 'ใช้สลิปที่ผู้เช่าส่งมาได้เลย หรือแนบสลิปใหม่แทน',
++  },
+   renewalForm: {
+     title: 'หนังสือต่อสัญญาเช่า',
+     disabled: 'ต้องมีสัญญาเช่าฉบับแรกก่อน จึงจะต่อสัญญาได้',
+diff -ruN orig/packages/i18n/src/locales/contracts/zh.ts new/packages/i18n/src/locales/contracts/zh.ts
+--- orig/packages/i18n/src/locales/contracts/zh.ts	2026-10-21 07:05:05.183754168 +0000
++++ new/packages/i18n/src/locales/contracts/zh.ts	2026-10-21 07:15:47.063929855 +0000
+@@ -347,6 +347,33 @@
+     submittedShort: '已提交凭证 · 审核中',
+     unpaidShort: '待付款',
+   },
++  deposit: {
++    status: {
++      not_issued: '账单未开具',
++      unpaid: '待付款',
++      submitted: '审核中',
++      paid: '已付款',
++    },
++    title: '押金付款',
++    statusA11y: '押金付款状态：{status}',
++    linked: '以房东名义开具 · 关联租赁合同 {no}',
++    total: '押金金额 {amount}',
++    due: '付款截止日 {date}',
++    notIssued: '押金账单尚未开具',
++    issue: '开具押金账单',
++    issued: '押金账单已开具',
++    viewInvoice: '查看押金账单',
++    viewSlip: '查看押金付款凭证',
++    uploadSlip: '上传押金付款凭证',
++    reuploadSlip: '重新上传凭证',
++    uploadHint: '上传 PDF、JPG 或 PNG 文件，不超过 10 MB。中介核实后收据将显示在此处',
++    submittedHint: '已提交付款凭证，等待中介核实',
++    paidHint: '中介已确认付款并开具收据',
++    viewReceipt: '查看押金收据',
++    verify: '核实付款并开具收据',
++    closed: '租赁合同已关闭',
++    slipOnFile: '将使用租客提交的凭证，也可以另附新凭证',
++  },
+   renewalForm: {
+     title: '租赁续约书',
+     disabled: '须先有第一份租赁合同才能续约',
+diff -ruN orig/packages/types/src/agent-contracts.ts new/packages/types/src/agent-contracts.ts
+--- orig/packages/types/src/agent-contracts.ts	2026-10-21 07:05:05.118977105 +0000
++++ new/packages/types/src/agent-contracts.ts	2026-10-21 07:07:10.925100007 +0000
+@@ -84,7 +84,26 @@
+     paymentSlipUrl: string | null;
+     submittedAt: string | null;
+   } | null;
++  /** D10: the deposit of a generated lease (null when not a lease, not generated yet, or the deposit is 0). */
++  depositPayment?: DepositPayment | null;
+ }
++/**
++ * D10: one deposit invoice per lease, issued in the landlord's name once the lease document is generated.
++ * not_issued = the lease is generated but issuing failed; the agent can issue it again.
++ */
++export interface DepositPayment {
++  status: "not_issued" | "unpaid" | "submitted" | "paid";
++  total: number;
++  invoiceId: number | null;
++  invoiceDocumentNo: string | null;
++  dueDate: string | null;
++  invoiceUrl: string | null;
++  receiptDocumentNo: string | null;
++  receiptUrl: string | null;
++  paymentSlipUrl: string | null;
++  submittedAt: string | null;
++}
++export type DepositFinancialDocumentKind = "deposit-invoice" | "deposit-receipt" | "deposit-payment-slip";
+ export type AgentContractDocumentKind =
+   | "reservation_letter"
+   | "lease_agreement"
+diff -ruN orig/supabase/migrations/20261021130000_deposit_invoices.sql new/supabase/migrations/20261021130000_deposit_invoices.sql
+--- orig/supabase/migrations/20261021130000_deposit_invoices.sql	1970-01-01 00:00:00.000000000 +0000
++++ new/supabase/migrations/20261021130000_deposit_invoices.sql	2026-10-21 07:11:24.275059931 +0000
+@@ -0,0 +1,25 @@
++-- D10 (AC-5.1 ถึง 5.5): ใบแจ้งหนี้เงินประกันของสัญญาเช่า ออกในนามผู้ให้เช่า 1 ใบต่อสัญญา
++-- ใบแจ้งหนี้เดิมทุกใบเป็นชนิด general (ใบที่นายหน้าออกเอง) ออกในนามนายหน้าเหมือนเดิม
++-- ใบชนิด deposit ระบบออกเองหลังนายหน้าสร้างเอกสารสัญญาเช่า เลขที่ DEP-<เลขสัญญา> ใบเสร็จ REC-DEP-<เลขสัญญา>
++-- เงินประกัน 0 บาทไม่ออกใบ (ยอดต้องมากกว่า 0)
++-- ทุกเงื่อนไขใน CHECK ต้องมี IS NOT NULL เพราะผลที่ไม่รู้ค่า (NULL) ไม่นับเป็นการละเมิด
++
++ALTER TABLE public.agent_invoices
++    ADD COLUMN invoice_kind character varying(24) DEFAULT 'general' NOT NULL,
++    ADD COLUMN lease_contract_id integer,
++    ADD COLUMN issuer_party character varying(16) DEFAULT 'agent' NOT NULL,
++    ADD COLUMN amount numeric(12,2),
++    ADD COLUMN due_date date,
++    -- เวลาที่ผู้เช่าส่งสลิปในแอป (สลิปที่นายหน้าแนบตอนออกใบเสร็จไม่ตั้งค่านี้)
++    ADD COLUMN slip_submitted_at timestamp with time zone;
++
++ALTER TABLE public.agent_invoices
++    ADD CONSTRAINT agent_invoices_lease_contract_id_fkey FOREIGN KEY (lease_contract_id) REFERENCES public.lease_contracts(id) ON DELETE RESTRICT,
++    ADD CONSTRAINT chk_agent_invoices_kind CHECK (invoice_kind IN ('general', 'deposit')),
++    ADD CONSTRAINT chk_agent_invoices_issuer CHECK (issuer_party IN ('landlord', 'agent')),
++    ADD CONSTRAINT chk_agent_invoices_deposit CHECK (
++        invoice_kind <> 'deposit'
++        OR (lease_contract_id IS NOT NULL AND issuer_party = 'landlord' AND amount IS NOT NULL AND amount > 0 AND due_date IS NOT NULL));
++
++-- สัญญาเช่า 1 ฉบับมีใบแจ้งหนี้เงินประกันได้ใบเดียว (กันกดซ้ำและการออกพร้อมกัน)
++CREATE UNIQUE INDEX uq_agent_invoices_one_deposit ON public.agent_invoices (lease_contract_id) WHERE invoice_kind = 'deposit';
