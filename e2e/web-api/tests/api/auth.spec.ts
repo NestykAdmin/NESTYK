@@ -129,3 +129,37 @@ test.describe('POST /auth/dev/roles', () => {
     expect([...after.roles].sort()).toEqual([...before.roles].sort());
   });
 });
+
+test.describe('dev token with a user id that is not a uuid', () => {
+  // บั๊กที่รู้แล้ว (พบ 20 ต.ค. 2026 ที่ develop a09e6d2 Aof ต้องแจ้งทีม): API ตอบ 500 แทน 401
+  //   ที่มา: AuthGuard ส่งส่วนที่ 2 ของ dev token ไปค้นคอลัมน์ users.supabase_user_id (ชนิด uuid) โดยไม่ตรวจรูปแบบ
+  //   (auth.guard.ts resolveIdentity และ auth.service.ts findBySupabaseUserId) PostgreSQL จึงโยน error
+  //   invalid input syntax for type uuid (log ของ API: routine string_to_uuid) และ NestJS ตอบ 500
+  //   ผลกระทบ: เฉพาะ API ที่ตั้ง ALLOW_DEV_AUTH=true บัตรผ่านจริงของ Supabase มี uuid ที่ถูกรูปแบบเสมอ
+  //   เทสเขียนตามพฤติกรรมที่ถูกต้อง (บัตรผ่านที่ใช้ไม่ได้ต้องได้ 401) เมื่อทีมแก้แล้ว test.fail จะแจ้งให้เอาป้ายออก
+  //   คำขอนี้ไม่บันทึกอะไร: error เกิดตอนค้นผู้ใช้ ก่อนถึงเส้นทาง
+
+  test('GET /agent/leads gives no data when the user id is not a uuid', async ({ apiAs }) => {
+    // เทสคู่กับข้อ known-bug ด้านล่าง: test.fail นับความล้มทุกแบบว่าเป็นบั๊กที่รู้แล้ว ถ้า API เปลี่ยนไปตอบ 200 พร้อมข้อมูล
+    //   ข้อนั้นจะยังผ่าน ข้อนี้จึงตรวจขั้นต่ำที่ต้องจริงเสมอ: คำขอถูกปฏิเสธ (ไม่ใช่ 2xx) และไม่มีข้อมูลหลุดออกมา
+    // ขั้นที่ 1: สร้างผู้เรียกที่ส่ง dev token รูปแบบครบ 3 ส่วน แต่ส่วน uuid ไม่ใช่ uuid
+    const session = await apiAs('Bearer dev|e2e-not-a-uuid|e2e-nobody@example.invalid');
+
+    // ขั้นที่ 2: ต้องไม่ได้ 2xx และเนื้อคำตอบต้องไม่มีรายการลีด
+    const response = await session.leads.list();
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(await response.text()).not.toContain('"items"');
+  });
+
+  test('GET /agent/leads answers 401 when the user id is not a uuid', { tag: '@known-bug' }, async ({ apiAs }) => {
+    test.fail(true, 'API ตอบ 500 เพราะไม่ตรวจรูปแบบ uuid ใน dev token ก่อนค้นฐานข้อมูล');
+
+    // ขั้นที่ 1: สร้างผู้เรียกที่ส่ง dev token รูปแบบครบ 3 ส่วน แต่ส่วน uuid ไม่ใช่ uuid
+    const session = await apiAs('Bearer dev|e2e-not-a-uuid|e2e-nobody@example.invalid');
+
+    // ขั้นที่ 2: ต้องถูกปฏิเสธด้วย 401 โดยไม่มีข้อมูลหลุดออกมา
+    const response = await session.leads.list();
+    await expectError(response, 401);
+    expect(await response.text()).not.toContain('"items"');
+  });
+});

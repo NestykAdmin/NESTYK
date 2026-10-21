@@ -1,5 +1,6 @@
-import { request } from '@playwright/test';
+import { request, type APIRequestContext } from '@playwright/test';
 import { devToken, env } from './config/env';
+import { malformedQaUuidVariables, qaAccounts, qaDevToken, QA_ROLES, type QaAccount } from './config/qa-accounts';
 
 /**
  * ทำงาน 1 ครั้งก่อนเริ่มเทสทั้งชุด: ตรวจว่าระบบพร้อมให้เทส
@@ -77,7 +78,138 @@ export default async function globalSetup(): Promise<void> {
           'วิธีแก้: ตรวจ apps/api/src/common/database-id.pipe.ts แล้วแก้ค่าคงที่ ID_OUT_OF_RANGE ในชุดเทสให้ตรง',
       );
     }
+
+    await checkQaAccounts(api);
   } finally {
     await api.dispose();
+  }
+}
+
+/** ข้อความของ RolesGuard เมื่อบัตรผ่านไม่ตรงกับผู้ใช้คนไหนในตาราง users (apps/api/src/auth/guards/roles.guard.ts) */
+const NOT_LINKED = 'Call POST /auth/sync first';
+
+/**
+ * เส้นทางที่ใช้ยืนยันว่าบัญชีมีในตาราง users: เลือกเส้นทางอ่านอย่างเดียวที่บัญชีนั้น "ไม่มี" บทบาท แล้วต้องได้ 403 ข้อความตรงตัวเท่านั้น
+ * ทำไมไม่รับ 200: AuthGuard ปล่อยบัตรผ่านของคนที่ไม่มีในฐานข้อมูลผ่านไป (auth.guard.ts canActivate) ถ้าวันหนึ่งเส้นทางนี้ไม่มี RolesGuard
+ *   บัญชีที่ยังไม่ผูกจะได้ 200 แล้วขั้นต่อไป (sync) จะสร้างผู้ใช้ใหม่ ส่วน 403 มาได้จาก RolesGuard ซึ่งต้องเจอผู้ใช้แล้วเท่านั้น
+ *   - บัญชีที่ไม่มี agent: GET /agent/leads/visa-types (agent-leads.controller.ts @Roles('agent'))
+ *   - qa-agent: GET /contracts/mine (party-contracts.controller.ts @Roles('tenant', 'landlord') ; listForUser อ่านอย่างเดียว)
+ */
+function existenceProbe(account: QaAccount): { path: string; forbidden: string } {
+  return account.roles.includes('agent')
+    ? { path: 'contracts/mine', forbidden: 'Required role: tenant | landlord' }
+    : { path: 'agent/leads/visa-types', forbidden: 'Required role: agent' };
+}
+
+/**
+ * ตรวจบัญชี QA แยกบทบาท (src/config/qa-accounts.ts) ทุกบัญชีที่ตั้ง uuid ไว้ ก่อนเริ่มเทส
+ *
+ * ทำไมต้องตรวจ: ถ้า uuid ผิดบัญชี หรือบัญชียังไม่ถูกผูกกับตาราง users เทส 403 จะแดงหลายสิบข้อพร้อมกัน
+ * หรือแย่กว่านั้นคือผ่านทั้งที่ทดสอบผิดบัญชี ตรวจตรงนี้จะได้ข้อความเดียวที่บอกสาเหตุ
+ *
+ * ลำดับการตรวจของแต่ละบัญชี (ห้ามสลับ):
+ *   1. เรียกเส้นทางอ่านอย่างเดียวที่บัญชีไม่มีบทบาท (existenceProbe) ต้องได้ 403 ข้อความตรงตัว จึงถือว่าบัญชีมีในตาราง users แล้ว
+ *      ถ้ายังไม่มี RolesGuard ตอบ 401 "Call POST /auth/sync first" ก่อนถึง handler (AuthGuard อ่านตาราง users แล้วไม่พบ)
+ *   2. เมื่อยืนยันแล้วเท่านั้น จึงเรียก POST /auth/sync เพื่ออ่านอีเมลและบทบาท
+ *      sync ของบัญชีที่มีอยู่แล้วไม่บันทึกอะไร (auth.service.ts sync: สร้างผู้ใช้เฉพาะเมื่อหา supabase_user_id ไม่เจอ)
+ *      ห้ามเรียก sync ก่อนข้อ 1 เพราะถ้าบัญชียังไม่มี sync จะสร้างผู้ใช้ใหม่ในฐานข้อมูลทันที (กฎข้อ ง.9)
+ */
+async function checkQaAccounts(api: APIRequestContext): Promise<void> {
+  const malformed = malformedQaUuidVariables();
+  if (malformed.length > 0) {
+    throw new Error(
+      `ค่าใน ${malformed.join(', ')} ไม่ใช่ uuid (รูปแบบ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)\n` +
+        'วิธีแก้: คัดลอก UID ของบัญชีจาก Supabase > Authentication > Users ใหม่ทั้งค่า',
+    );
+  }
+
+  const configured = QA_ROLES.map((role) => qaAccounts[role]).filter((account) => account.uuid !== null);
+  const uuids = configured.map((account) => account.uuid!.toLowerCase());
+  // รวมทุกตัวแปรที่ใช้ uuid เดียวกัน (ทั้งตัวแรกและตัวที่ซ้ำ) เพราะไม่รู้ว่าตัวไหนคัดลอกผิด
+  const duplicated = configured.filter((account) => uuids.filter((uuid) => uuid === account.uuid!.toLowerCase()).length > 1);
+  if (duplicated.length > 0) {
+    throw new Error(
+      `${duplicated.map((account) => account.uuidVariable).join(', ')} ใช้ uuid ซ้ำกัน\n` +
+        'วิธีแก้: แต่ละบทบาทต้องใช้ UID ของบัญชีตัวเอง (qa-<บทบาท>@...) ตรวจการคัดลอกอีกครั้ง',
+    );
+  }
+
+  for (const account of configured) {
+    await checkQaAccount(api, account);
+  }
+
+  // บรรทัดสรุปในผลรัน ไม่พิมพ์ uuid
+  const missing = QA_ROLES.filter((role) => qaAccounts[role].uuid === null);
+  console.log(
+    `[บัญชี QA] ตรวจแล้ว ${configured.length} จาก ${QA_ROLES.length} บัญชี` +
+      (configured.length > 0 ? `: ${configured.map((account) => account.role).join(', ')}` : '') +
+      (missing.length > 0 ? ` | ไม่ได้ตั้ง uuid (เทสที่ใช้บัญชีนี้จะข้าม): ${missing.join(', ')}` : ''),
+  );
+}
+
+async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promise<void> {
+  const headers = { Authorization: `Bearer ${qaDevToken(account)}` };
+
+  // ขั้นที่ 1: ยืนยันว่าบัญชีมีในตาราง users แล้ว ด้วยคำขอแบบอ่านอย่างเดียว
+  const { path, forbidden } = existenceProbe(account);
+  const probe = await api.get(path, { headers });
+  const probeText = await probe.text();
+  if (probe.status() === 401 && probeText.includes(NOT_LINKED)) {
+    throw new Error(
+      `บัญชี ${account.email} (${account.uuidVariable}) ยังไม่มีในตาราง users ของฐานข้อมูลที่ API ใช้\n` +
+        'สาเหตุที่เป็นไปได้: (1) uuid ที่ตั้งไม่ใช่ UID ของบัญชีนี้ ' +
+        '(2) ทีมยังไม่ได้ขึ้น migration 20261019100000_link_qa_accounts.sql หรือสร้างล็อกอินหลังจาก migration นั้นรันไปแล้ว ' +
+        '(หัวไฟล์ migration บอกวิธีให้ทีมผูกบัญชีที่สร้างทีหลัง)\n' +
+        'ห้ามเรียก POST /auth/sync ด้วยบัญชีนี้ แม้ API จะบอกให้เรียก เพราะจะสร้างผู้ใช้ใหม่ในฐานข้อมูล ให้แจ้งทีม',
+    );
+  }
+  if (probe.status() === 200) {
+    // ไม่พิมพ์เนื้อคำตอบ เพราะเป็นข้อมูลของระบบ และไม่เรียก sync ต่อ (ยืนยันไม่ได้ว่าบัญชีมีอยู่)
+    throw new Error(
+      `บัญชี ${account.email} เรียก GET /${path} ได้ (200) แต่บทบาทตาม migration ต้องได้ 403\n` +
+        'สาเหตุที่เป็นไปได้ (ตรวจตามลำดับ): (1) uuid ที่ตั้งเป็นของบัญชีอื่น ให้คัดลอก UID จากแถวของอีเมลนี้ใหม่ ' +
+        '(2) บัญชีมีบทบาทเกินจาก migration (3) เส้นทางนี้เลิกกันสิทธิ์แล้ว ข้อ 2 และ 3 ให้แจ้งทีม\n' +
+        'ชุดเทสหยุดก่อนเรียก POST /auth/sync',
+    );
+  }
+  if (probe.status() !== 403 || !probeText.includes(`"${forbidden}"`)) {
+    throw new Error(
+      `ตรวจบัญชี ${account.email} ไม่ได้: GET /${path} ได้รหัส ${probe.status()} ` +
+        `(คาด 403 "${forbidden}") คำตอบ: ${probeText.slice(0, 200)}\n` +
+        'ถ้าได้ 403 แต่ข้อความต่าง แปลว่ารายการบทบาทของเส้นทางนี้เปลี่ยน ถ้าทีมไม่ได้ตั้งใจถือเป็นช่องโหว่เรื่องสิทธิ์ ให้แจ้งทีม ' +
+        '(ถ้าตั้งใจ ต้องแก้ existenceProbe และ roles.spec.ts ให้ตรง)',
+    );
+  }
+
+  // ขั้นที่ 2: บัญชีมีอยู่แล้ว จึงเรียก sync ได้โดยไม่สร้างข้อมูล แล้วเทียบอีเมลกับบทบาทกับที่ migration กำหนด
+  const sync = await api.post('auth/sync', { headers });
+  const syncText = await sync.text();
+  if (sync.status() !== 201) {
+    throw new Error(`POST /auth/sync ของบัญชี ${account.email} ได้รหัส ${sync.status()} (คาด 201) คำตอบ: ${syncText.slice(0, 200)}`);
+  }
+  const user = JSON.parse(syncText) as { email: string; roles: string[]; provisioned: boolean };
+  if (user.provisioned) {
+    // ไม่ควรเกิด เพราะขั้นที่ 1 ยืนยันแล้วว่าบัญชีมีอยู่ ถ้าเกิดแปลว่ามีผู้ใช้ใหม่ถูกสร้าง ต้องแจ้งทีม
+    throw new Error(
+      `POST /auth/sync สร้างผู้ใช้ใหม่ให้ ${account.uuidVariable} (provisioned = true) ทั้งที่ขั้นตรวจก่อนหน้ายืนยันว่ามีบัญชีแล้ว\n` +
+        'ให้แจ้งทีมพร้อมเวลาที่รัน เพื่อตรวจและลบแถวที่ถูกสร้าง',
+    );
+  }
+  if (user.email.toLowerCase() !== account.email) {
+    // ไม่พิมพ์อีเมลของบัญชีที่ได้ เพราะอาจเป็นบัญชีของคนจริง
+    throw new Error(
+      `${account.uuidVariable} เป็น uuid ของบัญชีอื่น ไม่ใช่ ${account.email}\n` +
+        'วิธีแก้: คัดลอก UID จากแถวของอีเมลนี้ใน Supabase > Authentication > Users ' +
+        '(ถ้าตั้ง E2E_QA_EMAIL_DOMAIN ไว้ ให้ตรวจว่าโดเมนตรงกับบัญชีของทีมด้วย)',
+    );
+  }
+  const actual = [...user.roles].sort();
+  const expected = [...account.roles].sort();
+  if (actual.join(',') !== expected.join(',')) {
+    throw new Error(
+      `บัญชี ${account.email} มีบทบาท ${actual.join(', ') || '(ไม่มี)'} แต่ชุดเทสคาด ${expected.join(', ')} ` +
+        '(ตาม migration 20261019100000_link_qa_accounts.sql)\n' +
+        'เทส 403 ต้องใช้บัญชีที่บทบาทตรงตามนี้ ถ้ามีบทบาทเกินหรือขาด ให้แจ้งทีม (ห้ามขอบทบาทเองด้วย POST /auth/dev/roles)',
+    );
   }
 }

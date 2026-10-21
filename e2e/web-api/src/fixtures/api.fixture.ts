@@ -7,8 +7,10 @@ import { HealthApi } from '../api/health.api';
 import { LeadsApi } from '../api/leads.api';
 import { ListingsApi } from '../api/listings.api';
 import { PartyContractsApi, PublicContractSignApi } from '../api/party-contracts.api';
+import { PlacesApi } from '../api/places.api';
 import { TenantsApi } from '../api/tenants.api';
 import { devToken, env } from '../config/env';
+import { qaAccounts, qaDevToken, qaSkipReason, type QaRole } from '../config/qa-accounts';
 
 /** ชุดตัวเรียก API ของผู้เรียก 1 คน แยกตามเรื่อง */
 export interface ApiSession {
@@ -26,6 +28,8 @@ export interface ApiSession {
   publicContractSign: PublicContractSignApi;
   /** บิลค่าเช่าและสลิป (ผู้เช่า เจ้าของห้อง นายหน้า) */
   bills: BillsApi;
+  /** ค้นสถานที่ (เรียกด้วยบทบาทที่ไม่ใช่ agent เท่านั้น ดู places.api.ts) */
+  places: PlacesApi;
 }
 
 function createSession(request: APIRequestContext): ApiSession {
@@ -41,6 +45,7 @@ function createSession(request: APIRequestContext): ApiSession {
     partyContracts: new PartyContractsApi(client),
     publicContractSign: new PublicContractSignApi(client),
     bills: new BillsApi(client),
+    places: new PlacesApi(client),
   };
 }
 
@@ -58,6 +63,12 @@ interface ApiFixtures {
   anonymous: ApiSession;
   /** นายหน้าที่ล็อกอินแล้ว ด้วยบัญชีตัวอย่างของทีม (ดู src/config/env.ts) */
   agent: ApiSession;
+  /**
+   * ผู้เรียกที่ล็อกอินด้วยบัญชี QA ของบทบาทที่ระบุ (ดู src/config/qa-accounts.ts)
+   * ถ้ายังไม่ได้ตั้ง uuid ของบัญชีนั้น เทสข้อนั้นจะข้ามพร้อมเหตุผล (เรียกได้ทุกที่ในตัวเทส)
+   * global-setup ตรวจแล้วว่าทุกบัญชีที่ตั้ง uuid มีในฐานข้อมูลและบทบาทตรงกับ migration
+   */
+  qa: (role: QaRole) => Promise<ApiSession>;
 }
 
 export const test = base.extend<ApiFixtures>({
@@ -85,6 +96,15 @@ export const test = base.extend<ApiFixtures>({
 
   agent: async ({ apiAs }, use) => {
     await use(await apiAs(`Bearer ${devToken()}`));
+  },
+
+  qa: async ({ apiAs }, use, testInfo) => {
+    await use(async (role) => {
+      const account = qaAccounts[role];
+      // ข้ามเทสข้อนี้ทันทีถ้ายังไม่ได้ตั้ง uuid (testInfo.skip หยุดเทสที่จุดนี้)
+      testInfo.skip(account.uuid === null, qaSkipReason(account));
+      return apiAs(`Bearer ${qaDevToken(account)}`);
+    });
   },
 });
 
