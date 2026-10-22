@@ -1744,6 +1744,15 @@ export const zh: TranslationSchema = {
       shareCancel: '取消',
       sharePhase2Hint: '创建后请立即复制 URL — 系统不保存原始 token。',
       sharePreviewInquireHint: '分享链接上的咨询将在后续阶段接入。',
+      publicShare: {
+        loading: '正在加载房间详情…',
+        invalidLink: '链接不可用',
+        notFound: '未找到分享链接',
+        expired: '此链接已过期或被停用',
+        loadFailed: '无法打开链接',
+        retry: '重试',
+        expiresAt: '链接到期时间 {date}',
+      },
     },
     listings: {
       editRoom: '编辑房间',

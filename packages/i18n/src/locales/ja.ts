@@ -1746,6 +1746,15 @@ export const ja: TranslationSchema = {
       shareCancel: 'キャンセル',
       sharePhase2Hint: '作成直後にURLをコピーしてください — 生トークンは保存しません。',
       sharePreviewInquireHint: '共有リンクからの問い合わせは後続フェーズで接続します。',
+      publicShare: {
+        loading: '部屋の詳細を読み込み中…',
+        invalidLink: 'リンクを利用できません',
+        notFound: '共有リンクが見つかりません',
+        expired: 'このリンクは期限切れ、または無効になっています',
+        loadFailed: 'リンクを開けませんでした',
+        retry: '再試行',
+        expiresAt: 'リンクの有効期限 {date}',
+      },
     },
     listings: {
       editRoom: '部屋を編集',

@@ -1747,6 +1747,15 @@ export const en: TranslationSchema = {
       shareCancel: 'Cancel',
       sharePhase2Hint: 'Copy the URL right after creating — raw tokens are not stored.',
       sharePreviewInquireHint: 'Inquiry from the shared link will be wired in a later phase.',
+      publicShare: {
+        loading: 'Loading room details…',
+        invalidLink: 'Link unavailable',
+        notFound: 'Share link not found',
+        expired: 'This link has expired or been disabled',
+        loadFailed: 'Unable to open the link',
+        retry: 'Try again',
+        expiresAt: 'Link expires {date}',
+      },
     },
     listings: {
       editRoom: 'Edit room',

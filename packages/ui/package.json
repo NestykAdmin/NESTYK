@@ -13,6 +13,11 @@
       "types": "./src/native.ts",
       "default": "./src/native.ts"
     },
+    "./web-content": {
+      "types": "./src/shells/WebContentContainer.tsx",
+      "react-native": "./src/shells/WebContentContainer.native.tsx",
+      "default": "./src/shells/WebContentContainer.tsx"
+    },
     "./assets/logo/*": "./assets/logo/*",
     "./assets/logo/IconApp/*": "./assets/logo/IconApp/*",
     "./assets/nestyk/svg/*": "./assets/nestyk/svg/*",

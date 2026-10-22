@@ -1747,6 +1747,15 @@ export const th: TranslationSchema = {
       shareCancel: 'ยกเลิก',
       sharePhase2Hint: 'คัดลอก URL ทันทีหลังสร้าง — ระบบไม่เก็บ token ดิบ',
       sharePreviewInquireHint: 'การสอบถามจากลิงก์แชร์จะเชื่อมในเฟสถัดไป',
+      publicShare: {
+        loading: 'กำลังโหลดรายละเอียดห้อง…',
+        invalidLink: 'ลิงก์ใช้ไม่ได้',
+        notFound: 'ไม่พบลิงก์แชร์',
+        expired: 'ลิงก์นี้หมดอายุหรือถูกปิดแล้ว',
+        loadFailed: 'เปิดลิงก์ไม่สำเร็จ',
+        retry: 'ลองอีกครั้ง',
+        expiresAt: 'ลิงก์หมดอายุ {date}',
+      },
     },
     listings: {
       editRoom: 'แก้ไขห้อง',

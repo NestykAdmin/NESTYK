@@ -1751,6 +1751,15 @@ export interface TranslationSchema {
       shareCancel: string;
       sharePhase2Hint: string;
       sharePreviewInquireHint: string;
+      publicShare: {
+        loading: string;
+        invalidLink: string;
+        notFound: string;
+        expired: string;
+        loadFailed: string;
+        retry: string;
+        expiresAt: string;
+      };
     };
     listings: {
       editRoom: string;
