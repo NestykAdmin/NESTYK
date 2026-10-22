@@ -8,6 +8,8 @@ import {
   reservationLetterFieldErrors,
   reservationIssueDate,
 } from "./ReservationLetterFields";
+import { listLeadDealOffers } from "../lib/deal-offers-api";
+import { OFFER_LEASE_LOCKED_KEYS, OFFER_RESERVATION_LOCKED_KEYS } from "../lib/deal-offer";
 import {
   BrokerAppointmentFields,
   emptyBrokerAppointmentForm,
@@ -99,6 +101,8 @@ import {
   signAgentContract,
   signAgentContractWitness,
   issueAgentDepositInvoice,
+  returnDepositSlip,
+  returnReservationSlip,
   deliverAgentContract,
   previewAgentReservation,
   generateAgentReservation,
@@ -112,6 +116,7 @@ import {
 } from "../lib/agent-contracts-api";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
 import { DepositPaymentCard } from "./DepositPaymentCard";
+import { HandoverCard } from "./HandoverCard";
 import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
 import { AgentContractLibrary } from "./AgentContractLibrary";
@@ -256,6 +261,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     const code = (error as { code?: unknown } | null)?.code;
     if (code === "BROKER_APPOINTMENT_REQUIRED") return docs.reservationNeedsBroker;
     if (code === "WITNESS_SIGNATURE_REQUIRED") return docs.witnessRequired;
+    if (code === "CO_BROKE_REQUIRED") return tc.offer.coBrokeRequired;
+    if (code === "SLIP_CHANGED") return tc.slipReturn.changed;
     return localizedError(error, cn.connectError, locale);
   };
   const labels = tc.common.status;
@@ -555,6 +562,25 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const noReadyReservationTenant =
     !tenant && !!pickerCandidates && !pickerCandidates.some((c) => !appointmentBlocked(c));
   const [leadId, setLeadId] = useState<number | null>(null);
+  // D2: an offer the landlord confirmed for the chosen tenant's room fixes the letter's and the lease's numbers
+  // (the API sets them whatever is typed), so those fields are locked here. The room is known from the contract
+  // candidates; inside a tenant or an open draft it is not, and then the lead's confirmed offer is the booked room's
+  // (booking closes the lead's offers on other rooms).
+  const [offerLocked, setOfferLocked] = useState(false);
+  const offerRoomId = candidates.find((c) => c.leadId === leadId)?.rentRoomId;
+  useEffect(() => {
+    setOfferLocked(false);
+    if (!leadId || !(reservation || lease)) return;
+    let live = true;
+    listLeadDealOffers(leadId)
+      .then((offers) => {
+        if (live) setOfferLocked(offers.some((o) => o.status === "confirmed" && (offerRoomId == null || o.rentRoomId === offerRoomId)));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [leadId, offerRoomId, reservation, lease]);
   const [form, setForm] = useState({
     startDate: "",
     endDate: "",
@@ -710,6 +736,34 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
       onChanged?.();
     } catch (e) {
       setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** D11 (AC-3.4, 5.4): return the tenant's booking or deposit slip with a reason. */
+  async function returnSlip(kind: "reservation" | "deposit", reason: string) {
+    if (!selected || busy) return false;
+    setBusy(true);
+    setError("");
+    try {
+      const seen = kind === "reservation" ? selected.reservationPayment?.submittedAt : selected.depositPayment?.submittedAt;
+      const updated = await (kind === "reservation" ? returnReservationSlip : returnDepositSlip)(selected.id, reason, seen ?? null);
+      setSelected(updated);
+      setContracts((rows) => rows.map((row) => row.id === updated.id ? updated : row));
+      setNotice(tc.slipReturn.done);
+      onChanged?.();
+      return true;
+    } catch (e) {
+      setError(message(e));
+      // The tenant sent a newer slip meanwhile: show it, so the agent checks that one.
+      if ((e as { code?: string } | null)?.code === "SLIP_CHANGED")
+        await getAgentContract(selected.id)
+          .then((row) => {
+            setSelected(row);
+            setContracts((rows) => rows.map((existing) => existing.id === row.id ? row : existing));
+          })
+          .catch(() => undefined);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -908,8 +962,9 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     status === "expired" ||
     status === "terminated" ||
     status === "active" ||
-    status === "awaiting_payment" ||
-    status === "awaiting_payment_verification";
+    // D7: a generated lease waiting for its deposit or handover is not signed again.
+    status === "awaiting_deposit" ||
+    status === "awaiting_handover";
   const reservationLocked =
     !!selected &&
     selected.formKind === "reservation" &&
@@ -2166,6 +2221,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           {reservation ? (
             <>
               <ReservationLetterFields
+                lockedKeys={offerLocked ? OFFER_RESERVATION_LOCKED_KEYS : undefined}
                 step={creationStep}
                 onStepChange={changeCreationStep}
                 value={letter}
@@ -2234,6 +2290,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           ) : lease ? (
             <>
               <LeaseAgreementFields
+                lockedKeys={offerLocked ? OFFER_LEASE_LOCKED_KEYS : undefined}
                 step={creationStep}
                 onStepChange={changeCreationStep}
                 value={leaseForm}
@@ -2421,6 +2478,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   if (selected && payingDeposit && selected.depositPayment?.invoiceId != null)
     return <FinancialDocumentForm key={`deposit:${selected.depositPayment.invoiceId}`} kind="receipt"
       fixedInvoiceId={selected.depositPayment.invoiceId} slipOnFile={!!selected.depositPayment.submittedAt} payer={tenantPayer}
+      landlordReceipt="deposit"
       onBack={() => setPayingDeposit(false)}
       onStandaloneCreated={() => {
         setPayingDeposit(false);
@@ -2436,6 +2494,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
       onCreated={() => undefined} />;
   if (selected && financialKind && !draftCancelled && !["expired", "terminated"].includes(selected.status))
     return <FinancialDocumentForm key={`${selected.id}:${financialKind}`} contractId={selected.id} kind={financialKind} payer={tenantPayer}
+      landlordReceipt={financialKind === "receipt" && selected.formKind === "reservation" ? "reservation" : undefined}
       onBack={() => setFinancialKind(null)}
       onStandaloneCreated={(invoice) => {
         setInvoices((rows) => [
@@ -2805,6 +2864,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             }}
             onIssueReceipt={() => { setError(""); setFinancialKind("receipt"); }}
             onCreateInvoice={() => void createBookingInvoice()}
+            onReturnSlip={(reason) => returnSlip("reservation", reason)}
           />
         )}
         {selected.formKind === "lease" && (
@@ -2818,6 +2878,17 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             }}
             onIssueReceipt={() => { setError(""); setPayingDeposit(true); }}
             onIssueInvoice={() => void issueDepositInvoice()}
+            onReturnSlip={(reason) => returnSlip("deposit", reason)}
+          />
+        )}
+        {selected.formKind === "lease" && (
+          // D6: the room is handed over after the deposit receipt (annex 1 items, annex 2 photos, 2 signatures).
+          <HandoverCard
+            key={`handover:${selected.id}`}
+            contractId={selected.id}
+            mode="agent"
+            defaultDate={selected.startDate}
+            refreshKey={`${selected.status}:${selected.leaseAgreementStatus}:${selected.depositPayment?.status ?? ""}`}
           />
         )}
         {(selected.formKind === "reservation" ||

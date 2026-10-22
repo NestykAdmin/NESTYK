@@ -22,6 +22,8 @@ const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.t
 const { AgentInvoiceEntity } = require('../src/entities/agent-invoice.entity.ts');
 const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
 const { TenantEntity } = require('../src/entities/tenant.entity.ts');
+const { AgreementDocumentEntity } = require('../src/entities/agreement-document.entity.ts');
+const { UserEntity } = require('../src/entities/user.entity.ts');
 
 const GENERATED = '7/11/generated/lease_agreement/v1/lease.pdf';
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
@@ -86,16 +88,25 @@ function harness(overrides = {}, others = []) {
   let witness = null;
   let nextId = 100;
   const hooks = { beforeSave: null, inTransaction: null };
+  // Invoices another request committed: a rollback of our transaction keeps them.
+  const committedElsewhere = [];
   const events = [];
+  // Locks and lease updates with the number of the transaction they happened in (tx1, tx2, ...).
+  const txEvents = [];
+  let tx = 0, txCount = 0;
   const saves = [];
+  // D11: attachments of the agreements (the power of attorney) and the lookups made for them.
+  const docs = [];
+  const docQueries = [];
   const qbFor = () => {
-    let scope = null;
+    let scope = null, hidesCancelled = false;
     const qb = {};
     for (const key of ['leftJoinAndSelect', 'andWhere', 'orderBy']) qb[key] = () => qb;
-    qb.where = (_sql, params) => { scope = params ?? null; return qb; };
-    const visible = () => !(scope && 'agentId' in scope && scope.agentId !== row.created_by_user_id);
-    qb.getOne = async () => (visible() ? structuredClone(row) : null);
-    qb.getMany = async () => (visible() ? [row, ...others].map((value) => structuredClone(value)) : []);
+    // The parties' inbox query leaves out cancelled leases (c.status <> 'cancelled'), like Postgres.
+    qb.where = (sql, params) => { scope = params ?? null; hidesCancelled = /c\.status <> 'cancelled'/.test(sql); return qb; };
+    const visible = (value) => !(scope && 'agentId' in scope && scope.agentId !== value.created_by_user_id) && !(hidesCancelled && value.status === 'cancelled');
+    qb.getOne = async () => (visible(row) ? structuredClone(row) : null);
+    qb.getMany = async () => [row, ...others].filter(visible).map((value) => structuredClone(value));
     return qb;
   };
   const invoiceRepo = {
@@ -133,10 +144,17 @@ function harness(overrides = {}, others = []) {
   const locks = [];
   const manager = {
     getRepository: (entity) => (entity === AgentInvoiceEntity ? managerInvoiceRepo : repoFor(entity)),
+    find: async (entity, { where }) => {
+      if (entity === LeaseContractEntity) return [row, ...others].filter((value) => matches(value, where)).map((value) => structuredClone(value));
+      assert.equal(entity, AgreementDocumentEntity);
+      docQueries.push(where.agreement_id.value);
+      return docs.filter((doc) => where.agreement_id.value.includes(doc.agreement_id));
+    },
     findOne: async (entity, options) => {
-      if (options.lock) { locks.push([entity.name, options.lock.mode]); events.push(`lock ${entity.name}`); }
+      if (entity === UserEntity) return options.where.id === 7 ? { id: 7, first_name: 'Agent', last_name: 'Seven' } : null;
+      if (options.lock) { locks.push([entity.name, options.lock.mode]); events.push(`lock ${entity.name}`); txEvents.push(`tx${tx}:lock ${entity.name}`); }
       if (entity === LeaseContractEntity) {
-        if (options.where.created_by_user_id !== undefined) assert.equal(options.where.created_by_user_id, 7);
+        if (options.where.created_by_user_id !== undefined && options.where.created_by_user_id !== row.created_by_user_id) return null;
         if (options.where.id !== row.id) return null;
         return structuredClone(row);
       }
@@ -148,17 +166,46 @@ function harness(overrides = {}, others = []) {
       return where.id === row.tenant_id && where.user_id === row.tenant.user_id ? row.tenant : null;
     },
     update: async (entity, where, patch) => {
+      // D7: the deposit receipt moves the lease from awaiting_deposit to awaiting_handover.
+      if (entity === LeaseContractEntity) {
+        events.push(`update lease ${JSON.stringify(where)}`);
+        txEvents.push(`tx${tx}:update lease ${JSON.stringify(where)}`);
+        if (matches(row, where)) Object.assign(row, patch);
+        return;
+      }
       assert.equal(entity, AgentInvoiceEntity);
       Object.assign(invoices.find((invoice) => invoice.id === where.id), patch);
     },
   };
   const db = {
     getRepository: repoFor,
-    transaction: async (fn) => { if (hooks.inTransaction) await hooks.inTransaction(); return fn(manager); },
+    // Like Postgres: a failed transaction leaves the lease and the invoices as they were.
+    transaction: async (fn) => {
+      if (hooks.inTransaction) await hooks.inTransaction();
+      // The same objects come back with their old values, so a test holding one still sees committed data.
+      const before = { row: structuredClone(row), invoices: invoices.map((invoice) => [invoice, structuredClone(invoice)]) };
+      tx = ++txCount;
+      try {
+        return await fn(manager);
+      } catch (error) {
+        for (const key of Object.keys(row)) delete row[key];
+        Object.assign(row, before.row);
+        for (const [invoice, saved] of before.invoices) {
+          for (const key of Object.keys(invoice)) delete invoice[key];
+          Object.assign(invoice, saved);
+        }
+        const kept = before.invoices.map(([invoice]) => invoice);
+        invoices.splice(0, invoices.length, ...kept, ...committedElsewhere.filter((invoice) => !kept.includes(invoice)));
+        throw error;
+      } finally {
+        tx = 0;
+      }
+    },
   };
   const service = new AgentContractsService(db, storage);
   service.logger = { warn: () => undefined };
-  return { service, row, invoices, objects, removed, locks, events, saves, hooks, storage, setWitness: (value) => { witness = value; } };
+  return { service, row, invoices, objects, removed, locks, events, txEvents, saves, hooks, storage, docs, docQueries,
+    commitElsewhere: (invoice) => { committedElsewhere.push(invoice); invoices.push(invoice); }, setWitness: (value) => { witness = value; } };
 }
 
 async function signaturePng() {
@@ -177,7 +224,7 @@ test('generating a lease issues its deposit invoice in the landlord\'s name, onc
   const h = await readyToGenerate();
   const result = await h.service.leaseAgreementPdf(7, 11, true);
   assert.equal(result.leaseAgreementStatus, 'ready');
-  assert.equal(h.row.status, 'active');
+  assert.equal(h.row.status, 'awaiting_deposit', 'D7: a generated lease with a deposit waits for the deposit receipt');
   assert.equal(h.invoices.length, 1);
   const invoice = h.invoices[0];
   assert.deepEqual(
@@ -197,7 +244,7 @@ test('generating a lease issues its deposit invoice in the landlord\'s name, onc
   assert.equal(h.objects.get(invoice.pdf_path).buffer.subarray(0, 5).toString(), '%PDF-');
   assert.deepEqual(result.depositPayment, {
     status: 'unpaid', total: 40000, invoiceId: invoice.id, invoiceDocumentNo: 'DEP-LS202600011', dueDate: '2099-01-01',
-    invoiceUrl: `https://signed.example/${invoice.pdf_path}`, receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null,
+    invoiceUrl: `https://signed.example/${invoice.pdf_path}`, receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null, slipReturnReason: null,
   });
   assert.deepEqual(h.saves, ['in the transaction']);
   // The lease is locked before looking for an invoice again, so a second request waits and then finds this one.
@@ -215,7 +262,7 @@ test('a deposit of 0 (or none) issues no invoice and shows no deposit card', asy
   for (const deposit of ['0.00', null]) {
     const h = await readyToGenerate({ deposit });
     const result = await h.service.leaseAgreementPdf(7, 11, true);
-    assert.equal(h.row.status, 'active');
+    assert.equal(h.row.status, 'awaiting_handover', 'D7: without a deposit the lease waits for the handover');
     assert.equal(h.invoices.length, 0);
     assert.equal(result.depositPayment, null);
     await assert.rejects(() => h.service.issueDepositInvoice(7, 11), (e) => e.getStatus() === 400 && /ไม่มีเงินประกัน/.test(e.message));
@@ -248,7 +295,7 @@ test('if issuing fails the lease is still generated, shows "not issued", and the
   h.storage.uploadStandaloneInvoice = async () => { throw new Error('storage down'); };
   const result = await h.service.leaseAgreementPdf(7, 11, true);
   assert.equal(result.leaseAgreementStatus, 'ready');
-  assert.equal(h.row.status, 'active');
+  assert.equal(h.row.status, 'awaiting_deposit', 'D7: still generated, waiting for the deposit');
   assert.equal(h.invoices.length, 0);
   assert.equal(result.depositPayment.status, 'not_issued');
   assert.equal(result.depositPayment.total, 40000);
@@ -282,7 +329,7 @@ test('two requests at once still give one invoice, and the extra PDF is removed'
   const raced = harness();
   raced.hooks.beforeSave = async () => {
     raced.hooks.beforeSave = null;
-    raced.invoices.push({ id: 51, invoice_kind: 'deposit', lease_contract_id: 11, document_no: 'DEP-LS202600011', pdf_path: '7/invoices/first.pdf', data: invoiceData, due_date: '2099-01-01' });
+    raced.commitElsewhere({ id: 51, invoice_kind: 'deposit', lease_contract_id: 11, document_no: 'DEP-LS202600011', pdf_path: '7/invoices/first.pdf', data: invoiceData, due_date: '2099-01-01' });
   };
   const result = await raced.service.issueDepositInvoice(7, 11);
   assert.equal(raced.invoices.length, 1);
@@ -412,6 +459,9 @@ test('the agent issues the deposit receipt REC-DEP-<no> from the tenant\'s slip;
   assert.equal(invoice.payment_slip_path, tenantSlip, 'the tenant\'s slip is the evidence');
   assert.equal(invoice.receipt_data.issuerName, 'Landlord A');
   assert.equal(invoice.receipt_data.items[0].unitPrice, 40000);
+  // D11: the landlord received the deposit (the default); the receiver name the agent typed is not used.
+  assert.equal(invoice.receipt_data.receiverName, 'Landlord A');
+  assert.equal(invoice.receipt_data.receivedBy, 'landlord');
   const view = await h.service.view(7, 11);
   assert.equal(view.depositPayment.status, 'paid');
   assert.equal(view.depositPayment.receiptDocumentNo, 'REC-DEP-LS202600011');
@@ -422,6 +472,35 @@ test('the agent issues the deposit receipt REC-DEP-<no> from the tenant\'s slip;
     data: invoice.data, pdf_path: '7/invoices/g.pdf', receipt_pdf_path: null, payment_slip_path: null, tenant_id: null });
   const listed = await h.service.listStandaloneInvoices(7);
   assert.deepEqual(listed.map((row) => row.id), [7001]);
+});
+
+test('D7: the deposit receipt moves a lease waiting for its deposit to waiting for the handover; an active lease stays active', async () => {
+  for (const [status, after] of [['awaiting_deposit', 'awaiting_handover'], ['active', 'active'], ['awaiting_handover', 'awaiting_handover']]) {
+    const h = harness({ status });
+    await h.service.issueDepositInvoice(7, 11);
+    await h.service.uploadDepositPaymentSlip(8, 11, slip);
+    h.txEvents.length = 0;
+    await h.service.createReceiptForInvoice(7, h.invoices[0].id, { paymentMethod: '', receiverName: 'Agent', notes: '' });
+    assert.equal(h.row.status, after, status);
+    if (status === 'awaiting_deposit') {
+      // The same transaction locks the lease and then moves it (tx<n>: tags the transaction number).
+      const lock = h.txEvents.find((e) => /^tx\d+:lock LeaseContractEntity$/.test(e));
+      const update = h.txEvents.find((e) => /^tx\d+:update lease/.test(e));
+      assert.ok(lock && update, h.txEvents.join(', '));
+      assert.equal(lock.split(':')[0], update.split(':')[0], 'the lock and the update are in the same transaction');
+      assert.ok(h.txEvents.indexOf(update) > h.txEvents.indexOf(lock), 'the lease is locked before it is moved');
+      assert.equal(update.slice(update.indexOf(':') + 1), 'update lease {"id":11,"status":"awaiting_deposit"}');
+    }
+  }
+  // The receipt fails after the status update (saving the invoice throws): the whole transaction is undone.
+  const h = harness({ status: 'awaiting_deposit' });
+  await h.service.issueDepositInvoice(7, 11);
+  await h.service.uploadDepositPaymentSlip(8, 11, slip);
+  h.hooks.beforeSave = async (value) => { if (value.receipt_pdf_path) throw new Error('save failed'); };
+  await assert.rejects(() => h.service.createReceiptForInvoice(7, h.invoices[0].id, { paymentMethod: '', receiverName: 'Agent', notes: '' }), /save failed/);
+  assert.ok(h.txEvents.some((e) => /^tx\d+:update lease/.test(e)), 'the update did run before the failure');
+  assert.equal(h.row.status, 'awaiting_deposit', 'rolled back with the receipt');
+  assert.equal(h.invoices[0].receipt_pdf_path, null);
 });
 
 test('a deposit receipt without a slip on file, and a general invoice without a slip, are still refused', async () => {
@@ -513,4 +592,185 @@ test('no deposit receipt once the lease is closed, also when it closes while the
   assert.match(h.removed[0], /^7\/payment-slips\//);
   assert.deepEqual(h.events.slice(h.events.lastIndexOf('lock LeaseContractEntity')), ['lock LeaseContractEntity', 'find invoice'],
     'the lease is locked before the invoice');
+});
+
+test('D7: a cancelled deposit invoice shows as cancelled, keeps the slip to view, and takes no new slip or receipt', async () => {
+  // Aof, 22 Oct 2026: the deposit is due by the move-in day. The lease was terminated while it still waited for the
+  // deposit (contract-closure.ts sets voided_at). A lease closed as cancelled is not shown to the parties at all.
+  const h = harness();
+  await h.service.issueDepositInvoice(7, 11);
+  await h.service.uploadDepositPaymentSlip(8, 11, slip);
+  const invoice = h.invoices[0];
+  const sentSlip = invoice.payment_slip_path;
+  invoice.voided_at = new Date('2026-10-22T03:00:00Z');
+  h.row.status = 'terminated';
+  for (const user of [8, 9]) {
+    const [mine] = await h.service.listForUser(user);
+    assert.equal(mine.depositPayment.status, 'voided', `user ${user}`);
+    assert.equal(mine.depositPayment.paymentSlipUrl, `https://signed.example/${sentSlip}`, 'the slip stays viewable');
+    assert.equal(mine.depositPayment.receiptUrl, null);
+  }
+  h.row.status = 'cancelled';
+  for (const user of [8, 9]) assert.deepEqual(await h.service.listForUser(user), [], 'a cancelled lease is hidden from the parties');
+  assert.equal((await h.service.view(7, 11)).depositPayment.status, 'voided', 'the agent still sees it');
+  // A cancelled invoice is checked before the lease, so the agent sees why.
+  const files = h.objects.size;
+  await assert.rejects(() => h.service.createReceiptForInvoice(7, invoice.id, { paymentMethod: '', receiverName: 'Agent' }, slip),
+    (e) => e.getStatus() === 400 && /ถูกยกเลิกแล้ว/.test(e.message));
+  await assert.rejects(() => h.service.createReceiptForInvoice(7, invoice.id, { paymentMethod: '', receiverName: 'Agent' }),
+    (e) => e.getStatus() === 400 && /ถูกยกเลิกแล้ว/.test(e.message));
+  assert.equal(invoice.receipt_pdf_path, null);
+  assert.equal(h.objects.size, files, 'nothing uploaded');
+  // Even if the lease were still open, a cancelled invoice takes no receipt and no new slip.
+  h.row.status = 'awaiting_deposit';
+  await assert.rejects(() => h.service.createReceiptForInvoice(7, invoice.id, { paymentMethod: '', receiverName: 'Agent' }),
+    (e) => e.getStatus() === 400 && /ถูกยกเลิกแล้ว/.test(e.message));
+  const before = h.objects.size;
+  await assert.rejects(() => h.service.uploadDepositPaymentSlip(8, 11, slip), (e) => e.getStatus() === 409 && /ถูกยกเลิกแล้ว/.test(e.message));
+  assert.equal(invoice.payment_slip_path, sentSlip, 'the slip is not replaced');
+  assert.equal(h.objects.size, before, 'the refused slip file is removed');
+  assert.equal(invoice.receipt_pdf_path, null);
+});
+
+/** D11: the slip the agent looked at (sent with the return, so a newer slip is not returned by mistake). */
+const seen = (h) => (h.invoices[0]?.slip_submitted_at ? new Date(h.invoices[0].slip_submitted_at).toISOString() : undefined);
+
+// D11 (AC-3.5): the agent receives the deposit only with a power of attorney on the lease or on its reservation.
+const poa = (agreementId, patch = {}) => ({ id: 60 + agreementId, agreement_id: agreementId, document_type_code: 'power_of_attorney', subject: 'representative',
+  removed_at: null, supersedes_document_id: null, review_status: 'pending', ...patch });
+const reservation = (id, patch = {}) => leaseRow({ id, contract_no: `RS${id}`, status: 'active', template: { form_kind: 'reservation' },
+  agreement_type: { form_kind: 'reservation' }, ...patch });
+test('D11: the agent receives the deposit only with a power of attorney on the lease or on its reservation', async () => {
+  const others = [reservation(5), reservation(6, { status: 'cancelled' }), reservation(7, { lead_id: 99 }), reservation(8, { rent_room_id: 99 }),
+    leaseRow({ id: 9, contract_no: 'BA9', template: { form_kind: 'broker_appointment' }, agreement_type: { form_kind: 'broker_appointment' } }),
+    reservation(10, { created_by_user_id: 70 })];
+  const ready = async (docs) => {
+    const h = harness({}, others);
+    await h.service.issueDepositInvoice(7, 11);
+    await h.service.uploadDepositPaymentSlip(8, 11, slip);
+    h.docs.push(...docs);
+    return h;
+  };
+  for (const [label, docs] of [['none', []], ['cancelled reservation', [poa(6)]], ['another lead', [poa(7)]], ['another room', [poa(8)]],
+    ['broker appointment', [poa(9)]], ['another agent', [poa(10)]], ['rejected on the lease', [poa(11, { review_status: 'rejected' })]]]) {
+    const h = await ready(docs);
+    const files = h.objects.size;
+    await assert.rejects(() => h.service.createReceiptForInvoice(7, h.invoices[0].id, { paymentMethod: '', receivedBy: 'agent' }),
+      (e) => e.getStatus() === 400 && e.getResponse().code === 'POWER_OF_ATTORNEY_REQUIRED', label);
+    assert.equal(h.invoices[0].receipt_pdf_path, null, label);
+    assert.equal(h.objects.size, files, `${label}: no receipt file`);
+    assert.deepEqual(h.docQueries, [[11, 5]], `${label}: the lease and its open reservation of the same lead and room`);
+  }
+  for (const docs of [[poa(11)], [poa(5)]]) {
+    const h = await ready(docs);
+    await h.service.createReceiptForInvoice(7, h.invoices[0].id, { paymentMethod: '', receivedBy: 'agent', receiverName: 'Typed' });
+    assert.equal(h.invoices[0].receipt_data.receiverName, 'Agent Seven (ผู้รับมอบอำนาจ)', 'the agent\'s name from the account');
+    assert.equal(h.invoices[0].receipt_data.receivedBy, 'agent');
+  }
+  const named = harness({ party_snapshot: { agentName: 'Agent On Lease' } });
+  await named.service.issueDepositInvoice(7, 11);
+  await named.service.uploadDepositPaymentSlip(8, 11, slip);
+  named.docs.push(poa(11));
+  await named.service.createReceiptForInvoice(7, named.invoices[0].id, { paymentMethod: '', receivedBy: 'agent' });
+  assert.equal(named.invoices[0].receipt_data.receiverName, 'Agent On Lease (ผู้รับมอบอำนาจ)');
+  // No withholding tax on a deposit; an unknown receiver is refused.
+  for (const body of [{ withholdingTax: '100' }, { receivedBy: 'tenant' }]) {
+    const h = await ready([]);
+    await assert.rejects(() => h.service.createReceiptForInvoice(7, h.invoices[0].id, { paymentMethod: '', ...body }), (e) => e.getStatus() === 400, JSON.stringify(body));
+    assert.equal(h.invoices[0].receipt_pdf_path, null);
+  }
+  // A general invoice keeps the receiver the agent typed.
+  const g = harness();
+  await g.service.issueDepositInvoice(7, 11);
+  g.invoices.push({ id: 7003, created_by_user_id: 7, invoice_kind: 'general', issuer_party: 'agent', document_no: 'INV2026-0003', customer_name: 'X', issue_date: '2026-10-21',
+    data: { ...g.invoices[0].data, issuerName: 'NESTYK' }, pdf_path: '7/invoices/g.pdf', receipt_pdf_path: null, receipt_document_no: 'REC2026-0009', payment_slip_path: null, tenant_id: null });
+  await g.service.createReceiptForInvoice(7, 7003, { paymentMethod: 'cash', receiverName: 'Typed Name', receivedBy: 'agent' });
+  assert.equal(g.invoices.find((row) => row.id === 7003).receipt_data.receiverName, 'Typed Name');
+  assert.equal(g.invoices.find((row) => row.id === 7003).receipt_data.receivedBy, undefined);
+  assert.deepEqual(g.docQueries, [], 'no power of attorney check for a general invoice');
+});
+
+test('D11 (AC-5.4): the agent returns the tenant\'s deposit slip with a reason, and the tenant sends a new one', async () => {
+  const h = harness();
+  await h.service.issueDepositInvoice(7, 11);
+  await h.service.uploadDepositPaymentSlip(8, 11, slip);
+  const invoice = h.invoices[0];
+  const sent = invoice.payment_slip_path;
+  const view = await h.service.returnDepositSlip(7, 11, { reason: ' สลิปอ่านไม่ออก ', submittedAt: seen(h) });
+  assert.equal(view.depositPayment.status, 'unpaid');
+  assert.equal(view.depositPayment.slipReturnReason, 'สลิปอ่านไม่ออก');
+  assert.equal(view.depositPayment.paymentSlipUrl, null);
+  assert.equal(invoice.payment_slip_path, null);
+  assert.equal(invoice.slip_submitted_at, null);
+  assert.ok(h.removed.includes(sent), 'the returned slip file is removed');
+  assert.deepEqual(h.locks.slice(-2), [['LeaseContractEntity', 'pessimistic_write'], ['AgentInvoiceEntity', 'pessimistic_write']], 'the lease is locked before the invoice');
+  const [mine] = await h.service.listForUser(8);
+  assert.equal(mine.depositPayment.slipReturnReason, 'สลิปอ่านไม่ออก', 'the tenant sees why');
+  await h.service.uploadDepositPaymentSlip(8, 11, slip);
+  assert.equal(invoice.slip_return_note, null, 'a new slip clears the reason');
+  assert.equal((await h.service.view(7, 11)).depositPayment.status, 'submitted');
+  assert.equal((await h.service.view(7, 11)).depositPayment.slipReturnReason, null);
+  // Paid another way after the return: the agent attaches the slip with the receipt, so the reason is no longer shown.
+  const other = harness();
+  await other.service.issueDepositInvoice(7, 11);
+  await other.service.uploadDepositPaymentSlip(8, 11, slip);
+  await other.service.returnDepositSlip(7, 11, { reason: 'โอนผิดบัญชี', submittedAt: seen(other) });
+  await other.service.createReceiptForInvoice(7, other.invoices[0].id, { paymentMethod: '' }, slip);
+  const paid = await other.service.view(7, 11);
+  assert.equal(paid.depositPayment.status, 'paid');
+  assert.equal(paid.depositPayment.slipReturnReason, null);
+});
+
+test('D11: no deposit slip return without a reason, for the agent\'s own slip, after the receipt, for a cancelled invoice or a closed lease', async () => {
+  const sentHarness = async (overrides) => {
+    const h = harness(overrides);
+    await h.service.issueDepositInvoice(7, 11);
+    await h.service.uploadDepositPaymentSlip(8, 11, slip);
+    return h;
+  };
+  for (const body of [{}, { reason: ' ' }, { reason: 'x'.repeat(501) }]) {
+    const h = await sentHarness();
+    await assert.rejects(() => h.service.returnDepositSlip(7, 11, { ...body, submittedAt: seen(h) }), (e) => e.getStatus() === 400 && /เหตุผล/.test(e.message));
+    assert.ok(h.invoices[0].payment_slip_path);
+  }
+  const none = harness();
+  await assert.rejects(() => none.service.returnDepositSlip(7, 11, { reason: 'x' }), (e) => e.getStatus() === 400 && /ยังไม่มีใบแจ้งหนี้/.test(e.message));
+  // The agent attached the slip itself (no tenant slip): nothing for the tenant to resend.
+  const own = harness();
+  await own.service.issueDepositInvoice(7, 11);
+  own.invoices[0].payment_slip_path = '7/payment-slips/agent.jpg';
+  await assert.rejects(() => own.service.returnDepositSlip(7, 11, { reason: 'x', submittedAt: seen(own) }), (e) => e.getStatus() === 400 && /ผู้เช่าส่ง/.test(e.message));
+  const paid = await sentHarness();
+  await paid.service.createReceiptForInvoice(7, paid.invoices[0].id, { paymentMethod: '' });
+  await assert.rejects(() => paid.service.returnDepositSlip(7, 11, { reason: 'x', submittedAt: seen(paid) }), (e) => e.getStatus() === 400 && /ออกใบเสร็จแล้ว/.test(e.message));
+  const voided = await sentHarness();
+  voided.invoices[0].voided_at = new Date();
+  await assert.rejects(() => voided.service.returnDepositSlip(7, 11, { reason: 'x', submittedAt: seen(voided) }), (e) => e.getStatus() === 400 && /ยกเลิกแล้ว/.test(e.message));
+  for (const status of ['cancelled', 'expired', 'terminated']) {
+    const closed = await sentHarness();
+    closed.row.status = status;
+    await assert.rejects(() => closed.service.returnDepositSlip(7, 11, { reason: 'x', submittedAt: seen(closed) }), (e) => e.getStatus() === 400, status);
+    assert.ok(closed.invoices[0].payment_slip_path, status);
+  }
+  const stranger = await sentHarness();
+  await assert.rejects(() => stranger.service.returnDepositSlip(70, 11, { reason: 'x', submittedAt: seen(stranger) }), (e) => e.getStatus() === 404,
+    'another agent\'s lease is not found');
+  assert.ok(stranger.invoices[0].payment_slip_path);
+});
+
+test('D11: a deposit slip the tenant sent after the agent looked is not returned (409) and is kept', async () => {
+  for (const [label, at] of [['an older slip', '2026-10-20T03:00:00.000Z'], ['no slip time', undefined]]) {
+    const h = harness();
+    await h.service.issueDepositInvoice(7, 11);
+    await h.service.uploadDepositPaymentSlip(8, 11, slip);
+    const invoice = h.invoices[0];
+    // The tenant's newer slip is saved just before the return's transaction.
+    h.hooks.inTransaction = async () => { invoice.payment_slip_path = '7/payment-slips/newer.jpg'; invoice.slip_submitted_at = new Date('2026-10-22T05:00:00Z'); };
+    const removedBefore = h.removed.length;
+    await assert.rejects(() => h.service.returnDepositSlip(7, 11, { reason: 'ยอดไม่ตรง', submittedAt: at }),
+      (e) => e.getStatus() === 409 && e.getResponse().code === 'SLIP_CHANGED', label);
+    assert.equal(invoice.payment_slip_path, '7/payment-slips/newer.jpg', label);
+    assert.equal(invoice.slip_return_note ?? null, null, label);
+    assert.equal(h.removed.length, removedBefore, `${label}: no file removed`);
+  }
 });

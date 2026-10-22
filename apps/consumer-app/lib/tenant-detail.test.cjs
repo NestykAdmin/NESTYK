@@ -231,3 +231,20 @@ test('D1: before any booking the next step is the broker appointment, then the r
     assert.equal(tenantNextAction(tenant({ contracts: [contract({ formKind: 'lease', status })], brokerAppointmentReady: false }), null), null, status);
 });
 
+
+// D7: a generated lease waits for its deposit receipt, then for the handover; it is active (and the tenant
+// "ผู้เช่าแล้ว") only after the handover is signed.
+test('D7: a lease waiting for the deposit or the handover is the next action, and the tenant is not active yet', () => {
+  const today = new Date(2026, 6, 1);
+  for (const [status, kind] of [['awaiting_deposit', 'deposit'], ['awaiting_handover', 'handover']]) {
+    const lease = contract({ id: 12, status });
+    const next = tenantNextAction(tenant({ contracts: [lease] }), null);
+    assert.deepEqual([next.kind, next.contract.id], [kind, 12], status);
+    assert.equal(tenantStage(tenant({ contracts: [lease] }), today), 'signing', `${status}: still being set up`);
+  }
+  // A document still to sign comes first; the deposit comes before the handover.
+  const deposit = contract({ id: 12, status: 'awaiting_deposit' });
+  const handover = contract({ id: 13, status: 'awaiting_handover' });
+  assert.equal(tenantNextAction(tenant({ contracts: [handover, deposit] }), null).kind, 'deposit');
+  assert.equal(tenantNextAction(tenant({ contracts: [deposit, contract({ id: 14, formKind: 'renewal', status: 'awaiting_signatures' })] }), null).kind, 'sign');
+});

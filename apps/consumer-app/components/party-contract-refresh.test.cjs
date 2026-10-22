@@ -48,6 +48,7 @@ function harness(party) {
     };
     if (name === './PartyContractDetail') return { PartyContractDetail: props => { detail = props; return React.createElement('span', {}, `${props.contract.invoiceUrl} ${props.contract.receiptUrl ?? ''}`); } };
     if (name === './TenantContractList') return { TenantContractList: () => null };
+    if (name === './LandlordDealOffers') return { LandlordDealOffers: () => null };
     if (name === '../lib/party-contracts-api') return {
       listMyContracts: () => { const request = deferred(); requests.push(request); return request.promise; },
       listMyOwnedRooms: async () => [],

@@ -14,6 +14,7 @@ const {MasterContractEndReasonEntity:Reason}=require('../src/entities/master-con
 const {ContractDepositTransferEntity:Transfer}=require('../src/entities/contract-deposit-transfer.entity.ts');
 const {TenantBillEntity:Bill}=require('../src/entities/tenant-bill.entity.ts');
 const {AgreementSignInviteEntity:Invite}=require('../src/entities/agreement-sign-invite.entity.ts');
+const {AgentInvoiceEntity:Invoice}=require('../src/entities/agent-invoice.entity.ts');
 const RealDate=Date;
 global.Date=class extends RealDate{constructor(...args){super(...(args.length?args:['2026-10-14T05:00:00Z']));}};
 const request={endReasonCode:'tenant_requested',effectiveEndDate:'2026-10-12',note:'Tenant moving out'};
@@ -25,10 +26,16 @@ const reasons=[
  {id:4,code:'draft_cancelled',applicable_status:'cancelled',requires_note:true,is_active:true},
 ];
 function fixture(options={}){
- const state={contracts:[{...base,...options.contract},...(options.others??[])],lead:{id:1,created_by_user_id:7,rent_room_id:3,status:'booked',tenant_id:2,booking_released_at:null},tenancy:{id:4,status:'active',move_out_date:null,...options.tenancy},bills:[{id:1,status:'pending',due_date:'2026-10-15',amount:'15000.00',payment_slip_path:'pending.jpg'},{id:2,status:'paid',due_date:'2026-09-15',amount:'15000.00',payment_slip_path:'paid.jpg'}]};
- const updates=[],locks=[];
+ const state={contracts:[{...base,...options.contract},...(options.others??[])],lead:{id:1,created_by_user_id:7,rent_room_id:3,status:'booked',tenant_id:2,booking_released_at:null},tenancy:{id:4,status:'active',move_out_date:null,...options.tenancy},invoices:structuredClone(options.invoices??[]),bills:[{id:1,status:'pending',due_date:'2026-10-15',amount:'15000.00',payment_slip_path:'pending.jpg'},{id:2,status:'paid',due_date:'2026-09-15',amount:'15000.00',payment_slip_path:'paid.jpg'}]};
+ // allUpdates keeps every update sent, also those a rollback undoes.
+ const updates=[],allUpdates=[],locks=[];
+ let inTransaction=false,transactions=0;
  const reasonRows=reasons.map(r=>({...r,...(r.code===request.endReasonCode?options.reason:{})}));
- const matches=(row,where)=>row&&Object.entries(where).every(([k,v])=>row[k]===v);
+ // IsNull() in a where clause matches a missing value, like TypeORM. A plain null/undefined or another operator is refused:
+ // TypeORM would drop that condition and match every row, which this fixture cannot copy.
+ const matches=(row,where)=>row&&Object.entries(where).every(([k,v])=>{
+  if(v==null||(typeof v==='object'&&!(v instanceof Date)&&v.type!=='isNull'))throw Error(`where.${k}: use IsNull() or a value`);
+  return typeof v==='object'&&v.type==='isNull'?row[k]==null:row[k]===v;});
  function qb(entity){const params={},clauses=[];const q={};for(const name of ['select','addSelect','leftJoin','innerJoin','orderBy'])q[name]=()=>q;q.where=q.andWhere=(sql,args)=>{clauses.push(sql);Object.assign(params,args);return q;};
  q.getCount=async()=>{
   if(entity===Transfer)return options.allocated??0;
@@ -40,10 +47,13 @@ function fixture(options={}){
   findOne:async(entity,{where,lock})=>{assert.equal(lock.mode,'pessimistic_write');locks.push(entity.name);const row=entity===Contract?state.contracts.find(c=>matches(c,where)):entity===Lead?state.lead:options.foreignRoom?null:{id:3,created_by_user_id:7};return row?structuredClone(row):null;},
   findOneBy:async(entity,where)=>entity===Template?{form_kind:state.contracts[0].formKind}:reasonRows.find(r=>matches(r,where)),
   getRepository:entity=>({createQueryBuilder:()=>qb(entity)}),
-  update:async(entity,where,patch)=>{updates.push({entity,where,patch});if(options.failTenancy&&entity===Tenancy)throw Error('tenancy save failed');const row=entity===Contract?state.contracts.find(c=>c.id===where.id):entity===Lead?state.lead:entity===Tenancy?state.tenancy:null;if(row){const clean={...patch};if(typeof clean.move_out_date==='function'){const date=clean.move_out_date().match(/'(\d{4}-\d{2}-\d{2})'/)[1];clean.move_out_date=[row.move_out_date??'',date].sort().at(-1);}Object.assign(row,clean);}return {affected:1};},
+  update:async(entity,where,patch)=>{updates.push({entity,where,patch});allUpdates.push({entity,where,patch});if(options.failTenancy&&entity===Tenancy)throw Error('tenancy save failed');if(entity===Invoice){let affected=0;for(const row of state.invoices)if(matches(row,where)){Object.assign(row,patch);affected++;}return {affected};}const row=entity===Contract?state.contracts.find(c=>c.id===where.id):entity===Lead?state.lead:entity===Tenancy?state.tenancy:null;if(row){const clean={...patch};if(typeof clean.move_out_date==='function'){const date=clean.move_out_date().match(/'(\d{4}-\d{2}-\d{2})'/)[1];clean.move_out_date=[row.move_out_date??'',date].sort().at(-1);}Object.assign(row,clean);}return {affected:1};},
  };
- const db={getRepository:entity=>({findOneBy:async where=>entity===Contract?structuredClone(state.contracts.find(c=>matches(c,where))??null):null,find:async()=>reasonRows}),transaction:async fn=>{const before=structuredClone(state);try{return await fn(manager);}catch(e){Object.assign(state,before);updates.length=0;throw e;}}};
- return {db,state,updates,locks,close:(body=request)=>closeLeaseContract(db,7,20,body)};
+ const db={getRepository:entity=>({findOneBy:async where=>entity===Contract?structuredClone(state.contracts.find(c=>matches(c,where))??null):null,find:async()=>reasonRows}),transaction:async fn=>{
+  // One transaction per closure: a nested one would commit on its own connection in Postgres.
+  if(inTransaction)throw Error('nested transaction');inTransaction=true;transactions++;
+  const before=structuredClone(state);try{return await fn(manager);}catch(e){Object.assign(state,before);updates.length=0;throw e;}finally{inTransaction=false;}}};
+ return {db,state,updates,allUpdates,locks,transactions:()=>transactions,close:(body=request)=>closeLeaseContract(db,7,20,body)};
 }
 test('validates closure input and rejects spoofed state, impossible dates and unknown fields',()=>{
  assert.deepEqual(validateContractClosure({...request,note:' note '}),{...request,note:'note'});
@@ -72,6 +82,68 @@ test('active future renewal may be cancelled before start; an occupied lease can
  const body={endReasonCode:'before_start_cancelled',effectiveEndDate:'2026-10-12',note:'Renewal cancelled'};
  const f=fixture({contract:{formKind:'renewal',start_date:'2026-11-01',end_date:'2027-10-31'}});await f.close(body);assert.equal(f.state.contracts[0].status,'cancelled');
  await assert.rejects(()=>fixture().close(body),e=>e.getStatus()===400);
+});
+// D7 (Aof, 22 Oct 2026): a lease waiting for its deposit or handover can be closed (e.g. the tenant withdraws).
+test('D7: a lease waiting for its deposit or handover can be cancelled before it starts or terminated within its term',async()=>{
+ const cancel={endReasonCode:'before_start_cancelled',effectiveEndDate:'2026-10-12',note:'Tenant withdrew'};
+ for(const status of ['awaiting_deposit','awaiting_handover']){
+  const f=fixture({contract:{status,start_date:'2026-11-01',end_date:'2027-10-31'}});await f.close(cancel);assert.equal(f.state.contracts[0].status,'cancelled',status);
+  const t=fixture({contract:{status}});await t.close();assert.equal(t.state.contracts[0].status,'terminated',status);
+ }
+ // Still refused before the lease is generated.
+ for(const status of ['awaiting_signatures','awaiting_agent_review']){const f=fixture({contract:{status}});await assert.rejects(()=>f.close(),e=>e.getStatus()===400,status);assert.equal(f.updates.length,0);}
+});
+test('D7: closing a lease that waits for its deposit cancels its unpaid deposit invoice in the same transaction',async()=>{
+ // Aof, 22 Oct 2026: the deposit is due by the move-in day; a lease closed before it is paid leaves the tenant owing nothing.
+ const cancel={endReasonCode:'before_start_cancelled',effectiveEndDate:'2026-10-12',note:'Tenant did not pay the deposit'};
+ const invoices=()=>[
+  {id:9,lease_contract_id:20,invoice_kind:'deposit',receipt_pdf_path:null,payment_slip_path:'7/payment-slips/sent.jpg',voided_at:null},
+  {id:10,lease_contract_id:21,invoice_kind:'deposit',receipt_pdf_path:null,payment_slip_path:null,voided_at:null},
+  {id:11,lease_contract_id:20,invoice_kind:'general',receipt_pdf_path:null,payment_slip_path:null,voided_at:null},
+ ];
+ const f=fixture({contract:{status:'awaiting_deposit',start_date:'2026-11-01',end_date:'2027-10-31'},invoices:invoices()});
+ await f.close(cancel);
+ const [own,other,general]=f.state.invoices;
+ assert.ok(own.voided_at instanceof Date);
+ assert.equal(own.voided_at.getTime(),f.state.contracts[0].end_recorded_at.getTime(),'cancelled at the closure time');
+ assert.equal(own.payment_slip_path,'7/payment-slips/sent.jpg','the slip the tenant sent stays');
+ assert.equal(other.voided_at,null,'another lease is not touched');
+ assert.equal(general.voided_at,null,'only the deposit invoice');
+ const invoiceUpdates=f.updates.filter(u=>u.entity===Invoice);
+ assert.equal(invoiceUpdates.length,1);
+ assert.equal(invoiceUpdates[0].where.receipt_pdf_path.type,'isNull','never an invoice with a receipt');
+ assert.equal(invoiceUpdates[0].where.voided_at.type,'isNull','a cancelled invoice keeps its first time');
+ assert.ok(f.updates.findIndex(u=>u.entity===Contract)<f.updates.indexOf(invoiceUpdates[0]),'after the lease is closed');
+ assert.equal(invoiceUpdates[0].where.receipt_document_no.type,'isNull','the same rule as the CHECK: no receipt number either');
+ assert.equal(f.transactions(),1,'one transaction');
+ // Terminated within the term (the start date passed and the deposit is still unpaid): the invoice is cancelled too.
+ const late=fixture({contract:{status:'awaiting_deposit'},invoices:invoices()});
+ await late.close();
+ assert.equal(late.state.contracts[0].status,'terminated');
+ assert.ok(late.state.invoices[0].voided_at instanceof Date);
+ assert.equal(late.state.invoices[1].voided_at,null);
+ // A receipted invoice or one cancelled before is left as it was.
+ const done=new Date('2026-10-01T00:00:00Z');
+ const kept=fixture({contract:{status:'awaiting_deposit'},invoices:[{...invoices()[0],receipt_pdf_path:'r.pdf',receipt_document_no:'REC-DEP-1'},{...invoices()[0],id:12,voided_at:done},{...invoices()[0],id:13,receipt_document_no:'REC-DEP-2'}]});
+ await kept.close();
+ assert.equal(kept.state.invoices[0].voided_at,null);
+ assert.equal(kept.state.invoices[1].voided_at.getTime(),done.getTime());
+ assert.equal(kept.state.invoices[2].voided_at,null,'a receipt number without a file is left too');
+ // The deposit is paid once the lease waits for the handover; an active lease's deposit is a real debt.
+ for(const status of ['awaiting_handover','active']){
+  const g=fixture({contract:{status},invoices:invoices()});await g.close();
+  assert.equal(g.updates.filter(u=>u.entity===Invoice).length,0,status);
+  assert.equal(g.state.invoices[0].voided_at,null,status);
+ }
+ // A closure that fails keeps the invoice open; repeating a finished closure changes nothing.
+ const failed=fixture({contract:{status:'awaiting_deposit'},invoices:invoices(),failTenancy:true});
+ await assert.rejects(()=>failed.close(),/tenancy save/);
+ assert.ok(failed.allUpdates.some(u=>u.entity===Invoice),'the invoice was cancelled before the failure');
+ assert.equal(failed.state.invoices[0].voided_at,null,'and the rollback undid it');
+ assert.equal(failed.state.contracts[0].status,'awaiting_deposit');
+ const again=fixture({contract:{status:'terminated',end_reason_id:2,effective_end_date:'2026-10-12',end_reason_note:'Tenant moving out'},invoices:invoices()});
+ await again.close();
+ assert.equal(again.updates.length,0);
 });
 test('a live successor prevents early termination but preserves the booking and shared occupancy when predecessor expires',async()=>{
  const successor={...base,id:21,formKind:'renewal',previous_agreement_id:20,status:'draft',start_date:'2026-10-14',end_date:'2027-10-13'};

@@ -8,6 +8,7 @@ import { localizedError, useLocale } from "@nestyk/i18n";
 import { listMyContracts, listMyOwnedRooms, type OwnedRoom } from "../lib/party-contracts-api";
 import { PartyContractDetail } from "./PartyContractDetail";
 import { TenantContractList } from "./TenantContractList";
+import { LandlordDealOffers } from "./LandlordDealOffers";
 
 export type PartyContractRoom = {
   key: string;
@@ -101,6 +102,8 @@ export function PartyContractsScreen({
         </Text>
       )}
       {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+      {/* D2: offers on the landlord's rooms, to confirm before the agent books the room. */}
+      {mode === "owner" && !history ? <LandlordDealOffers reloadToken={reloadToken} /> : null}
       {(rows.length || (!loading && !error)) ? (
         <TenantContractList
           mode={mode}

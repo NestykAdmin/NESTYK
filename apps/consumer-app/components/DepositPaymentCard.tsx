@@ -4,10 +4,12 @@ import { MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentContract, DepositFinancialDocumentKind } from "@nestyk/types";
 import { fillTemplate, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
+import { SlipReturnControl } from "./SlipReturnControl";
 
 /**
  * D10: the deposit of a generated lease, issued in the landlord's name. The tenant sends the slip
  * (onUpload), the agent issues the receipt (onIssueReceipt) or issues the invoice again (onIssueInvoice).
+ * A lease closed while it waited for the deposit shows its invoice as cancelled (voided), with no actions.
  */
 export function DepositPaymentCard({
   contract,
@@ -16,6 +18,7 @@ export function DepositPaymentCard({
   onUpload,
   onIssueReceipt,
   onIssueInvoice,
+  onReturnSlip,
 }: {
   contract: AgentContract;
   busy: boolean;
@@ -23,6 +26,8 @@ export function DepositPaymentCard({
   onUpload?: () => void;
   onIssueReceipt?: () => void;
   onIssueInvoice?: () => void;
+  /** D11 (AC-5.4): the agent returns the tenant's slip with a reason. */
+  onReturnSlip?: (reason: string) => Promise<boolean | void> | boolean | void;
 }) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
@@ -34,10 +39,12 @@ export function DepositPaymentCard({
     unpaid: { color: "#B45309", background: "#FFFBEB" },
     submitted: { color: "#1D4ED8", background: "#EFF6FF" },
     paid: { color: "#15803D", background: "#F0FDF4" },
+    voided: { color: "#6B7280", background: "#F3F4F6" },
   }[deposit.status];
   const label = dc.status[deposit.status];
   const closed = ["cancelled", "expired", "terminated"].includes(contract.status);
-  const open = !closed && deposit.status !== "paid";
+  const voided = deposit.status === "voided";
+  const open = !closed && !voided && deposit.status !== "paid";
   const text = {
     color: theme.textSecondary,
     fontFamily: tokens.typography.native.body,
@@ -83,8 +90,15 @@ export function DepositPaymentCard({
       <Text style={text}>{fillTemplate(dc.total, { amount })}</Text>
       {due && <Text style={text}>{fillTemplate(dc.due, { date: due })}</Text>}
       {deposit.status === "submitted" && <Text style={text}>{dc.submittedHint}</Text>}
+      {deposit.status === "unpaid" && !closed && deposit.slipReturnReason && (
+        <Text style={{ ...text, color: "#B91C1C" }}>
+          {fillTemplate(t.contracts.slipReturn.returned, { reason: deposit.slipReturnReason })}
+        </Text>
+      )}
       {deposit.status === "paid" && <Text style={text}>{dc.paidHint}</Text>}
       {closed && <Text style={text}>{dc.closed}</Text>}
+      {voided && <Text style={text}>{dc.voidedHint}</Text>}
+      {voided && deposit.paymentSlipUrl && <Text style={text}>{dc.voidedSlipHint}</Text>}
       {deposit.status === "not_issued" ? (
         <>
           <Text style={text}>{dc.notIssued}</Text>
@@ -104,6 +118,10 @@ export function DepositPaymentCard({
         <MobileButton variant="outline" disabled={busy} onPress={() => onOpen("deposit-payment-slip")}>
           {dc.viewSlip}
         </MobileButton>
+      )}
+      {onReturnSlip && open && deposit.status === "submitted" && deposit.submittedAt && (
+        // A new slip starts a new control: a reason typed for the earlier slip is not kept for it.
+        <SlipReturnControl key={deposit.submittedAt} busy={busy} onReturn={onReturnSlip} />
       )}
       {onUpload && open && deposit.status !== "not_issued" && (
         <>

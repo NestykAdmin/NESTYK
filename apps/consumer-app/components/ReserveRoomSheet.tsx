@@ -23,6 +23,7 @@ import {
 } from '../lib/tenant-profile';
 import { nextIdentityNumberDraft } from '../lib/identity-number';
 import { SheetHeader } from './AgentLeadDetailBody';
+import { DealOfferSection } from './DealOfferSection';
 
 /** Where the agent goes from the "booked" state: on to the reservation letter, or to the tenant page first. */
 export type ReserveNext = 'reservation' | 'tenant';
@@ -117,6 +118,8 @@ export function ReserveRoomSheet({
   const saving = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [booked, setBooked] = useState<AgentTenant | null>(null);
+  /** D2: the landlord confirmed this lead's offer for the room; booking waits for it. */
+  const [offerConfirmed, setOfferConfirmed] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const profileY = useRef(0);
   const chevron = useSharedValue(0);
@@ -145,6 +148,7 @@ export function ReserveRoomSheet({
     setEditing(false);
     setError(null);
     setBooked(null);
+    setOfferConfirmed(false);
     let active = true;
     tenantRoomOptions('', { leadId: lead.id, roomId: room.id })
       .then((rows) => {
@@ -170,6 +174,7 @@ export function ReserveRoomSheet({
     phone: c.errorPhone,
     email: c.errorEmail,
     identity: c.errorIdentity,
+    thai_id: c.errorThaiId,
   };
   const fieldError = (key: TenantProfileField) => {
     const issue = issues[key];
@@ -178,9 +183,12 @@ export function ReserveRoomSheet({
   const setField = (key: TenantProfileField, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
     setIssues((current) => {
-      if (!current[key]) return current;
+      // A wrong Thai ID may be fixed by the nationality (C3), so editing it clears that message too.
+      const clearsIdentity = key === 'nationality' && current.identityNumber === 'thai_id';
+      if (!current[key] && !clearsIdentity) return current;
       const next = { ...current };
       delete next[key];
+      if (clearsIdentity) delete next.identityNumber;
       return next;
     });
     setError(null);
@@ -197,12 +205,13 @@ export function ReserveRoomSheet({
   };
 
   const confirm = async () => {
-    if (saving.current || !lead || !room || takenBy) return;
-    const found = tenantProfileIssues(form);
+    if (saving.current || !lead || !room || takenBy || !offerConfirmed) return;
+    const found = tenantProfileIssues(form, lead.nationality);
     setIssues(found);
     if (Object.keys(found).length) {
-      // Name and phone sit behind "edit": open it so the message is visible.
-      if (found.firstName || found.phone) {
+      // Name and phone sit behind "edit": open it so the message is visible. A wrong Thai ID may be a
+      // nationality problem, and the nationality also sits there.
+      if (found.firstName || found.phone || found.identityNumber === "thai_id") {
         if (editing) scrollRef.current?.scrollTo({ y: Math.max(0, profileY.current - 8), animated: true });
         else setEditing(true);
       }
@@ -216,7 +225,9 @@ export function ReserveRoomSheet({
       if (showBookedState) setBooked(tenant);
       onReserved(tenant);
     } catch (err) {
-      setError(localizedError(err, t.common.errorGeneric, locale));
+      // D2: the API refuses a booking without the offer the landlord confirmed; say it in the reader's language.
+      const code = (err as { code?: unknown } | null)?.code;
+      setError(code === 'OFFER_NOT_CONFIRMED' ? t.contracts.offer.needConfirmed : localizedError(err, t.common.errorGeneric, locale));
     } finally {
       saving.current = false;
       setBusy(false);
@@ -244,13 +255,14 @@ export function ReserveRoomSheet({
                 ) : null}
               </View>
             </View>
-            {booked.email ? (
+            {/* C3 (Aof, 22 Oct 2026): the reservation letter needs the tenant's email and ID or passport number. */}
+            {booked.email && booked.identityNumber ? (
               <Text style={[styles.muted, { color: theme.textSecondary }]}>{c.reservedNext}</Text>
             ) : (
-              <Notice tone="warning" text={c.reservedNeedsEmail} />
+              <Notice tone="warning" text={booked.email ? c.reservedNeedsIdentity : c.reservedNeedsEmail} />
             )}
-            <MobileButton onPress={() => onContinue?.(booked, booked.email ? 'reservation' : 'tenant')}>
-              {booked.email ? c.continueToLetter : c.openTenant}
+            <MobileButton onPress={() => onContinue?.(booked, booked.email && booked.identityNumber ? 'reservation' : 'tenant')}>
+              {booked.email && booked.identityNumber ? c.continueToLetter : c.openTenant}
             </MobileButton>
             <MobileButton variant="outline" onPress={close}>
               {c.later}
@@ -271,6 +283,11 @@ export function ReserveRoomSheet({
               />
             </View>
             {takenBy ? <Notice tone="danger" text={c.reserveTaken.replace('{name}', takenBy)} /> : null}
+            {/* D2 (Aof, 22 Oct 2026): the terms the landlord confirms, before the room can be booked. */}
+            {/* Mounted only while the sheet is open, so reopening reads the offer again (the landlord may have confirmed). */}
+            {visible && lead && room && !takenBy ? (
+              <DealOfferSection key={`${lead.id}:${room.id}`} leadId={lead.id} roomId={room.id} disabled={busy} onConfirmedChange={setOfferConfirmed} />
+            ) : null}
 
             <MobileInput
               label={c.reserveEmail}
@@ -390,7 +407,10 @@ export function ReserveRoomSheet({
                   {error}
                 </Text>
               ) : null}
-              <MobileButton onPress={() => void confirm()} isLoading={busy} disabled={!!takenBy}>
+              {!takenBy && !offerConfirmed ? (
+                <Text style={[styles.muted, { color: theme.textSecondary }]}>{t.contracts.offer.needConfirmed}</Text>
+              ) : null}
+              <MobileButton onPress={() => void confirm()} isLoading={busy} disabled={!!takenBy || !offerConfirmed}>
                 {c.reserveConfirm}
               </MobileButton>
             </Animated.View>

@@ -139,7 +139,10 @@ export type TenantNextAction =
   | { kind: "broker_appointment"; contract: AgentContract | null }
   | { kind: "reservation" }
   | { kind: "confirm"; contract: AgentContract }
-  | { kind: "sign"; contract: AgentContract };
+  | { kind: "sign"; contract: AgentContract }
+  // D7: a generated lease waits for its deposit receipt, then for the handover.
+  | { kind: "deposit"; contract: AgentContract }
+  | { kind: "handover"; contract: AgentContract };
 
 /** The one thing the agent should do next for this tenant, most urgent first. */
 export function tenantNextAction(tenant: AgentTenant, billing: AgentTenantBilling | null): TenantNextAction | null {
@@ -152,6 +155,10 @@ export function tenantNextAction(tenant: AgentTenant, billing: AgentTenantBillin
   if (signed) return { kind: "confirm", contract: signed };
   const signing = open.find((c) => c.status === "awaiting_signatures");
   if (signing) return { kind: "sign", contract: signing };
+  const deposit = open.find((c) => c.status === "awaiting_deposit");
+  if (deposit) return { kind: "deposit", contract: deposit };
+  const handover = open.find((c) => c.status === "awaiting_handover");
+  if (handover) return { kind: "handover", contract: handover };
   // Nothing booked yet. D1 (AC-3.2): the room needs an active broker appointment before the reservation letter.
   if (open.every((c) => c.formKind === "broker_appointment")) {
     if (tenant.brokerAppointmentReady) return { kind: "reservation" };

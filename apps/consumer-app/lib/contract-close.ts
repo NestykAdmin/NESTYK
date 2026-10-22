@@ -13,12 +13,14 @@ export type CloseOption = {
 export type CloseDateProblem = "format" | "future" | "beforeStart" | "notBeforeEnd" | "notBeforeStart" | null;
 
 /**
- * Only an active lease or renewal can be closed (`POST /agent/contracts/:id/close`).
+ * Only an active lease or renewal, or a lease waiting for its deposit or handover (D7), can be closed
+ * (`POST /agent/contracts/:id/close`).
  * The API reads the kind from the contract's template, so a contract without one is refused there.
  */
 export function canCloseContract(contract: AgentContract): boolean {
   return (
-    contract.status === "active" &&
+    // D7 (Aof, 22 Oct 2026): a lease waiting for its deposit or handover can be closed too.
+    ["active", "awaiting_deposit", "awaiting_handover"].includes(contract.status) &&
     contract.templateId != null &&
     (contract.formKind === "lease" || contract.formKind === "renewal")
   );

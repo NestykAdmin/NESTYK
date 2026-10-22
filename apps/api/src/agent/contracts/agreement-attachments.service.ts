@@ -18,6 +18,7 @@ import {
 } from "../../entities/agreement-document.entity";
 import { LeaseContractEntity } from "../../entities/lease-contract.entity";
 import { ContractDocumentStorageService } from "./contract-document-storage.service";
+import { CO_BROKE_REQUIREMENT, coBrokeRequired } from "./deal-offers.service";
 
 const subjects = ["tenant", "owner", "property", "representative"];
 /** True once the stamped reservation letter PDF has been written. */
@@ -209,6 +210,11 @@ export class AgreementAttachmentsService {
       }),
     ]);
     const groups = attachmentChecklist(requirements, docs);
+    // D14 (AC-3.8): a reservation whose offer names another agent also needs the signed co-broke file. It is needed
+    // before the letter is issued, not before signing, so it is listed but does not count for readyToSign.
+    const coBroke = (await coBrokeRequired(this.db, c))
+      ? attachmentChecklist([CO_BROKE_REQUIREMENT as unknown as AgreementDocumentRequirementEntity], docs)
+      : [];
     let reusable: AgreementDocumentEntity[] = [];
     if (agentId && c.previous_agreement_id) {
       const previous = await this.contract(agentId, c.previous_agreement_id);
@@ -221,7 +227,7 @@ export class AgreementAttachmentsService {
     return {
       editable: documentsEditable(c),
       readyToSign: groups.every((g) => g.complete),
-      requirements: groups,
+      requirements: [...groups, ...coBroke],
       documentTypes: types.map((t) => ({ code: t.code, nameTh: t.name_th })),
       documents: docs.filter((d) => !d.removed_at).map((d) => this.serialize(d, docs)),
       reusableDocuments: reusable

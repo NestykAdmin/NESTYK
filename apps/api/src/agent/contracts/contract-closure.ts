@@ -11,6 +11,7 @@ import { ContractDepositTransferEntity } from "../../entities/contract-deposit-t
 import { ContractDepositSettlementEntity } from "../../entities/contract-deposit-settlement.entity";
 import { TenantBillEntity } from "../../entities/tenant-bill.entity";
 import { AgreementSignInviteEntity } from "../../entities/agreement-sign-invite.entity";
+import { AgentInvoiceEntity } from "../../entities/agent-invoice.entity";
 import { asIsoDate, isIsoDate } from "./lease-term";
 import { bangkokToday } from "../../billing/rent-schedule";
 
@@ -83,7 +84,9 @@ export async function closeLeaseContract(db: DataSource, agentId: number, id: nu
         throw new ConflictException("สัญญานี้ปิดแล้ว ไม่สามารถเปลี่ยนข้อมูลปิดสัญญา");
       return billingSummary(manager, id, b.effectiveEndDate);
     }
-    if (c.status !== "active") throw new BadRequestException("ปิดได้เฉพาะสัญญาที่มีผลใช้งาน");
+    // D7 (Aof, 22 Oct 2026): a lease waiting for its deposit or handover can be closed too (e.g. the tenant withdraws).
+    if (!["active", "awaiting_deposit", "awaiting_handover"].includes(c.status))
+      throw new BadRequestException("ปิดได้เฉพาะสัญญาที่มีผลใช้งาน หรือสัญญาเช่าที่รอเงินประกันหรือรอส่งมอบ");
     if (!reason.is_active || reason.code === "draft_cancelled")
       throw new BadRequestException("เหตุผลนี้ไม่รองรับการปิดสัญญาที่มีผลใช้งาน");
     if (reason.requires_note && !b.note) throw new BadRequestException("เหตุผลนี้ต้องระบุหมายเหตุ");
@@ -118,6 +121,12 @@ export async function closeLeaseContract(db: DataSource, agentId: number, id: nu
     });
     await manager.update(AgreementSignInviteEntity,
       { agreement_id: id, used_at: IsNull(), revoked_at: IsNull() }, { revoked_at: recorded });
+    // D7 (Aof, 22 Oct 2026): the deposit is due by the move-in day. A lease closed while it waits for the deposit
+    // cancels its unpaid deposit invoice, so the tenant owes nothing. A slip the tenant sent stays viewable.
+    if (c.status === "awaiting_deposit")
+      await manager.update(AgentInvoiceEntity,
+        { lease_contract_id: id, invoice_kind: "deposit", receipt_pdf_path: IsNull(), receipt_document_no: IsNull(), voided_at: IsNull() },
+        { voided_at: recorded });
     const remaining = manager.getRepository(LeaseContractEntity).createQueryBuilder("other")
       .leftJoin("other.template", "template")
       .where("other.lead_id = :leadId AND other.rent_room_id = :roomId AND other.id <> :id",

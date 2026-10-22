@@ -5,6 +5,7 @@ import { MasterRoleEntity, MasterRoleName } from "../../entities/master-role.ent
 import { UserEntity } from "../../entities/user.entity";
 import { UserRoleEntity } from "../../entities/user-role.entity";
 import { TenantEntity } from "../../entities/tenant.entity";
+import { normalizeIdentityNumber } from "../../common/identity-number";
 
 function envValue(name: string) {
   return (process.env[name] ?? "").trim().replace(/^"|"$/g, "");
@@ -88,21 +89,17 @@ const personNames = (p: PersonFields) =>
   [p.name ?? "", [p.firstName, p.lastName].filter((part) => part?.trim()).join(" ")]
     .map(cleanName)
     .filter(Boolean);
-const personId = (value: string | null | undefined) => (value ?? "").replace(/[\s-]/g, "").toUpperCase();
-
 /**
- * Two tenant records are the same person when the ID numbers match, or when any spelling of the name
- * matches (after dropping titles, spaces and invisible characters). Two different Thai ID numbers mean two
- * people; other different numbers alone do not, because one record may hold a passport number and the
- * other a Thai ID.
+ * C3, decided by Aof on 22 Oct 2026: two tenant records are the same person when their ID numbers (Thai ID or
+ * passport, ignoring spaces, dashes and case) match, and two different people otherwise. Names are not compared.
+ * Only a record saved before the number was required (no number at all) falls back to the name: it matches when
+ * any spelling of the name matches (after dropping titles, spaces and invisible characters).
  */
 export function sameTenantPerson(a: PersonFields, b: PersonFields): boolean {
-  const idA = personId(a.identityNumber);
-  const idB = personId(b.identityNumber);
-  if (idA && idA === idB) return true;
-  // Two different 13-digit Thai ID numbers are two people, even with the same name.
-  const thaiId = (value: string) => /^\d{13}$/.test(value);
-  if (thaiId(idA) && thaiId(idB)) return false;
+  const idA = normalizeIdentityNumber(a.identityNumber);
+  const idB = normalizeIdentityNumber(b.identityNumber);
+  if (idA && idB) return idA === idB;
+  // A side without a number is an old record: fall back to the name.
   const names = new Set(personNames(a));
   return personNames(b).some((name) => names.has(name));
 }
@@ -133,7 +130,8 @@ export async function assertTenantEmailNotShared(
     (row) =>
       row.lead_id !== input.leadId &&
       !sameTenantPerson(
-        { name: row.name, firstName: row.first_name, lastName: row.last_name, identityNumber: row.identity_number },
+        // An old tenant record without a number uses the number the account keeps, when it has one.
+        { name: row.name, firstName: row.first_name, lastName: row.last_name, identityNumber: row.identity_number || user.identity_number },
         input,
       ),
   );

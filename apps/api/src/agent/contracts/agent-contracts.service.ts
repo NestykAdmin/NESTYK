@@ -1,6 +1,9 @@
-import type { ContractParty } from "@nestyk/types";
+import type { ContractParty, HandoverBlockedReason } from "@nestyk/types";
 import { validateSignaturePng } from './signature-image';
-import { financialKind, validateFinancialDocument, buildReceiptFromInvoice, financialTotals } from "./financial-document";
+import {
+  financialKind, validateFinancialDocument, buildReceiptFromInvoice, financialTotals, receiptReceiver, receiverLine,
+  withholdingTaxOf, POWER_OF_ATTORNEY_REQUIRED, POWER_OF_ATTORNEY_MESSAGE,
+} from "./financial-document";
 import { createFinancialPdf } from "./financial-pdf";
 import { reservationInvoice } from "./reservation-invoice";
 import { depositInvoice, depositInvoiceNo, depositReceiptNo, leaseDepositAmount } from "./deposit-invoice";
@@ -71,6 +74,7 @@ import {
 import { asIsoDate, isIsoDate, leaseTermEnd, shiftIsoDate } from "./lease-term";
 import { validateReservationLetter, emptyReservationLetter, stampReservationDocumentHeader, bangkokDate, reservationTenantFields } from "./reservation-letter";
 import { ensurePartyLogin } from "./party-login";
+import { CO_BROKE_REQUIRED, confirmedOffer, hasCoBrokeFile, offerLeaseFields, offerReservationFields } from "./deal-offers.service";
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
 import { closeLeaseContract, contractEndReasons } from "./contract-closure";
 import { bangkokToday } from "../../billing/rent-schedule";
@@ -93,6 +97,7 @@ import type {
 import { AgreementSignInviteEntity } from "../../entities/agreement-sign-invite.entity";
 import { AgreementSignatureEntity } from "../../entities/agreement-signature.entity";
 import { LeaseContractEntity } from "../../entities/lease-contract.entity";
+import { AgreementDocumentEntity } from "../../entities/agreement-document.entity";
 import { AgentInvoiceEntity } from "../../entities/agent-invoice.entity";
 import { AgentCommissionConfirmationEntity } from "../../entities/agent-commission-confirmation.entity";
 import { LeadEntity } from "../../entities/lead.entity";
@@ -137,13 +142,14 @@ const SIGN_COLUMNS: Record<
   tenant: { at: "tenant_signed_at", url: "tenant_signature_url" },
   agent: { at: "agent_signed_at", url: "agent_signature_url" },
 };
+// Nothing is signed any more: closed, in force, or (D7) a generated lease waiting for its deposit or handover.
 const CLOSED_STATUSES = [
   "cancelled",
   "expired",
   "terminated",
   "active",
-  "awaiting_payment",
-  "awaiting_payment_verification",
+  "awaiting_deposit",
+  "awaiting_handover",
 ] as const;
 const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024;
 const CONTRACT_NO_PATTERN = /^(RS|LS|BA|RN)(\d{4})(\d{5})$/;
@@ -174,6 +180,23 @@ export function formatInvoiceNo(year: number, seq: number) {
   return `INV${year}${String(seq).padStart(5, "0")}`;
 }
 
+/**
+ * D11: the slip the agent looked at (its submittedAt) must still be the tenant's latest one: a slip sent meanwhile is
+ * not returned (or removed) with a reason written for the earlier one.
+ */
+export const SLIP_CHANGED = "SLIP_CHANGED";
+function assertSameSlip(input: unknown, current: string | null | undefined) {
+  const seen = input && typeof input === "object" && !Array.isArray(input) ? (input as { submittedAt?: unknown }).submittedAt : undefined;
+  if (typeof seen !== "string" || !current || seen !== current)
+    throw new ConflictException({ code: SLIP_CHANGED, message: "ผู้เช่าส่งสลิปใหม่แล้ว กรุณาเปิดดูสลิปล่าสุดก่อนตีกลับ" });
+}
+/** D11: the reason the agent gives when returning a slip (the same rule as rent bills: required, up to 500 characters). */
+export function slipReturnReason(input: unknown) {
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? (input as { reason?: unknown }).reason : undefined;
+  const reason = typeof raw === "string" ? raw.trim() : "";
+  if (!reason || reason.length > 500) throw new BadRequestException("กรุณาระบุเหตุผลในการตีกลับ (ไม่เกิน 500 ตัวอักษร)");
+  return reason;
+}
 export async function nextInvoiceNo(manager: EntityManager, at = new Date()) {
   const year = contractYear(at);
   await manager.query("SELECT pg_advisory_xact_lock($1)", [900_000_000 + year]);
@@ -498,7 +521,8 @@ export class AgentContractsService {
     const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
     if (!c) throw new NotFoundException("ไม่พบสัญญา");
     const rows = await this.db.getRepository(AgreementSignatureEntity).find({
-      where: { agreement_id: c.id, voided_at: IsNull() },
+      // D6: the signatures of a handover record are not signatures of the lease.
+      where: { agreement_id: c.id, voided_at: IsNull(), handover_record_id: IsNull() },
       relations: { signed_by: true },
       order: { signed_at: "ASC", id: "ASC" },
     });
@@ -516,6 +540,7 @@ export class AgentContractsService {
 
   private async liveWitness(agreementId: number, manager?: EntityManager) {
     return (manager ?? this.db).getRepository(AgreementSignatureEntity).findOne({
+      // No handover filter needed: a handover record cannot have a witness (chk_agreement_signatures_handover).
       where: { agreement_id: agreementId, party: "witness", voided_at: IsNull() },
       relations: { signed_by: true },
     });
@@ -538,7 +563,8 @@ export class AgentContractsService {
     if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "lease")
       throw new BadRequestException("พยานลงนามได้เฉพาะสัญญาเช่า");
     this.assertDocumentMutable(c);
-    if (CLOSED_STATUSES.includes(c.status as (typeof CLOSED_STATUSES)[number]) || c.status === "active")
+    // CLOSED_STATUSES already has active and the D7 statuses after generation.
+    if (CLOSED_STATUSES.includes(c.status as (typeof CLOSED_STATUSES)[number]))
       throw new BadRequestException("สัญญานี้ไม่สามารถลงนามได้");
     if (await this.liveWitness(c.id)) throw new BadRequestException("พยานลงนามแล้ว");
     if (!this.documents)
@@ -565,6 +591,32 @@ export class AgentContractsService {
       throw error;
     }
     return this.view(agentId, c.id);
+  }
+
+  /** D6: one of this agent's contracts with its template, or 404. */
+  async contractForAgent(agentId: number, id: number) {
+    const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
+    if (!c) throw new NotFoundException("ไม่พบสัญญา");
+    return c;
+  }
+
+  /**
+   * D6 (AC-6.1): the room is handed over after the lease document is generated and, when the lease has a deposit,
+   * after the deposit receipt is issued. Returns why the handover cannot be filled in yet, or null.
+   */
+  async handoverBlockedReason(c: LeaseContractEntity, manager?: EntityManager): Promise<HandoverBlockedReason | null> {
+    if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "lease") return "not_lease";
+    if (["cancelled", "expired", "terminated"].includes(c.status)) return "contract_ended";
+    if (this.leaseDocument(c)?.status !== "ready") return "lease_not_issued";
+    // D7: the lease status says the deposit is still due, even if a receipt row exists.
+    if (c.status === "awaiting_deposit") return "deposit_unpaid";
+    if (leaseDepositAmount(c) > 0) {
+      const invoice = await (manager ?? this.db).getRepository(AgentInvoiceEntity).findOne({
+        where: { lease_contract_id: c.id, invoice_kind: "deposit" },
+      });
+      if (!invoice?.receipt_pdf_path) return "deposit_unpaid";
+    }
+    return null;
   }
 
   private inboxQuery() {
@@ -735,7 +787,7 @@ export class AgentContractsService {
     const url = (path: string | null | undefined) =>
       (path && signed.get(path)) || null;
     const financial = c.data?.financialDocuments as Partial<Record<string, FinancialDocumentInput>> | undefined;
-    const payment = c.data?.reservationPayment as { slipPath?: string; submittedAt?: string } | undefined;
+    const payment = c.data?.reservationPayment as { slipPath?: string; submittedAt?: string; returnNote?: string } | undefined;
     return {
       id: c.id,
       tenantId: c.tenant_id,
@@ -816,6 +868,7 @@ export class AgentContractsService {
         status: c.receipt_url ? "paid" : payment?.slipPath ? "submitted" : "unpaid",
         paymentSlipUrl: url(payment?.slipPath),
         submittedAt: payment?.submittedAt ?? null,
+        slipReturnReason: !c.receipt_url && !payment?.slipPath ? payment?.returnNote ?? null : null,
       } : null,
       depositPayment: this.depositPayment(c, url),
     };
@@ -830,10 +883,10 @@ export class AgentContractsService {
     if (!row)
       return {
         status: "not_issued", total: leaseDepositAmount(c), invoiceId: null, invoiceDocumentNo: null, dueDate: null,
-        invoiceUrl: null, receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null,
+        invoiceUrl: null, receiptDocumentNo: null, receiptUrl: null, paymentSlipUrl: null, submittedAt: null, slipReturnReason: null,
       };
     return {
-      status: row.receipt_pdf_path ? "paid" : row.payment_slip_path ? "submitted" : "unpaid",
+      status: row.voided_at ? "voided" : row.receipt_pdf_path ? "paid" : row.payment_slip_path ? "submitted" : "unpaid",
       total: financialTotals(row.data).total,
       invoiceId: row.id,
       invoiceDocumentNo: row.document_no,
@@ -843,6 +896,7 @@ export class AgentContractsService {
       receiptUrl: url(row.receipt_pdf_path),
       paymentSlipUrl: url(row.payment_slip_path),
       submittedAt: row.slip_submitted_at ? new Date(row.slip_submitted_at).toISOString() : null,
+      slipReturnReason: !row.receipt_pdf_path && !row.payment_slip_path ? row.slip_return_note ?? null : null,
     };
   }
   private async loadDepositInvoices(rows: LeaseContractEntity[]) {
@@ -960,6 +1014,7 @@ export class AgentContractsService {
       throw new BadRequestException(
         "กรุณาลงนามให้ครบทั้ง 3 ฝ่ายก่อนสร้างเอกสาร",
       );
+    if (generate && state.status !== "ready") await this.assertReservationCoBroke(c);
     if (!this.documents)
       throw new ServiceUnavailableException(
         "ยังไม่ได้ตั้งค่าที่เก็บเอกสารสัญญา",
@@ -1293,11 +1348,13 @@ export class AgentContractsService {
         },
         {
           document_url: stored.path,
+          // D7 (AC-4.6, 5.4): a generated lease waits for the deposit receipt (or, without a deposit, for the
+          // handover) and is active only once the handover is signed by both. Rent bills start then.
           ...(generate &&
           ["draft", "awaiting_signatures", "awaiting_agent_review"].includes(
             c.status,
           )
-            ? { status: "active" as const }
+            ? { status: leaseDepositAmount(c) > 0 ? ("awaiting_deposit" as const) : ("awaiting_handover" as const) }
             : {}),
         },
       );
@@ -1476,10 +1533,29 @@ export class AgentContractsService {
             throw new BadRequestException("กรุณาสร้างใบแจ้งหนี้ก่อนสร้างใบเสร็จ");
           const body = input && typeof input === "object" && !Array.isArray(input)
             ? input as Partial<FinancialDocumentInput> : {};
+          // D11 (AC-3.5): the landlord receives the booking money, or the agent with a power of attorney attached.
+          const receivedBy = receiptReceiver((body as { receivedBy?: unknown }).receivedBy);
+          if (receivedBy === "agent" && !(await this.hasPowerOfAttorney(manager, [current.id])))
+            throw new BadRequestException({ code: POWER_OF_ATTORNEY_REQUIRED, message: POWER_OF_ATTORNEY_MESSAGE });
+          const letter = (current.data?.reservationLetter ?? {}) as Partial<ReservationLetterInput>;
+          const snapshot = current.party_snapshot ?? {};
+          const issuer = String(financial.invoice.issuerName ?? "");
+          const landlordName = String(letter.landlordName || snapshot.ownerName || (issuer !== "NESTYK" ? issuer : "")).trim();
+          if (receivedBy === "landlord" && !landlordName)
+            throw new BadRequestException("ไม่พบชื่อผู้ให้เช่าในหนังสือจอง กรุณาตรวจสอบข้อมูลผู้ให้เช่า");
+          const receiverName = receiverLine(
+            receivedBy,
+            landlordName,
+            receivedBy === "agent" ? await this.agentName(manager, agentId, letter.agentName || snapshot.agentName) : "",
+          );
           data = buildReceiptFromInvoice(financial.invoice, {
             ...body,
+            receiverName,
             documentNo: `REC-${current.contract_no || `RS${current.id}`}`,
           }, { documentNo: `REC-${current.contract_no || `RS${current.id}`}`, issueDate: bangkokDate() });
+          // D11 (TC-3.15): the tax the tenant withheld; the receipt keeps the full amount.
+          const withheld = withholdingTaxOf((body as { withholdingTax?: unknown }).withholdingTax, financialTotals(data).total);
+          data = { ...data, receivedBy, ...(withheld > 0 ? { withholdingTax: withheld } : {}) };
         }
         const bytes = await createFinancialPdf(kind, data);
         const stored = await documents.upload(agentId, id, kind, { buffer: bytes, size: bytes.length });
@@ -1744,6 +1820,7 @@ export class AgentContractsService {
    */
   private assertDepositReceipt(row: AgentInvoiceEntity, lease: LeaseContractEntity | null, hasSlip: boolean) {
     if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+    if (row.voided_at) throw new BadRequestException("ใบแจ้งหนี้เงินประกันถูกยกเลิกแล้ว ออกใบเสร็จไม่ได้");
     if (["cancelled", "expired", "terminated"].includes(lease.status))
       throw new BadRequestException("สัญญาเช่าปิดแล้ว ออกใบเสร็จเงินประกันไม่ได้");
     if (hasSlip && row.payment_slip_path && row.slip_submitted_at)
@@ -1808,9 +1885,27 @@ export class AgentContractsService {
           (row.invoice_kind === "deposit"
             ? depositReceiptNo(row.document_no)
             : await nextReceiptNo(manager));
-        const data = buildReceiptFromInvoice(
+        // D11 (AC-3.5): a deposit receipt is received by the landlord, or by the agent with a power of attorney
+        // attached to the lease or its reservation. There is no withholding tax on a deposit.
+        let receipt: { receiverName?: string; receivedBy?: "landlord" | "agent" } = {};
+        if (row.invoice_kind === "deposit") {
+          const receivedBy = receiptReceiver((body as { receivedBy?: unknown }).receivedBy);
+          if (withholdingTaxOf((body as { withholdingTax?: unknown }).withholdingTax, Number.MAX_SAFE_INTEGER) > 0)
+            throw new BadRequestException("ใบเสร็จเงินประกันไม่มีภาษีหัก ณ ที่จ่าย");
+          if (receivedBy === "agent" && !(await this.hasPowerOfAttorney(manager, await this.dealAgreementIds(manager, agentId, lease!))))
+            throw new BadRequestException({ code: POWER_OF_ATTORNEY_REQUIRED, message: POWER_OF_ATTORNEY_MESSAGE });
+          receipt = {
+            receivedBy,
+            receiverName: receiverLine(
+              receivedBy,
+              row.data.issuerName,
+              receivedBy === "agent" ? await this.agentName(manager, agentId, lease?.party_snapshot?.agentName) : "",
+            ),
+          };
+        }
+        const built = buildReceiptFromInvoice(
           row.data,
-          { ...body, documentNo },
+          { ...body, ...receipt, documentNo },
           {
             documentNo,
             issueDate:
@@ -1820,6 +1915,7 @@ export class AgentContractsService {
           },
           { paymentMethodOptional: !method },
         );
+        const data: FinancialDocumentInput = receipt.receivedBy ? { ...built, receivedBy: receipt.receivedBy } : built;
         let bytes: Buffer;
         try {
           bytes = await createFinancialPdf("receipt", data);
@@ -1840,6 +1936,9 @@ export class AgentContractsService {
           previousSlip = row.payment_slip_path;
           row.payment_slip_path = slipPath;
         }
+        // D7: the deposit is received, so the lease (locked above) now waits for the handover.
+        if (lease?.status === "awaiting_deposit")
+          await manager.update(LeaseContractEntity, { id: lease.id, status: "awaiting_deposit" }, { status: "awaiting_handover" });
         return repo.save(row);
       });
       if (previousPath && previousPath !== saved.receipt_pdf_path)
@@ -1912,6 +2011,89 @@ export class AgentContractsService {
       throw error;
     }
     return this.view(agentId, c.id);
+  }
+  /** D11 (AC-3.5): a current, not rejected power of attorney is attached to one of these agreements. */
+  private async hasPowerOfAttorney(manager: EntityManager, agreementIds: number[]) {
+    if (!agreementIds.length) return false;
+    const docs = await manager.find(AgreementDocumentEntity, { where: { agreement_id: In(agreementIds) } });
+    const replaced = new Set(docs.map((d) => d.supersedes_document_id).filter((id) => id != null));
+    // The landlord's power of attorney: one filed for the tenant does not let the agent receive for the landlord.
+    return docs.some((d) => d.document_type_code === "power_of_attorney" && d.subject !== "tenant" && !d.removed_at &&
+      !replaced.has(d.id) && d.review_status !== "rejected");
+  }
+  /** D11: the lease and the not cancelled reservations of the same lead and room (where the power of attorney may be attached). */
+  private async dealAgreementIds(manager: EntityManager, agentId: number, lease: LeaseContractEntity) {
+    const rows = await manager.find(LeaseContractEntity, {
+      where: { created_by_user_id: agentId, lead_id: lease.lead_id, rent_room_id: lease.rent_room_id },
+      relations: { template: true, agreement_type: true },
+    });
+    return [lease.id, ...rows
+      .filter((row) => row.id !== lease.id && row.status !== "cancelled" &&
+        (row.template?.form_kind ?? row.agreement_type?.form_kind) === "reservation")
+      .map((row) => row.id)];
+  }
+  private async agentName(manager: EntityManager, agentId: number, known?: unknown) {
+    if (typeof known === "string" && known.trim()) return known.trim();
+    const user = await manager.findOne(UserEntity, { where: { id: agentId } });
+    return [user?.first_name, user?.last_name].filter((part) => part?.trim()).join(" ").trim();
+  }
+  /** D11 (AC-3.4): the agent returns the tenant's booking slip with a reason; the tenant then sends a new one. */
+  async returnReservationSlip(agentId: number, id: number, input: unknown) {
+    const reason = slipReturnReason(input);
+    const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
+    if (!c) throw new NotFoundException("ไม่พบสัญญา");
+    this.assertReservationFinancialOpen(c);
+    let oldPath: string | undefined;
+    await this.db.transaction(async (manager) => {
+      const current = await manager.findOne(LeaseContractEntity, {
+        where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
+      });
+      if (!current) throw new NotFoundException("ไม่พบสัญญา");
+      this.assertReservationFinancialOpen({ ...current, template: c.template, agreement_type: c.agreement_type });
+      if (current.receipt_url) throw new BadRequestException("ออกใบเสร็จแล้ว ตีกลับสลิปไม่ได้");
+      const payment = current.data?.reservationPayment as { slipPath?: string; submittedAt?: string } | undefined;
+      if (!payment?.slipPath) throw new BadRequestException("ยังไม่มีสลิปที่ส่งมาให้ตีกลับ");
+      assertSameSlip(input, payment.submittedAt);
+      oldPath = payment.slipPath;
+      await manager.update(LeaseContractEntity, { id: current.id }, {
+        payment_submitted_at: null,
+        data: {
+          ...current.data,
+          reservationPayment: { returnNote: reason, returnedAt: new Date().toISOString(), returnedBy: agentId },
+        },
+      });
+    });
+    if (oldPath) await this.documents?.remove(oldPath).catch(() => undefined);
+    return this.view(agentId, id);
+  }
+  /** D11 (AC-5.4): the same for the deposit slip of a generated lease. */
+  async returnDepositSlip(agentId: number, id: number, input: unknown) {
+    const reason = slipReturnReason(input);
+    let oldPath: string | null = null;
+    await this.db.transaction(async (manager) => {
+      // The lease first, then the invoice: the order the slip upload and the receipt use.
+      const lease = await manager.findOne(LeaseContractEntity, {
+        where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
+      });
+      if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+      this.assertNotEnded(lease);
+      const row = await manager.findOne(AgentInvoiceEntity, {
+        where: { lease_contract_id: lease.id, invoice_kind: "deposit", created_by_user_id: agentId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!row) throw new BadRequestException("ยังไม่มีใบแจ้งหนี้เงินประกัน");
+      if (row.voided_at) throw new BadRequestException("ใบแจ้งหนี้เงินประกันถูกยกเลิกแล้ว");
+      if (row.receipt_pdf_path) throw new BadRequestException("ออกใบเสร็จแล้ว ตีกลับสลิปไม่ได้");
+      if (!row.payment_slip_path || !row.slip_submitted_at)
+        throw new BadRequestException("ยังไม่มีสลิปที่ผู้เช่าส่งมาให้ตีกลับ");
+      assertSameSlip(input, new Date(row.slip_submitted_at).toISOString());
+      oldPath = row.payment_slip_path;
+      await manager.update(AgentInvoiceEntity, { id: row.id }, {
+        payment_slip_path: null, slip_submitted_at: null, slip_return_note: reason,
+      });
+    });
+    if (oldPath) await this.documents?.remove(oldPath).catch(() => undefined);
+    return this.view(agentId, id);
   }
   private reservationSigningBlockedReason(c: LeaseContractEntity, parties: AgentContractSignParty[]) {
     const formKind = c.template?.form_kind ?? c.agreement_type?.form_kind ?? "lease";
@@ -2171,10 +2353,12 @@ export class AgentContractsService {
         });
         if (!current) throw new NotFoundException("ไม่พบใบแจ้งหนี้เงินประกัน");
         if (current.receipt_pdf_path) throw new ConflictException("ออกใบเสร็จแล้ว ไม่สามารถเปลี่ยนสลิปได้");
+        if (current.voided_at) throw new ConflictException("ใบแจ้งหนี้เงินประกันถูกยกเลิกแล้ว ไม่ต้องส่งสลิป");
         oldPath = current.payment_slip_path;
         await manager.update(AgentInvoiceEntity, { id: current.id }, {
           payment_slip_path: stored.path,
           slip_submitted_at: new Date(),
+          slip_return_note: null,
         });
       });
     } catch (error) {
@@ -2453,6 +2637,7 @@ export class AgentContractsService {
         l.rent_room!.listing_title ||
         "ไม่ระบุโครงการ",
       room: l.rent_room!.room_id,
+      rentRoomId: l.rent_room!.id,
       brokerAppointmentReady: appointments.has(brokerAppointmentKey(l.rent_room!.id, l.tenant!.id)),
     }));
   }
@@ -2569,7 +2754,9 @@ export class AgentContractsService {
       ? `${ownerUser.first_name ?? ""} ${ownerUser.last_name ?? ""}`.trim()
       : "";
     const landlordIsUser = Boolean(ownerFull) && landlordName === ownerFull;
-    return {
+    // D2: the terms the landlord confirmed replace the room's numbers.
+    const offer = await confirmedOffer(this.db, lead.id, room.id);
+    const letter: ReservationLetterInput = {
       ...emptyReservationLetter(),
       issueDate: bangkokDate(),
       ...reservationTenantFields(tenant),
@@ -2602,6 +2789,19 @@ export class AgentContractsService {
       landlordSignName: landlordName,
       agentSignName: agentName,
     };
+    return offer ? { ...letter, ...offerReservationFields(offer) } : letter;
+  }
+
+  /** D2: the offer the landlord confirmed for the lead's room, which fixes the numbers of its letter and lease. */
+  private async leadOffer(agentId: number, leadId: number) {
+    const lead = await this.db.getRepository(LeadEntity).findOneBy({ id: leadId, created_by_user_id: agentId });
+    return confirmedOffer(this.db, lead?.id, lead?.rent_room_id);
+  }
+
+  /** D14 (AC-3.8): an offer naming another agent needs the signed co-broke file before the letter is issued. */
+  private async assertReservationCoBroke(c: LeaseContractEntity) {
+    if ((await confirmedOffer(this.db, c.lead_id, c.rent_room_id))?.co_broke && !(await hasCoBrokeFile(this.db, c.id)))
+      throw new BadRequestException({ code: "CO_BROKE_REQUIRED", message: CO_BROKE_REQUIRED });
   }
 
   async brokerAppointmentDefaults(
@@ -2717,7 +2917,8 @@ export class AgentContractsService {
     const agentContact = [base.agentName, base.agentPhone, "NESTYK"]
       .filter(Boolean)
       .join(" · ");
-    return {
+    const offer = await confirmedOffer(this.db, lead?.id, room?.id);
+    const lease: LeaseAgreementInput = {
       ...emptyLeaseAgreement(),
       issueDate: base.issueDate,
       landlordName: base.landlordName,
@@ -2756,6 +2957,9 @@ export class AgentContractsService {
       tenantSignName: base.tenantName,
       witnessSignName: base.agentName,
     };
+    // D2: the due day, grace day and late fee come only from the offer; the other numbers replace the letter's.
+    // The contract date only starts the lease's date: the signing may move, so the agent can change it.
+    return offer ? { ...lease, ...offerLeaseFields(offer), issueDate: String(offer.contract_date).slice(0, 10) } : lease;
   }
 
   private assertDraft(c: LeaseContractEntity) {
@@ -2974,7 +3178,7 @@ export class AgentContractsService {
       });
     if (!template || template.form_kind !== type.form_kind)
       throw new BadRequestException("ไม่พบแม่แบบสัญญาที่เปิดใช้งาน");
-    const b = validateContract(input, template.form_kind);
+    let b = validateContract(input, template.form_kind);
     const needsAppointment = template.form_kind === "reservation" && !existing;
     if (needsAppointment) {
       // D1: the agent must be appointed for the room before booking it. A draft saved before this rule keeps working.
@@ -2997,6 +3201,11 @@ export class AgentContractsService {
     let brokerAppointment: BrokerAppointmentInput | undefined;
     let leaseAgreement: LeaseAgreementInput | undefined;
     let leaseRenewal: LeaseRenewalInput | undefined;
+    // D2 (AC-2.4): with an offer the landlord confirmed, its numbers are the letter's and the lease's whatever was typed.
+    const offer = ["reservation", "lease"].includes(type.form_kind) ? await this.leadOffer(agentId, b.leadId) : null;
+    // The booking invoice and the move-in date follow the offer too (AC-3.3), with or without the letter's fields.
+    if (offer && type.form_kind === "reservation")
+      b = { ...b, reservationFee: Number(offer.monthly_rent), moveInDate: String(offer.start_date).slice(0, 10) };
     if (type.form_kind === "reservation" && rawData.reservationLetter != null) {
       const savedLetter = existing?.data?.reservationLetter as
         | ReservationLetterInput
@@ -3015,6 +3224,7 @@ export class AgentContractsService {
         letter.tenantEmail = pulled.tenantEmail;
         letter.tenantId = pulled.tenantId;
         letter.tenantNationality = pulled.tenantNationality;
+        if (offer) Object.assign(letter, offerReservationFields(offer));
       }
       reservationLetter = validateReservationLetter(stamped);
       if (Number(reservationLetter.reservationPayment.replace(/,/g, "")) !== b.reservationFee)
@@ -3053,7 +3263,10 @@ export class AgentContractsService {
       delete rawData.brokerAppointment;
     }
     if (type.form_kind === "lease" && rawData.leaseAgreement != null) {
-      leaseAgreement = validateLeaseAgreement(rawData.leaseAgreement);
+      const typed = rawData.leaseAgreement;
+      leaseAgreement = validateLeaseAgreement(
+        offer && typed && typeof typed === "object" && !Array.isArray(typed) ? { ...typed, ...offerLeaseFields(offer) } : typed,
+      );
       delete rawData.leaseAgreement;
     }
     if (type.form_kind === "renewal" && rawData.leaseRenewal != null) {
@@ -3086,6 +3299,16 @@ export class AgentContractsService {
         monthlyRent: rent,
         deposit: deposit,
       };
+    } else if (offer && type.form_kind === "lease") {
+      // D2: a lease saved without its form still takes the offer's terms.
+      const terms = offerLeaseFields(offer);
+      contractInput = {
+        ...b,
+        startDate: terms.termFrom!,
+        endDate: terms.termTo!,
+        monthlyRent: Number(offer.monthly_rent),
+        deposit: Number(offer.deposit_amount),
+      };
     }
     if (leaseRenewal) {
       const rent = Number(String(leaseRenewal.monthlyRent).replace(/,/g, ""));
@@ -3115,6 +3338,9 @@ export class AgentContractsService {
     if (leaseAgreement)
       data.leaseAgreement = leaseAgreementSnapshot(leaseAgreement);
     if (leaseRenewal) data.leaseRenewal = leaseRenewalSnapshot(leaseRenewal);
+    // D11: a returned booking slip keeps its reason for the tenant when the draft is edited before a new slip comes.
+    const returned = existing?.data?.reservationPayment as { slipPath?: string; returnNote?: string } | undefined;
+    if (template.form_kind === "reservation" && returned?.returnNote && !returned.slipPath) data.reservationPayment = returned;
     let storedInvoicePath: string | null = null;
     const id = await this.db.transaction(async (manager) => {
       const lead = await manager.findOne(LeadEntity, {

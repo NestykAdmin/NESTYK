@@ -20,8 +20,10 @@ export type AgentContractStatus =
   | "draft"
   | "awaiting_signatures"
   | "awaiting_agent_review"
-  | "awaiting_payment"
-  | "awaiting_payment_verification"
+  /** D7: the lease document is generated; waiting for the deposit receipt. */
+  | "awaiting_deposit"
+  /** D7: the deposit is received (or there is none); waiting for the handover to be signed by both. */
+  | "awaiting_handover"
   | "active"
   | "cancelled"
   | "expired"
@@ -83,16 +85,74 @@ export interface AgentContract {
     status: "unpaid" | "submitted" | "paid";
     paymentSlipUrl: string | null;
     submittedAt: string | null;
+    /** D11 (AC-3.4): why the agent returned the tenant's slip; null once a new slip is sent. */
+    slipReturnReason?: string | null;
   } | null;
   /** D10: the deposit of a generated lease (null when not a lease, not generated yet, or the deposit is 0). */
   depositPayment?: DepositPayment | null;
 }
 /**
+ * D2 (AC-2.1 to 2.4, round 1): the terms agreed for a lead and a room, confirmed by the landlord before the room is
+ * booked. The numbers then flow into the reservation letter and the lease. A confirmed offer cannot change in round 1.
+ */
+export type DealOfferStatus = "draft" | "awaiting_landlord" | "confirmed" | "room_taken" | "cancelled";
+/** app = the landlord confirmed in the app; agent_recorded = the agent recorded the landlord's confirmation. */
+export type DealOfferConfirmationChannel = "app" | "agent_recorded";
+export type DealOfferConfirmationMethod = "phone" | "line" | "in_person" | "other";
+/** The terms the agent types. Money is text like the contract forms ("15000" or "15,000.50"). */
+export interface DealOfferTerms {
+  monthlyRent: string;
+  termMonths: number;
+  startDate: string;
+  depositAmount: string;
+  contractDate: string;
+  rentDueDay: number;
+  /** Day of the month, like the lease form; null keeps the billing default. */
+  graceDay: number | null;
+  lateFeePerDay: string | null;
+  /** null = 30 days (AC-2.3). */
+  renewalNoticeDays: number | null;
+  coBroke: boolean;
+  coBrokeAgentName: string | null;
+}
+export interface SaveDealOffer extends DealOfferTerms {
+  /** Create only. */
+  leadId?: number;
+  rentRoomId?: number;
+  /** Update only: the revision the agent edited. */
+  revision?: number;
+}
+export interface DealOffer extends Omit<DealOfferTerms, "renewalNoticeDays"> {
+  id: number;
+  leadId: number;
+  leadName: string;
+  rentRoomId: number;
+  /** Project and room number, for the landlord's list. */
+  roomLabel: string;
+  status: DealOfferStatus;
+  revision: number;
+  /** 1 month of rent (AC-2.2). */
+  reservationAmount: string;
+  /** The day before the term's anniversary, like the lease. */
+  endDate: string;
+  renewalNoticeDays: number;
+  sentAt: string | null;
+  confirmedAt: string | null;
+  confirmationChannel: DealOfferConfirmationChannel | null;
+  confirmationMethod: DealOfferConfirmationMethod | null;
+  confirmationNote: string | null;
+  confirmedByName: string | null;
+  /** The room has a landlord account, so the landlord can confirm in the app. */
+  landlordInApp: boolean;
+  closedAt: string | null;
+}
+/**
  * D10: one deposit invoice per lease, issued in the landlord's name once the lease document is generated.
  * not_issued = the lease is generated but issuing failed; the agent can issue it again.
+ * voided = the lease was closed while it waited for the deposit, so the unpaid invoice is cancelled.
  */
 export interface DepositPayment {
-  status: "not_issued" | "unpaid" | "submitted" | "paid";
+  status: "not_issued" | "unpaid" | "submitted" | "paid" | "voided";
   total: number;
   invoiceId: number | null;
   invoiceDocumentNo: string | null;
@@ -102,6 +162,8 @@ export interface DepositPayment {
   receiptUrl: string | null;
   paymentSlipUrl: string | null;
   submittedAt: string | null;
+  /** D11 (AC-5.4): why the agent returned the tenant's slip; null once a new slip is sent. */
+  slipReturnReason?: string | null;
 }
 export type DepositFinancialDocumentKind = "deposit-invoice" | "deposit-receipt" | "deposit-payment-slip";
 export type AgentContractDocumentKind =
@@ -140,11 +202,75 @@ export interface AgreementSignatureLogEntry {
   /** The name to show: the name typed for a witness without an account, otherwise the account that pressed sign. */
   signedBy: string | null;
 }
+/**
+ * D6 (AC-6.1 to 6.4): handing the room over after the deposit receipt. Annex 1 = what is in the room (items),
+ * annex 2 = photos of the room. The landlord and the tenant sign it, in their app or on the agent's device.
+ */
+export type HandoverKind = "move_in" | "move_out";
+export type HandoverItemCondition = "good" | "damaged" | "missing";
+export type HandoverSignParty = "owner" | "tenant";
+/** Why the handover of a lease cannot be filled in yet. */
+export type HandoverBlockedReason = "not_lease" | "contract_ended" | "lease_not_issued" | "deposit_unpaid";
+/** blocked: not open yet (see blockedReason) · not_started: open, nothing saved · in_progress: saved, not signed by both · completed: signed by both, locked. */
+export type HandoverStatus = "blocked" | "not_started" | "in_progress" | "completed";
+export interface HandoverItemInput {
+  name: string;
+  quantity: number;
+  condition: HandoverItemCondition;
+  note?: string | null;
+}
+export interface HandoverItem extends HandoverItemInput {
+  id: number;
+  note: string | null;
+}
+export interface HandoverPhoto {
+  id: number;
+  url: string | null;
+  caption: string | null;
+  createdAt: string;
+}
+export interface HandoverSignature {
+  party: HandoverSignParty;
+  channel: "app" | "on_site";
+  signedAt: string;
+  signedBy: string | null;
+}
+export interface HandoverRecord {
+  contractId: number;
+  /** null until the agent first saves the form. */
+  id: number | null;
+  status: HandoverStatus;
+  blockedReason: HandoverBlockedReason | null;
+  handoverDate: string | null;
+  note: string | null;
+  /** Goes up on every change; signing sends the revision the signer saw. */
+  revision: number;
+  items: HandoverItem[];
+  photos: HandoverPhoto[];
+  signatures: HandoverSignature[];
+  completedAt: string | null;
+  /** Party endpoints only: the sides of the contract the viewer is. */
+  myParties?: HandoverSignParty[];
+}
+export interface SaveHandover {
+  handoverDate: string;
+  note?: string | null;
+  items: HandoverItemInput[];
+  /** The revision the agent edited (0 for a new record). */
+  revision: number;
+}
+export interface SignHandover {
+  party: HandoverSignParty;
+  signaturePng: string;
+  revision: number;
+}
 export interface ContractCandidate {
   leadId: number;
   tenant: string;
   property: string;
   room: string | null;
+  /** D2: the booked room, to find the offer the landlord confirmed for it. */
+  rentRoomId?: number;
   /** D1: this room + tenant has a valid broker appointment (generated, under 1 year old), so a reservation letter can start. */
   brokerAppointmentReady?: boolean;
 }
@@ -253,7 +379,12 @@ export interface FinancialDocumentInput {
   paymentDetails: string;
   receiverName: string;
   notes: string;
+  /** D11 (AC-3.5): who received a booking or deposit payment; agent = with a power of attorney attached. */
+  receivedBy?: ReceiptReceiver;
+  /** D11 (TC-3.15): baht the tenant withheld from a booking payment; the receipt total stays the full amount. */
+  withholdingTax?: number;
 }
+export type ReceiptReceiver = "landlord" | "agent";
 
 /** Invoice created without a reservation letter. A receipt, when present, belongs to this invoice. */
 export interface StandaloneInvoice {

@@ -60,6 +60,7 @@ function harness(contract, checklist = { requirements: [], documents: [], docume
     if (name === '../lib/lead-format') return leadFormat;
     if (name === './ReservationPaymentCard') return { ReservationPaymentCard: (props) => { cards.reservation = props; return null; } };
     if (name === './DepositPaymentCard') return { DepositPaymentCard: (props) => { cards.deposit = props; return null; } };
+    if (name === './HandoverCard') return { HandoverCard: (props) => { cards.handover = props; return null; } };
     if (name === './TenantContractList') return { TenantContractAttachments: () => null };
     if (name === './ContractDocumentPreview') return { ContractDocumentPreview: () => null };
     if (name === './ContractSignaturePad') return { ContractSignaturePad: () => null };
@@ -119,6 +120,8 @@ test('D10: on a lease the tenant gets the deposit card, and the slip they pick g
   h.render();
   assert.equal(h.cards.reservation, undefined, 'a lease has no reservation payment card');
   assert.equal(h.cards.deposit.contract, lease);
+  // D6: the party side of the handover for this lease.
+  assert.deepEqual([h.cards.handover.contractId, h.cards.handover.mode], [12, 'party']);
   h.cards.deposit.onUpload();
   await sendSlipFromPhotos(h);
   assert.deepEqual(h.calls, [['deposit', 12, 'slip.jpg']]);
@@ -135,6 +138,7 @@ test('D10: the landlord only views the deposit; the reservation slip still goes 
   await h.ready();
   h.render();
   assert.equal(h.cards.deposit, undefined, 'a reservation has no deposit card');
+  assert.equal(h.cards.handover, undefined, 'a reservation has no handover card');
   h.cards.reservation.onUpload();
   await sendSlipFromPhotos(h);
   assert.deepEqual(h.calls, [['reservation', 11, 'slip.jpg']]);

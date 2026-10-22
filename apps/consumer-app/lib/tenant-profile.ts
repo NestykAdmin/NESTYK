@@ -1,4 +1,5 @@
 import type { TenantLeadOption, UpdateAgentTenant } from "@nestyk/types";
+import { identityNumberProblem } from "./identity-number";
 
 /** A tenant's contact details as typed when a room is booked. */
 export type TenantProfileForm = {
@@ -14,7 +15,7 @@ export type TenantProfileForm = {
 export type TenantProfileField = keyof TenantProfileForm;
 
 /** Why a field was refused; the screen turns it into a message. */
-export type TenantProfileIssue = "required" | "phone" | "email" | "identity";
+export type TenantProfileIssue = "required" | "phone" | "email" | "identity" | "thai_id";
 
 /** Longest value the API accepts per field. */
 export const TENANT_PROFILE_MAX: Record<TenantProfileField, number> = {
@@ -50,6 +51,8 @@ export function tenantProfileFromLead(
  */
 export function tenantProfileIssues(
   form: TenantProfileForm,
+  /** The API keeps the lead's nationality when the field is left empty, and checks the number with it (C3). */
+  fallbackNationality?: string | null,
 ): Partial<Record<TenantProfileField, TenantProfileIssue>> {
   const issues: Partial<Record<TenantProfileField, TenantProfileIssue>> = {};
   if (!form.firstName.trim()) issues.firstName = "required";
@@ -66,8 +69,9 @@ export function tenantProfileIssues(
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     issues.email = "email";
   const identity = form.identityNumber.trim();
-  if (identity && !/^[A-Za-z0-9][A-Za-z0-9\s/-]{4,99}$/.test(identity))
-    issues.identityNumber = "identity";
+  // C3 (Aof, 22 Oct 2026): a Thai ID must pass its check digit, and a Thai national must give one.
+  const identityProblem = identity ? identityNumberProblem(identity, form.nationality.trim() || fallbackNationality) : null;
+  if (identityProblem) issues.identityNumber = identityProblem === "thai_id" ? "thai_id" : "identity";
   return issues;
 }
 

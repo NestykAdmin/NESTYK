@@ -104,3 +104,15 @@ export function signMyContract(
 ): Promise<PartyContract> {
   return apiPost(`/contracts/mine/${id}/sign`, { party, signaturePng });
 }
+
+/** D6: the handover record of the lease; the landlord and the tenant review it, then sign their own side. */
+export function getMyHandover(id: number): Promise<import("@nestyk/types").HandoverRecord> {
+  return apiGet(`/contracts/mine/${id}/handover`);
+}
+
+export function signMyHandover(
+  id: number,
+  body: import("@nestyk/types").SignHandover,
+): Promise<import("@nestyk/types").HandoverRecord> {
+  return apiPost(`/contracts/mine/${id}/handover/sign`, body);
+}

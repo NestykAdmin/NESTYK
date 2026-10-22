@@ -44,28 +44,13 @@ const EXTRA_SLOTS = [
   },
 ] as const;
 
-const LEASE_EXTRA_SLOTS = [
-  {
-    code: "lease_annex_1",
-    label: "annex1",
-    hint: "annex1Hint",
-    defaultSubject: "property" as AgreementDocumentSubject,
-  },
-  {
-    code: "lease_annex_2",
-    label: "annex2",
-    hint: "annex2Hint",
-    defaultSubject: "property" as AgreementDocumentSubject,
-  },
-] as const;
-
-type ExtraSlot = (typeof EXTRA_SLOTS)[number] | (typeof LEASE_EXTRA_SLOTS)[number];
+// D6 (22 Oct 2026): the annexes of a lease are filled in at the handover (HandoverCard), not attached as files.
+// A lease on the old template still asks for them as required documents, and those show with the requirements.
+type ExtraSlot = (typeof EXTRA_SLOTS)[number];
 type ExtraSlotCode = ExtraSlot["code"];
 
-function extraSlotsFor(formKind?: string | null): ExtraSlot[] {
-  return formKind === "lease"
-    ? [...LEASE_EXTRA_SLOTS, ...EXTRA_SLOTS]
-    : [...EXTRA_SLOTS];
+function extraSlotsFor(_formKind?: string | null): ExtraSlot[] {
+  return [...EXTRA_SLOTS];
 }
 
 function namedExtraCodes(slots: ExtraSlot[]) {

@@ -280,6 +280,7 @@ export interface TranslationSchema {
       welcomeSubtitle: string;
       continueAsGuest: string;
       invalidCredentials: string;
+      sessionExpired: string;
       signedOut: string;
       signInToContinue: string;
       devHintTitle: string;
@@ -445,12 +446,14 @@ export interface TranslationSchema {
       errorPhone: string;
       errorEmail: string;
       errorIdentity: string;
+      errorThaiId: string;
       reserveInfo: string;
       reserveConfirm: string;
       reserveTaken: string;
       reservedTitle: string;
       reservedNext: string;
       reservedNeedsEmail: string;
+      reservedNeedsIdentity: string;
       continueToLetter: string;
       openTenant: string;
       later: string;
@@ -459,6 +462,7 @@ export interface TranslationSchema {
       nextStepBody: string;
       makeReservation: string;
       addEmail: string;
+      addIdentity: string;
       detail: {
         title: string;
         subtitle: string;
@@ -483,6 +487,12 @@ export interface TranslationSchema {
         nowConfirmTitle: string;
         nowConfirmBody: string;
         nowConfirmCta: string;
+        nowDepositTitle: string;
+        nowDepositBody: string;
+        nowDepositCta: string;
+        nowHandoverTitle: string;
+        nowHandoverBody: string;
+        nowHandoverCta: string;
         sectionProfile: string;
         sectionRoom: string;
         sectionContracts: string;

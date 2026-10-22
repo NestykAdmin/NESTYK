@@ -11,10 +11,13 @@ import type {
   UpdateAgentTenant,
 } from "@nestyk/types";
 import { TenantEntity } from "../../entities/tenant.entity";
+import { IDENTITY_NUMBER_MESSAGES, identityNumberProblem, normalizeIdentityNumber } from "../../common/identity-number";
 import { LeadEntity } from "../../entities/lead.entity";
 import { RentRoomEntity } from "../../entities/rent-room.entity";
 import { LeadViewingEntity } from "../../entities/lead-viewing.entity";
 import { AgentContractsService, brokerAppointmentKey } from "../contracts/agent-contracts.service";
+import { DealOfferEntity } from "../../entities/deal-offer.entity";
+import { OFFER_NOT_CONFIRMED, closeOffersOfBookedRoom } from "../contracts/deal-offers.service";
 
 const ROOM_ALREADY_BOOKED = "ห้องนี้มีผู้จองแล้ว";
 export const TENANT_EMAIL_LOCKED =
@@ -98,6 +101,14 @@ function parseTenantProfile(input: unknown): UpdateAgentTenant {
     nationality:
       typeof b.nationality === "string" ? b.nationality.trim() : "",
   };
+}
+
+/** C3 (Aof, 22 Oct 2026): a Thai ID number must pass its check digit; a Thai national must give a Thai ID. */
+function assertTenantIdentity(identityNumber: string | undefined | null, nationality: string | undefined | null) {
+  const value = (identityNumber ?? "").trim();
+  if (!value) return;
+  const problem = identityNumberProblem(value, nationality);
+  if (problem) throw new BadRequestException(IDENTITY_NUMBER_MESSAGES[problem]);
 }
 
 export function validateTenantProfile(input: unknown): UpdateAgentTenant {
@@ -357,6 +368,16 @@ export class AgentTenantsService {
               ? `${ROOM_ALREADY_BOOKED} (${taken.name})`
               : ROOM_ALREADY_BOOKED,
         });
+      // D2 (AC-2.4, Aof 22 Oct 2026): a new booking needs the offer the landlord confirmed for this lead and room.
+      // Locked after the lead and the room, so a cancel or a landlord confirmation waits for this booking.
+      const offer = await manager.findOne(DealOfferEntity, {
+        where: { lead_id: lead.id, rent_room_id: room.id, status: "confirmed" },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!offer)
+        throw new BadRequestException({ code: "OFFER_NOT_CONFIRMED", message: OFFER_NOT_CONFIRMED });
+      // C3 (Aof, 22 Oct 2026): the number is checked with the nationality the tenant record will keep.
+      assertTenantIdentity(b.identityNumber, b.nationality || lead.nationality);
       const tenant = await manager.save(
         TenantEntity,
         manager.create(TenantEntity, {
@@ -377,6 +398,8 @@ export class AgentTenantsService {
       lead.status = "booked";
       lead.booking_released_at = null;
       await manager.save(LeadEntity, lead);
+      // AC-3.1: the other leads' open offers for this room close as "room taken".
+      await closeOffersOfBookedRoom(manager, room.id, lead.id, new Date());
       return tenant.id;
     });
   }
@@ -397,6 +420,12 @@ export class AgentTenantsService {
     // With a login the stored email stays exactly as it is (the check above allows only a case/space difference).
     if (tenant.user_id == null) tenant.email = b.email || null;
     tenant.note = b.note || null;
+    // C3: only a new or changed number (or nationality) is checked, so an old record can still be edited.
+    if (
+      normalizeIdentityNumber(b.identityNumber) !== normalizeIdentityNumber(tenant.identity_number) ||
+      (b.nationality || "").trim() !== (tenant.nationality ?? "").trim()
+    )
+      assertTenantIdentity(b.identityNumber, b.nationality);
     tenant.identity_number = b.identityNumber || null;
     tenant.nationality = b.nationality || null;
     // Drafts nobody has signed or paid follow the new details (and their booking invoice).

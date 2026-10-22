@@ -111,3 +111,15 @@ test('busy state disables every input and legacy name hydration still works', ()
     assert.ok(inputs.every(node => node.props.editable === false));
   }
 });
+
+test('D2: numbers from the offer the landlord confirmed are read-only; the signing date and the rest stay editable', () => {
+  const keys = (() => { const m = { exports: {} }; new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, '../lib/deal-offer.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(require, m, m.exports); return m.exports.OFFER_LEASE_LOCKED_KEYS; })();
+  const value = emptyLeaseAgreementForm();
+  Object.keys(value).forEach(key => value[key] = `value_${key}`);
+  const inputs = [0, 1, 2, 3].flatMap(step => nodes(form(value, step, { lockedKeys: keys }))).filter(node => node.type === Input);
+  for (const key of keys) assert.equal(inputs.find(node => node.props.value === value[key]).props.editable, false, key);
+  assert.equal(inputs.find(node => node.props.value === value.landlordFirstName).props.editable, true);
+  assert.equal(inputs.find(node => node.props.value === value.issueDate).props.editable, true, 'the signing date may move, so it stays editable');
+  const texts = nodes(form(value, 0, { lockedKeys: keys })).filter(node => node.type === 'span').flatMap(node => [node.props.children].flat());
+  assert.ok(texts.includes(contractsTh.offer.fromOffer));
+});

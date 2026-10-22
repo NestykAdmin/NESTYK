@@ -27,6 +27,19 @@ export async function closeAgentContract(id: number, input: import("@nestyk/type
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/close`, input);
 }
+/**
+ * D11 (AC-3.4): return the tenant's booking slip with a reason; the tenant then sends a new one. submittedAt is the
+ * slip the agent looked at: a newer one gives 409 SLIP_CHANGED.
+ */
+export async function returnReservationSlip(id: number, reason: string, submittedAt: string | null): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/reservation-payment/return`, { reason, submittedAt });
+}
+/** D11 (AC-5.4): the same for the deposit slip of a lease. */
+export async function returnDepositSlip(id: number, reason: string, submittedAt: string | null): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/deposit-payment/return`, { reason, submittedAt });
+}
 export async function listContractCandidates(): Promise<ContractCandidate[]> {
   await ensureAgentSession();
   return apiGet("/agent/contracts/candidates");
@@ -391,4 +404,51 @@ export async function cancelAgentContractDraft(id: number, reason: string): Prom
 export async function getAgentContractDraftTemplate(id: number): Promise<import("@nestyk/types").AgreementTemplate> {
   await ensureAgentSession();
   return apiGet(`/agent/contracts/${id}/draft-template`);
+}
+
+/** D6: the handover record of a lease (annex 1 items, annex 2 photos, signatures). */
+export async function getHandover(id: number): Promise<import("@nestyk/types").HandoverRecord> {
+  await ensureAgentSession();
+  return apiGet(`/agent/contracts/${id}/handover`);
+}
+
+export async function saveHandover(
+  id: number,
+  body: import("@nestyk/types").SaveHandover,
+): Promise<import("@nestyk/types").HandoverRecord> {
+  await ensureAgentSession();
+  return apiRequest(`/agent/contracts/${id}/handover`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export async function uploadHandoverPhoto(
+  id: number,
+  file: { uri: string; name: string; mimeType: string; file?: File },
+): Promise<import("@nestyk/types").HandoverRecord> {
+  await ensureAgentSession();
+  const form = new FormData();
+  if (Platform.OS === "web")
+    form.append("file", file.file ?? (await (await fetch(file.uri)).blob()), file.name);
+  else
+    form.append("file", { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  try {
+    return await apiRequest(`/agent/contracts/${id}/handover/photos`, { method: "POST", body: form, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function removeHandoverPhoto(id: number, photoId: number): Promise<import("@nestyk/types").HandoverRecord> {
+  await ensureAgentSession();
+  return apiRequest(`/agent/contracts/${id}/handover/photos/${photoId}`, { method: "DELETE" });
+}
+
+/** D6: the landlord or the tenant signs the handover on the agent's device. */
+export async function signHandoverOnSite(
+  id: number,
+  body: import("@nestyk/types").SignHandover,
+): Promise<import("@nestyk/types").HandoverRecord> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/handover/sign`, body);
 }

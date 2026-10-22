@@ -34,6 +34,7 @@ import {
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
 import { DepositPaymentCard } from "./DepositPaymentCard";
+import { HandoverCard } from "./HandoverCard";
 import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
 import { rejectedAttachments } from "../lib/attachment-review";
 import { TenantContractAttachments } from "./TenantContractList";
@@ -393,6 +394,16 @@ export function PartyContractDetail({
           busy={busy || previewBusy || refreshing || picking != null}
           onOpen={(kind) => void openPaymentDocument(kind)}
           onUpload={mine.includes("tenant") ? () => { slipTarget.current = "deposit"; setSlipSourceOpen(true); } : undefined}
+        />
+      )}
+
+      {contract.formKind === "lease" && (
+        // D6: the landlord and the tenant review the handover and sign their own side.
+        <HandoverCard
+          key={`handover:${contract.id}`}
+          contractId={contract.id}
+          mode="party"
+          refreshKey={`${contract.status}:${contract.depositPayment?.status ?? ""}:${reloadToken}`}
         />
       )}
 

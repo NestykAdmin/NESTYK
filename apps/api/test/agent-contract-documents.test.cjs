@@ -12,6 +12,8 @@ const { PDFDocument, PDFName, PDFDict } = require('pdf-lib');
 const sharp = require('sharp');
 const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
 const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
+const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
+const { AgreementDocumentEntity } = require('../src/entities/agreement-document.entity.ts');
 const { emptyLeaseAgreement } = require('../src/agent/contracts/lease-agreement.ts');
 const { AuthService } = require('../src/auth/auth.service.ts');
 const { Module } = require('@nestjs/common');
@@ -249,8 +251,17 @@ function pdfHarness(overrides = {}) {
       assert.deepEqual(options.relations, { signed_by: true }, 'the witness comes with the account that pressed sign');
       return witness;
     } };
-  const db = { getRepository: () => repo, transaction: async (fn) => fn({
-    getRepository: () => repo,
+  // D2/D14: the offer the landlord confirmed for the letter's lead and room (none unless a test sets one), and the
+  // files attached to the letter, read for the co-broke check.
+  let offer = null; const attached = [];
+  const offerRepo = { findOne: async (options) => {
+    assert.deepEqual(options.where, { lead_id: row.lead_id, rent_room_id: row.rent_room_id, status: 'confirmed' });
+    return offer;
+  } };
+  const documentRepo = { find: async (options) => { assert.deepEqual(options.where, { agreement_id: row.id }); return attached; } };
+  const repoFor = (entity) => (entity === DealOfferEntity ? offerRepo : entity === AgreementDocumentEntity ? documentRepo : repo);
+  const db = { getRepository: repoFor, transaction: async (fn) => fn({
+    getRepository: repoFor,
     findOne: async (entity, options) => {
       assert.equal(entity, LeaseContractEntity); assert.equal(options.lock.mode, 'pessimistic_write');
       assert.equal(options.where.created_by_user_id, 7);
@@ -258,7 +269,7 @@ function pdfHarness(overrides = {}) {
     },
     insert: async (entity, rows) => { assert.equal(entity, AgreementSignatureEntity); if (insertError) throw insertError; logged.push(...rows); },
   }) };
-  return { row, storage, objects, repo, asked, logged, scoped, setWitness: (value) => { witness = value; },
+  return { row, storage, objects, repo, asked, logged, scoped, attached, setOffer: (value) => { offer = value; }, setWitness: (value) => { witness = value; },
     setLocked: (value) => { locked = value; }, failInsert: (error) => { insertError = error; },
     setAppointments: (pairs) => { appointments = pairs; }, service: new AgentContractsService(db, storage) };
 }
@@ -360,7 +371,7 @@ test('D9: a lease is generated only after the witness signs, and the witness sig
   h.objects.set('7/11/signatures/w.png', { buffer: png });
   const result = await h.service.leaseAgreementPdf(7, 11, true);
   assert.equal(result.leaseAgreementStatus, 'ready');
-  assert.equal(h.row.status, 'active');
+  assert.equal(h.row.status, 'awaiting_handover', 'D7: a generated lease without a deposit waits for the handover');
   const generated = h.objects.get(h.row.document_url).buffer;
   assert.equal(await pageImages(generated, 6), 3, 'page 7 has the landlord, tenant and witness signatures');
   assert.equal(await pageImages(generated, 0), 2, 'other pages carry only the landlord and tenant');
@@ -542,4 +553,43 @@ test('signature storage rejects malformed PNG before uploading and normalizes va
   const pdf = await PDFDocument.create();
   const image = await pdf.embedPng(objects.get(stored.path).buffer);
   assert.ok(image.width > 0 && image.height > 0);
+});
+
+test('D14: a letter whose confirmed offer names another agent is issued only with the signed co-broke file', async () => {
+  // Aof, 22 Oct 2026 (AC-3.8): the co-broke file is needed before the letter takes effect, not before signing.
+  const signAll = async (h) => {
+    const png = await signaturePng();
+    for (const party of ['owner', 'tenant', 'agent']) {
+      h.row[`${party}_signed_at`] = new Date();
+      const path = `7/11/signatures/${party}.png`;
+      h.row[`${party}_signature_url`] = path;
+      h.objects.set(path, { buffer: png });
+    }
+  };
+  const refused = (e) => e.getStatus() === 400 && e.getResponse().code === 'CO_BROKE_REQUIRED';
+  const h = pdfHarness();
+  h.setOffer({ id: 30, co_broke: true, co_broke_agent_name: 'Other Agent' });
+  await h.service.reservationPdf(7, 11, false);
+  const preview = h.row.document_url;
+  await signAll(h);
+  await assert.rejects(() => h.service.reservationPdf(7, 11, true), refused);
+  assert.equal(h.row.document_url, preview, 'not issued');
+  // A removed file, a replaced one, another type or another subject does not count.
+  h.attached.push(
+    { id: 1, subject: 'property', document_type_code: 'agent_commission_agreement', removed_at: new Date(), supersedes_document_id: null },
+    { id: 2, subject: 'property', document_type_code: 'agent_commission_agreement', removed_at: null, supersedes_document_id: null },
+    { id: 3, subject: 'property', document_type_code: 'other', removed_at: null, supersedes_document_id: 2 },
+    { id: 4, subject: 'owner', document_type_code: 'agent_commission_agreement', removed_at: null, supersedes_document_id: null },
+  );
+  await assert.rejects(() => h.service.reservationPdf(7, 11, true), refused);
+  h.attached.push({ id: 5, subject: 'property', document_type_code: 'agent_commission_agreement', removed_at: null, supersedes_document_id: null });
+  assert.equal((await h.service.reservationPdf(7, 11, true)).reservationLetterStatus, 'ready');
+  // No other agent on the offer, or no offer at all: nothing to attach.
+  for (const value of [{ id: 31, co_broke: false, co_broke_agent_name: null }, null]) {
+    const g = pdfHarness();
+    g.setOffer(value);
+    await g.service.reservationPdf(7, 11, false);
+    await signAll(g);
+    assert.equal((await g.service.reservationPdf(7, 11, true)).reservationLetterStatus, 'ready');
+  }
 });

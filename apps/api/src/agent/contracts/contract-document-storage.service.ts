@@ -180,6 +180,36 @@ export class ContractDocumentStorageService {
     return { path: objectPath };
   }
 
+  /** D6: a photo of the room for the handover record (annex 2). JPEG or PNG only. */
+  async uploadHandoverPhoto(
+    agentId: number,
+    contractId: number,
+    file: { buffer: Buffer; size: number } | undefined,
+  ) {
+    if (!file?.buffer?.length)
+      throw new BadRequestException("กรุณาเลือกรูป");
+    if (file.buffer.length > MAX_CONTRACT_DOCUMENT_BYTES)
+      throw new BadRequestException("ไฟล์ต้องไม่เกิน 10 MB");
+    let detected: { ext: string; mime: string } | null = null;
+    try {
+      detected = this.sniff(file.buffer);
+    } catch {
+      // Another file type: the photo message below, not the general one that also lists PDF.
+    }
+    if (!detected || detected.mime === "application/pdf")
+      throw new BadRequestException("รูปสภาพห้องต้องเป็นไฟล์ JPEG หรือ PNG");
+    await this.ensureBucket();
+    const path = `${agentId}/${contractId}/handover/${randomUUID()}.${detected.ext}`;
+    const { error } = await this.storage().upload(path, file.buffer, {
+      contentType: detected.mime,
+      cacheControl: "3600",
+      upsert: false,
+    });
+    if (error)
+      throw new ServiceUnavailableException("อัปโหลดรูปไม่สำเร็จ กรุณาลองอีกครั้ง");
+    return { path };
+  }
+
   async download(path: string): Promise<Buffer> {
     const { data, error } = await this.storage().download(path);
     if (error || !data)

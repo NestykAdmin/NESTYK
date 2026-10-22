@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import type { ReservationLetterInput } from "@nestyk/types";
 import type { TenantEntity } from "../../entities/tenant.entity";
+import { IDENTITY_NUMBER_MESSAGES, identityNumberProblem } from "../../common/identity-number";
 
 const TEXT = [
   ["documentNo", 40],
@@ -203,5 +204,14 @@ export function validateReservationLetter(
     if (out[key] && !/^\d{4}-\d{2}-\d{2}$/.test(out[key]))
       throw new BadRequestException("รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)");
   }
+  // C3 (Aof, 22 Oct 2026): the tenant's account is matched by this number, so the letter needs it. It comes
+  // from the tenant record (locked in the form), so the agent adds or fixes it there.
+  if (!out.tenantId)
+    throw new BadRequestException({ code: "TENANT_ID_REQUIRED", message: TENANT_ID_REQUIRED });
+  const idProblem = identityNumberProblem(out.tenantId, out.tenantNationality);
+  if (idProblem)
+    throw new BadRequestException({ code: "TENANT_ID_INVALID", message: `${IDENTITY_NUMBER_MESSAGES[idProblem]} (แก้ในข้อมูลผู้เช่า)` });
   return out;
 }
+
+export const TENANT_ID_REQUIRED = "กรุณาเพิ่มเลขบัตรประชาชนหรือพาสปอร์ตในข้อมูลผู้เช่าก่อนบันทึกหนังสือจอง";

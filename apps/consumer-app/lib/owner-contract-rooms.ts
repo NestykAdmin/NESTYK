@@ -5,8 +5,8 @@ const OPEN = new Set([
   "draft",
   "awaiting_signatures",
   "awaiting_agent_review",
-  "awaiting_payment",
-  "awaiting_payment_verification",
+  "awaiting_deposit",
+  "awaiting_handover",
 ]);
 
 export type OwnerRoomStatus = "active" | "awaiting_owner" | "awaiting_agent" | "idle";
@@ -33,6 +33,8 @@ export function ownerMustSign(row: PartyContract) {
 function awaitingAgent(row: PartyContract) {
   if (row.status === "active" || CLOSED.has(row.status)) return false;
   if (row.status === "awaiting_agent_review") return true;
+  // D7: the agent issues the deposit receipt and runs the handover.
+  if (row.status === "awaiting_deposit" || row.status === "awaiting_handover") return true;
   if (row.formKind === "lease" || row.formKind === "renewal") return false;
   return Boolean(row.ownerSignedAt) && !row.agentSignedAt;
 }
