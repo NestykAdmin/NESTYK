@@ -1839,6 +1839,24 @@ export interface TranslationSchema {
       edit: string;
     };
     dashboard: {
+      webWorkspace: {
+        main: string;
+        account: string;
+        collapse: string;
+        expand: string;
+        skip: string;
+        close: string;
+        refresh: string;
+        readAll: string;
+        brandTag: string;
+      };
+      webOverview: {
+        property: string;
+        rent: string;
+        viewingsToday: string;
+        balance: string;
+        loadFailed: string;
+      };
       workspaceLabel: string;
       welcome: string;
       todayDate: string;
