@@ -122,3 +122,4 @@ Thumbs.db
 
 # temp files left by Claude sessions (keep out of git)
 _to_delete_*/
+Claude outputs/
