@@ -1,9 +1,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { brokerAppointmentLookup } = require('./broker-appointment-lookup.cjs');
 const ts = require('typescript');
 require('reflect-metadata');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(require('node:fs').readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
 const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
+const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
+const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
 const rentSchedule = require('../src/billing/rent-schedule.ts');
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEElEQVQImWNgYGD4D8UQBgAd9AP9JAD7OgAAAABJRU5ErkJggg==', 'base64');
@@ -13,6 +16,7 @@ function contract(overrides = {}) {
   return {
     id: 11,
     tenant_id: 2,
+    rent_room_id: 3,
     lead_id: 1,
     contract_no: 'LS202600011',
     rent_room: { property: { name: 'Aria' }, listing_title: null, room_id: '1201', owner_id: 9 },
@@ -56,10 +60,12 @@ function serviceFor(current, inboxRows = [current]) {
   for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
   qb.getOne = async () => current;
   qb.getMany = async () => inboxRows;
-  const updates = [];
+  // D1: the contract's own room + tenant has a valid broker appointment, answered only for its own agent.
+  qb.leftJoin = (...args) => brokerAppointmentLookup(() => [[current.rent_room_id, current.tenant_id]], current.created_by_user_id).leftJoin(...args);
+  const updates = []; const signatures = []; const removed = [];
   const documents = {
     uploadSignature: async () => ({ path: '7/11/signatures/sig.png' }),
-    remove: async () => undefined,
+    remove: async (path) => { removed.push(path); },
     signPaths: async (paths) => new Map(paths.filter(Boolean).map((path) => [path, `https://signed.example/${path}`])),
   };
   const db = {
@@ -71,8 +77,13 @@ function serviceFor(current, inboxRows = [current]) {
         return { affected: 1 };
       },
     }),
+    // D17: signing writes the contract and its signature log in one transaction.
+    transaction: async (fn) => fn({
+      update: async (entity, where, patch) => { assert.equal(entity, LeaseContractEntity); return db.getRepository(entity).update(where, patch); },
+      insert: async (entity, rows) => { assert.equal(entity, AgreementSignatureEntity); signatures.push(...rows); },
+    }),
   };
-  return { service: new AgentContractsService(db, documents), updates, current };
+  return { service: new AgentContractsService(db, documents), updates, current, signatures, removed };
 }
 
 test('deliver sends the contract to the tenant or owner account', async () => {
@@ -121,6 +132,16 @@ test('a delivered party can open the stored contract', async () => {
   );
 });
 
+test('D17: a party signature that races another one is refused as already signed, and its file removed', async () => {
+  const f = serviceFor(contract({ tenant_delivered_at: new Date() }));
+  const transaction = f.service.db.transaction;
+  f.service.db.transaction = (fn) => transaction((manager) => fn({ ...manager,
+    insert: async () => { throw Object.assign(new Error('duplicate key'), { code: '23505' }); } }));
+  await assert.rejects(() => f.service.signAsParty(8, 11, { party: 'tenant', signaturePng }), (e) => e.getStatus() === 400 && /ลงนามแล้ว/.test(e.message));
+  assert.deepEqual(f.signatures, []);
+  assert.deepEqual(f.removed, ['7/11/signatures/sig.png']);
+});
+
 test('the recipient can sign only the delivered party', async () => {
   const f = serviceFor(contract({ tenant_delivered_at: new Date() }));
   const signed = await f.service.signAsParty(8, 11, { party: 'tenant', signaturePng });
@@ -128,6 +149,9 @@ test('the recipient can sign only the delivered party', async () => {
   assert.ok(f.current.tenant_signed_at instanceof Date);
   assert.equal(f.current.tenant_signature_url, '7/11/signatures/sig.png');
   assert.equal(f.current.owner_signed_at, null);
+  // D17: the party signed in their own app, logged with their account.
+  assert.deepEqual(f.signatures, [{ agreement_id: 11, party: 'tenant', channel: 'app', signed_by_user_id: 8,
+    signature_url: '7/11/signatures/sig.png', signed_at: f.current.tenant_signed_at }]);
 
   const stranger = serviceFor(contract({ tenant_delivered_at: new Date() }));
   await assert.rejects(

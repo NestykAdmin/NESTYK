@@ -3,7 +3,6 @@ import { AgreementAttachmentsController } from './contracts/agreement-attachment
 import { AgentTenantsController } from './tenants/agent-tenants.controller';
 import { AgentTenantsService } from './tenants/agent-tenants.service';
 import { AgentContractsController } from './contracts/agent-contracts.controller';
-import { PublicContractSignController } from './contracts/public-contract-sign.controller';
 import { PartyContractsController } from './contracts/party-contracts.controller';
 import { AgentContractsService } from './contracts/agent-contracts.service';
 import { ContractDocumentStorageService } from './contracts/contract-document-storage.service';
@@ -88,7 +87,7 @@ import { GeminiModule } from '../gemini/gemini.module';
       RoomShareLinkEntity,
     ]),
   ],
-  controllers: [AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, PublicContractSignController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
+  controllers: [AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
   providers: [AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
   exports: [AgentRoomsService, AgentListingsService, AgentPlacesService, RoomShareLinksService],
 })

@@ -99,6 +99,9 @@ test('attachment HTTP routes enforce authentication and agent role, and accept m
  const form=new FormData();form.append('subject','tenant');form.append('documentTypeCode','passport');form.append('file',new Blob(['%PDF-1.4'],{type:'application/pdf'}),'passport.pdf');
  const result=await fetch(base,{method:'POST',headers:headers(7),body:form});assert.equal(result.status,201);
  const uploaded=await result.json();assert.equal(uploaded.input.subject,'tenant');assert.equal(uploaded.size,8);
+ // D1: the broker appointment is made as its own contract now; the generator inside a reservation's attachments is gone.
+ assert.equal((await fetch(`${base}/broker-appointment/defaults`,{headers:headers(7)})).status,404);
+ assert.equal((await fetch(`${base}/broker-appointment`,{method:'POST',headers:{...headers(7),'Content-Type':'application/json'},body:'{}'})).status,404);
 });
 
 

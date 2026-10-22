@@ -7,10 +7,11 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { contractsTh, fillTemplate } = require('./test-i18n.cjs');
 
-function formHarness(props) {
+function formHarness(props, apiOverrides = {}) {
   const states = [], effects = [], refs = [], buttons = [], calls = [];
   let index = 0, refIndex = 0, firstRender = true;
-  const labels = { back: 'กลับ', create: 'สร้าง', confirm: 'ยืนยัน', pickInvoice: 'เลือกใบแจ้งหนี้', invalid: 'ผิดพลาด', required: 'กรอกให้ครบ', retry: 'ลองใหม่' };
+  const labels = { back: 'กลับ', create: 'สร้าง', confirm: 'ยืนยัน', pickInvoice: 'เลือกใบแจ้งหนี้', invalid: 'ผิดพลาด', required: 'กรอกให้ครบ', retry: 'ลองใหม่',
+    markPaid: 'บันทึกการชำระ', slipRequired: 'กรุณาแนบสลิป', paymentSlip: 'สลิปการชำระ', attachSlip: 'แนบสลิป' };
   const data = {
     documentNo: 'REC-RS202600011', issueDate: '2026-10-05', dueDate: '2026-10-05', reference: 'INV-RS202600011',
     customerName: 'Tenant', customerFirstName: 'Tenant', customerLastName: '', customerAddress: 'Project', customerTaxId: '', customerPhone: '', customerEmail: '',
@@ -35,6 +36,7 @@ function formHarness(props) {
     generateFinancialDocument: async (id, kind, payload) => { calls.push(['linked-create', id, kind, payload]); return saved; },
     createReceiptForInvoice: async () => { throw new Error('Unexpected standalone receipt'); },
     createStandaloneInvoice: async () => { throw new Error('Unexpected standalone invoice'); },
+    ...apiOverrides,
   };
   const mockRequire = name => {
     if (name === 'react') return hookedReact;
@@ -83,4 +85,28 @@ test('ordinary invoices still get their independent number, and ordinary receipt
   receipt.render(); await receipt.runEffects();
   assert.deepEqual(receipt.calls, [['standalone-list']]);
   assert.match(receipt.render(), /เลือกใบแจ้งหนี้/);
+});
+
+test('D10: the deposit receipt goes through with the tenant\'s slip on file; without one the agent must attach a slip', async () => {
+  for (const slipOnFile of [true, false]) {
+    const sent = [];
+    const h = formHarness({ kind: 'receipt', fixedInvoiceId: 100, slipOnFile, onStandaloneCreated: (value) => sent.push(value) }, {
+      createReceiptForInvoice: async (id, payload, file) => { h.calls.push(['standalone-receipt', id, file]); return { id }; },
+    });
+    h.render(); await h.runEffects();
+    const markup = h.render();
+    assert.equal(/สลิปการชำระ(<!-- -->)? \*/.test(markup), !slipOnFile, 'the slip is marked required only when none is on file');
+    assert.equal(markup.includes(contractsTh.deposit.slipOnFile), slipOnFile);
+    assert.equal(h.buttons.some(button => button.children === 'แนบสลิป'), !slipOnFile, 'the tenant\'s slip is kept: no other slip is attached over it');
+    h.buttons.find(button => button.children === 'บันทึกการชำระ').onPress();
+    await new Promise(resolve => setImmediate(resolve));
+    const created = h.calls.filter(call => call[0] === 'standalone-receipt');
+    if (slipOnFile) {
+      assert.deepEqual(created, [['standalone-receipt', 100, undefined]], 'no file is sent: the server uses the tenant\'s slip');
+      assert.deepEqual(sent, [{ id: 100 }]);
+    } else {
+      assert.deepEqual(created, []);
+      assert.match(h.render(), /กรุณาแนบสลิป/);
+    }
+  }
 });

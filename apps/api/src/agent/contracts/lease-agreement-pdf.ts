@@ -385,10 +385,13 @@ export async function createLeaseAgreementPdf(
   return Buffer.from(await pdf.save());
 }
 
-/** Stamp owner (landlord) + tenant PNGs onto a filled lease PDF (every page). */
+/** D9: the witness signs once, in the box above the witness name on page 7. */
+export const WITNESS_SIGNATURE_SLOT = { page: 6, x: 206.0, y: 164.0, maxW: 130, maxH: 36 } as const;
+
+/** Stamp owner (landlord) + tenant PNGs onto a filled lease PDF (every page), and the witness PNG on page 7. */
 export async function stampLeaseAgreementSignatures(
   base: Buffer,
-  signatures: { owner: Buffer; tenant: Buffer },
+  signatures: { owner: Buffer; tenant: Buffer; witness?: Buffer },
 ): Promise<Buffer> {
   const pdf = await PDFDocument.load(base);
   const pages = pdf.getPages();
@@ -397,6 +400,17 @@ export async function stampLeaseAgreementSignatures(
     tenantSignaturePng: signatures.tenant,
   } as const;
   const embedded = new Map<keyof typeof byKey, Awaited<ReturnType<PDFDocument["embedPng"]>>>();
+  const witnessPage = pages[WITNESS_SIGNATURE_SLOT.page];
+  if (signatures.witness && witnessPage) {
+    const image = await pdf.embedPng(signatures.witness);
+    const size = image.scaleToFit(WITNESS_SIGNATURE_SLOT.maxW, WITNESS_SIGNATURE_SLOT.maxH);
+    witnessPage.drawImage(image, {
+      x: WITNESS_SIGNATURE_SLOT.x + (WITNESS_SIGNATURE_SLOT.maxW - size.width) / 2,
+      y: WITNESS_SIGNATURE_SLOT.y,
+      width: size.width,
+      height: size.height,
+    });
+  }
   for (const slot of SIGNATURE_SLOTS) {
     const page = pages[slot.page];
     if (!page) continue;

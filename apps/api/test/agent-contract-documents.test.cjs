@@ -1,5 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { brokerAppointmentLookup } = require('./broker-appointment-lookup.cjs');
 const ts = require('typescript');
 require('reflect-metadata');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(require('node:fs').readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
@@ -10,6 +11,8 @@ const { createReservationMock, stampReservationSignatures } = require('../src/ag
 const { PDFDocument, PDFName, PDFDict } = require('pdf-lib');
 const sharp = require('sharp');
 const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
+const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
+const { emptyLeaseAgreement } = require('../src/agent/contracts/lease-agreement.ts');
 const { AuthService } = require('../src/auth/auth.service.ts');
 const { Module } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
@@ -22,6 +25,7 @@ function reservationRow(overrides = {}) {
   return {
     id: 11,
     tenant_id: 2,
+    rent_room_id: 3,
     lead_id: 1,
     contract_no: 'EC-11',
     rent_room: { property: { name: 'Aria' }, listing_title: null, room_id: '1201' },
@@ -225,14 +229,218 @@ async function signaturePng() {
 function pdfHarness(overrides = {}) {
   const row = reservationRow(overrides);
   const qb = {};
-  for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
+  const scoped = [];
+  for (const key of ['leftJoinAndSelect', 'andWhere', 'orderBy']) qb[key] = () => qb;
+  qb.where = (sql, params) => { scoped.push(params); return qb; };
   qb.getOne = async () => row;
+  // D1: broker appointments as [roomId, tenantId] (the row's own pair unless a test changes it), answered only for its agent.
+  let appointments = [[row.rent_room_id, row.tenant_id]];
+  const asked = [];
+  qb.leftJoin = (...args) => brokerAppointmentLookup(() => appointments, row.created_by_user_id, asked).leftJoin(...args);
   const { storage, objects, cloud } = storageDouble();
   cloud.download = async path => ({ data: objects.has(path) ? new Blob([objects.get(path).buffer]) : null, error: objects.has(path) ? null : new Error('missing') });
   cloud.remove = async paths => { paths.forEach(path => objects.delete(path)); return { error: null }; };
-  const repo = { createQueryBuilder: () => qb, update: async (where, patch) => { Object.assign(row, patch); return { affected: 1 }; } };
-  return { row, storage, objects, repo, service: new AgentContractsService({ getRepository: () => repo }, storage) };
+  // D9 + D17: the live witness signature of this lease (null until a test sets one) and the rows the service logs.
+  // `locked` is what the transaction reads back (a test can make it differ), `insertError` makes the log insert fail.
+  let witness = null; let locked = null; let insertError = null; const logged = [];
+  const repo = { createQueryBuilder: () => qb, update: async (where, patch) => { Object.assign(row, patch); return { affected: 1 }; },
+    findOne: async (options) => {
+      assert.deepEqual({ ...options.where, voided_at: options.where.voided_at?._type }, { agreement_id: row.id, party: 'witness', voided_at: 'isNull' });
+      assert.deepEqual(options.relations, { signed_by: true }, 'the witness comes with the account that pressed sign');
+      return witness;
+    } };
+  const db = { getRepository: () => repo, transaction: async (fn) => fn({
+    getRepository: () => repo,
+    findOne: async (entity, options) => {
+      assert.equal(entity, LeaseContractEntity); assert.equal(options.lock.mode, 'pessimistic_write');
+      assert.equal(options.where.created_by_user_id, 7);
+      return locked ? { ...row, ...locked } : { ...row };
+    },
+    insert: async (entity, rows) => { assert.equal(entity, AgreementSignatureEntity); if (insertError) throw insertError; logged.push(...rows); },
+  }) };
+  return { row, storage, objects, repo, asked, logged, scoped, setWitness: (value) => { witness = value; },
+    setLocked: (value) => { locked = value; }, failInsert: (error) => { insertError = error; },
+    setAppointments: (pairs) => { appointments = pairs; }, service: new AgentContractsService(db, storage) };
 }
+test('D1: a reservation not generated yet cannot be generated, sent or signed once its broker appointment is not valid', async () => {
+  const h = pdfHarness();
+  h.setAppointments([]);
+  const refused = (e) => e.getStatus() === 400 && e.getResponse().code === 'BROKER_APPOINTMENT_REQUIRED';
+  // The preview still opens, so the agent can read the letter while the appointment is sorted out.
+  await h.service.reservationPdf(7, 11, false);
+  const preview = h.row.document_url;
+  assert.match(preview, /mock\/reservation_letter/);
+  // "Today" is the Bangkok date: 18:00 UTC on 20 Oct is already 21 Oct in Bangkok.
+  const RealDate = Date;
+  global.Date = class extends RealDate { constructor(...args) { super(...(args.length ? args : ['2026-10-20T18:00:00Z'])); } static now() { return new RealDate('2026-10-20T18:00:00Z').getTime(); } };
+  try { await assert.rejects(() => h.service.reservationPdf(7, 11, true), refused); } finally { global.Date = RealDate; }
+  assert.equal(h.row.document_url, preview, 'nothing was generated');
+  // The lookup asks about this agent, this room and this tenant, and only appointments under 1 year old:
+  // start_date + 1 year must be after today, so on the anniversary itself the appointment has already ended.
+  const asked = h.asked;
+  assert.ok(asked.some((c) => c[0] === 'where' && c[2]?.agentId === 7));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[1] === "c.status = 'active'"));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[1] === "COALESCE(template.form_kind, agreementType.form_kind) = 'broker_appointment'"));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && c[1] === "c.start_date + INTERVAL '1 year' > CAST(:today AS date)" && c[2]?.today === '2026-10-21'));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && JSON.stringify(c[2]?.roomIds) === '[3]'));
+  assert.ok(asked.some((c) => c[0] === 'andWhere' && JSON.stringify(c[2]?.tenantIds) === '[2]'));
+  await assert.rejects(() => h.service.deliverToParty(7, 11, { party: 'tenant' }), refused);
+  assert.equal(h.row.tenant_delivered_at, undefined, 'nothing was delivered');
+  // A party who already received the letter cannot sign it in the app either.
+  Object.assign(h.row, { tenant: { name: 'สมชาย', user_id: 8 }, tenant_delivered_at: new Date('2026-10-01T00:00:00Z') });
+  h.service.inboxQuery = () => h.repo.createQueryBuilder();
+  await assert.rejects(() => h.service.signAsParty(8, 11, { party: 'tenant', signaturePng: 'not checked yet' }), refused);
+  assert.equal(h.row.tenant_signed_at, null, 'nothing was signed');
+  // An appointment for the same room but another tenant does not count.
+  h.setAppointments([[3, 99]]);
+  await assert.rejects(() => h.service.reservationPdf(7, 11, true), refused);
+  const otherAgent = pdfHarness({ created_by_user_id: 8 });
+  otherAgent.service.query = () => otherAgent.repo.createQueryBuilder(); // the letter loads, but the appointment lookup asks for agent 8
+  // The lookup asks about the letter's own agent (8), so its appointment counts and delivery gets past the check.
+  await assert.rejects(() => otherAgent.service.deliverToParty(7, 11, { party: 'tenant' }), (e) => e.getStatus() === 400 && /ผู้เช่ายังไม่มีบัญชี/.test(e.message));
+});
+
+test('D1: a lease and the broker appointment itself are never checked against an appointment', async () => {
+  for (const kind of ['lease', 'broker_appointment']) {
+    const h = pdfHarness({ agreement_type_code: kind, agreement_type: { form_kind: kind }, template: { form_kind: kind },
+      owner_user_id: 9, owner_delivered_at: kind === 'lease' ? new Date('2026-10-01T00:00:00Z') : null });
+    h.repo.createQueryBuilder().leftJoin = () => assert.fail(`a ${kind} is not checked`);
+    // Each call gets past the appointment check: the lease stops at a later rule (the tenant has no account),
+    // the broker appointment is delivered to the landlord, and signing stops at the unreadable signature.
+    if (kind === 'lease')
+      await assert.rejects(() => h.service.deliverToParty(7, 11, { party: 'tenant' }), (e) => e.getStatus() === 400 && /ผู้เช่ายังไม่มีบัญชี/.test(e.message), kind);
+    else {
+      await h.service.deliverToParty(7, 11, { party: 'owner' });
+      assert.ok(h.row.owner_delivered_at instanceof Date, kind);
+    }
+    h.service.inboxQuery = () => h.repo.createQueryBuilder();
+    await assert.rejects(() => h.service.signAsParty(9, 11, { party: 'owner', signaturePng: 'not a png' }),
+      (e) => e.getStatus() === 400 && /ลายเซ็น/.test(e.message), kind);
+  }
+});
+
+test('D1: the agent cannot sign for a party on a reservation whose broker appointment is not valid (needs real PNG decoding)', async () => {
+  const h = pdfHarness();
+  h.setAppointments([]);
+  const signature = `data:image/png;base64,${(await signaturePng()).toString('base64')}`;
+  await assert.rejects(() => h.service.sign(7, 11, { parties: ['agent'], signaturePng: signature }),
+    (e) => e.getStatus() === 400 && e.getResponse().code === 'BROKER_APPOINTMENT_REQUIRED');
+  assert.equal(h.row.agent_signed_at, null);
+});
+
+function leaseHarness(overrides = {}) {
+  return pdfHarness({ agreement_type_code: 'lease', agreement_type: { name_th: 'สัญญาเช่า', form_kind: 'lease' },
+    template: { form_kind: 'lease', document_template_key: 'lease/v1' },
+    data: { leaseAgreement: { ...emptyLeaseAgreement(), landlordName: 'Landlord A', tenantName: 'Tenant B', witnessSignName: 'Typed In Form' } },
+    ...overrides });
+}
+const pageImages = async (buffer, index) =>
+  (await PDFDocument.load(buffer)).getPages()[index].node.Resources().lookup(PDFName.of('XObject'), PDFDict)?.keys().length ?? 0;
+
+test('D9: a lease is generated only after the witness signs, and the witness signature and name go on page 7', async () => {
+  const h = leaseHarness();
+  const png = await signaturePng();
+  for (const party of ['owner', 'tenant']) {
+    h.row[`${party}_signed_at`] = new Date('2026-10-20T03:00:00Z');
+    h.row[`${party}_signature_url`] = `7/11/signatures/${party}.png`;
+    h.objects.set(`7/11/signatures/${party}.png`, { buffer: png });
+  }
+  const before = h.objects.size;
+  await assert.rejects(() => h.service.leaseAgreementPdf(7, 11, true),
+    (e) => e.getStatus() === 400 && e.getResponse().code === 'WITNESS_SIGNATURE_REQUIRED');
+  assert.equal(h.objects.size, before, 'nothing was generated');
+  assert.equal(h.row.status, 'draft');
+  // The preview still opens without a witness.
+  await h.service.leaseAgreementPdf(7, 11, false);
+  assert.match(h.row.document_url, /mock\/lease_agreement/);
+  // A witness file from another contract is refused.
+  h.setWitness({ signature_url: '9/99/signatures/w.png', signer_name: 'Witness C', signed_by: null });
+  await assert.rejects(() => h.service.leaseAgreementPdf(7, 11, true), (e) => e.getStatus() === 400 && /ลายเซ็นไม่ตรง/.test(e.message));
+  h.setWitness({ signature_url: '7/11/signatures/w.png', signer_name: 'Witness C', signed_by: null });
+  h.objects.set('7/11/signatures/w.png', { buffer: png });
+  const result = await h.service.leaseAgreementPdf(7, 11, true);
+  assert.equal(result.leaseAgreementStatus, 'ready');
+  assert.equal(h.row.status, 'active');
+  const generated = h.objects.get(h.row.document_url).buffer;
+  assert.equal(await pageImages(generated, 6), 3, 'page 7 has the landlord, tenant and witness signatures');
+  assert.equal(await pageImages(generated, 0), 2, 'other pages carry only the landlord and tenant');
+});
+
+test('D9: the witness name on the generated lease is the person who signed, or the agent when the agent is the witness', async () => {
+  // createLeaseAgreementPdf is read from the module at call time, so wrapping the export shows the data it gets.
+  const pdfModule = require('../src/agent/contracts/lease-agreement-pdf.ts');
+  const original = pdfModule.createLeaseAgreementPdf;
+  const named = [];
+  pdfModule.createLeaseAgreementPdf = async (data) => { named.push(data.witnessSignName); return original(data); };
+  try {
+    for (const witness of [
+      { signature_url: '7/11/signatures/w.png', signer_name: ' Witness C ', signed_by: { first_name: 'QA', last_name: 'Agent' } },
+      { signature_url: '7/11/signatures/w.png', signer_name: null, signed_by: { first_name: 'QA', last_name: 'Agent' } },
+    ]) {
+      const h = leaseHarness();
+      const png = await signaturePng();
+      for (const party of ['owner', 'tenant']) {
+        h.row[`${party}_signed_at`] = new Date('2026-10-20T03:00:00Z');
+        h.row[`${party}_signature_url`] = `7/11/signatures/${party}.png`;
+        h.objects.set(`7/11/signatures/${party}.png`, { buffer: png });
+      }
+      h.objects.set('7/11/signatures/w.png', { buffer: png });
+      h.setWitness(witness);
+      await h.service.leaseAgreementPdf(7, 11, true);
+    }
+  } finally { pdfModule.createLeaseAgreementPdf = original; }
+  assert.deepEqual(named, ['Witness C', 'QA Agent'], 'not the name typed in the form ("Typed In Form")');
+});
+
+test('D9: the lease witness signs once on the agent\'s device; the agent can be the witness', async () => {
+  const signature = `data:image/png;base64,${(await signaturePng()).toString('base64')}`;
+  const notLease = pdfHarness();
+  await assert.rejects(() => notLease.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400 && /เฉพาะสัญญาเช่า/.test(e.message));
+  const h = leaseHarness();
+  await assert.rejects(() => h.service.witnessSign(7, 11, { asAgent: false, signerName: '  ', signaturePng: signature }), (e) => e.getStatus() === 400 && /ชื่อพยาน/.test(e.message));
+  await assert.rejects(() => h.service.witnessSign(7, 11, { asAgent: true, signaturePng: 'not a png' }), (e) => e.getStatus() === 400);
+  assert.deepEqual(h.logged, []);
+  await h.service.witnessSign(7, 11, { asAgent: true, signerName: 'ignored', signaturePng: signature });
+  assert.equal(h.logged.length, 1);
+  assert.deepEqual({ ...h.logged[0], signed_at: undefined, signature_url: undefined },
+    { agreement_id: 11, party: 'witness', channel: 'app', signed_by_user_id: 7, signer_name: null, signed_at: undefined, signature_url: undefined });
+  assert.match(h.logged[0].signature_url, /^7\/11\/signatures\//);
+  assert.ok(h.logged[0].signed_at instanceof Date);
+  // Once a witness has signed, a second one is refused.
+  h.setWitness({ signature_url: h.logged[0].signature_url, signer_name: null, signed_by: { first_name: 'QA', last_name: 'Agent' } });
+  await assert.rejects(() => h.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400 && /พยานลงนามแล้ว/.test(e.message));
+  assert.equal(h.logged.length, 1);
+  // Someone else signs on the agent's device: pressed by the agent, named as typed.
+  const other = leaseHarness();
+  await other.service.witnessSign(7, 11, { asAgent: false, signerName: ' Witness C ', signaturePng: signature });
+  assert.equal(other.logged[0].channel, 'on_site');
+  assert.equal(other.logged[0].signed_by_user_id, 7);
+  assert.equal(other.logged[0].signer_name, 'Witness C');
+  assert.ok(other.scoped.some((params) => params?.agentId === 7), 'the lease is looked up for this agent');
+  // A generated lease cannot get a witness any more.
+  const done = leaseHarness({ status: 'active' });
+  await assert.rejects(() => done.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400);
+});
+
+test('D9: a witness signature that loses a race or meets a changed lease is refused and its file removed', async () => {
+  const signature = `data:image/png;base64,${(await signaturePng()).toString('base64')}`;
+  const uploadedSignatures = (h) => [...h.objects.keys()].filter((key) => key.startsWith('7/11/signatures/'));
+  // Another witness signed between the check and the insert: the unique index answers.
+  const raced = leaseHarness();
+  raced.failInsert(Object.assign(new Error('duplicate key'), { code: '23505' }));
+  await assert.rejects(() => raced.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 400 && /พยานลงนามแล้ว/.test(e.message));
+  assert.deepEqual(raced.logged, []);
+  assert.deepEqual(uploadedSignatures(raced), [], 'the uploaded signature file was removed');
+  // The lease was edited (or generated) while the witness was signing.
+  for (const change of [{ data: { leaseAgreement: { edited: true } } }, { status: 'awaiting_agent_review' }, { document_url: '7/11/generated/lease_agreement/v1/x.pdf' }]) {
+    const changed = leaseHarness();
+    changed.setLocked(change);
+    await assert.rejects(() => changed.service.witnessSign(7, 11, { asAgent: true, signaturePng: signature }), (e) => e.getStatus() === 409, JSON.stringify(change));
+    assert.deepEqual(changed.logged, []);
+    assert.deepEqual(uploadedSignatures(changed), []);
+  }
+});
+
 test('mock preview works before signing, generation stamps three images and persists once', async () => {
   const h = pdfHarness();
   const preview = await h.service.reservationPdf(7, 11, false);
@@ -261,6 +469,10 @@ test('mock preview works before signing, generation stamps three images and pers
   assert.equal((await h.service.reservationPdf(7, 11, true)).reservationLetterUrl, result.reservationLetterUrl);
   assert.equal(h.objects.size, count);
   assert.equal((await h.service.reservationPdf(7, 11, false)).reservationLetterUrl, result.reservationLetterUrl);
+  // D1: once generated, the letter stays readable (and a repeated generate returns it) even after the appointment ends.
+  h.setAppointments([]);
+  assert.equal((await h.service.reservationPdf(7, 11, true)).reservationLetterUrl, result.reservationLetterUrl);
+  assert.equal(h.objects.size, count);
 });
 
 test('PDF writes reject inaccessible or non-reservation contracts and clean up failed commits', async () => {

@@ -90,6 +90,13 @@ export function TenantDetailHub({
         cta: d.nowSlipCta,
       };
     }
+    if (next.kind === "broker_appointment") {
+      return {
+        title: d.nowBrokerTitle,
+        body: d.nowBrokerBody,
+        cta: next.contract ? d.nowBrokerOpen : d.nowBrokerCta,
+      };
+    }
     if (next.kind === "confirm") {
       return {
         title: d.nowConfirmTitle,

@@ -123,6 +123,20 @@ export class PartyContractsController {
     return this.contracts.uploadReservationPaymentSlip(user.id, id, file);
   }
 
+  /** D10: the tenant sends the slip for the deposit invoice of a generated lease. */
+  @Post("mine/:id/deposit-payment-slip")
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor("file", {
+    limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 0 },
+  }))
+  depositPaymentSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
+  ) {
+    return this.contracts.uploadDepositPaymentSlip(user.id, id, file);
+  }
+
   @Post("mine/:id/sign")
   @HttpCode(HttpStatus.OK)
   sign(

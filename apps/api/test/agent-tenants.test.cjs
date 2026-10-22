@@ -102,8 +102,9 @@ test('room choices lead with the asked-for room and the rooms the lead viewed, a
 test('lists tenants without contracts and groups contracts by tenant id, never name', async () => {
   const calls = []; const qb = {}; for (const k of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[k] = (...args) => { calls.push([k, ...args]); return qb; };
   qb.getMany = async () => [1, 2].map(id => ({ id, lead_id: id, name: 'Same name', created_at: new Date('2026-09-11'), lead: null })); qb.getOne = async () => null;
-  const service = new AgentTenantsService({ getRepository: () => ({ createQueryBuilder: () => qb }) }, { list: async agent => { assert.equal(agent, 7); return [{ id: 4, tenantId: 2 }]; } });
+  const service = new AgentTenantsService({ getRepository: () => ({ createQueryBuilder: () => qb }) }, { list: async agent => { assert.equal(agent, 7); return [{ id: 4, tenantId: 2 }]; }, activeBrokerAppointments: async (agent, filter) => { assert.equal(agent, 7); assert.equal(filter, undefined); return new Set(['20:1']); } });
   const list = await service.list(7); assert.equal(list.length, 2); assert.equal(list[0].contracts.length, 0); assert.equal(list[1].contracts[0].id, 4);
+  assert.deepEqual(list.map((t) => t.brokerAppointmentReady), [false, false], 'no lead room, so no appointment');
   await assert.rejects(() => service.view(9, 1), e => e.getStatus() === 404); assert.ok(calls.some(c => c[0] === 'where' && c[2].agentId === 9));
 });
 test('candidate searches are scoped, bounded, and parameterized', async () => {
@@ -344,5 +345,24 @@ test('C2: once the tenant has a login the email stays; other details still chang
   const row = (user_id) => service.serialize({ ...base, user_id, lead: null }, []);
   assert.equal(row(5).hasAccount, true);
   assert.equal(row(null).hasAccount, false);
+});
+
+test('D1: each tenant says whether its room + tenant has a valid broker appointment', async () => {
+  const qb = {}; for (const k of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[k] = () => qb;
+  // Tenant 3 lives in room 20 too, but the appointment belongs to tenant 1.
+  const rows = [{ id: 1, lead_id: 1, name: 'A', created_at: new Date('2026-09-11'), lead: { rent_room_id: 20 } },
+    { id: 2, lead_id: 2, name: 'B', created_at: new Date('2026-09-11'), lead: { rent_room_id: 21 } },
+    { id: 3, lead_id: 3, name: 'C', created_at: new Date('2026-09-11'), lead: { rent_room_id: 20 } }];
+  let one = rows[1];
+  qb.getMany = async () => rows; qb.getOne = async () => one;
+  const asked = [];
+  const service = new AgentTenantsService({ getRepository: () => ({ createQueryBuilder: () => qb }) },
+    { list: async () => [], activeBrokerAppointments: async (agent, filter) => { assert.equal(agent, 7); asked.push(filter); return new Set(['20:1']); } });
+  assert.deepEqual((await service.list(7)).map((t) => t.brokerAppointmentReady), [true, false, false]);
+  assert.equal((await service.view(7, 2)).brokerAppointmentReady, false);
+  one = rows[0];
+  assert.equal((await service.view(7, 1)).brokerAppointmentReady, true);
+  assert.deepEqual(asked, [undefined, { roomIds: [21], tenantIds: [2] }, { roomIds: [20], tenantIds: [1] }],
+    'the detail view only asks about its own room and tenant');
 });
 

@@ -84,7 +84,26 @@ export interface AgentContract {
     paymentSlipUrl: string | null;
     submittedAt: string | null;
   } | null;
+  /** D10: the deposit of a generated lease (null when not a lease, not generated yet, or the deposit is 0). */
+  depositPayment?: DepositPayment | null;
 }
+/**
+ * D10: one deposit invoice per lease, issued in the landlord's name once the lease document is generated.
+ * not_issued = the lease is generated but issuing failed; the agent can issue it again.
+ */
+export interface DepositPayment {
+  status: "not_issued" | "unpaid" | "submitted" | "paid";
+  total: number;
+  invoiceId: number | null;
+  invoiceDocumentNo: string | null;
+  dueDate: string | null;
+  invoiceUrl: string | null;
+  receiptDocumentNo: string | null;
+  receiptUrl: string | null;
+  paymentSlipUrl: string | null;
+  submittedAt: string | null;
+}
+export type DepositFinancialDocumentKind = "deposit-invoice" | "deposit-receipt" | "deposit-payment-slip";
 export type AgentContractDocumentKind =
   | "reservation_letter"
   | "lease_agreement"
@@ -96,11 +115,6 @@ export interface SignAgentContract {
   parties: AgentContractSignParty[];
   signaturePng: string;
 }
-export interface ContractSignInvite {
-  party: ContractParty;
-  url: string;
-  expiresAt: string;
-}
 export interface ContractDelivery {
   party: ContractParty;
   userId: number;
@@ -111,11 +125,28 @@ export interface PartyContract extends AgentContract {
   /** Next scheduled rent round, independently of any outstanding bills. */
   nextRentBill?: Pick<TenantNextBill, "period" | "issueDate" | "dueDate" | "graceUntil"> | null;
 }
+/**
+ * D17: how a signature was made. app = the party signed in their own app, link = through a sign link,
+ * on_site = the agent signed for that party on the agent's device, uploaded_file = a signed file was attached,
+ * legacy = copied from the old signature columns (channel unknown).
+ */
+export type AgreementSignatureChannel = "app" | "link" | "on_site" | "uploaded_file" | "legacy";
+export type AgreementSignatureParty = AgentContractSignParty | "witness";
+/** One live signature of a contract (`GET /agent/contracts/:id/signatures`). */
+export interface AgreementSignatureLogEntry {
+  party: AgreementSignatureParty;
+  channel: AgreementSignatureChannel;
+  signedAt: string;
+  /** The name to show: the name typed for a witness without an account, otherwise the account that pressed sign. */
+  signedBy: string | null;
+}
 export interface ContractCandidate {
   leadId: number;
   tenant: string;
   property: string;
   room: string | null;
+  /** D1: this room + tenant has a valid broker appointment (generated, under 1 year old), so a reservation letter can start. */
+  brokerAppointmentReady?: boolean;
 }
 export interface CreateAgentContract {
   templateId?: number;
@@ -174,6 +205,13 @@ export interface AgreementAttachment {
   supersedesDocumentId: number | null;
   sourceDocumentId: number | null;
   isCurrent: boolean;
+}
+/** B3: a current attached document the agent rejected, shown to whoever signs (signing is not blocked). */
+export interface RejectedAttachmentNotice {
+  /** The document type name, or the file name when the type is unknown. */
+  name: string;
+  /** The reason the agent gave, if any. */
+  note: string | null;
 }
 export interface AgreementAttachmentChecklist {
   editable: boolean;

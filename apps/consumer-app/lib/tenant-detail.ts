@@ -136,6 +136,7 @@ export function tenantStage(tenant: AgentTenant, today = new Date()): TenantStag
 
 export type TenantNextAction =
   | { kind: "review_slip"; bill: AgentTenantBill }
+  | { kind: "broker_appointment"; contract: AgentContract | null }
   | { kind: "reservation" }
   | { kind: "confirm"; contract: AgentContract }
   | { kind: "sign"; contract: AgentContract };
@@ -146,11 +147,18 @@ export function tenantNextAction(tenant: AgentTenant, billing: AgentTenantBillin
     .filter((b) => b.status === "awaiting_review")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
   if (slip) return { kind: "review_slip", bill: slip };
-  if (tenant.contracts.every((c) => c.status === "cancelled")) return { kind: "reservation" };
-  const signed = tenant.contracts.find((c) => c.status === "awaiting_agent_review");
+  const open = tenant.contracts.filter((c) => c.status !== "cancelled");
+  const signed = open.find((c) => c.status === "awaiting_agent_review");
   if (signed) return { kind: "confirm", contract: signed };
-  const signing = tenant.contracts.find((c) => c.status === "awaiting_signatures");
-  return signing ? { kind: "sign", contract: signing } : null;
+  const signing = open.find((c) => c.status === "awaiting_signatures");
+  if (signing) return { kind: "sign", contract: signing };
+  // Nothing booked yet. D1 (AC-3.2): the room needs an active broker appointment before the reservation letter.
+  if (open.every((c) => c.formKind === "broker_appointment")) {
+    if (tenant.brokerAppointmentReady) return { kind: "reservation" };
+    const draft = open.find((c) => c.formKind === "broker_appointment" && c.status === "draft") ?? null;
+    return { kind: "broker_appointment", contract: draft };
+  }
+  return null;
 }
 
 /** This tenant's real slips waiting for review (`GET /bills/agent`), matched by lease contract. */

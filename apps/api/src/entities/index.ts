@@ -12,6 +12,7 @@ export * from "./agreement-template.entity";
 export * from "./agreement-sign-invite.entity";
 export * from "./room-share-link.entity";
 import { AgreementSignInviteEntity } from "./agreement-sign-invite.entity";
+import { AgreementSignatureEntity } from "./agreement-signature.entity";
 import { RoomShareLinkEntity } from "./room-share-link.entity";
 import { MasterAgreementTypeEntity } from './master-agreement-type.entity';
 export * from './base.entity';
@@ -92,6 +93,7 @@ export const ALL_ENTITIES = [
   MasterDocumentTypeEntity, AgreementDocumentRequirementEntity, AgreementDocumentEntity,
   AgreementTemplateEntity,
   AgreementSignInviteEntity,
+  AgreementSignatureEntity,
   RoomShareLinkEntity,
   MasterAgreementTypeEntity,
   UserEntity,

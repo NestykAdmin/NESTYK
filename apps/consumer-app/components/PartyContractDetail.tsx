@@ -14,6 +14,7 @@ import type { AppIconName } from "@nestyk/ui/native";
 import type {
   AgreementAttachmentChecklist,
   AgreementDocumentSubject,
+  DepositFinancialDocumentKind,
   PartyContract,
 } from "@nestyk/types";
 import {
@@ -24,6 +25,7 @@ import {
   uploadMyAttachment,
   openMyFinancialDocument,
   uploadMyReservationPaymentSlip,
+  uploadMyDepositPaymentSlip,
 } from "../lib/party-contracts-api";
 import {
   ContractSignaturePad,
@@ -31,6 +33,9 @@ import {
 } from "./ContractSignaturePad";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
+import { DepositPaymentCard } from "./DepositPaymentCard";
+import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
+import { rejectedAttachments } from "../lib/attachment-review";
 import { TenantContractAttachments } from "./TenantContractList";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
@@ -108,6 +113,8 @@ export function PartyContractDetail({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState("");
   const [slipSourceOpen, setSlipSourceOpen] = useState(false);
+  // D10: which payment the picked slip is for (the reservation fee, or the lease deposit).
+  const slipTarget = useRef<"reservation" | "deposit">("reservation");
   const [previewBusy, setPreviewBusy] = useState(false);
   const [signing, setSigning] = useState<ContractParty | null>(null);
   const [signPadKey, setSignPadKey] = useState(0);
@@ -227,12 +234,12 @@ export function PartyContractDetail({
     }
   }
 
-  async function openPaymentDocument(kind: "invoice" | "receipt" | "payment-slip") {
+  async function openPaymentDocument(kind: "invoice" | "receipt" | "payment-slip" | DepositFinancialDocumentKind) {
     setPreviewBusy(true);
     setError("");
     try {
       const doc = await openMyFinancialDocument(contract.id, kind);
-      setPreviewTitle(kind === "invoice" ? tc.common.paymentDocuments.invoice : kind === "receipt" ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip);
+      setPreviewTitle(kind.endsWith("invoice") ? tc.common.paymentDocuments.invoice : kind.endsWith("receipt") ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip);
       setPreviewUrl(doc.url);
     } catch (e) {
       setError(localizedError(e, pc.openDocumentFailed, locale));
@@ -269,7 +276,9 @@ export function PartyContractDetail({
         file = { uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? "application/octet-stream", file: asset.file };
       }
       setBusy(true);
-      const updated = await uploadMyReservationPaymentSlip(contract.id, file);
+      const updated = slipTarget.current === "deposit"
+        ? await uploadMyDepositPaymentSlip(contract.id, file)
+        : await uploadMyReservationPaymentSlip(contract.id, file);
       onUpdated(updated);
       setNotice(pc.slipSent);
     } catch (e) {
@@ -374,7 +383,16 @@ export function PartyContractDetail({
           contract={contract}
           busy={busy || previewBusy || refreshing || picking != null}
           onOpen={(kind) => void openPaymentDocument(kind)}
-          onUpload={mine.includes("tenant") ? () => setSlipSourceOpen(true) : undefined}
+          onUpload={mine.includes("tenant") ? () => { slipTarget.current = "reservation"; setSlipSourceOpen(true); } : undefined}
+        />
+      )}
+
+      {contract.formKind === "lease" && (
+        <DepositPaymentCard
+          contract={contract}
+          busy={busy || previewBusy || refreshing || picking != null}
+          onOpen={(kind) => void openPaymentDocument(kind)}
+          onUpload={mine.includes("tenant") ? () => { slipTarget.current = "deposit"; setSlipSourceOpen(true); } : undefined}
         />
       )}
 
@@ -483,6 +501,7 @@ export function PartyContractDetail({
             {paymentBlocksSigning && (
               <Text style={[styles.copy, body]}>{pc.bookingPaymentBeforeSigning}</Text>
             )}
+            <RejectedAttachmentsNotice items={rejectedAttachments(attachments)} />
             <MobileButton
               disabled={busy || refreshing || loading || !attachments || !partyReady || paymentBlocksSigning}
               onPress={() => {

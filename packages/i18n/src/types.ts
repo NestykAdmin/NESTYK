@@ -476,6 +476,10 @@ export interface TranslationSchema {
         nowSignTitle: string;
         nowSignBody: string;
         nowSignCta: string;
+        nowBrokerTitle: string;
+        nowBrokerBody: string;
+        nowBrokerCta: string;
+        nowBrokerOpen: string;
         nowConfirmTitle: string;
         nowConfirmBody: string;
         nowConfirmCta: string;
@@ -1203,6 +1207,16 @@ export interface TranslationSchema {
       tenant: string;
       agent: string;
       unsigned: string;
+      signedVia: { app: string; link: string; on_site: string; uploaded_file: string };
+      signedBy: string;
+      witness: string;
+      witnessHint: string;
+      witnessAsAgent: string;
+      witnessOther: string;
+      witnessName: string;
+      witnessNameRequired: string;
+      witnessRequired: string;
+      witnessSignTitle: string;
       signFor: string;
       shareSign: string;
       shareSignMessage: string;
@@ -1210,6 +1224,9 @@ export interface TranslationSchema {
       shareSignSent: string;
       shareSignSuccess: string;
       shareSignError: string;
+      reservationNeedsBroker: string;
+      reservationNoReadyTenant: string;
+      candidateNeedsBroker: string;
       shareSignChoose: string;
       shareSignLinkOnly: string;
       shareSignApp: string;

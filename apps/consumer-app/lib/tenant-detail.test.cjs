@@ -60,6 +60,7 @@ const tenant = (over = {}) => ({
   email: 'a@b.co',
   identityNumber: '1234567890123',
   nationality: 'ไทย',
+  brokerAppointmentReady: true,
   contracts: [contract()],
   ...over,
 });
@@ -205,3 +206,28 @@ test('confirming a slip pays the bill and records the payment once', () => {
   assert.equal(billingTotals(confirmed).awaiting.length, 0);
   assert.equal(confirmBill(confirmed, 41), confirmed);
 });
+
+test('D1: before any booking the next step is the broker appointment, then the reservation', () => {
+  const none = tenant({ contracts: [], brokerAppointmentReady: false });
+  assert.deepEqual(tenantNextAction(none, null), { kind: 'broker_appointment', contract: null });
+  // A broker appointment draft already started is opened instead of starting another one.
+  const draft = contract({ id: 5, formKind: 'broker_appointment', status: 'draft' });
+  assert.deepEqual(tenantNextAction(tenant({ contracts: [draft], brokerAppointmentReady: false }), null), { kind: 'broker_appointment', contract: draft });
+  // Waiting for signatures or for the agent to confirm comes first.
+  const signing = contract({ id: 6, formKind: 'broker_appointment', status: 'awaiting_signatures' });
+  assert.equal(tenantNextAction(tenant({ contracts: [signing], brokerAppointmentReady: false }), null).kind, 'sign');
+  const toConfirm = contract({ id: 7, formKind: 'broker_appointment', status: 'awaiting_agent_review' });
+  assert.equal(tenantNextAction(tenant({ contracts: [toConfirm], brokerAppointmentReady: false }), null).kind, 'confirm');
+  // Once the room's appointment is active (it may sit under another lead), the reservation is next.
+  const active = contract({ id: 8, formKind: 'broker_appointment', status: 'active' });
+  assert.equal(tenantNextAction(tenant({ contracts: [active] }), null).kind, 'reservation');
+  assert.equal(tenantNextAction(tenant({ contracts: [] }), null).kind, 'reservation');
+  // A cancelled appointment does not count as started.
+  const cancelled = contract({ id: 9, formKind: 'broker_appointment', status: 'cancelled' });
+  assert.deepEqual(tenantNextAction(tenant({ contracts: [cancelled], brokerAppointmentReady: false }), null), { kind: 'broker_appointment', contract: null });
+  // Once a reservation or a lease (running or ended) exists, the booking steps are done.
+  assert.equal(tenantNextAction(tenant({ contracts: [contract({ formKind: 'reservation', status: 'draft' })], brokerAppointmentReady: false }), null), null);
+  for (const status of ['active', 'expired', 'terminated'])
+    assert.equal(tenantNextAction(tenant({ contracts: [contract({ formKind: 'lease', status })], brokerAppointmentReady: false }), null), null, status);
+});
+
