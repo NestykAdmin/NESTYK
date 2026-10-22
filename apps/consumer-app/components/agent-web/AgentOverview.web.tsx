@@ -93,15 +93,17 @@ export function AgentOverview({
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
+      timeZone: "Asia/Bangkok",
     });
   const period = (year: number, month: number) =>
     new Date(year, month - 1, 1).toLocaleDateString(localeTag, {
       month: "long",
       year: "numeric",
     });
+  const bangkokDay = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
   const today = snapshot.schedule.items
     .filter(
-      (item) => new Date(item.startsAt).toDateString() === now.toDateString(),
+      (item) => bangkokDay(new Date(item.startsAt)) === bangkokDay(now),
     )
     .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   const nextAppointment = today.find(
@@ -357,7 +359,7 @@ export function AgentOverview({
                   <>
                     <strong className="aov-kpi-value">—</strong>
                     <span className="aov-kpi-sub">
-                      {copy.unavailableSection}
+                      {item.status === 'error' ? web.loadFailed : copy.unavailableSection}
                     </span>
                   </>
                 )}

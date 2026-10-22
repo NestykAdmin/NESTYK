@@ -1,7 +1,7 @@
-import { AgentCalendarScreen, emptyCalendarDraft } from '../components/AgentCalendarScreen';
-import { calendarDateKey, createCalendarDemoEvents, type CalendarDemoEvent } from '../lib/agent-calendar-demo';
-import { calendarViewingRange, viewingToCalendarEvent } from '../lib/agent-calendar-viewings';
-import { getAgentLead, listAgentViewings } from '../lib/agent-leads-api';
+import { AgentCalendarScreen } from '../components/AgentCalendarScreen';
+import { calendarDateKey } from '../lib/agent-calendar-demo';
+import { useAgentCalendarViewings } from '../lib/agent-calendar-viewings';
+import { getAgentLead } from '../lib/agent-leads-api';
 import { useLeadRoomViewing } from '../lib/use-lead-room-viewing';
 import {
   AgentTenantsScreen,
@@ -21,6 +21,7 @@ import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
 import { AgentWorkspace, AgentWorkspacePage } from '../components/agent-web/AgentWorkspace';
 import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import { AgentOverview } from '../components/agent-web/AgentOverview';
+import { useAgentDashboard } from '../lib/agent-dashboard';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
 import { AgentLeadDetailBody } from '../components/AgentLeadDetailBody';
@@ -59,7 +60,6 @@ import { UserRole, CONTRACT_PARTY_ROLE, type AgentLead, type AgentTenant, type C
 import {
   MobileCreateListingWizardBody,
   MobileAgentDashboardBody,
-  createAgentDashboardDemoFixture,
   defaultAgentListingConfig,
   type AgentDashboardDeepLink,
 } from '@nestyk/feature-listing';
@@ -141,11 +141,9 @@ export default function AppHomeScreen() {
   const router = useRouter();
   const { ready, isAuthenticated, session, displayName, initials, signOut } = useAuth();
   const [activeRole, setActiveRole] = useState<UserRole>(APP_CONFIG.defaultRole);
-  const [calendarEvents, setCalendarEvents] = useState(createCalendarDemoEvents);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => calendarDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => calendarDateKey(new Date()).slice(0, 7) + '-01');
-  const [calendarDraft, setCalendarDraft] = useState(emptyCalendarDraft);
-  const [calendarViewings, setCalendarViewings] = useState<CalendarDemoEvent[]>([]);
+  const [calendarReloadToken, setCalendarReloadToken] = useState(0);
   const [activeTab, setActiveTab] = useState<MobileAppTab>(() =>
     getDefaultTabForRole(APP_CONFIG.defaultRole),
   );
@@ -219,21 +217,6 @@ export default function AppHomeScreen() {
   );
 
   const unreadCount = [...notifications, ...messages].filter((n) => n.unread).length;
-
-  const calendarOpen = activeTab === 'calendar' && activeRole === 'agent';
-  useEffect(() => {
-    if (!calendarOpen) return;
-    let active = true;
-    const { from, to } = calendarViewingRange(calendarMonth);
-    listAgentViewings(from, to)
-      .then((rows) => {
-        if (active) setCalendarViewings(rows.map(viewingToCalendarEvent));
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [calendarOpen, calendarMonth]);
 
   const handleSearchPlaces = useCallback(
     (query: string) => searchPlaces(query, locale),
@@ -807,11 +790,7 @@ export default function AppHomeScreen() {
     [t, openCreateListing, openCreateLead],
   );
 
-  const agentDashboardSnapshot = useMemo(() => {
-    const dateLabel = new Date().toLocaleDateString(
-      locale === 'th' ? 'th-TH' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : 'en-GB',
-      { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
-    );
+  const dashboardGreetingName = useMemo(() => {
     // Prefer a person-facing first name; avoid treating "Admin" as the role label.
     const raw = (displayName || '').trim();
     const first = raw.split(/\s+/)[0] || '';
@@ -819,11 +798,8 @@ export default function AppHomeScreen() {
       !first || first.toLowerCase() === 'admin' || raw === t.roles.guest
         ? (session?.email?.split('@')[0] || t.roles.agent)
         : first;
-    return createAgentDashboardDemoFixture({
-      greetingName,
-      localDateLabel: dateLabel,
-    });
-  }, [displayName, locale, session?.email, t.roles.agent, t.roles.guest, dashboardRefreshKey]);
+    return greetingName;
+  }, [displayName, session?.email, t.roles.agent, t.roles.guest]);
 
   const finishPageRefresh = useCallback((token: number) => {
     if (pendingRefresh.current !== token) return;
@@ -831,19 +807,28 @@ export default function AppHomeScreen() {
     setPageRefreshing(false);
   }, []);
 
+  const agentDashboardSnapshot = useAgentDashboard({
+    enabled: activeRole === 'agent' && activeTab === 'dashboard' && isAuthenticated,
+    accountId: session?.userId ?? null,
+    refreshToken: dashboardRefreshKey,
+    greetingName: dashboardGreetingName,
+    locale,
+    onSettled: finishPageRefresh,
+  });
+
+  const calendarViewings = useAgentCalendarViewings({
+    enabled: activeRole === 'agent' && activeTab === 'calendar' && isAuthenticated,
+    accountId: session?.userId ?? null,
+    visibleMonth: calendarMonth,
+    refreshToken: calendarReloadToken,
+    onSettled: finishPageRefresh,
+  });
+
   useEffect(() => {
     // A completion from a previous tab/role must never stop a newer refresh.
     pendingRefresh.current = null;
     setPageRefreshing(false);
   }, [activeRole, activeTab, partyInbox]);
-
-  useEffect(() => {
-    // Demo data is synchronous: finish after the new snapshot is committed.
-    // Replace this with the dashboard request's settlement when its API is connected.
-    if (activeRole === 'agent' && activeTab === 'dashboard' && dashboardRefreshKey > 0) {
-      finishPageRefresh(dashboardRefreshKey);
-    }
-  }, [agentDashboardSnapshot, dashboardRefreshKey, activeRole, activeTab, finishPageRefresh]);
 
   const handlePageRefresh = useCallback(() => {
     if (pendingRefresh.current !== null) return;
@@ -854,6 +839,8 @@ export default function AppHomeScreen() {
       setPartyContractsReloadToken(token);
     } else if (activeRole === 'agent' && activeTab === 'dashboard') {
       setDashboardRefreshKey(token);
+    } else if (activeRole === 'agent' && activeTab === 'calendar') {
+      setCalendarReloadToken(token);
     } else if ((activeRole === 'tenant' || activeRole === 'landlord') && activeTab === 'dashboard') {
       setBillsReloadToken(token);
     } else if (activeTab === 'clients') {
@@ -927,6 +914,7 @@ export default function AppHomeScreen() {
             snapshot={agentDashboardSnapshot}
             onNavigate={handleAgentDashboardNavigate}
             initials={profileInitials}
+            onRefresh={handlePageRefresh}
           />
         </View>
       );
@@ -1169,14 +1157,22 @@ export default function AppHomeScreen() {
 
     if (activeTab === 'calendar' && activeRole === 'agent') {
       return <AgentCalendarScreen
-        events={[...calendarViewings, ...calendarEvents]}
-        onAdd={event => setCalendarEvents(previous => [...previous, event])}
+        key={session?.userId ?? 'guest'}
+        viewings={calendarViewings.viewings}
+        status={calendarViewings.status}
+        onRetry={() => setCalendarReloadToken(++refreshSequence.current)}
+        onSaved={viewing => {
+          if (viewing.status !== 'cancelled') {
+            const date = calendarDateKey(new Date(viewing.scheduledAt));
+            setCalendarSelectedDate(date);
+            setCalendarMonth(date.slice(0, 7) + '-01');
+          }
+          setCalendarReloadToken(++refreshSequence.current);
+        }}
         selectedDate={calendarSelectedDate}
         onSelectDate={setCalendarSelectedDate}
         visibleMonth={calendarMonth}
         onMonthChange={setCalendarMonth}
-        draft={calendarDraft}
-        onDraftChange={setCalendarDraft}
       />;
     }
 
@@ -1349,7 +1345,7 @@ export default function AppHomeScreen() {
   const onPageRefresh =
     isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
     (!partyInbox && !isWizardTab && activeRole === 'agent' &&
-      ['dashboard', 'listingLead', 'listingRoom'].includes(activeTab))
+      ['dashboard', 'listingLead', 'listingRoom', 'calendar'].includes(activeTab))
       ? handlePageRefresh : undefined;
 
   return (

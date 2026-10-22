@@ -367,6 +367,11 @@ export interface TranslationSchema {
   agent: {
     calendar: {
       demoNotice: string;
+      liveNotice: string;
+      creationDisabled: string;
+      manage: string;
+      done: string;
+      loadError: string;
       today: string;
       previousMonth: string;
       nextMonth: string;

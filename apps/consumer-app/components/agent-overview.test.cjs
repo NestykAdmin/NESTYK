@@ -17,9 +17,10 @@ function load(filename) {
   cache.set(filename, module);
   const localRequire = (name) => {
     if (name.endsWith('.css')) return {};
-    if (name === 'react') return { ...React, useEffect() {}, useId: () => `test-${sequence++}`, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
+    if (name === 'react') return { ...React, useMemo: fn => fn(), useEffect() {}, useId: () => `test-${sequence++}`, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
+    if (name === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
-    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null };
+    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileButton: 'MobileButton', MobileProfileAvatar: 'Avatar', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens, getCardElevation: () => ({}) };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
     if (name === '@nestyk/feature-listing') return load(`${root}/packages/feature-listing/src/dashboard/types.ts`);
     if (!name.startsWith('.')) return require(name);
@@ -122,4 +123,60 @@ test('Agent web uses the desktop body while iOS and Android retain the original 
       assert.equal(result.props.children.props.initials, 'AG');
     }
   }
+});
+
+function renderMobile(snapshot, onRefresh) {
+  const calls = [];
+  const { MobileAgentDashboardBody } = load(`${root}/packages/feature-listing/src/components/MobileAgentDashboardBody.tsx`);
+  return { calls, tree: nodes(MobileAgentDashboardBody({ snapshot, onNavigate: link => calls.push(link), onRefresh })) };
+}
+
+test('native errors hide stale totals and expose retry; commission without a ledger hides all money', () => {
+  const snapshot = fixture();
+  snapshot.isDemoPreview = false;
+  for (const key of ['business', 'actionRequired', 'schedule', 'inventory', 'clients', 'rent', 'activity']) snapshot[key].status = 'error';
+  snapshot.commission.status = 'not_configured';
+  let retries = 0;
+  const { tree } = renderMobile(snapshot, () => retries++);
+  assert.ok(!tree.includes('฿288,000'), 'Failed rent data must not remain visible');
+  assert.ok(!tree.includes('฿117,000'), 'Unconfigured commission must not display money');
+  assert.ok(!tree.includes('Life Asoke'), 'Failed sections must not retain their preview rows');
+  const dictionary = load(`${root}/packages/i18n/src/locales/en.ts`).en;
+  assert.ok(tree.includes(dictionary.agent.dashboard.webOverview.loadFailed));
+  const retry = tree.find(node => node?.type === 'MobileButton' && nodes(node.props.children).includes(dictionary.agent.tenants.retry));
+  assert.ok(retry);
+  retry.props.onPress();
+  assert.equal(retries, 1);
+});
+
+test('native loading is visible and successful empty sections use empty states instead of demo content', () => {
+  const snapshot = fixture();
+  snapshot.isDemoPreview = false;
+  snapshot.inventory.status = 'loading';
+  snapshot.actionRequired.items = [];
+  snapshot.schedule.items = [];
+  snapshot.activity.items = [];
+  snapshot.commission.status = 'not_configured';
+  const { tree } = renderMobile(snapshot);
+  const dictionary = load(`${root}/packages/i18n/src/locales/en.ts`).en;
+  assert.ok(tree.some(node => node?.type === 'ActivityIndicator'));
+  assert.ok(tree.includes(dictionary.agent.dashboard.emptyActions));
+  assert.ok(tree.includes(dictionary.agent.dashboard.noAppointments));
+  assert.ok(tree.includes(dictionary.common.noData));
+  assert.ok(!tree.includes(dictionary.agent.dashboard.demoBanner));
+});
+
+test('web and native show a Bangkok appointment across the UTC midnight boundary', () => {
+  const NativeDate = Date;
+  global.Date = class extends NativeDate {
+    constructor(...args) { super(...(args.length ? args : ['2026-10-31T18:45:00Z'])); }
+    static now() { return NativeDate.parse('2026-10-31T18:45:00Z'); }
+  };
+  try {
+    const snapshot = fixture();
+    snapshot.isDemoPreview = false;
+    snapshot.schedule.items = [{ id: 'viewing-1', startsAt: '2026-10-31T19:00:00Z', title: 'Bangkok appointment', contactName: 'Client', kind: 'viewing', status: 'confirmed' }];
+    assert.ok(render(snapshot).tree.includes('02:00'));
+    assert.ok(renderMobile(snapshot).tree.includes('02:00'));
+  } finally { global.Date = NativeDate; }
 });
