@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mitr, Baloo_2, Noto_Sans_Thai } from 'next/font/google';
+import { WebContentRoot } from '@nestyk/ui';
 
 const mitr = Mitr({
   subsets: ['thai', 'latin'],
@@ -59,7 +60,7 @@ export default function RootLayout({
         `}} />
       </head>
       <body style={{ margin: 0, padding: 0, backgroundColor: '#F8FAFC' }}>
-        {children}
+        <WebContentRoot>{children}</WebContentRoot>
       </body>
     </html>
   );

@@ -24,6 +24,7 @@ import Animated, {
 import { UserRole } from '@nestyk/types';
 import { useMobileTheme } from '../theme/ThemeContext';
 import { tokens } from '../theme/tokens';
+import { WebContentContainer } from './WebContentContainer';
 
 export type ModePageScrollApi = {
   scrollTo: (options?: { y?: number; animated?: boolean }) => void;
@@ -55,6 +56,9 @@ export interface MobileModePageProps {
   /** Floating tab bar (`MobileBottomTabBar`): overlays the content above the home indicator; the page pads its end. */
   tabBar?: React.ReactNode;
   scrollable?: boolean;
+  /** Web workspaces use a flat heading and visible scrollbars. */
+  headerShadowEnabled?: boolean;
+  showsVerticalScrollIndicator?: boolean;
   /** Pull-to-refresh via layout template — enable on all scrollable ModePages (not wizards). */
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -68,6 +72,8 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
   bottomBar,
   tabBar,
   scrollable = true,
+  headerShadowEnabled = true,
+  showsVerticalScrollIndicator = false,
   refreshing = false,
   onRefresh,
 }) => {
@@ -261,10 +267,12 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
             },
           ]}
         >
+          <WebContentContainer>
           {header}
           {screenTitle ? (
             <Text style={[styles.screenTitle, { color: theme.screenTitle }]}>{screenTitle}</Text>
           ) : null}
+          </WebContentContainer>
         </View>
         <View
           style={[
@@ -272,10 +280,14 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
             { backgroundColor: pageBackground, paddingBottom: bottomBar ? 0 : showTabBar ? tabBarHeight + tabBarBottom : insets.bottom },
           ]}
         >
-          <View style={styles.bodyFill}>{children}</View>
+          <View style={styles.bodyFill}>
+            <WebContentContainer fill>{children}</WebContentContainer>
+          </View>
         </View>
         {bottomBar ? (
-          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: theme.surface }]}>{bottomBar}</View>
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: theme.surface }]}>
+            <WebContentContainer>{bottomBar}</WebContentContainer>
+          </View>
         ) : null}
         {floatingTabBar}
       </View>
@@ -292,11 +304,12 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
       <Animated.View
         style={[
           styles.headerOverlay,
-          headerShadowStyle,
-          { backgroundColor: theme.header, shadowColor: '#000', shadowOffset: { width: 0, height: 2 } },
+          headerShadowEnabled ? headerShadowStyle : undefined,
+          { backgroundColor: theme.header },
+          headerShadowEnabled ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 } } : undefined,
         ]}
       >
-        {headerBlock}
+        <WebContentContainer>{headerBlock}</WebContentContainer>
         <Animated.View
           pointerEvents="none"
           style={[styles.headerBorder, headerBorderStyle, { backgroundColor: theme.border }]}
@@ -312,7 +325,7 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
           ]}
           contentInsetAdjustmentBehavior="never"
           alwaysBounceVertical={Boolean(onRefresh)}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={showsVerticalScrollIndicator}
           keyboardShouldPersistTaps="handled"
           onScroll={onScroll}
           scrollEventThrottle={16}
@@ -338,13 +351,13 @@ export const MobileModePage: React.FC<MobileModePageProps> = ({
             ) : undefined
           }
         >
-          {children}
+          <WebContentContainer fill>{children}</WebContentContainer>
         </Animated.ScrollView>
       </View>
 
       {bottomBar ? (
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: theme.surface }]}>
-          {bottomBar}
+          <WebContentContainer>{bottomBar}</WebContentContainer>
         </View>
       ) : null}
       {floatingTabBar}
@@ -362,11 +375,11 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   headerInner: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.OS === 'web' ? 0 : 16,
     paddingBottom: 12,
   },
   headerSolid: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.OS === 'web' ? 0 : 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
@@ -385,14 +398,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.OS === 'web' ? 0 : 16,
     paddingBottom: 16,
     flexGrow: 1,
   },
   bodyFill: {
     flex: 1,
     minHeight: 0,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: Platform.OS === 'web' ? 0 : 16,
   },
   bottomBar: {},
   floatingTabBar: {

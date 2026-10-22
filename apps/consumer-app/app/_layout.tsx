@@ -1,11 +1,12 @@
 import 'react-native-gesture-handler';
 import React, { useCallback, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import * as Localization from 'expo-localization';
 import { LocaleProvider, resolveSupportedLocale, type SupportedLocale } from '@nestyk/i18n';
-import { MobileThemeProvider, MobilePreloadScreen } from '@nestyk/ui/native';
-import { Slot } from 'expo-router';
+import { MobileThemeProvider, MobilePreloadScreen, WebContentRoot } from '@nestyk/ui/native';
+import { Slot, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
@@ -56,6 +57,8 @@ function BootstrapGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function Layout() {
+  const pathname = usePathname();
+  const useWebContainer = Platform.OS === 'web' && pathname !== '/login';
   const [fontsLoaded, fontError] = useFonts({
     Mitr_400Regular,
     Mitr_500Medium,
@@ -101,7 +104,11 @@ export default function Layout() {
           <AuthProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
               <BootstrapGate>
-                <Slot />
+                {useWebContainer ? (
+                  <WebContentRoot><Slot /></WebContentRoot>
+                ) : (
+                  <Slot />
+                )}
               </BootstrapGate>
             </GestureHandlerRootView>
           </AuthProvider>

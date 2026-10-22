@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { TenantsPresentation } from './agent-web/RecordPresentations';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import {
   MobileBottomSheet,
@@ -658,7 +659,13 @@ export function AgentTenantsScreen({
     void open(item.tenant.id, at);
   };
   return (
-    <View style={s.root}>
+    <View style={Platform.OS === 'web' ? [s.root, { maxWidth: '100%' }] : s.root}>
+      <TenantsPresentation tenants={items} workItems={workItems} view={listView} onViewChange={setView}
+        query={query} onQueryChange={setQuery} filter={directoryFilter} onFilterChange={setDirectoryFilter}
+        workQuery={workQuery} onWorkQueryChange={setWorkQuery} kind={workKind} onKindChange={setWorkKind}
+        loading={loading} busy={opening} error={error} onOpen={tenant => void open(tenant.id)}
+        onWorkOpen={item => openWork(item, null)} onWorkAction={item => openWork(item, item.kind === 'slip' ? 'payments' : 'contracts')}
+      >
       <MobileSegmentedTabs
         tabs={[
           { key: "work", label: c.list.tabWork, count: loading ? "–" : workItems.length },
@@ -699,6 +706,7 @@ export function AgentTenantsScreen({
           />
         )}
       </Animated.View>
+      </TenantsPresentation>
     </View>
   );
 }

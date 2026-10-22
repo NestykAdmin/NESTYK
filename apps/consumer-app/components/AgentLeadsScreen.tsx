@@ -22,6 +22,7 @@ import { listAgentLeads } from '../lib/agent-leads-api';
 import { leadMatchReady } from '../lib/lead-match-preview';
 import { LeadStatusBadge, leadAvatarInitials, leadDisplayStatus, leadStatusTone } from './AgentLeadDetailBody';
 import { ViewingDateTile } from './ViewingDateTile';
+import { LeadsPresentation } from './agent-web/RecordPresentations';
 
 type LocationDraft = {
   province: string;
@@ -232,6 +233,15 @@ export function AgentLeadsScreen({
 
   return (
     <View style={{ gap: 14 }}>
+      <LeadsPresentation items={items} total={total} query={query}
+        onQueryChange={value => { setQuery(value); setPage(1); }}
+        sort={sort} sortOptions={sortOptions} onSortChange={value => { setSort(value); setPage(1); }}
+        status={statusFilter} statusCounts={statusCounts} onStatusChange={value => { setStatusFilter(value); setPage(1); }}
+        location={{ province, locations, includeUnspecified }}
+        onLocationChange={value => { setProvince(value.province); setLocations(value.locations); setIncludeUnspecified(value.locations.length > 0 && value.includeUnspecified); setPage(1); }}
+        page={page} onPageChange={setPage} loading={loading} error={error} onRetry={() => setRefresh(n => n + 1)}
+        onOpen={onOpenLead} workFilter={activeWorkFilter === 'lead_follow_up'} onClearWorkFilter={() => setActiveWorkFilter(null)}
+      >
       {!gateOpen ? (
         <MobileBrandLoader
           fill
@@ -458,6 +468,7 @@ export function AgentLeadsScreen({
         </>
       )}
 
+      </LeadsPresentation>
       <MobileBottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
         <View style={styles.sheetHeader}>
           <Text style={[styles.sheetTitle, { color: theme.textHeading }]}>{c.sortTitle}</Text>

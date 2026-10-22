@@ -1,0 +1,256 @@
+.awf-layout {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+  min-width: 0;
+  padding: 12px 0 24px;
+  color: var(--aw-ink);
+}
+.awf-guide {
+  position: sticky;
+  top: 20px;
+  padding: 8px 0;
+  min-width: 0;
+}
+.awf-eyebrow {
+  color: var(--aw-muted);
+  font:
+    10px "NotoSansThai_500Medium",
+    sans-serif;
+  letter-spacing: 1.4px;
+}
+.awf-guide h2 {
+  font:
+    20px/1.6 "Mitr_500Medium",
+    sans-serif;
+  margin: 8px 0 10px;
+}
+.awf-guide > p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--aw-muted);
+  line-height: 1.8;
+}
+.awf-guide nav {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 26px;
+}
+.awf-guide nav > button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--aw-muted);
+  text-align: left;
+  font: inherit;
+}
+.awf-guide nav > button:disabled {
+  opacity: 0.65;
+}
+.awf-guide nav > button[aria-current="step"] {
+  color: #987025;
+  background: #fbf0d5;
+  border-color: #efdfb8;
+}
+.awf-guide nav strong {
+  font:
+    12px "NotoSansThai_500Medium",
+    sans-serif;
+}
+.awf-guide nav small {
+  display: block;
+  font-size: 10px;
+  color: var(--aw-muted);
+  margin-top: 4px;
+  line-height: 1.6;
+}
+.awf-step-index {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--aw-border);
+  border-radius: 7px;
+  font-size: 11px;
+  flex-shrink: 0;
+  background: var(--aw-surface);
+}
+.awf-step-index.is-complete {
+  background: #e8f5ed;
+  color: #42855b;
+  border-color: #c8e3d2;
+}
+.awf-step-index.is-error {
+  color: #bd5454;
+  border-color: #e8b9b9;
+}
+.awf-current-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #b98b36;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.awf-guide-note {
+  display: flex;
+  gap: 9px;
+  border-top: 1px solid var(--aw-border);
+  margin: 26px 13px 0;
+  padding-top: 18px;
+  color: var(--aw-muted);
+}
+.awf-guide-note > div {
+  flex-shrink: 0;
+}
+.awf-guide-note p {
+  font-size: 11px;
+  line-height: 1.8;
+  margin: 0;
+}
+.awf-fields {
+  min-width: 0;
+  border: 1px solid var(--aw-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--aw-surface);
+  box-shadow: 0 3px 8px #1a2b4803;
+}
+.awf-fields > div {
+  width: 100%;
+  max-width: none !important;
+}
+.awf-fields input,
+.awf-fields textarea {
+  font-size: 14px !important;
+}
+.awf-fields input {
+  min-height: 44px;
+}
+.awf-fields textarea {
+  min-height: 90px;
+}
+.awf-fields [role="button"] {
+  transition: background-color 0.12s;
+}
+.awf-fields [role="button"]:focus-visible {
+  outline: 2px solid #b98b36;
+  outline-offset: 2px;
+}
+.awf-source .awf-fields {
+  padding: 24px;
+}
+.awf-source .awf-fields > div > div:first-child {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.awf-source [role="radio"] {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  min-height: 230px;
+  padding: 24px !important;
+  border-radius: 10px !important;
+}
+.awf-source [role="radio"] > div:nth-child(2) {
+  flex: none !important;
+  margin-top: 8px;
+}
+.awf-source [role="radio"] > div:last-child {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+.awf-overview .awf-fields {
+  padding: 24px;
+}
+.awf-room .awf-fields {
+  padding: 24px;
+}
+.awf-actions {
+  flex-shrink: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--aw-border);
+  background: var(--aw-surface);
+}
+.awf-actions .nestyk-web-content > div {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding: 4px 0 12px !important;
+  gap: 16px !important;
+  border-top: 0 !important;
+}
+.awf-actions .nestyk-web-content > div > [role="alert"] {
+  flex: 1;
+}
+.awf-actions .nestyk-web-content > div > div:not([role="button"]) {
+  flex: 1;
+  justify-content: flex-end;
+}
+.awf-actions [role="button"] {
+  min-width: 190px;
+  align-self: flex-end;
+  flex-grow: 0 !important;
+}
+.aw-shell[data-theme="dark"] .awf-guide nav > button[aria-current="step"] {
+  color: #e2c079;
+  background: #ddb55b15;
+  border-color: #66532c;
+}
+@media (max-width: 1100px) {
+  .awf-layout {
+    grid-template-columns: 205px minmax(0, 1fr);
+    gap: 20px;
+  }
+  .awf-source .awf-fields > div > div:first-child {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .awf-source [role="radio"] {
+    min-height: 180px;
+  }
+}
+@media (max-width: 760px) {
+  .awf-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .awf-guide {
+    position: static;
+  }
+  .awf-guide h2 {
+    font-size: 18px;
+  }
+  .awf-guide > p,
+  .awf-guide-note,
+  .awf-eyebrow {
+    display: none;
+  }
+  .awf-guide nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .awf-guide nav > button {
+    width: auto;
+    flex: 1;
+    min-width: 130px;
+  }
+  .awf-fields,
+  .awf-room .awf-fields,
+  .awf-overview .awf-fields,
+  .awf-source .awf-fields {
+    padding: 12px;
+  }
+  .awf-actions [role="button"] {
+    min-width: 120px;
+  }
+}

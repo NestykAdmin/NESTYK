@@ -1,0 +1,117 @@
+.aw-shell.ard-dialog {
+  width: min(1360px, calc(100vw - 48px));
+  height: calc(100dvh - 48px);
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--aw-border);
+  border-radius: 16px;
+  background: var(--aw-bg);
+  color: var(--aw-ink);
+  box-shadow: 0 24px 100px #10182844;
+  overflow: hidden;
+}
+.aw-shell.ard-dialog:not([open]) {
+  display: none;
+}
+.aw-shell.ard-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.ard-dialog::backdrop {
+  background: #15213688;
+  backdrop-filter: blur(3px);
+}
+.ard-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--aw-border);
+  background: var(--aw-surface);
+}
+.ard-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 80px;
+  padding: 12px 0;
+}
+.ard-header-title {
+  min-width: 0;
+  border-left: 3px solid var(--aw-brand);
+  padding-left: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ard-header h1 {
+  font:
+    20px/1.5 "Mitr_500Medium",
+    sans-serif;
+  margin: 0;
+}
+.ard-header-title > span {
+  border: 1px solid var(--aw-border);
+  border-radius: 6px;
+  color: var(--aw-muted);
+  padding: 3px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.ard-preview-header {
+  background: #18263d;
+  color: #fff;
+}
+.ard-preview-header .aw-icon-button {
+  background: transparent;
+  color: #fff;
+  border-color: #ffffff33;
+}
+.ard-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  color: var(--aw-muted);
+}
+.ard-state p {
+  max-width: 560px;
+  text-align: center;
+}
+.ard-editor {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.ard-editor > .nestyk-web-container {
+  min-height: 0;
+}
+@media (max-width: 760px) {
+  .aw-shell.ard-dialog {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    border-radius: 12px;
+  }
+  .ard-header-inner {
+    min-height: 72px;
+    gap: 10px;
+  }
+  .ard-header h1 {
+    font-size: 17px;
+  }
+  .ard-header-title > span {
+    display: none;
+  }
+  .ard-header-actions {
+    gap: 6px;
+  }
+}

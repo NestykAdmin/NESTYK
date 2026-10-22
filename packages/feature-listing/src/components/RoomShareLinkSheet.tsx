@@ -18,6 +18,7 @@ import {
 import { localizedError, useLocale } from '@nestyk/i18n';
 import {
   MobileBottomSheet,
+  WebFormSheet,
   MobileButton,
   MobileIcon,
   SelectionCheck,
@@ -258,6 +259,7 @@ export function RoomShareLinkSheet({
   };
 
   return (
+    <WebFormSheet label={rd.shareManageTitle} showClose>
     <MobileBottomSheet visible={visible} onClose={onClose} maxHeight="92%">
       <ScrollView
         style={styles.scroll}
@@ -380,6 +382,7 @@ export function RoomShareLinkSheet({
         )}
       </ScrollView>
     </MobileBottomSheet>
+    </WebFormSheet>
   );
 }
 

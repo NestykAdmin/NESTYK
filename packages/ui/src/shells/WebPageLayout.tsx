@@ -2,6 +2,7 @@ import React from 'react';
 import { UserRole } from '@nestyk/types';
 import { NestykLogo } from '../components/NestykLogo';
 import { tokens } from '../theme/tokens';
+import { WebContentContainer } from './WebContentContainer';
 
 export interface WebPageLayoutProps {
   role?: UserRole | 'services';
@@ -111,7 +112,9 @@ export const WebPageLayout: React.FC<WebPageLayoutProps> = ({
           </aside>
         )}
 
-        <main style={{ flex: 1, padding: '24px' }}>{children}</main>
+        <main style={{ flex: 1, minWidth: 0, padding: '24px 0' }}>
+          <WebContentContainer>{children}</WebContentContainer>
+        </main>
       </div>
 
       {/* Common Web Footer */}

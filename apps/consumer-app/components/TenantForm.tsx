@@ -17,6 +17,11 @@ import {
   MobileStatusPill,
   tokens,
   useMobileTheme,
+  WebContentContainer,
+  WebOnlyView,
+  WebFormSection,
+  WebFormTabs,
+  WebFormActions,
 } from "@nestyk/ui/native";
 import type {
   AgentTenant,
@@ -134,6 +139,8 @@ export function TenantForm({
       style={s.fill}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <WebFormTabs>
+      <WebContentContainer>
       <View style={s.tabsWrap}>
         <View
           style={[s.tabs, { borderColor: theme.border }]}
@@ -178,11 +185,19 @@ export function TenantForm({
           })}
         </View>
       </View>
+      </WebContentContainer>
+      </WebFormTabs>
       <ScrollView
         ref={scroll}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={s.form}
+        contentContainerStyle={Platform.OS === 'web' ? undefined : s.form}
       >
+      <WebContentContainer>
+      <WebFormSection variant="tenant" title={c.create} description={c.pickIntro} activeStep={String(step)}
+        steps={steps.map((label,index) => ({ key: String(index + 1), label, disabled: index + 1 > step, complete: index + 1 < step }))}
+        onStepChange={value => { if (Number(value) < step) setStep(Number(value)); }}
+      >
+      <WebOnlyView style={s.form}>
       <Text style={[s.body, muted]}>
         {step === 2 && lead ? c.roomFor.replace("{name}", lead.name) : c.pickIntro}
       </Text>
@@ -301,7 +316,12 @@ export function TenantForm({
           )}
         </>
       )}
+      </WebOnlyView>
+      </WebFormSection>
+      </WebContentContainer>
       </ScrollView>
+      <WebFormActions>
+      <WebContentContainer>
       <View
         style={[
           s.footer,
@@ -340,6 +360,8 @@ export function TenantForm({
           )}
         </View>
       </View>
+      </WebContentContainer>
+      </WebFormActions>
       <ReserveRoomSheet
         visible={confirming}
         lead={lead}

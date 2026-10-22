@@ -36,6 +36,11 @@ import {
   MobileInput,
   tokens,
   useMobileTheme,
+  WebContentContainer,
+  WebOnlyView,
+  WebFormSection,
+  WebFormTabs,
+  WebFormActions,
   type AppIconName,
 } from '@nestyk/ui/native';
 import { fetchAgentContractTypes, fetchAgentRoomTypes } from '../lib/agent-listings-api';
@@ -728,6 +733,7 @@ export function CreateLeadForm({
       </View>
       <View style={styles.group}>
         <MoveInDateField
+          desktop
           label={c.moveInPlan}
           value={ISO_DATE.test(form.moveInPlan) ? form.moveInPlan : ''}
           onChange={(iso) => setField('moveInPlan', iso)}
@@ -758,18 +764,29 @@ export function CreateLeadForm({
       style={styles.fill}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <WebFormTabs>
+      <WebContentContainer>
       <View style={styles.tabsWrap}>
         <View style={[styles.tabs, { borderColor: theme.border }]} accessibilityRole="tablist">
           {tabButton('profile', c.tabProfile, profileHasError)}
           {tabButton('matching', c.tabMatching, matchingHasError)}
         </View>
       </View>
+      </WebContentContainer>
+      </WebFormTabs>
 
       <ScrollView
         ref={scroll}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.form}
+        contentContainerStyle={Platform.OS === 'web' ? undefined : styles.form}
       >
+        <WebContentContainer>
+        <WebFormSection variant="lead" title={initialLead ? c.editLead : c.create}
+          description={c.profileSubtitle} activeStep={tab} busy={busy}
+          steps={[{ key: 'profile', label: c.tabProfile, description: c.profileTitle, error: profileHasError }, { key: 'matching', label: c.tabMatching, description: c.matchingBannerTitle, error: matchingHasError }]}
+          onStepChange={value => switchTab(value as FormTab)}
+        >
+        <WebOnlyView style={styles.form}>
         {tab === 'profile' ? profileTab : matchingTab}
 
         {typesError ? (
@@ -780,8 +797,13 @@ export function CreateLeadForm({
             </MobileButton>
           </View>
         ) : null}
+        </WebOnlyView>
+        </WebFormSection>
+        </WebContentContainer>
       </ScrollView>
 
+      <WebFormActions>
+      <WebContentContainer>
       <View style={[styles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
         {!!saveError && (
           <Text
@@ -805,6 +827,8 @@ export function CreateLeadForm({
           </View>
         </MobileButton>
       </View>
+      </WebContentContainer>
+      </WebFormActions>
     </KeyboardAvoidingView>
   );
 }

@@ -46,6 +46,12 @@ import {
   SelectionCheck,
   tokens,
   getCardElevation,
+  WebContentContainer,
+  WebOnlyView,
+  WebFormSheet,
+  WebFormSection,
+  WebFormTabs,
+  WebFormActions,
 } from '@nestyk/ui/native';
 import { ListingEngineConfig } from '../config';
 import {
@@ -2253,6 +2259,8 @@ export const MobileCreateListingWizardBody: React.FC<
 
   return (
     <View style={styles.container}>
+      <WebFormTabs enabled={config.actorRole === 'agent'}>
+      <WebContentContainer>
       <View style={styles.chrome}>
         {pickingSource ? (
           <>
@@ -2272,6 +2280,8 @@ export const MobileCreateListingWizardBody: React.FC<
           </>
         ) : null}
       </View>
+      </WebContentContainer>
+      </WebFormTabs>
 
       {showOverview ? (
         <Animated.View key="overview" entering={FadeIn.duration(150)} style={styles.formPane}>
@@ -2280,6 +2290,13 @@ export const MobileCreateListingWizardBody: React.FC<
             contentContainerStyle={styles.formScrollContent}
             showsVerticalScrollIndicator={false}
           >
+            <WebContentContainer>
+            <WebFormSection enabled={config.actorRole === 'agent'} variant="overview" title={title || t.agent.listings.addRoom}
+              description={cr.setupHubHint} activeStep="overview"
+              steps={editSections.map(section => ({ key: String(section.step), label: section.label, complete: section.status === 'complete', error: section.highlightError }))}
+              onStepChange={value => openSection(Number(value))} busy={submitting || !!enhancingUri}
+            >
+            <WebOnlyView style={{ gap: 12 }}>
             {(hubSnapshot.listingTitle || hubSnapshot.propertyName || hubSnapshot.coverUri) ? (
               <View style={styles.hubPreview}>
                 <View style={styles.hubPreviewThumb}>
@@ -2369,7 +2386,12 @@ export const MobileCreateListingWizardBody: React.FC<
               </Text>
             </View>
             ) : null}
+            </WebOnlyView>
+            </WebFormSection>
+            </WebContentContainer>
           </ScrollView>
+          <WebFormActions enabled={config.actorRole === 'agent'}>
+          <WebContentContainer>
           <View style={styles.footer}>
             {initialData ? (
               hubDirty ? (
@@ -2388,10 +2410,18 @@ export const MobileCreateListingWizardBody: React.FC<
               {submitLabel ?? cr.saveRoom}
             </MobileButton>
           </View>
+          </WebContentContainer>
+          </WebFormActions>
         </Animated.View>
       ) : pickingSource ? (
         <View style={styles.sourceScreen}>
           <ScrollView contentContainerStyle={{ gap: 20, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+          <WebContentContainer>
+          <WebFormSection enabled={config.actorRole === 'agent'} variant="source" title={cr.sourcePrompt}
+            description={cr.sourcePromptHint} activeStep="source"
+            steps={[{ key: 'source', label: cr.sourceSection }, { key: 'details', label: cr.steps.property, disabled: true }]}
+          >
+          <WebOnlyView style={{ gap: 20 }}>
           <View style={styles.sourceList}>
             {LISTING_SOURCE_OPTIONS.map((opt) => {
               const selected = sourceDraft === opt.code;
@@ -2431,7 +2461,12 @@ export const MobileCreateListingWizardBody: React.FC<
           <View style={styles.sourceNoteRow}>
             <Text style={styles.sourceNote}>ⓘ  {cr.sourceNote}</Text>
           </View>
+          </WebOnlyView>
+          </WebFormSection>
+          </WebContentContainer>
           </ScrollView>
+          <WebFormActions enabled={config.actorRole === 'agent'}>
+          <WebContentContainer>
           <View style={styles.sourceFooter}>
             <MobileButton
               onPress={confirmSource}
@@ -2449,6 +2484,8 @@ export const MobileCreateListingWizardBody: React.FC<
               {cr.next}
             </MobileButton>
           </View>
+          </WebContentContainer>
+          </WebFormActions>
         </View>
       ) : showSection ? (
         <Animated.View
@@ -2463,6 +2500,12 @@ export const MobileCreateListingWizardBody: React.FC<
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <WebContentContainer>
+        <WebFormSection enabled={config.actorRole === 'agent'} variant="room" title={editSections.find(section => section.step === step)?.label || t.agent.listings.addRoom}
+          description={sectionHint} activeStep={String(step)}
+          steps={editSections.map(section => ({ key: String(section.step), label: section.label, complete: section.status === 'complete', error: section.highlightError }))}
+          onStepChange={value => openSection(Number(value))} busy={submitting || pickingPhotos || !!enhancingUri}
+        >
         <View style={styles.formBody}>
           <View style={styles.cardBody}>
           {step === 1 && (
@@ -2889,6 +2932,7 @@ export const MobileCreateListingWizardBody: React.FC<
                 </>
               ) : null}
               <MoveInDateField
+                desktop={config.actorRole === 'agent'}
                 label={cr.moveInDate}
                 value={availableFrom}
                 onChange={(iso) => {
@@ -3214,7 +3258,8 @@ export const MobileCreateListingWizardBody: React.FC<
                 }}
                 onClose={() => setComparePreviewSide(null)}
               />
-              <MobileBottomSheet visible={photoMenuUri != null} onClose={() => setPhotoMenuUri(null)}>
+              <WebFormSheet enabled={config.actorRole === 'agent'}>
+<MobileBottomSheet visible={photoMenuUri != null} onClose={() => setPhotoMenuUri(null)}>
                 <MobileActionSheetBody
                   title={cr.steps.photos}
                   actions={[
@@ -3297,6 +3342,7 @@ export const MobileCreateListingWizardBody: React.FC<
                   ]}
                 />
               </MobileBottomSheet>
+</WebFormSheet>
             </>
           )}
 
@@ -3559,12 +3605,19 @@ export const MobileCreateListingWizardBody: React.FC<
           )}
           </View>
         </View>
+        </WebFormSection>
+        </WebContentContainer>
       </ScrollView>
-      <View style={styles.footer}>{renderNav()}</View>
+      <WebFormActions enabled={config.actorRole === 'agent'}>
+      <WebContentContainer>
+        <View style={styles.footer}>{renderNav()}</View>
+      </WebContentContainer>
+      </WebFormActions>
         </Animated.View>
       ) : null}
 
-      <MobileBottomSheet visible={layoutSheet != null} onClose={() => setLayoutSheet(null)}>
+      <WebFormSheet enabled={config.actorRole === 'agent'}>
+<MobileBottomSheet visible={layoutSheet != null} onClose={() => setLayoutSheet(null)}>
         <WizardSheetChrome
           title={
             layoutSheet === 'propertyType'
@@ -3695,8 +3748,10 @@ export const MobileCreateListingWizardBody: React.FC<
               })}
         </ScrollView>
       </MobileBottomSheet>
+</WebFormSheet>
 
-      <MobileBottomSheet visible={leaseSheet != null} onClose={closeLeaseSheet} avoidKeyboard>
+      <WebFormSheet enabled={config.actorRole === 'agent'}>
+<MobileBottomSheet visible={leaseSheet != null} onClose={closeLeaseSheet} avoidKeyboard>
         {(() => {
           const editing = leaseSheet?.mode === 'edit';
           const editOpt =
@@ -3810,8 +3865,10 @@ export const MobileCreateListingWizardBody: React.FC<
           );
         })()}
       </MobileBottomSheet>
+</WebFormSheet>
 
-      <MobileBottomSheet
+      <WebFormSheet enabled={config.actorRole === 'agent'}>
+<MobileBottomSheet
         visible={contactSheet != null}
         onClose={dismissContactSheetStep}
         avoidKeyboard
@@ -3982,6 +4039,7 @@ export const MobileCreateListingWizardBody: React.FC<
           </>
         )}
       </MobileBottomSheet>
+</WebFormSheet>
 
       <Modal
         visible={promoPreviewOpen}
@@ -4030,7 +4088,8 @@ export const MobileCreateListingWizardBody: React.FC<
         </View>
       </Modal>
 
-      <MobileBottomSheet
+      <WebFormSheet enabled={config.actorRole === 'agent'}>
+<MobileBottomSheet
         visible={promoAiPhase !== 'closed'}
         onClose={closePromoAiSheet}
         closeOnBackdropPress={promoAiPhase !== 'generating'}
@@ -4141,6 +4200,7 @@ export const MobileCreateListingWizardBody: React.FC<
           )}
         </View>
       </MobileBottomSheet>
+</WebFormSheet>
 
       <Modal
         visible={!!requiredPrompt}
@@ -4356,7 +4416,7 @@ const styles = StyleSheet.create({
   sourceScreen: {
     flex: 1,
     minHeight: 0,
-    paddingHorizontal: 4,
+    paddingHorizontal: Platform.OS === 'web' ? 0 : 4,
     paddingBottom: 8,
     gap: 16,
   },

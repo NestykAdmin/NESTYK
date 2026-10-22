@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { MobileBottomSheet, MobileIcon, tokens } from '@nestyk/ui/native';
+import { MobileBottomSheet, WebFormSheet, MobileIcon, tokens } from '@nestyk/ui/native';
 import { WizardSheetChrome } from './WizardSheetChrome';
 
 LocaleConfig.locales.en = LocaleConfig.locales[''];
@@ -44,6 +44,7 @@ export function MoveInDateField({
   error,
   placeholder,
   closeLabel = 'Close',
+  desktop = false,
 }: {
   label: string;
   value: string;
@@ -53,6 +54,8 @@ export function MoveInDateField({
   error?: string;
   placeholder?: string;
   closeLabel?: string;
+  /** Centered dialog on web; native keeps its original sheet. */
+  desktop?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const minDate = todayIsoDate();
@@ -91,6 +94,7 @@ export function MoveInDateField({
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      <WebFormSheet enabled={desktop} label={label}>
       <MobileBottomSheet visible={open} onClose={() => setOpen(false)}>
         <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 8 }}>
           <WizardSheetChrome title={label} closeLabel={closeLabel} onClose={() => setOpen(false)} />
@@ -115,6 +119,7 @@ export function MoveInDateField({
           />
         </View>
       </MobileBottomSheet>
+      </WebFormSheet>
     </View>
   );
 }

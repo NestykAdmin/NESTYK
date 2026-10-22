@@ -1,0 +1,120 @@
+.adf-label {
+  color: var(--aw-ink);
+  font-size: 13px;
+  line-height: 19px;
+  font-family: "NotoSansThai_500Medium", sans-serif;
+}
+.adf-select {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border: 1px solid var(--aw-border);
+  border-radius: 8px;
+  background: var(--aw-surface);
+  width: 100%;
+  overflow: hidden;
+}
+.adf-select:focus-within {
+  border-color: #bb9240 !important;
+  box-shadow: 0 0 0 3px #e8bf5320;
+}
+.adf-select > div {
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.adf-select select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 42px 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--aw-ink);
+  outline: 0;
+  font:
+    14px/1.5 "NotoSansThai_400Regular",
+    sans-serif;
+  text-overflow: ellipsis;
+}
+.adf-select select:disabled {
+  opacity: 0.6;
+}
+.adf-error {
+  color: #c43d4c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.adf-error button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  font: inherit;
+}
+.adf-location {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.adf-location small {
+  font-size: 12px;
+  color: var(--aw-muted);
+  line-height: 1.8;
+}
+.adf-location small.adf-error {
+  color: #c43d4c;
+}
+.adf-input {
+  border: 1px solid var(--aw-border);
+  border-radius: 7px;
+  min-height: 42px;
+  padding: 9px 12px;
+  font:
+    13px "NotoSansThai_400Regular",
+    sans-serif;
+  color: var(--aw-ink);
+  background: var(--aw-surface);
+}
+.adf-areas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 2px;
+}
+.adf-areas label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--aw-border);
+  border-radius: 7px;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.adf-areas label:has(input:checked) {
+  border-color: #d1ab59;
+  background: #fdf7e9;
+}
+.adf-areas input {
+  accent-color: #ba8c32;
+  min-height: 0 !important;
+}
+.adf-clear {
+  align-self: flex-end;
+  color: #a27b2f !important;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  font-size: 12px !important;
+}
+@media (max-width: 760px) {
+  .adf-areas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.aw-shell[data-theme="dark"] .adf-areas label:has(input:checked) {
+  background: #d1ab5915;
+}

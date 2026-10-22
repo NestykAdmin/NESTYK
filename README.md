@@ -102,3 +102,4 @@ npm run db:check -w @nestyk/api -- --check
 * **Universal Shell & Slot Pattern:** โครง Shell (`ModePage` บน Mobile / `WebPageLayout` บน Web) คงที่ 100% ไม่กระพริบ และสลับเปลี่ยนเฉพาะ Body Slot (`children`)
 * **Tokens Single Source of Truth:** รวมศูนย์ไว้ที่ `packages/ui/src/theme/tokens.ts` และ `packages/config/theme/colors.json`
 * **Config-Driven Features:** หน้าลงประกาศห้องของ Owner และ Agent ใช้ Engine เดียวกันจาก `@nestyk/feature-listing`
+* **Global Web Container:** ทุกหน้าเว็บรับกรอบเนื้อหากว้างไม่เกิน 1,200px จาก layout กลางอัตโนมัติ รวมถึงหน้าใหม่ — ดู [`docs/web-layout.md`](docs/web-layout.md)

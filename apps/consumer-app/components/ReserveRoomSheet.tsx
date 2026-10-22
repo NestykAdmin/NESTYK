@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { AgentTenant, TenantLeadOption, TenantRoomOption } from '@nestyk/types';
 import { localizedError, useLocale } from '@nestyk/i18n';
-import { MobileBottomSheet, MobileButton, MobileIcon, MobileInput, tokens, useMobileTheme } from '@nestyk/ui/native';
+import { MobileBottomSheet, WebFormSheet, MobileButton, MobileIcon, MobileInput, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { createAgentTenant, tenantRoomOptions } from '../lib/agent-tenants-api';
 import {
   TENANT_PROFILE_MAX,
@@ -224,6 +224,7 @@ export function ReserveRoomSheet({
   };
 
   return (
+    <WebFormSheet label={c.reserveTitle}>
     <MobileBottomSheet visible={visible && !!lead && !!room} onClose={close} maxHeight="90%" avoidKeyboard>
       {booked ? (
         <>
@@ -398,6 +399,7 @@ export function ReserveRoomSheet({
         </>
       )}
     </MobileBottomSheet>
+    </WebFormSheet>
   );
 }
 

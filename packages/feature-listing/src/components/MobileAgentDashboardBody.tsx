@@ -24,6 +24,8 @@ export type MobileAgentDashboardBodyProps = {
   /** Initials for greeting avatar (display only). */
   initials?: string;
   avatarUri?: string | null;
+  /** Web exposes tools directly in its sidebar. */
+  showMoreTools?: boolean;
 };
 
 const { subtle, brand, primary, success, danger, accent, onBrand } = tokens.colors;
@@ -96,6 +98,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
   onNavigate,
   initials = '?',
   avatarUri,
+  showMoreTools = true,
 }) => {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
@@ -531,7 +534,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
           ))}
         </Section>
 
-        <Pressable
+        {showMoreTools ? <Pressable
           onPress={() => onNavigate({ type: 'tab', tab: 'more' })}
           style={({ pressed }) => [
             styles.moreTools,
@@ -546,7 +549,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 19 }}>{copy.moreToolsHint}</Text>
           </View>
           <MobileIcon name="chevron-right" size={16} color={theme.textSecondary} />
-        </Pressable>
+        </Pressable> : null}
       </View>
     </View>
   );

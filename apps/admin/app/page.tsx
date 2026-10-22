@@ -4,7 +4,7 @@ import { AppBadge, tokens } from '@nestyk/ui';
 
 export default function AdminHomePage() {
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 500, margin: 0, color: tokens.colors.textHeading, fontFamily: 'var(--font-mitr), "Mitr", sans-serif' }}>

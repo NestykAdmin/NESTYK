@@ -10,3 +10,4 @@ export * from './components/AppInput';
 export * from './components/AppBadge';
 export * from './shells/ModePage';
 export * from './shells/WebPageLayout';
+export * from './shells/WebContentContainer';

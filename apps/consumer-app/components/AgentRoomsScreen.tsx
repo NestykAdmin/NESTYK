@@ -34,12 +34,13 @@ import {
 } from '@nestyk/ui/native';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { fetchMyAgentListings } from '../lib/agent-listings-api';
+import { RoomsPresentation } from './agent-web/RecordPresentations';
 
 type VisibilityFilter = '' | 'private' | 'published';
 type StatusFilter = '' | 'available' | 'rented' | 'pending_verification' | 'needs_edit';
 type SourceFilter = '' | 'owner' | 'co_agent';
 
-type RoomFilters = {
+export type RoomFilters = {
   visibility: VisibilityFilter;
   roomStatus: StatusFilter;
   listingSource: SourceFilter;
@@ -601,6 +602,16 @@ export function AgentRoomsScreen({
 
   return (
     <View style={styles.root}>
+      <RoomsPresentation
+        items={items} total={total} query={query}
+        onQueryChange={value => { setQuery(value); setPage(1); }}
+        filters={filters} onFiltersChange={value => { setFilters(value); setPage(1); }}
+        sort={sort} sortOptions={sortOptions} onSortChange={value => { setSort(value); setPage(1); }}
+        statusOptions={statusOptions} visibilityOptions={visibilityOptions}
+        loading={loading} error={error} loadingMore={loadingMore} moreError={moreError} hasMore={hasMore}
+        onLoadMore={() => loadMoreRef.current()} onRetryMore={() => setMoreAttempt(n => n + 1)}
+        onRetry={() => setRefresh(n => n + 1)} onOpen={setSelected}
+      >
       <MobileListSearchRow
         value={query}
         onChangeText={(value) => {
@@ -724,6 +735,7 @@ export function AgentRoomsScreen({
         </View>
       ) : null}
 
+      </RoomsPresentation>
       <MobileBottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
         <View style={styles.sheetHeader}>
           <Text style={[styles.sheetTitle, { color: theme.textHeading }]}>{copy.sortTitle}</Text>

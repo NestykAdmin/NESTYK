@@ -28,8 +28,11 @@ import { LeadRoomViewingBanner } from '../components/LeadRoomViewingBanner';
 import { AgentMoreToolsBody } from '../components/AgentMoreToolsBody';
 import { AgentRoomDetailModal, type RoomSharePreview } from '../components/AgentRoomDetailModal';
 import type { LeadRoomMatch } from '../lib/lead-match-preview';
+import { AgentWorkspace } from '../components/agent-web/AgentWorkspace';
+import { AgentOverview } from '../components/agent-web/AgentOverview';
+import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Alert, BackHandler, Platform } from 'react-native';
 import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -571,6 +574,9 @@ export default function AppHomeScreen() {
   const headingText = { color: theme.textHeading };
   const secondaryText = { color: theme.textSecondary };
 
+  const isAgentWeb = Platform.OS === 'web' && activeRole === 'agent';
+  const AgentHeader = isAgentWeb ? AgentSectionHeader : MobileSectionHeader;
+
   const isTenantWorkspace = activeRole === 'tenant' && (partyInbox || activeTab === 'bills');
   const screenTitle =
     activeRole === 'agent' || partyInbox || isTenantWorkspace
@@ -602,6 +608,7 @@ export default function AppHomeScreen() {
     const openMenu = () => setDrawerOpen(true);
 
     if (activeTab === 'dashboard') {
+      if (isAgentWeb) return <AgentSectionHeader title={t.mobile.tabs.dashboard} />;
       return (
         <MobileWorkspaceHeader
           workspaceLabel={workspace}
@@ -623,7 +630,7 @@ export default function AppHomeScreen() {
       const canEditTenant = isTenantDetail && tenantDetail.canEdit;
 
       return (
-        <MobileSectionHeader
+        <AgentHeader
           title={
             isCreateLead
               ? leadEdit
@@ -637,7 +644,9 @@ export default function AppHomeScreen() {
                 ? getScreenTitle(activeTab, t)
                 : isSecondary
                   ? createListingHeaderTitle || t.agent.listings.addRoom
-                  : getScreenTitle(activeTab, t)
+                  : isAgentWeb
+                    ? activeTab === 'contracts' ? t.mobile.drawerMenu.agentContracts : t.mobile.tabs[activeTab]
+                    : getScreenTitle(activeTab, t)
           }
           workspaceLabel={
             isTenantDetail
@@ -908,6 +917,7 @@ export default function AppHomeScreen() {
             snapshot={agentDashboardSnapshot}
             onNavigate={handleAgentDashboardNavigate}
             initials={profileInitials}
+            showMoreTools={!isAgentWeb}
           />
         </View>
       );
@@ -1327,20 +1337,50 @@ export default function AppHomeScreen() {
     activeTab === 'leadInfo' ||
     (activeTab === 'clients' && creatingTenant);
 
+  const onPageRefresh =
+    isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
+    (!partyInbox && !isWizardTab && activeRole === 'agent' &&
+      ['dashboard', 'listingLead', 'listingRoom'].includes(activeTab))
+      ? handlePageRefresh : undefined;
+
   return (
     <>
+      <AgentWorkspace
+        enabled={isAgentWeb}
+        navigationDisabled={createLeadBusy || createTenantBusy || tenantDetail.saving}
+        activeTab={activeTab}
+        onRefresh={onPageRefresh}
+        refreshing={pageRefreshing}
+        onNavigate={handleTabPress}
+        onRoleChange={handleRoleChange}
+        onSignOut={handleAuthAction}
+        userName={profileName}
+        userEmail={profileEmail}
+        initials={profileInitials}
+        notificationCount={unreadCount}
+        notificationsOpen={notificationsOpen}
+        onNotificationsOpen={() => setNotificationsOpen(true)}
+        onNotificationsClose={() => setNotificationsOpen(false)}
+        activityItems={notifications}
+        messageItems={messages}
+        onNotificationsClear={() => setNotificationsRead(true)}
+      >
+      {isAgentWeb && activeTab === 'dashboard' && !partyInbox ? (
+        <AgentOverview
+          snapshot={agentDashboardSnapshot}
+          onNavigate={handleAgentDashboardNavigate}
+          onRefresh={handlePageRefresh}
+        />
+      ) : (
       <MobileModePage
         role={activeRole}
         backgroundColor={isTenantWorkspace ? theme.surface : undefined}
         screenTitle={screenTitle}
         scrollable={partyInbox || !isWizardTab}
         refreshing={pageRefreshing}
-        onRefresh={
-          isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
-          (!partyInbox && !isWizardTab && activeRole === 'agent' &&
-          ['dashboard', 'listingLead', 'listingRoom'].includes(activeTab))
-            ? handlePageRefresh : undefined
-        }
+        onRefresh={isAgentWeb ? undefined : onPageRefresh}
+        headerShadowEnabled={!isAgentWeb}
+        showsVerticalScrollIndicator={isAgentWeb}
         header={
           activeRole === 'agent' ? (
             renderAgentHeader()
@@ -1483,7 +1523,7 @@ export default function AppHomeScreen() {
           ) : null
         }
         tabBar={
-          ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
+          isAgentWeb || ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
           (activeTab === 'clients' && creatingTenant) ||
           isTenantDetail ? null : (
             <MobileBottomTabBar
@@ -1520,9 +1560,11 @@ export default function AppHomeScreen() {
           )}
         </React.Fragment>
       </MobileModePage>
+      )}
+      </AgentWorkspace>
 
       <MobileProfileDrawer
-        visible={drawerOpen}
+        visible={!isAgentWeb && drawerOpen}
         onClose={() => setDrawerOpen(false)}
         userName={profileName}
         userEmail={profileEmail}
@@ -1566,7 +1608,7 @@ export default function AppHomeScreen() {
       />
 
       <MobileNotificationsPanel
-        visible={notificationsOpen}
+        visible={!isAgentWeb && notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       >
         <MobileNotificationsBody
@@ -1586,7 +1628,7 @@ const styles = StyleSheet.create({
   bodyContainer: { gap: 16 },
   wizardBody: { flex: 1, minHeight: 0, gap: 0 },
   // CreateLeadForm owns its padding and edge-to-edge footer; cancel MobileModePage body padding.
-  fullBleedBody: { margin: -16 },
+  fullBleedBody: { marginVertical: -16, marginHorizontal: Platform.OS === 'web' ? 0 : -16 },
   card: {},
   sectionHeader: {
     fontFamily: tokens.typography.native.headingTh,

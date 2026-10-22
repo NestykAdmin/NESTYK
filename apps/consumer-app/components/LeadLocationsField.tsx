@@ -5,6 +5,7 @@ import { useLocale } from '@nestyk/i18n';
 import { LEAD_MAX_PINS, type LeadPinInput } from '@nestyk/types';
 import {
   MobileBottomSheet,
+  WebFormSheet,
   MobileButton,
   MobileIcon,
   MobileInput,
@@ -285,6 +286,7 @@ function LeadPinSheet({
   const showResults = searching || query.trim().length >= 2;
 
   return (
+    <WebFormSheet label={c.pinSheetTitle.replace('{rank}', String(rank))}>
     <MobileBottomSheet visible={visible} onClose={onClose} maxHeight="92%" avoidKeyboard>
       <View style={styles.sheet}>
         <View style={styles.sheetHead}>
@@ -381,6 +383,7 @@ function LeadPinSheet({
         </MobileButton>
       </View>
     </MobileBottomSheet>
+    </WebFormSheet>
   );
 }
 
