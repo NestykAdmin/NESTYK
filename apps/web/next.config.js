@@ -9,6 +9,13 @@ const API_URL = process.env.API_URL || 'http://localhost:4000';
 const nextConfig = {
   // Also expose root `.env` / `.env.*` via Next env loading
   envDir: path.join(__dirname, '../..'),
+  env: {
+    // Share the existing frontend Maps key when Expo web already defines one.
+    NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      '',
+  },
   transpilePackages: [
     '@nestyk/ui',
     '@nestyk/config',

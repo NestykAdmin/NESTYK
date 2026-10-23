@@ -1,5 +1,5 @@
 import { LeadLocationPicker } from './LeadLocationPicker';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, ScrollView } from 'react-native';
 import type { AgentLead, AgentLeadsPage, AgentLeadsSort, LeadDisplayStatus } from '@nestyk/types';
 import { localizedError, useLocale } from '@nestyk/i18n';
@@ -84,11 +84,9 @@ export function AgentLeadsScreen({
   const [statusCounts, setStatusCounts] = useState<AgentLeadsPage['statusCounts'] | null>(memory?.statusCounts ?? null);
   const [page, setPage] = useState(memory?.page ?? 1);
   const [refresh, setRefresh] = useState(0);
-  const [loading, setLoading] = useState(!memory);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [gateOpen, setGateOpen] = useState(!!memory);
-  const gateOpenRef = useRef(gateOpen);
-  gateOpenRef.current = gateOpen;
+  const [gateOpen, setGateOpen] = useState(false);
 
   useEffect(() => {
     listMemory = { query, sort, statusFilter, page, province, locations, includeUnspecified, items, total, statusCounts };
@@ -168,8 +166,8 @@ export function AgentLeadsScreen({
 
   useEffect(() => {
     let cancelled = false;
-    // Full-screen loader only on first open — search/filter keeps the list visible.
-    if (!gateOpenRef.current) setLoading(true);
+    // After entry, reload only the results so search and filters remain available.
+    setLoading(true);
     setError(null);
     const timer = setTimeout(() => {
       listAgentLeads(query.trim(), page, { province, locations, includeUnspecified, sort, status: statusFilter ?? undefined })
@@ -340,7 +338,7 @@ export function AgentLeadsScreen({
             </Pressable>
           </MobileListToolbar>
 
-          {error && items.length > 0 && (
+          {!loading && error && items.length > 0 && (
             <View
               style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
               accessibilityLiveRegion="polite"
@@ -352,7 +350,9 @@ export function AgentLeadsScreen({
               </MobileButton>
             </View>
           )}
-          {error && !items.length ? (
+          {loading ? (
+            <MobileBrandLoader size="md" />
+          ) : error && !items.length ? (
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={{ color: theme.textHeading }}>{c.loadError}</Text>
               <Text style={{ color: theme.textSecondary }}>{error}</Text>
