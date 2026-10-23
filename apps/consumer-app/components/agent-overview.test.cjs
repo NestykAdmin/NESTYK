@@ -102,7 +102,7 @@ test('desktop labels resolve from all four central locale dictionaries', () => {
   locale = 'en';
 });
 
-test('Agent web uses the desktop body while iOS and Android retain the original body and initials', () => {
+function renderDashboardBody(snapshot, platform) {
   const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let initializer;
@@ -114,14 +114,39 @@ test('Agent web uses the desktop body while iOS and Android retain the original 
   const compiled = ts.transpileModule(`const render = ${initializer};`, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText;
   const desktop = () => null;
   const mobile = () => null;
+  const result = new Function('React', 'Platform', 'AgentOverview', 'MobileAgentDashboardBody', 'MobileBrandLoader', 'View', 'styles', 'activeRole', 'agentDashboardSnapshot', 'handleAgentDashboardNavigate', 'profileInitials', 'handlePageRefresh', `${compiled}; return render();`)(React, { OS: platform }, desktop, mobile, 'MobileBrandLoader', 'View', { bodyContainer: {} }, 'agent', snapshot, () => {}, 'AG', () => {});
+  return { result, desktop, mobile };
+}
+
+test('Agent web uses the desktop body while iOS and Android retain the original body and initials', () => {
   for (const platform of ['web', 'ios', 'android']) {
-    const result = new Function('React', 'Platform', 'AgentOverview', 'MobileAgentDashboardBody', 'View', 'styles', 'activeRole', 'agentDashboardSnapshot', 'handleAgentDashboardNavigate', 'profileInitials', 'handlePageRefresh', `${compiled}; return render();`)(React, { OS: platform }, desktop, mobile, 'View', { bodyContainer: {} }, 'agent', fixture(), () => {}, 'AG', () => {});
+    const { result, desktop, mobile } = renderDashboardBody(fixture(), platform);
     if (platform === 'web') assert.equal(result.type, desktop);
     else {
       assert.equal(result.type, 'View');
       assert.equal(result.props.children.type, mobile);
       assert.equal(result.props.children.props.initials, 'AG');
     }
+  }
+});
+
+test('agent dashboard shows the brand loader while awaiting data on web, iOS and Android', () => {
+  const snapshot = fixture();
+  for (const key of ['business', 'actionRequired', 'schedule', 'inventory', 'clients', 'rent', 'activity']) snapshot[key].status = 'loading';
+  for (const platform of ['web', 'ios', 'android']) {
+    const { result } = renderDashboardBody(snapshot, platform);
+    assert.equal(result.type, 'View');
+    assert.equal(result.props.children.type, 'MobileBrandLoader');
+    assert.equal(result.props.children.props.fill, true);
+  }
+});
+
+test('agent dashboard leaves the loader and exposes the normal error presentation after failure', () => {
+  const snapshot = fixture();
+  for (const key of ['business', 'actionRequired', 'schedule', 'inventory', 'clients', 'rent', 'activity']) snapshot[key].status = 'error';
+  for (const platform of ['web', 'ios', 'android']) {
+    const { result, desktop, mobile } = renderDashboardBody(snapshot, platform);
+    assert.equal(platform === 'web' ? result.type : result.props.children.type, platform === 'web' ? desktop : mobile);
   }
 });
 

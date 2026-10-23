@@ -40,6 +40,7 @@ import { useRouter } from 'expo-router';
 import { useLocale } from '@nestyk/i18n';
 import {
   MobileModePage,
+  MobileBrandLoader,
   MobileButton,
   MobileBadge,
   MobileInput,
@@ -899,6 +900,13 @@ export default function AppHomeScreen() {
 
   const renderDashboardBody = () => {
     if (activeRole === 'agent') {
+      if (agentDashboardSnapshot.business.status === 'loading') {
+        return (
+          <View style={styles.bodyContainer}>
+            <MobileBrandLoader fill size="md" />
+          </View>
+        );
+      }
       if (Platform.OS === 'web') {
         return (
           <AgentOverview
