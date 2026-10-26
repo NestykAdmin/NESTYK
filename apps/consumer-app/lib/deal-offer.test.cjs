@@ -56,3 +56,22 @@ test('the locked letter and lease keys are the ones the API fixes from the offer
   assert.deepEqual([...o.OFFER_RESERVATION_LOCKED_KEYS].sort(), keysOf('offerReservationFields'));
   assert.deepEqual([...o.OFFER_LEASE_LOCKED_KEYS].sort(), keysOf('offerLeaseFields'));
 });
+
+test('D2 round 2: what a change changed, and the booking money paid above the new rent', () => {
+  const before = o.dealOfferBody(form);
+  assert.deepEqual(o.revisionChanges({ before, after: { ...before, monthlyRent: '14000', graceDay: 5, coBroke: true, coBrokeAgentName: 'X' } }),
+    [{ key: 'monthlyRent', from: '15,000', to: '14000' }, { key: 'graceDay', from: null, to: 5 }, { key: 'coBroke', from: false, to: true },
+      { key: 'coBrokeAgentName', from: null, to: 'X' }]);
+  assert.deepEqual(o.revisionChanges({ before, after: { ...before } }), []);
+  assert.deepEqual(o.revisionChanges({ before: { ...before, lateFeePerDay: undefined }, after: { ...before, lateFeePerDay: null } }), [], 'missing and null are the same');
+  assert.deepEqual(o.reservationOverpaid({ reservationPaid: '15000', monthlyRent: '14000' }), { paid: '15000', rent: '14000' });
+  for (const offer of [{ reservationPaid: '14000', monthlyRent: '14000' }, { reservationPaid: '13000.5', monthlyRent: '14000' }, { reservationPaid: null, monthlyRent: '1' },
+    { reservationPaid: undefined, monthlyRent: '1' }])
+    assert.equal(o.reservationOverpaid(offer), null, JSON.stringify(offer));
+  assert.deepEqual([...o.DEAL_OFFER_TERM_KEYS].sort(), Object.keys(before).sort(), 'every term the API keeps');
+});
+
+test('D2 round 2: the day of a change is Bangkok\'s (UTC+7)', () => {
+  assert.deepEqual(['2026-10-25T16:59:59.000Z', '2026-10-25T17:00:00.000Z', '2026-10-26T03:00:00Z'].map(o.bangkokDay),
+    ['2026-10-25', '2026-10-26', '2026-10-26']);
+});

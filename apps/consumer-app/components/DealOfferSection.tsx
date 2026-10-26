@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { MobileButton, MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
-import type { DealOffer, DealOfferConfirmationMethod } from "@nestyk/types";
+import type { DealOffer, DealOfferConfirmationMethod, DealOfferRevision } from "@nestyk/types";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import {
   EMPTY_DEAL_OFFER_FORM,
@@ -10,6 +10,9 @@ import {
   dealOfferForm,
   dealOfferIssues,
   openDealOfferFor,
+  reservationOverpaid,
+  bangkokDay,
+  revisionChanges,
   type DealOfferField,
   type DealOfferForm,
   type DealOfferIssue,
@@ -19,6 +22,7 @@ import {
   createDealOffer,
   listLeadDealOffers,
   recordDealOfferConfirmation,
+  reviseDealOffer,
   sendDealOffer,
   updateDealOffer,
 } from "../lib/deal-offers-api";
@@ -57,21 +61,64 @@ export function DealOfferSummary({ offer }: { offer: DealOffer }) {
 }
 
 /**
+ * D2 round 2 (AC-2.4): the changes made to a confirmed offer, oldest first: when, how the landlord agreed, what changed,
+ * and (for the agent) the reason. The landlord's list passes revisions without the reason.
+ */
+export function DealOfferHistory({ revisions }: { revisions: readonly DealOfferRevision[] }) {
+  const { theme } = useMobileTheme();
+  const { t } = useLocale();
+  const oc = t.contracts.offer;
+  const rc = oc.revise;
+  const text = { color: theme.textSecondary, fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 20 };
+  const value = (v: string | number | boolean | null) => (v === null || v === "" ? oc.summary.none : typeof v === "boolean" ? (v ? oc.yes : oc.no) : String(v));
+  if (!revisions.length) return null;
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={{ ...text, color: theme.textHeading, fontFamily: tokens.typography.native.bodyBold, fontSize: 14 }}>{rc.history}</Text>
+      {revisions.map((r, index) => (
+        <View key={r.revision} style={{ gap: 2 }}>
+          <Text style={{ ...text, color: theme.textHeading }}>
+            {fillTemplate(rc.historyItem, {
+              n: String(index + 1),
+              date: bangkokDay(r.createdAt),
+              method: oc.methods[r.agreedVia],
+            })}
+          </Text>
+          {revisionChanges(r).map((c) => (
+            <Text key={c.key} style={text}>
+              {fillTemplate(rc.change, { field: rc.labels[c.key], from: value(c.from), to: value(c.to) })}
+            </Text>
+          ))}
+          {r.reason ? <Text style={text}>{fillTemplate(rc.historyReason, { reason: r.reason })}</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
  * D2 (AC-2.1 to 2.4, round 1): the offer for this lead and room, inside the booking sheet. The agent fills it in,
  * sends it to the landlord (who confirms in the app) or records how the landlord confirmed, and can book only once
- * it is confirmed. A confirmed offer is read-only; to change it the agent cancels it and makes a new one.
+ * it is confirmed. Round 2 (Aof 26 Oct 2026): a confirmed offer changes through "change offer" with a reason and how
+ * the landlord agreed; mode "deal" shows only a confirmed offer (on the contract screen, after booking).
  */
 export function DealOfferSection({
   leadId,
   roomId,
   disabled = false,
+  mode = "booking",
   onConfirmedChange,
+  onRevised,
 }: {
   leadId: number;
   roomId: number;
   disabled?: boolean;
+  /** booking: the booking sheet (make, send, confirm, cancel); deal: a confirmed offer only, to read and change. */
+  mode?: "booking" | "deal";
   /** True while this lead and room have an offer the landlord confirmed. */
-  onConfirmedChange: (confirmed: boolean) => void;
+  onConfirmedChange?: (confirmed: boolean) => void;
+  /** After a change: the documents of the deal may have changed too. */
+  onRevised?: (offer: DealOffer) => void;
 }) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
@@ -86,6 +133,11 @@ export function DealOfferSection({
   const [method, setMethod] = useState<DealOfferConfirmationMethod>("phone");
   const [note, setNote] = useState("");
   const [noteMissing, setNoteMissing] = useState(false);
+  const [revising, setRevising] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reasonMissing, setReasonMissing] = useState(false);
+  const [agreedVia, setAgreedVia] = useState<DealOfferConfirmationMethod>("phone");
+  const [notice, setNotice] = useState("");
   const text = { color: theme.textSecondary, fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 22 };
 
   const show = useCallback((next: DealOffer | null) => {
@@ -93,6 +145,7 @@ export function DealOfferSection({
     setForm(next ? dealOfferForm(next) : EMPTY_DEAL_OFFER_FORM);
     setIssues({});
     setRecording(false);
+    setRevising(false);
   }, []);
 
   /** Only the latest load counts: a slow answer for another lead or room must not show (or allow booking). */
@@ -116,20 +169,38 @@ export function DealOfferSection({
   }, [load]);
 
   useEffect(() => {
-    onConfirmedChange(offer?.status === "confirmed");
+    onConfirmedChange?.(offer?.status === "confirmed");
   }, [offer, onConfirmedChange]);
 
+  /** The app's own words for the refusals a change of the offer can get (AC-2.4, AC-2.5). */
+  function refusal(e: unknown) {
+    const code = (e as { code?: string } | null)?.code;
+    const errors = oc.revise.errors;
+    if (code === "OFFER_LEASE_SIGNED") return errors.leaseSigned;
+    if (code === "OFFER_DOCUMENT_SIGNING") return errors.documentSigning;
+    if (code === "OFFER_START_BEFORE_LEASE_END") return errors.startBeforeLeaseEnd;
+    if (code === "OFFER_UNCHANGED") return oc.revise.unchanged;
+    return localizedError(e, t.common.errorGeneric, locale);
+  }
+
   /** Runs an action; after a refusal (e.g. a newer revision) the offer is read again. */
-  async function run(action: () => Promise<DealOffer>) {
+  async function run(action: () => Promise<DealOffer>, revised = false) {
     if (busy) return;
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       const next = await action();
       show(next.status === "cancelled" ? null : next);
+      if (revised) {
+        setNotice(oc.revise.done);
+        onRevised?.(next);
+      }
     } catch (e) {
-      setError(localizedError(e, t.common.errorGeneric, locale));
-      await load();
+      setError(refusal(e));
+      // A refused change keeps what the agent typed, to fix it and try again, unless the offer changed meanwhile:
+      // then the latest one is read (the agent changes that one).
+      if (!revised || (e as { code?: string } | null)?.code === "OFFER_CHANGED") await load();
     } finally {
       setBusy(false);
     }
@@ -143,6 +214,28 @@ export function DealOfferSection({
     void run(() => (offer ? updateDealOffer(offer.id, { ...body, revision: offer.revision }) : createDealOffer({ ...body, leadId, rentRoomId: roomId })));
   }
 
+  function startRevising() {
+    if (!offer) return;
+    setForm(dealOfferForm(offer));
+    setIssues({});
+    setReason("");
+    setReasonMissing(false);
+    setNotice("");
+    setRevising(true);
+  }
+
+  function saveRevision() {
+    if (!offer) return;
+    const found = dealOfferIssues(form);
+    setIssues(found);
+    if (Object.keys(found).length) return;
+    if (!reason.trim()) {
+      setReasonMissing(true);
+      return;
+    }
+    void run(() => reviseDealOffer(offer.id, { ...dealOfferBody(form), revision: offer.revision, reason: reason.trim(), agreedVia }), true);
+  }
+
   function record() {
     if (!offer) return;
     if (!note.trim()) {
@@ -152,6 +245,8 @@ export function DealOfferSection({
     void run(() => recordDealOfferConfirmation(offer.id, { revision: offer.revision, method, note: note.trim() }));
   }
 
+  // On the contract screen only a confirmed offer is shown (an old deal has none).
+  if (mode === "deal" && offer?.status !== "confirmed" && !error) return null;
   if (loading && !offer && !error) return <Text style={text}>{oc.loading}</Text>;
   const off = disabled || busy;
   const dirty = dealOfferDirty(form, offer);
@@ -179,6 +274,32 @@ export function DealOfferSection({
     />
   );
   const status = offer?.status ?? "draft";
+  const termFields = (
+    <>
+      {input("monthlyRent", true)}
+      {form.monthlyRent.trim() && !issues.monthlyRent ? (
+        <Text style={{ ...text, fontSize: 13 }}>{fillTemplate(oc.reservationAmount, { amount: form.monthlyRent.trim() })}</Text>
+      ) : null}
+      {input("termMonths", true)}
+      {input("startDate")}
+      {input("depositAmount", true)}
+      {input("contractDate")}
+      {input("rentDueDay", true)}
+      {input("graceDay", true)}
+      {input("lateFeePerDay", true)}
+      {input("renewalNoticeDays", true)}
+      <Text style={text}>{oc.fields.coBroke}</Text>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        {[true, false].map((value) => (
+          <MobileButton key={String(value)} variant={form.coBroke === value ? "primary" : "outline"} disabled={off} onPress={() => setField("coBroke", value)}>
+            {value ? oc.yes : oc.no}
+          </MobileButton>
+        ))}
+      </View>
+      {form.coBroke ? input("coBrokeAgentName") : null}
+    </>
+  );
+  const overpaid = offer ? reservationOverpaid(offer) : null;
 
   return (
     <View style={{ gap: 10, borderWidth: 1, borderColor: theme.border, borderRadius: 14, padding: 14 }}>
@@ -198,35 +319,62 @@ export function DealOfferSection({
               ? oc.confirmedInApp
               : fillTemplate(oc.confirmedRecorded, { method: oc.methods[offer.confirmationMethod ?? "other"], note: offer.confirmationNote ?? "" })}
           </Text>
-          <Text style={{ ...text, fontSize: 13 }}>{oc.locked}</Text>
-          <MobileButton variant="outline" disabled={off} onPress={() => void run(() => cancelDealOffer(offer.id, offer.revision))}>
-            {oc.cancel}
-          </MobileButton>
+          {overpaid ? (
+            <Text accessibilityRole="alert" style={{ ...text, color: tokens.colors.danger }}>
+              {fillTemplate(oc.revise.overpaid, overpaid)}
+            </Text>
+          ) : null}
+          <DealOfferHistory revisions={offer.revisions ?? []} />
+          {revising ? (
+            <View style={{ gap: 8 }}>
+              <Text style={{ ...text, fontSize: 13 }}>{oc.revise.intro}</Text>
+              {termFields}
+              <MobileInput
+                label={oc.revise.reason}
+                value={reason}
+                multiline
+                maxLength={500}
+                editable={!off}
+                onChangeText={(value) => {
+                  setReason(value);
+                  setReasonMissing(false);
+                }}
+                error={reasonMissing ? oc.revise.reasonRequired : undefined}
+              />
+              <Text style={text}>{oc.revise.agreedVia}</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {METHODS.map((value) => (
+                  <MobileButton key={value} variant={agreedVia === value ? "primary" : "outline"} disabled={off} onPress={() => setAgreedVia(value)}>
+                    {oc.methods[value]}
+                  </MobileButton>
+                ))}
+              </View>
+              {!dirty ? <Text style={{ ...text, fontSize: 13 }}>{oc.revise.unchanged}</Text> : null}
+              <MobileButton disabled={off || !dirty} isLoading={busy} onPress={saveRevision}>
+                {oc.revise.save}
+              </MobileButton>
+              <MobileButton variant="outline" disabled={off} onPress={() => { show(offer); setError(""); }}>
+                {oc.revise.cancel}
+              </MobileButton>
+            </View>
+          ) : (
+            <>
+              <Text style={{ ...text, fontSize: 13 }}>{oc.locked}</Text>
+              <MobileButton variant="outline" disabled={off} onPress={startRevising}>
+                {oc.revise.open}
+              </MobileButton>
+              {mode === "booking" ? (
+                <MobileButton variant="outline" disabled={off} onPress={() => void run(() => cancelDealOffer(offer.id, offer.revision))}>
+                  {oc.cancel}
+                </MobileButton>
+              ) : null}
+            </>
+          )}
         </>
       ) : (
         <>
           <Text style={{ ...text, fontSize: 13 }}>{oc.intro}</Text>
-          {input("monthlyRent", true)}
-          {form.monthlyRent.trim() && !issues.monthlyRent ? (
-            <Text style={{ ...text, fontSize: 13 }}>{fillTemplate(oc.reservationAmount, { amount: form.monthlyRent.trim() })}</Text>
-          ) : null}
-          {input("termMonths", true)}
-          {input("startDate")}
-          {input("depositAmount", true)}
-          {input("contractDate")}
-          {input("rentDueDay", true)}
-          {input("graceDay", true)}
-          {input("lateFeePerDay", true)}
-          {input("renewalNoticeDays", true)}
-          <Text style={text}>{oc.fields.coBroke}</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            {[true, false].map((value) => (
-              <MobileButton key={String(value)} variant={form.coBroke === value ? "primary" : "outline"} disabled={off} onPress={() => setField("coBroke", value)}>
-                {value ? oc.yes : oc.no}
-              </MobileButton>
-            ))}
-          </View>
-          {form.coBroke ? input("coBrokeAgentName") : null}
+          {termFields}
           <MobileButton disabled={off || (!!offer && !dirty)} isLoading={busy} onPress={save}>
             {oc.save}
           </MobileButton>
@@ -281,6 +429,7 @@ export function DealOfferSection({
           ) : null}
         </>
       )}
+      {notice ? <Text style={{ ...text, color: theme.textHeading }}>{notice}</Text> : null}
       {error ? <Text accessibilityRole="alert" style={{ ...text, color: tokens.colors.danger }}>{error}</Text> : null}
       {loading && offer ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
     </View>

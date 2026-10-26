@@ -15,7 +15,7 @@ import { AgreementSignInviteEntity } from "./agreement-sign-invite.entity";
 import { AgreementSignatureEntity } from "./agreement-signature.entity";
 import { HandoverRecordEntity, HandoverItemEntity, HandoverPhotoEntity } from "./handover.entity";
 export * from "./handover.entity";
-import { DealOfferEntity } from "./deal-offer.entity";
+import { DealOfferEntity, DealOfferRevisionEntity } from "./deal-offer.entity";
 export * from "./deal-offer.entity";
 import { RoomShareLinkEntity } from "./room-share-link.entity";
 import { MasterAgreementTypeEntity } from './master-agreement-type.entity';
@@ -98,7 +98,7 @@ export const ALL_ENTITIES = [
   AgreementTemplateEntity,
   AgreementSignInviteEntity,
   AgreementSignatureEntity,
-  DealOfferEntity,
+  DealOfferEntity, DealOfferRevisionEntity,
   HandoverRecordEntity, HandoverItemEntity, HandoverPhotoEntity,
   RoomShareLinkEntity,
   MasterAgreementTypeEntity,

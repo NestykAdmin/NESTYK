@@ -115,6 +115,7 @@ import {
   generateFinancialDocument,
 } from "../lib/agent-contracts-api";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
+import { DealOfferSection } from "./DealOfferSection";
 import { DepositPaymentCard } from "./DepositPaymentCard";
 import { HandoverCard } from "./HandoverCard";
 import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
@@ -2853,6 +2854,28 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
               );
             })}
           </View>
+        )}
+        {(selected.formKind === "reservation" || selected.formKind === "lease") && selected.rentRoomId != null &&
+          !["cancelled", "expired", "terminated"].includes(selected.status) && (
+          // D2 round 2 (AC-2.4): the deal's confirmed offer. Changing it updates the documents nobody signed, so the
+          // contract is read again; an old deal with no offer shows nothing.
+          <DealOfferSection
+            key={`offer:${selected.leadId}:${selected.rentRoomId}`}
+            mode="deal"
+            leadId={selected.leadId}
+            roomId={selected.rentRoomId}
+            disabled={busy}
+            onRevised={() => {
+              const id = selected.id;
+              void getAgentContract(id)
+                .then((row) => {
+                  setSelected((current) => (current?.id === id ? row : current));
+                  setContracts((rows) => rows.map((existing) => (existing.id === row.id ? row : existing)));
+                })
+                .catch((e) => setError(message(e)));
+              onChanged?.();
+            }}
+          />
         )}
         {selected.formKind === "reservation" && (
           <ReservationPaymentCard

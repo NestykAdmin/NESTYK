@@ -1,4 +1,4 @@
-import type { DealOffer, DealOfferStatus, DealOfferTerms } from "@nestyk/types";
+import type { DealOffer, DealOfferRevision, DealOfferStatus, DealOfferTerms } from "@nestyk/types";
 
 /**
  * D2 (AC-2.1 to 2.4, round 1): the offer form, the same checks as the API, and which numbers of the reservation
@@ -130,3 +130,32 @@ export const OFFER_LEASE_LOCKED_KEYS = [
   "monthlyRent", "termMonths", "termFrom", "termTo", "advanceMonths", "advanceAmount", "depositMonths",
   "depositAmount", "rentDueDay", "graceDay", "latePenalty",
 ] as const;
+
+/** D2 round 2: the terms in the form's order (the history lists the changed ones in this order). */
+export const DEAL_OFFER_TERM_KEYS = [
+  "monthlyRent", "termMonths", "startDate", "depositAmount", "contractDate", "rentDueDay", "graceDay", "lateFeePerDay",
+  "renewalNoticeDays", "coBroke", "coBrokeAgentName",
+] as const satisfies readonly (keyof DealOfferTerms)[];
+export type DealOfferTermKey = (typeof DEAL_OFFER_TERM_KEYS)[number];
+
+/** The day (Bangkok time, UTC+7 all year) a change was made; the API sends the time in UTC. */
+export function bangkokDay(iso: string) {
+  const time = Date.parse(iso);
+  return Number.isNaN(time) ? iso.slice(0, 10) : new Date(time + 7 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** What a change of a confirmed offer changed, before and after. */
+export function revisionChanges(revision: Pick<DealOfferRevision, "before" | "after">) {
+  return DEAL_OFFER_TERM_KEYS
+    .filter((key) => JSON.stringify(revision.before[key] ?? null) !== JSON.stringify(revision.after[key] ?? null))
+    .map((key) => ({ key, from: revision.before[key] ?? null, to: revision.after[key] ?? null }));
+}
+
+/**
+ * AC-2.4: the tenant paid (or sent the slip for) more booking money than the changed rent; the agent settles the
+ * difference with the tenant (the system computes none). Null when nothing is paid or the rent is not lower.
+ */
+export function reservationOverpaid(offer: Pick<DealOffer, "reservationPaid" | "monthlyRent">) {
+  if (!offer.reservationPaid) return null;
+  return Number(offer.reservationPaid) > Number(offer.monthlyRent) ? { paid: offer.reservationPaid, rent: offer.monthlyRent } : null;
+}

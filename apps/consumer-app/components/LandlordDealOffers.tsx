@@ -4,11 +4,11 @@ import { MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { DealOffer } from "@nestyk/types";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { confirmLandlordDealOffer, listLandlordDealOffers } from "../lib/deal-offers-api";
-import { DealOfferSummary } from "./DealOfferSection";
+import { DealOfferHistory, DealOfferSummary } from "./DealOfferSection";
 
 /**
  * D2: offers on the landlord's rooms. The landlord confirms the ones waiting for them; confirmed ones stay listed
- * so the landlord sees what was agreed. Nothing is shown when there is no offer.
+ * so the landlord sees what was agreed, and the changes made since. Nothing is shown when there is no offer.
  */
 export function LandlordDealOffers({ reloadToken = 0 }: { reloadToken?: number }) {
   const { theme } = useMobileTheme();
@@ -56,6 +56,8 @@ export function LandlordDealOffers({ reloadToken = 0 }: { reloadToken?: number }
       <Text style={{ ...text, color: theme.textHeading, fontFamily: tokens.typography.native.bodyBold }}>{offer.roomLabel}</Text>
       <Text style={text}>{fillTemplate(oc.landlordTenant, { name: offer.leadName })}</Text>
       <DealOfferSummary offer={offer} />
+      {/* D2 round 2: what the agent changed after the landlord agreed (the agent's reason is not sent to the landlord). */}
+      <DealOfferHistory revisions={offer.revisions ?? []} />
       {offer.status === "awaiting_landlord" ? (
         <>
           <Text style={{ ...text, fontSize: 13 }}>{oc.landlordConfirmHint}</Text>

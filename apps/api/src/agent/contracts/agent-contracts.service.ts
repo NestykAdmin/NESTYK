@@ -75,6 +75,7 @@ import { asIsoDate, isIsoDate, leaseTermEnd, shiftIsoDate } from "./lease-term";
 import { validateReservationLetter, emptyReservationLetter, stampReservationDocumentHeader, bangkokDate, reservationTenantFields } from "./reservation-letter";
 import { ensurePartyLogin } from "./party-login";
 import { CO_BROKE_REQUIRED, confirmedOffer, hasCoBrokeFile, offerLeaseFields, offerReservationFields } from "./deal-offers.service";
+import { hasSignature, refreshReservationDraft, type DraftFiles } from "./offer-drafts";
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
 import { closeLeaseContract, contractEndReasons } from "./contract-closure";
 import { bangkokToday } from "../../billing/rent-schedule";
@@ -792,6 +793,8 @@ export class AgentContractsService {
       id: c.id,
       tenantId: c.tenant_id,
       leadId: c.lead_id,
+      // D2 round 2: the deal's room, so the contract screen finds the deal's offer.
+      rentRoomId: c.rent_room_id ?? null,
       contractNo: c.contract_no || `EC-${c.id}`,
       templateId: c.template_id ?? null,
       templateVersion: c.template?.version ?? null,
@@ -2044,26 +2047,39 @@ export class AgentContractsService {
     if (!c) throw new NotFoundException("ไม่พบสัญญา");
     this.assertReservationFinancialOpen(c);
     let oldPath: string | undefined;
-    await this.db.transaction(async (manager) => {
-      const current = await manager.findOne(LeaseContractEntity, {
-        where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
-      });
-      if (!current) throw new NotFoundException("ไม่พบสัญญา");
-      this.assertReservationFinancialOpen({ ...current, template: c.template, agreement_type: c.agreement_type });
-      if (current.receipt_url) throw new BadRequestException("ออกใบเสร็จแล้ว ตีกลับสลิปไม่ได้");
-      const payment = current.data?.reservationPayment as { slipPath?: string; submittedAt?: string } | undefined;
-      if (!payment?.slipPath) throw new BadRequestException("ยังไม่มีสลิปที่ส่งมาให้ตีกลับ");
-      assertSameSlip(input, payment.submittedAt);
-      oldPath = payment.slipPath;
-      await manager.update(LeaseContractEntity, { id: current.id }, {
-        payment_submitted_at: null,
-        data: {
+    const files: DraftFiles = { uploaded: [], replaced: [] };
+    try {
+      await this.db.transaction(async (manager) => {
+        const current = await manager.findOne(LeaseContractEntity, {
+          where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
+        });
+        if (!current) throw new NotFoundException("ไม่พบสัญญา");
+        this.assertReservationFinancialOpen({ ...current, template: c.template, agreement_type: c.agreement_type });
+        if (current.receipt_url) throw new BadRequestException("ออกใบเสร็จแล้ว ตีกลับสลิปไม่ได้");
+        const payment = current.data?.reservationPayment as { slipPath?: string; submittedAt?: string } | undefined;
+        if (!payment?.slipPath) throw new BadRequestException("ยังไม่มีสลิปที่ส่งมาให้ตีกลับ");
+        assertSameSlip(input, payment.submittedAt);
+        oldPath = payment.slipPath;
+        const data = {
           ...current.data,
           reservationPayment: { returnNote: reason, returnedAt: new Date().toISOString(), returnedBy: agentId },
-        },
+        };
+        await manager.update(LeaseContractEntity, { id: current.id }, { payment_submitted_at: null, data });
+        // D2 round 2 (AC-2.4, TC-2.04): the tenant pays again at the latest agreed amount, so a letter nobody has
+        // signed and its invoice follow the offer when its rent changed after the slip was sent.
+        const offer = await confirmedOffer(manager, current.lead_id, current.rent_room_id);
+        if (offer && !hasSignature(current) && Number(offer.monthly_rent) !== Number(current.reservation_fee))
+          await refreshReservationDraft(manager, this.documents, agentId,
+            { ...current, payment_submitted_at: null, data, template: c.template, agreement_type: c.agreement_type,
+              rent_room: c.rent_room, tenant: c.tenant } as LeaseContractEntity,
+            offer, files);
       });
-    });
+    } catch (error) {
+      for (const path of files.uploaded) await this.documents?.remove(path).catch(() => undefined);
+      throw error;
+    }
     if (oldPath) await this.documents?.remove(oldPath).catch(() => undefined);
+    for (const path of files.replaced) await this.documents?.remove(path).catch(() => undefined);
     return this.view(agentId, id);
   }
   /** D11 (AC-5.4): the same for the deposit slip of a generated lease. */
@@ -3365,6 +3381,9 @@ export class AgentContractsService {
       });
       if (!tenant || !room)
         throw new NotFoundException("ไม่พบผู้เช่าหรือห้องที่คุณมีสิทธิ์จัดการ");
+      // D2 round 2: the offer was read before the lead was locked; a change of it meanwhile must not be lost.
+      if (offer && (await confirmedOffer(manager, lead.id, room.id))?.revision !== offer.revision)
+        throw new ConflictException({ code: "OFFER_CHANGED", message: "ข้อเสนอถูกแก้ระหว่างบันทึก กรุณาเปิดฉบับร่างใหม่" });
       if (lead.booking_released_at) {
         if (!raw.previousAgreementId || existing)
           throw new ConflictException("การจองนี้สิ้นสุดแล้ว ไม่สามารถสร้างหรือแก้ไขฉบับร่างใหม่ได้");

@@ -1,4 +1,4 @@
-import type { DealOffer, DealOfferConfirmationMethod, SaveDealOffer } from "@nestyk/types";
+import type { DealOffer, DealOfferConfirmationMethod, ReviseDealOffer, SaveDealOffer } from "@nestyk/types";
 import { apiGet, apiPost, apiRequest } from "./api";
 
 /** D2: the agent's offers of one lead, newest first. */
@@ -10,6 +10,10 @@ export function createDealOffer(body: SaveDealOffer): Promise<DealOffer> {
 }
 export function updateDealOffer(id: number, body: SaveDealOffer): Promise<DealOffer> {
   return apiRequest(`/agent/deal-offers/${id}`, { method: "PUT", body: JSON.stringify(body) });
+}
+/** D2 round 2 (AC-2.4): change a confirmed offer with a reason and how the landlord agreed. */
+export function reviseDealOffer(id: number, body: ReviseDealOffer): Promise<DealOffer> {
+  return apiPost(`/agent/deal-offers/${id}/revise`, body);
 }
 export function sendDealOffer(id: number, revision: number): Promise<DealOffer> {
   return apiPost(`/agent/deal-offers/${id}/send`, { revision });

@@ -150,7 +150,7 @@ function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, fo
     remove: async path => removed.push(path),
   });
   service.view = async (agentId, id) => { assert.equal(agentId, 7); return saved.find(c => c.id === id) ?? draft; };
-  return { service, saved, calls, uploads, removed, rolledBack: () => rolledBack };
+  return { service, manager, saved, calls, uploads, removed, rolledBack: () => rolledBack };
 }
 test('creates tenancy and draft using server-owned identity and locked room', async () => {
   const f = fixture(); const c = await f.service.create(7, { ...valid, status: 'active', created_by_user_id: 99, tenantId: 99 });
@@ -627,11 +627,12 @@ test('D1: other document kinds and an existing reservation draft are not checked
 
 // D2 (Aof, 22 Oct 2026): the numbers of an offer the landlord confirmed flow into the lease and the letter.
 const confirmedOfferRow = {
-  id: 30, lead_id: 1, rent_room_id: 3, status: 'confirmed', monthly_rent: '15000.00', term_months: 12, start_date: '2026-11-01',
+  id: 30, revision: 2, lead_id: 1, rent_room_id: 3, status: 'confirmed', monthly_rent: '15000.00', term_months: 12, start_date: '2026-11-01',
   deposit_amount: '30000.00', contract_date: '2026-10-25', rent_due_day: 1, grace_day: 5, late_fee_per_day: '200.00',
   renewal_notice_days: 30, co_broke: false, co_broke_agent_name: null,
 };
-function withOffer(f, offer) {
+// `latest` is the offer read again inside the transaction, after the lead is locked (the same one unless a test says so).
+function withOffer(f, offer, latest = offer) {
   const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
   const base = f.service.db.getRepository;
   f.service.db.getRepository = (entity) => {
@@ -639,6 +640,10 @@ function withOffer(f, offer) {
     if (entity === DealOfferEntity) return { findOne: async ({ where }) => { assert.deepEqual(where, { lead_id: 1, rent_room_id: 3, status: 'confirmed' }); return offer; } };
     return base(entity);
   };
+  const inside = f.manager.getRepository;
+  f.manager.getRepository = (entity) => entity === DealOfferEntity
+    ? { findOne: async ({ where }) => { assert.deepEqual(where, { lead_id: 1, rent_room_id: 3, status: 'confirmed' }); f.calls.push(['offer read in transaction']); return latest; } }
+    : inside(entity);
 }
 test('D2: a lease draft takes rent, term, deposit, due day, grace day and late fee from the confirmed offer, whatever was typed', async () => {
   const { emptyLeaseAgreement } = require('../src/agent/contracts/lease-agreement.ts');
@@ -658,6 +663,13 @@ test('D2: a lease draft takes rent, term, deposit, due day, grace day and late f
   const old = fixture(); withOffer(old, null);
   const kept = (await old.service.create(7, { ...valid, data: { leaseAgreement: typed } })).data.leaseAgreement;
   assert.deepEqual([kept.monthlyRent, kept.termFrom, kept.rentDueDay, kept.graceDay], ['99999', '2026-10-01', '9', '']);
+  // D2 round 2: the offer was changed between reading it and locking the lead: refused, nothing saved.
+  const raced = fixture(); withOffer(raced, confirmedOfferRow, { ...confirmedOfferRow, revision: 3, monthly_rent: '14000.00' });
+  await assert.rejects(() => raced.service.create(7, { ...valid, data: { leaseAgreement: typed } }),
+    (e) => e.getStatus() === 409 && e.getResponse().code === 'OFFER_CHANGED');
+  assert.deepEqual(raced.saved, []);
+  assert.ok(raced.calls.findIndex((c) => c[0] === 'offer read in transaction') > raced.calls.findIndex((c) => c[0] === 'findOne' && c[1] === 'LeadEntity'),
+    'read again after the lead is locked');
 });
 test('D2: lease and letter defaults show the confirmed offer\'s numbers', async () => {
   const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');

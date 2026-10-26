@@ -52,8 +52,8 @@ function harness(file, exportName, props, api) {
   const expand = (tree) => [...nodes(tree), ...nodes(tree).filter((n) => typeof n.type === 'function').flatMap((n) => nodes(n.type(n.props)))];
   return { render, tick, settle, expand };
 }
-function agent(offers, overrides = {}) {
-  const calls = [], confirmed = [];
+function agent(offers, overrides = {}, props = {}) {
+  const calls = [], confirmed = [], revised = [];
   const api = {
     listLeadDealOffers: async (leadId) => { calls.push(['list', leadId]); return typeof offers === 'function' ? offers() : offers; },
     createDealOffer: async (body) => { calls.push(['create', body]); return overrides.create?.(body) ?? offer({ revision: 1 }); },
@@ -61,9 +61,11 @@ function agent(offers, overrides = {}) {
     sendDealOffer: async (id, revision) => { calls.push(['send', id, revision]); if (overrides.send) return overrides.send(); return offer({ status: 'awaiting_landlord', revision }); },
     recordDealOfferConfirmation: async (id, body) => { calls.push(['record', id, body]); return offer({ status: 'confirmed', confirmationChannel: 'agent_recorded', confirmationMethod: body.method, confirmationNote: body.note }); },
     cancelDealOffer: async (id, revision) => { calls.push(['cancel', id, revision]); return offer({ status: 'cancelled', revision }); },
+    reviseDealOffer: async (id, body) => { calls.push(['revise', id, body]); if (overrides.revise) return overrides.revise(body); return offer({ status: 'confirmed', revision: body.revision + 1, monthlyRent: body.monthlyRent, confirmationChannel: 'app' }); },
   };
-  const h = harness('DealOfferSection.tsx', 'DealOfferSection', { leadId: 7, roomId: 42, onConfirmedChange: (value) => confirmed.push(value) }, api);
-  return { ...h, calls, confirmed };
+  const h = harness('DealOfferSection.tsx', 'DealOfferSection',
+    { leadId: 7, roomId: 42, onConfirmedChange: (value) => confirmed.push(value), onRevised: (value) => revised.push(value), ...props }, api);
+  return { ...h, calls, confirmed, revised };
 }
 const buttons = (tree) => tree.filter((n) => n.type === 'button');
 const button = (tree, text) => buttons(tree).find((n) => label(n) === text);
@@ -143,7 +145,7 @@ test('a landlord without an app account: no send button, and the agent is told t
   assert.ok(button(tree, oc.record));
 });
 
-test('a confirmed offer is read-only: its terms, how it was confirmed, and a cancel to start again', async () => {
+test('a confirmed offer shows its terms and how it was confirmed; it is changed with "change offer" or cancelled before booking', async () => {
   const h = agent([offer({ status: 'confirmed', confirmationChannel: 'app', coBroke: true, coBrokeAgentName: 'Other Agent', graceDay: null })]);
   let tree = await h.settle();
   assert.equal(h.confirmed.at(-1), true);
@@ -152,7 +154,7 @@ test('a confirmed offer is read-only: its terms, how it was confirmed, and a can
   const sc = oc.summary;
   for (const line of [`${sc.rent}: 15000`, `${sc.term}: ${fillTemplate(sc.termValue, { months: '12', from: '2026-11-01', to: '2027-10-31' })}`, `${sc.reservation}: 15000`,
     `${sc.grace}: ${sc.none}`, `${sc.coBroke}: Other Agent`, oc.confirmedInApp, oc.locked]) assert.ok(lines.includes(line), line);
-  assert.deepEqual(buttons(tree).map(label), [oc.cancel]);
+  assert.deepEqual(buttons(tree).map(label), [oc.revise.open, oc.cancel]);
   button(tree, oc.cancel).props.onPress();
   await h.tick(); await h.tick();
   assert.deepEqual(h.calls[1], ['cancel', 5, 2]);
@@ -227,4 +229,111 @@ test('the landlord\'s view has no other agent\'s name: the summary says there is
   const h = landlord([offer({ status: 'awaiting_landlord', coBroke: true, coBrokeAgentName: null })]);
   const tree = await h.settle();
   assert.ok(texts(tree).includes(`${oc.summary.coBroke}: ${oc.yes}`));
+});
+
+// D2 round 2 (AC-2.4, Aof 26 Oct 2026): a confirmed offer changes with a reason and how the landlord agreed.
+const rv = oc.revise;
+test('D2 round 2: the agent changes a confirmed offer: the terms, a reason and how the landlord agreed; nothing is sent until it changed', async () => {
+  const h = agent([offer({ status: 'confirmed', confirmationChannel: 'app' })]);
+  let tree = await h.settle();
+  button(tree, rv.open).props.onPress();
+  tree = h.expand(h.render());
+  assert.equal(input(tree, 'monthlyRent').props.value, '15000', 'starts from the confirmed terms');
+  assert.ok(texts(tree).includes(rv.intro) && texts(tree).includes(rv.unchanged));
+  assert.equal(button(tree, rv.save).props.disabled, true, 'nothing changed yet');
+  assert.equal(button(tree, oc.cancel), undefined, 'cancel is not offered while changing');
+  input(tree, 'monthlyRent').props.onChangeText('14000');
+  tree = h.expand(h.render());
+  assert.equal(button(tree, rv.save).props.disabled, false);
+  button(tree, rv.save).props.onPress();
+  tree = h.expand(h.render());
+  assert.equal(tree.find((n) => n.type === 'input' && n.props.label === rv.reason).props.error, rv.reasonRequired);
+  input(tree, 'termMonths').props.onChangeText('0');
+  button(h.expand(h.render()), rv.save).props.onPress();
+  tree = h.expand(h.render());
+  assert.equal(input(tree, 'termMonths').props.error, oc.issues.months, 'the terms are checked like any offer');
+  input(tree, 'termMonths').props.onChangeText('12');
+  assert.equal(h.calls.length, 1, 'nothing sent with issues or without a reason');
+  tree = h.expand(h.render());
+  tree.find((n) => n.type === 'input' && n.props.label === rv.reason).props.onChangeText('  ต่อรองลดค่าเช่า  ');
+  button(h.expand(h.render()), oc.methods.line).props.onPress();
+  button(h.expand(h.render()), rv.save).props.onPress();
+  await h.tick(); await h.tick();
+  assert.deepEqual(h.calls[1], ['revise', 5, { ...rules.dealOfferBody({ ...rules.dealOfferForm(offer()), monthlyRent: '14000' }), revision: 2, reason: 'ต่อรองลดค่าเช่า', agreedVia: 'line' }]);
+  tree = h.expand(h.render());
+  assert.ok(texts(tree).includes(rv.done));
+  assert.deepEqual(h.revised.map((o) => [o.revision, o.monthlyRent]), [[3, '14000']], 'the contract screen is told to read the documents again');
+  assert.equal(tree.find((n) => n.type === 'input' && n.props.label === rv.reason), undefined, 'closed after saving');
+  assert.ok(texts(tree).includes(`${oc.summary.rent}: 14000`));
+  assert.equal(h.confirmed.at(-1), true, 'still confirmed');
+});
+
+test('D2 round 2: a refused change shows the app\'s own reason and keeps what the agent typed', async () => {
+  for (const [code, text] of [['OFFER_LEASE_SIGNED', rv.errors.leaseSigned], ['OFFER_DOCUMENT_SIGNING', rv.errors.documentSigning],
+    ['OFFER_START_BEFORE_LEASE_END', rv.errors.startBeforeLeaseEnd], ['OFFER_UNCHANGED', rv.unchanged]]) {
+    const h = agent([offer({ status: 'confirmed', confirmationChannel: 'app' })], { revise: () => { throw Object.assign(new Error('Thai-only server text'), { code }); } });
+    let tree = await h.settle();
+    button(tree, rv.open).props.onPress();
+    input(h.expand(h.render()), 'monthlyRent').props.onChangeText('14000');
+    h.expand(h.render()).find((n) => n.type === 'input' && n.props.label === rv.reason).props.onChangeText('x');
+    button(h.expand(h.render()), rv.save).props.onPress();
+    for (let i = 0; i < 3; i++) await h.tick();
+    tree = h.expand(h.render());
+    assert.ok(tree.some((n) => n.type === 'span' && n.props.accessibilityRole === 'alert' && label(n) === text), code);
+    assert.equal(input(tree, 'monthlyRent').props.value, '14000', `${code}: the typed terms stay`);
+    assert.deepEqual(h.calls.map((c) => c[0]), ['list', 'revise'], `${code}: not read again over the typed terms`);
+    assert.deepEqual(h.revised, []);
+    button(tree, rv.cancel).props.onPress();
+    tree = h.expand(h.render());
+    assert.ok(texts(tree).includes(`${oc.summary.rent}: 15000`), `${code}: closing shows the saved offer`);
+  }
+});
+
+test('D2 round 2: a change refused because the offer changed meanwhile reads the latest offer', async () => {
+  const h = agent([offer({ status: 'confirmed', confirmationChannel: 'app' })], { revise: () => { throw Object.assign(new Error('x'), { code: 'OFFER_CHANGED' }); } });
+  await h.settle();
+  button(h.expand(h.render()), rv.open).props.onPress();
+  input(h.expand(h.render()), 'monthlyRent').props.onChangeText('14000');
+  h.expand(h.render()).find((n) => n.type === 'input' && n.props.label === rv.reason).props.onChangeText('x');
+  button(h.expand(h.render()), rv.save).props.onPress();
+  for (let i = 0; i < 3; i++) await h.tick();
+  assert.deepEqual(h.calls.map((c) => c[0]), ['list', 'revise', 'list'], 'read again');
+  const tree = h.expand(h.render());
+  assert.ok(tree.some((n) => n.type === 'span' && n.props.accessibilityRole === 'alert'), 'the refusal still shows');
+});
+
+test('D2 round 2: the history of changes, and a warning when the tenant paid more booking money than the new rent', async () => {
+  // 06:00 on 26 Oct in Bangkok is still 25 Oct in UTC: the day shown is Bangkok's.
+  const revision = { revision: 3, reason: 'ต่อรองลดค่าเช่า', agreedVia: 'line', createdAt: '2026-10-25T23:00:00.000Z',
+    before: rules.dealOfferBody(rules.dealOfferForm(offer())), after: { ...rules.dealOfferBody(rules.dealOfferForm(offer())), monthlyRent: '14000', graceDay: null } };
+  const confirmed = offer({ status: 'confirmed', confirmationChannel: 'app', monthlyRent: '14000', revisions: [revision], reservationPaid: '15000' });
+  const tree = await agent([confirmed]).settle();
+  const lines = texts(tree);
+  for (const line of [rv.history, fillTemplate(rv.historyItem, { n: '1', date: '2026-10-26', method: oc.methods.line }),
+    fillTemplate(rv.change, { field: rv.labels.monthlyRent, from: '15000', to: '14000' }),
+    fillTemplate(rv.change, { field: rv.labels.graceDay, from: '5', to: oc.summary.none }),
+    fillTemplate(rv.historyReason, { reason: 'ต่อรองลดค่าเช่า' })]) assert.ok(lines.includes(line), line);
+  assert.equal(lines.filter((line) => line.includes('→')).length, 2, 'only what changed');
+  assert.ok(tree.some((n) => n.type === 'span' && n.props.accessibilityRole === 'alert' && label(n) === fillTemplate(rv.overpaid, { paid: '15000', rent: '14000' })));
+  for (const patch of [{ reservationPaid: '14000' }, { reservationPaid: null }, { reservationPaid: '13000' }]) {
+    const quiet = await agent([{ ...confirmed, ...patch }]).settle();
+    assert.equal(texts(quiet).some((line) => line === fillTemplate(rv.overpaid, { paid: String(patch.reservationPaid), rent: '14000' })), false, JSON.stringify(patch));
+  }
+  // The landlord's list shows the history without the agent's reason (the API sends none).
+  const l = landlord([offer({ status: 'confirmed', confirmationChannel: 'app', revisions: [{ ...revision, reason: null }] })]);
+  const ltexts = texts(await l.settle());
+  assert.ok(ltexts.includes(fillTemplate(rv.change, { field: rv.labels.monthlyRent, from: '15000', to: '14000' })));
+  assert.equal(ltexts.some((line) => line.startsWith(fillTemplate(rv.historyReason, { reason: '' }))), false);
+});
+
+test('D2 round 2: on the contract screen ("deal" mode) only a confirmed offer shows, to read and change; no cancel', async () => {
+  for (const list of [[], [offer()], [offer({ status: 'awaiting_landlord' })], [offer({ status: 'cancelled' })]]) {
+    const h = agent(list, {}, { mode: 'deal' });
+    await h.settle();
+    assert.equal(h.render(), null, JSON.stringify(list.map((o) => o.status)));
+  }
+  const h = agent([offer({ status: 'confirmed', confirmationChannel: 'app' })], {}, { mode: 'deal' });
+  const tree = await h.settle();
+  assert.ok(texts(tree).includes(`${oc.summary.rent}: 15000`));
+  assert.deepEqual(buttons(tree).map(label), [rv.open]);
 });

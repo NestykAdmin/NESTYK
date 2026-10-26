@@ -9,7 +9,9 @@ const { DealOffersController } = require('../src/agent/contracts/deal-offers.con
 const { PartyContractsController } = require('../src/agent/contracts/party-contracts.controller.ts');
 const { AgentContractsService } = require('../src/agent/contracts/agent-contracts.service.ts');
 const { AgreementAttachmentsService } = require('../src/agent/contracts/agreement-attachments.service.ts');
-const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
+const { DealOfferEntity, DealOfferRevisionEntity } = require('../src/entities/deal-offer.entity.ts');
+const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
+const { AgreementSignInviteEntity } = require('../src/entities/agreement-sign-invite.entity.ts');
 const { LeadEntity } = require('../src/entities/lead.entity.ts');
 const { RentRoomEntity } = require('../src/entities/rent-room.entity.ts');
 const { UserEntity } = require('../src/entities/user.entity.ts');
@@ -77,9 +79,15 @@ function harness() {
     ],
     users: [{ id: 7, first_name: 'Agent', last_name: 'Seven' }, { id: 50, first_name: 'Land', last_name: 'Lord' }],
     offers: [],
+    // D2 round 2: the deal's agreements (lease_contracts, with the form kind on template), the change history, invites.
+    contracts: [],
+    revisions: [],
+    invites: [],
   };
   const table = (entity) => (entity === DealOfferEntity ? state.offers : entity === LeadEntity ? state.leads
-    : entity === RentRoomEntity ? state.rooms : entity === UserEntity ? state.users : assert.fail(`unexpected entity ${entity?.name}`));
+    : entity === RentRoomEntity ? state.rooms : entity === UserEntity ? state.users : entity === LeaseContractEntity ? state.contracts
+    : entity === DealOfferRevisionEntity ? state.revisions : entity === AgreementSignInviteEntity ? state.invites
+    : assert.fail(`unexpected entity ${entity?.name}`));
   const matches = (row, where = {}) => Object.entries(where).every(([key, value]) => {
     if (value && typeof value === 'object' && value._type === 'in') return value._value.includes(row[key]);
     if (value && typeof value === 'object' && value._type === 'isNull') return row[key] == null;
@@ -95,11 +103,27 @@ function harness() {
     findOne: async ({ where }) => copy(table(entity).find((row) => matches(row, where))),
     find: async ({ where, order } = {}) => {
       const rows = table(entity).filter((row) => matches(row, where)).map(copy);
+      if (order?.revision === 'ASC') return rows.sort((a, b) => a.revision - b.revision);
       return order?.id === 'DESC' ? rows.sort((a, b) => b.id - a.id) : rows;
     },
   });
+  const uploaded = [], removed = [];
+  const hooks = { upload: null, revision: null };
+  const documents = {
+    upload: async (agentId, id, kind, file) => {
+      if (hooks.upload) await hooks.upload();
+      assert.equal(file.buffer.subarray(0, 4).toString(), '%PDF');
+      const path = `${agentId}/${id}/${kind}/new-${uploaded.length}.pdf`; uploaded.push(path); writes.push(`tx${tx}:upload`); return { path };
+    },
+    remove: async (path) => { removed.push(path); },
+  };
   const manager = {
     getRepository: repo,
+    find: async (entity, { where, order, lock } = {}) => {
+      if (lock) { assert.equal(lock.mode, 'pessimistic_write'); locks.push(`tx${tx}:${entity.name}`); }
+      const rows = table(entity).filter((row) => matches(row, where)).map(copy);
+      return order?.id === 'ASC' ? rows.sort((a, b) => a.id - b.id) : rows;
+    },
     findOne: async (entity, { where, lock }) => {
       if (lock) { assert.equal(lock.mode, 'pessimistic_write'); locks.push(`tx${tx}:${entity.name}`); }
       return copy(table(entity).find((row) => matches(row, where)));
@@ -108,6 +132,13 @@ function harness() {
     findOneByOrFail: async (entity, where) => copy(table(entity).find((row) => matches(row, where))) ?? assert.fail('missing'),
     create: (_entity, value) => ({ ...value }),
     save: async (entity, value) => {
+      if (entity === DealOfferRevisionEntity) {
+        if (hooks.revision) await hooks.revision();
+        writes.push(`tx${tx}:revision`);
+        const row = { ...value, id: nextId++, created_at: new Date('2026-10-26T03:00:00Z') };
+        state.revisions.push(row);
+        return copy(row);
+      }
       assert.equal(entity, DealOfferEntity); writes.push(`tx${tx}:insert`);
       const row = { ...value, id: nextId++, sent_at: null, confirmed_at: null, confirmed_by_user_id: null, confirmation_channel: null,
         confirmation_method: null, confirmation_note: null, closed_at: null };
@@ -115,6 +146,11 @@ function harness() {
       return copy(row);
     },
     update: async (entity, where, patch) => {
+      if (entity === LeaseContractEntity || entity === AgreementSignInviteEntity) {
+        writes.push(`tx${tx}:${entity === LeaseContractEntity ? `contract ${where.id}` : `invites ${where.agreement_id}`}`);
+        for (const row of table(entity).filter((r) => matches(r, where))) Object.assign(row, patch);
+        return;
+      }
       assert.equal(entity, DealOfferEntity); writes.push(`tx${tx}:update`);
       for (const row of state.offers.filter((r) => matches(r, where))) Object.assign(row, patch);
     },
@@ -127,7 +163,7 @@ function harness() {
       try { return await fn(manager); } catch (e) { Object.assign(state, before); throw e; } finally { tx = 0; }
     },
   };
-  return { service: new DealOffersService(db), state, locks, writes };
+  return { service: new DealOffersService(db, documents), state, locks, writes, uploaded, removed, hooks };
 }
 const create = (h, patch = {}) => h.service.create(7, { ...terms, leadId: 1, rentRoomId: 3, ...patch });
 
@@ -192,9 +228,9 @@ test('before confirmation the agent edits with the revision; sending waits for t
     ['confirmed', '15500', 'app', null, null, 'Land Lord'], 'a confirmation in the app keeps the landlord\'s own name');
   assert.ok(confirmed.confirmedAt);
   assert.equal(h.state.offers[0].confirmed_by_user_id, 50);
-  // Round 1: a confirmed offer is locked; the agent cancels and makes a new one.
+  // A confirmed offer is not edited as a draft: it changes through "revise" with a reason (round 2).
   await assert.rejects(() => h.service.update(7, offer.id, { ...terms, revision: 3 }),
-    (e) => e.getStatus() === 409 && e.getResponse().code === 'OFFER_LOCKED' && /ยกเลิก/.test(e.getResponse().message));
+    (e) => e.getStatus() === 409 && e.getResponse().code === 'OFFER_LOCKED' && /แก้ข้อเสนอ/.test(e.getResponse().message));
   await assert.rejects(() => h.service.confirmAsLandlord(50, offer.id, { revision: 3 }), (e) => e.getStatus() === 409);
   // Another agent cannot touch it.
   for (const step of ['update', 'send', 'cancel'])
@@ -318,7 +354,7 @@ test('offer routes: the agent\'s need the agent role, the landlord\'s the landlo
   const previous = process.env.ALLOW_DEV_AUTH; process.env.ALLOW_DEV_AUTH = 'true';
   t.after(() => { if (previous === undefined) delete process.env.ALLOW_DEV_AUTH; else process.env.ALLOW_DEV_AUTH = previous; });
   const calls = [];
-  const offers = Object.fromEntries(['listForLead', 'create', 'update', 'send', 'recordConfirmation', 'cancel', 'listForLandlord', 'confirmAsLandlord']
+  const offers = Object.fromEntries(['listForLead', 'create', 'update', 'revise', 'send', 'recordConfirmation', 'cancel', 'listForLandlord', 'confirmAsLandlord']
     .map((name) => [name, async (...args) => { calls.push([name, ...args]); return { ok: name }; }]));
   class TestModule {}
   Module({ controllers: [DealOffersController, PartyContractsController], providers: [
@@ -332,14 +368,15 @@ test('offer routes: the agent\'s need the agent role, the landlord\'s the landlo
   const base = await app.getUrl();
   const as = (id, method = 'GET', body) => ({ method, headers: { Authorization: `Bearer dev|${id}|u@example.invalid`, 'Content-Type': 'application/json' }, body: method === 'GET' ? undefined : body && JSON.stringify(body) });
   const agentRoutes = [['GET', '/agent/leads/1/deal-offers'], ['POST', '/agent/deal-offers'], ['PUT', '/agent/deal-offers/5'],
-    ['POST', '/agent/deal-offers/5/send'], ['POST', '/agent/deal-offers/5/confirm'], ['POST', '/agent/deal-offers/5/cancel']];
+    ['POST', '/agent/deal-offers/5/send'], ['POST', '/agent/deal-offers/5/confirm'], ['POST', '/agent/deal-offers/5/cancel'],
+    ['POST', '/agent/deal-offers/5/revise']];
   for (const [method, path] of agentRoutes) {
     assert.equal((await fetch(base + path, { method })).status, 401, path);
     assert.equal((await fetch(base + path, as(50, method, {}))).status, 403, `${path} landlord`);
     assert.ok([200, 201].includes((await fetch(base + path, as(7, method, { revision: 1 }))).status), path);
   }
   assert.deepEqual(calls.map((c) => [c[0], c[1], c[2]]), [['listForLead', 7, 1], ['create', 7, { revision: 1 }], ['update', 7, 5],
-    ['send', 7, 5], ['recordConfirmation', 7, 5], ['cancel', 7, 5]]);
+    ['send', 7, 5], ['recordConfirmation', 7, 5], ['cancel', 7, 5], ['revise', 7, 5]]);
   calls.length = 0;
   for (const [method, path] of [['GET', '/contracts/mine/deal-offers'], ['POST', '/contracts/mine/deal-offers/5/confirm']]) {
     assert.equal((await fetch(base + path, as(9, method, {}))).status, 403, `${path} tenant`);
@@ -347,4 +384,229 @@ test('offer routes: the agent\'s need the agent role, the landlord\'s the landlo
     assert.equal((await fetch(base + path, as(50, method, { revision: 2 }))).status, 200, path);
   }
   assert.deepEqual(calls, [['listForLandlord', 50], ['confirmAsLandlord', 50, 5, { revision: 2 }]]);
+});
+
+// D2 round 2 (AC-2.4, Aof 26 Oct 2026): a confirmed offer changes with a reason and how the landlord agreed (the
+// landlord does not confirm again); documents nobody signed take the new terms; refused while the lease has a
+// signature or a letter is partly signed. AC-2.5: a new lease starts after the room's current lease ends.
+const invoiceOf = (amount) => ({
+  documentNo: 'INV-RS202600040', issueDate: '2026-10-20', dueDate: '2026-10-20', reference: 'RS202600040',
+  customerName: 'Lead A', customerFirstName: 'Lead', customerLastName: 'A', customerAddress: 'Aria', customerTaxId: '', customerPhone: '',
+  customerEmail: '', issuerName: 'Land Lord', issuerAddress: 'Aria', issuerTaxId: '', issuerPhone: '', issuerEmail: '',
+  items: [{ description: 'ค่าจอง Aria ห้อง 1201', quantity: 1, unitPrice: amount }], vatRate: 0, discount: 0, paymentMethod: '',
+  paymentDetails: '', receiverName: '', notes: '',
+});
+const reservationRow = (patch = {}) => ({
+  id: 40, created_by_user_id: 7, lead_id: 1, rent_room_id: 3, status: 'draft', contract_no: 'RS202600040', template: { form_kind: 'reservation' },
+  agreement_type: null, owner_signed_at: null, tenant_signed_at: null, agent_signed_at: null, receipt_url: null, invoice_url: '7/40/invoice/old.pdf',
+  document_url: '7/40/preview.pdf', reservation_fee: '15000.00', monthly_rent: '15000.00', deposit: '30000.00', move_in_date: '2026-11-01',
+  start_date: '2026-10-20', end_date: null, effective_end_date: null, rent_room: { room_id: '1201', property: { name: 'Aria' } },
+  party_snapshot: { ownerName: 'Land Lord' },
+  data: {
+    untouched: true,
+    reservationLetter: { issueDate: '2026-10-20', landlordName: 'Land Lord', tenantName: 'Lead A', project: 'Aria', unitNo: '1201', monthlyRent: '15000',
+      termMonths: '12', termFrom: '2026-11-01', termTo: '2027-10-31', advanceMonths: '1', advanceAmount: '15000', reservationPayment: '15000',
+      depositAmount: '30000', depositMonths: '2', balanceDue: '30000' },
+    financialDocuments: { invoice: invoiceOf(15000) },
+  },
+  ...patch,
+});
+const leaseRow = (patch = {}) => ({
+  id: 41, created_by_user_id: 7, lead_id: 1, rent_room_id: 3, status: 'draft', contract_no: 'LS202600041', template: { form_kind: 'lease' },
+  agreement_type: null, owner_signed_at: null, tenant_signed_at: null, agent_signed_at: null, receipt_url: null, invoice_url: null,
+  document_url: '7/41/preview.pdf', monthly_rent: '15000.00', deposit: '30000.00', start_date: '2026-11-01', end_date: '2027-10-31', effective_end_date: null,
+  data: { leaseAgreement: { issueDate: '2026-10-25', landlordName: 'Land Lord', monthlyRent: '15000', termMonths: '12', termFrom: '2026-11-01',
+    termTo: '2027-10-31', depositAmount: '30000', rentDueDay: '1', graceDay: '5', latePenalty: '200' } },
+  ...patch,
+});
+async function confirmedOfferIn(h) {
+  const offer = await create(h);
+  return h.service.recordConfirmation(7, offer.id, { revision: 1, method: 'phone', note: 'ok' });
+}
+const revise = (h, offer, patch = {}) =>
+  h.service.revise(7, offer.id, { ...terms, monthlyRent: '14000', revision: offer.revision, reason: 'ต่อรองลดค่าเช่า', agreedVia: 'line', ...patch });
+
+test('D2 round 2: a confirmed offer changes with a reason and how the landlord agreed; the history keeps both sets of terms', async () => {
+  const h = harness();
+  const offer = await confirmedOfferIn(h);
+  for (const [patch, status, code] of [
+    [{ reason: ' ' }, 400], [{ reason: 'x'.repeat(501) }, 400], [{ reason: 5 }, 400], [{ agreedVia: 'fax' }, 400], [{ agreedVia: undefined }, 400],
+    [{ monthlyRent: '15,000' }, 400, 'OFFER_UNCHANGED'], [{ revision: 9 }, 409, 'OFFER_CHANGED'], [{ monthlyRent: '0' }, 400], [{ status: 'x' }, 400],
+  ]) {
+    await assert.rejects(() => revise(h, offer, patch), (e) => e.getStatus() === status && (!code || e.getResponse().code === code), JSON.stringify(patch));
+    assert.deepEqual([h.state.offers[0].revision, h.state.revisions.length], [1, 0], JSON.stringify(patch));
+  }
+  await assert.rejects(() => h.service.revise(8, offer.id, { ...terms, revision: 1, reason: 'x', agreedVia: 'line' }), (e) => e.getStatus() === 404, 'another agent');
+  const draft = harness();
+  const d = await create(draft);
+  await assert.rejects(() => revise(draft, d), (e) => e.getStatus() === 409 && e.getResponse().code === 'OFFER_LOCKED', 'a draft is edited, not revised');
+  const changed = await revise(h, offer, { reason: '  ต่อรองลดค่าเช่า  ', coBroke: true, coBrokeAgentName: 'Other Agent' });
+  assert.deepEqual([changed.status, changed.revision, changed.monthlyRent, changed.confirmationChannel, changed.confirmationMethod],
+    ['confirmed', 2, '14000', 'agent_recorded', 'phone'], 'still confirmed; the first confirmation is kept');
+  const [row] = h.state.revisions;
+  assert.deepEqual([row.deal_offer_id, row.revision, row.reason, row.agreed_via, row.created_by_user_id],
+    [offer.id, 2, 'ต่อรองลดค่าเช่า', 'line', 7]);
+  assert.deepEqual([row.before_terms.monthlyRent, row.after_terms.monthlyRent, row.before_terms.coBroke, row.after_terms.coBrokeAgentName],
+    ['15000', '14000', false, 'Other Agent']);
+  assert.deepEqual(Object.keys(row.after_terms).sort(), Object.keys(terms).sort(), 'the terms the app shows');
+  assert.deepEqual(changed.revisions, [{ revision: 2, reason: 'ต่อรองลดค่าเช่า', agreedVia: 'line', before: row.before_terms, after: row.after_terms,
+    createdAt: '2026-10-26T03:00:00.000Z' }]);
+  const [w1, w2] = h.writes.slice(-2);
+  assert.deepEqual([w1.split(':')[1], w2.split(':')[1], w1.split(':')[0] === w2.split(':')[0]], ['update', 'revision', true],
+    'the offer and its history in one transaction');
+  // The landlord sees what changed and when, not the agent's reason or the other agent's name.
+  const [mine] = await h.service.listForLandlord(50);
+  assert.deepEqual([mine.revisions.length, mine.revisions[0].reason, mine.revisions[0].agreedVia, mine.revisions[0].after.coBrokeAgentName,
+    mine.revisions[0].after.monthlyRent, mine.reservationPaid], [1, null, 'line', null, '14000', null]);
+  // A second change starts from the first.
+  const again = await revise(h, changed, { monthlyRent: '13500', reason: 'ลดอีก' });
+  assert.deepEqual(again.revisions.map((r) => [r.revision, r.before.monthlyRent, r.after.monthlyRent]), [[2, '15000', '14000'], [3, '14000', '13500']]);
+});
+
+test('D2 round 2: documents nobody signed take the new terms; an unpaid reservation and its invoice follow the new rent', async () => {
+  const h = harness();
+  const offer = await confirmedOfferIn(h);
+  h.state.contracts.push(reservationRow(), leaseRow(),
+    // Someone else's agreement on the same lead and room, a closed one, and the agent's own for another lead or
+    // another room: not touched.
+    reservationRow({ id: 42, created_by_user_id: 8 }), leaseRow({ id: 43, status: 'cancelled', tenant_signed_at: new Date() }),
+    reservationRow({ id: 44, lead_id: 2 }), leaseRow({ id: 45, rent_room_id: 4 }));
+  h.locks.length = 0;
+  const changed = await revise(h, offer, { startDate: '2026-12-01', termMonths: 6, depositAmount: '28000' });
+  const [res, lease, other, closed, otherLead, otherRoom] = h.state.contracts;
+  assert.deepEqual(h.locks, ['tx3:LeadEntity', 'tx3:DealOfferEntity', 'tx3:LeaseContractEntity'],
+    'the lead (as booking and saving a draft do), the offer, then the deal\'s agreements, in one transaction');
+  assert.deepEqual([otherLead, otherRoom], [reservationRow({ id: 44, lead_id: 2 }), leaseRow({ id: 45, rent_room_id: 4 })], 'another lead\'s or room\'s untouched');
+  assert.ok(!h.writes.some((w) => /(contract|invites) 4[2-5]$/.test(w)), 'nothing written for them');
+  const letter = res.data.reservationLetter;
+  assert.deepEqual([letter.monthlyRent, letter.reservationPayment, letter.advanceAmount, letter.termMonths, letter.termFrom, letter.termTo, letter.depositAmount, letter.balanceDue],
+    ['14000', '14000', '14000', '6', '2026-12-01', '2027-05-31', '28000', '28000']);
+  assert.equal(letter.landlordName, 'Land Lord', 'the rest of the letter is kept');
+  assert.equal(res.data.untouched, true);
+  assert.deepEqual([res.reservation_fee, res.monthly_rent, res.deposit, res.move_in_date, res.document_url], ['14000.00', '14000.00', '28000.00', '2026-12-01', null]);
+  assert.ok(res.data.draftRevision, 'an open draft in the app must be opened again');
+  // The invoice: same number and date, new amount, new file; the old file is removed after the commit.
+  const invoice = res.data.financialDocuments.invoice;
+  assert.deepEqual([invoice.documentNo, invoice.issueDate, invoice.items[0].unitPrice], ['INV-RS202600040', '2026-10-20', 14000]);
+  assert.equal(res.invoice_url, h.uploaded[0]);
+  assert.deepEqual(h.removed, ['7/40/invoice/old.pdf']);
+  const terms2 = lease.data.leaseAgreement;
+  assert.deepEqual([terms2.monthlyRent, terms2.termMonths, terms2.termFrom, terms2.termTo, terms2.depositAmount, terms2.issueDate, terms2.landlordName],
+    ['14000', '6', '2026-12-01', '2027-05-31', '28000', '2026-10-25', 'Land Lord'], 'the signing date the agent typed is kept');
+  assert.deepEqual([lease.monthly_rent, lease.deposit, lease.start_date, lease.end_date, lease.document_url], ['14000.00', '28000.00', '2026-12-01', '2027-05-31', null]);
+  assert.ok(h.writes.includes('tx3:invites 40') && h.writes.includes('tx3:invites 41'), 'unused sign links of both are revoked');
+  assert.equal(other.reservation_fee, '15000.00'); assert.equal(other.data.reservationLetter.monthlyRent, '15000');
+  assert.equal(closed.monthly_rent, '15000.00');
+  assert.equal(changed.reservationPaid, null, 'nothing paid yet');
+});
+
+test('D2 round 2: the booking letter\'s move-in date is never before the letter\'s own date', async () => {
+  const h = harness();
+  const offer = await confirmedOfferIn(h);
+  h.state.contracts.push(reservationRow());
+  await revise(h, offer, { startDate: '2026-10-15', contractDate: '2026-10-10' });
+  assert.deepEqual([h.state.contracts[0].move_in_date, h.state.contracts[0].data.reservationLetter.termFrom], ['2026-10-20', '2026-10-15'],
+    'the letter is dated 20 Oct, so the move-in date is 20 Oct (like saving the draft)');
+});
+
+test('D2 round 2 (TC-2.04): once paid or the slip is sent, the reservation amount stays; a lower rent warns the agent', async () => {
+  for (const [label, patch] of [
+    ['receipt issued', { receipt_url: '7/40/receipt/r.pdf' }],
+    ['slip sent', { data: { ...reservationRow().data, reservationPayment: { slipPath: '7/payment-slips/s.jpg', submittedAt: '2026-10-21T03:00:00.000Z' } } }],
+  ]) {
+    const h = harness();
+    const offer = await confirmedOfferIn(h);
+    h.state.contracts.push(reservationRow(patch));
+    const changed = await revise(h, offer);
+    const res = h.state.contracts[0];
+    const letter = res.data.reservationLetter;
+    assert.deepEqual([letter.monthlyRent, letter.reservationPayment, letter.advanceAmount], ['14000', '15000', '15000'], label);
+    assert.equal(res.reservation_fee, '15000.00', label);
+    assert.equal(res.invoice_url, '7/40/invoice/old.pdf', `${label}: the invoice the tenant paid is kept`);
+    assert.equal(res.data.financialDocuments.invoice.items[0].unitPrice, 15000, label);
+    assert.deepEqual(h.uploaded, [], label);
+    assert.equal(changed.reservationPaid, '15000', `${label}: the app warns that 15,000 was paid for a 14,000 rent`);
+    assert.equal((await h.service.listForLandlord(50))[0].reservationPaid, null, `${label}: the warning is for the agent only`);
+  }
+});
+
+test('D2 round 2: refused while the lease has a signature or a letter is partly signed; a letter everyone signed stays as it is', async () => {
+  const blocked = [
+    ['lease signed by the tenant', [leaseRow({ tenant_signed_at: new Date() })], 'OFFER_LEASE_SIGNED'],
+    ['lease generated', [leaseRow({ status: 'active', owner_signed_at: new Date(), tenant_signed_at: new Date() })], 'OFFER_LEASE_SIGNED'],
+    ['letter signed by the landlord only', [reservationRow({ status: 'awaiting_signatures', owner_signed_at: new Date() })], 'OFFER_DOCUMENT_SIGNING'],
+    ['letter signed by the agent only', [reservationRow({ agent_signed_at: new Date() }), leaseRow()], 'OFFER_DOCUMENT_SIGNING'],
+  ];
+  for (const [label, rows, code] of blocked) {
+    const h = harness();
+    const offer = await confirmedOfferIn(h);
+    h.state.contracts.push(...rows);
+    const before = structuredClone(h.state.contracts);
+    await assert.rejects(() => revise(h, offer), (e) => e.getStatus() === 409 && e.getResponse().code === code, label);
+    assert.deepEqual(h.state.contracts, before, `${label}: nothing changed`);
+    assert.deepEqual([h.state.offers[0].revision, h.state.offers[0].monthly_rent, h.state.revisions.length, h.uploaded.length], [1, '15000.00', 0, 0], label);
+  }
+  // A signed lease of another lead (or room) does not block this deal's change.
+  for (const patch of [{ lead_id: 2 }, { rent_room_id: 4 }]) {
+    const h = harness();
+    const offer = await confirmedOfferIn(h);
+    h.state.contracts.push(leaseRow({ id: 46, tenant_signed_at: new Date(), ...patch }), leaseRow());
+    await revise(h, offer);
+    assert.deepEqual([h.state.contracts[0].monthly_rent, h.state.contracts[1].monthly_rent], ['15000.00', '14000.00'], JSON.stringify(patch));
+  }
+  // Everyone signed the letter (waiting for the agent, or generated): it stays; the lease draft follows.
+  for (const status of ['awaiting_agent_review', 'active']) {
+    const h = harness();
+    const offer = await confirmedOfferIn(h);
+    const signed = reservationRow({ status, owner_signed_at: new Date(), tenant_signed_at: new Date(), agent_signed_at: new Date() });
+    h.state.contracts.push(signed, leaseRow());
+    await revise(h, offer);
+    assert.equal(h.state.contracts[0].data.reservationLetter.monthlyRent, '15000', status);
+    assert.equal(h.state.contracts[0].reservation_fee, '15000.00', status);
+    assert.equal(h.state.contracts[1].data.leaseAgreement.monthlyRent, '14000', status);
+  }
+});
+
+test('D2 round 2: a failed change leaves the offer, the documents and the files as they were', async () => {
+  for (const hook of ['upload', 'revision']) {
+    const h = harness();
+    const offer = await confirmedOfferIn(h);
+    h.state.contracts.push(reservationRow());
+    h.hooks[hook] = async () => { throw new Error(`${hook} failed`); };
+    await assert.rejects(() => revise(h, offer), new RegExp(`${hook} failed`));
+    assert.deepEqual([h.state.offers[0].revision, h.state.contracts[0].reservation_fee, h.state.contracts[0].invoice_url, h.state.revisions.length],
+      [1, '15000.00', '7/40/invoice/old.pdf', 0], hook);
+    assert.deepEqual(h.removed, h.uploaded, `${hook}: a new invoice file is removed, the old one kept`);
+  }
+});
+
+test('AC-2.5: a room still let takes an offer only for a lease starting after the current one ends (its end, or the early end)', async () => {
+  const other = (patch) => leaseRow({ id: 60, lead_id: 2, status: 'active', start_date: '2026-11-01', end_date: '2027-10-31', ...patch });
+  const refused = (e) => e.getStatus() === 400 && e.getResponse().code === 'OFFER_START_BEFORE_LEASE_END' && /2027-10-31|2027-01-15/.test(e.getResponse().message);
+  const cases = [
+    [[other()], '2027-10-31', false], [[other()], '2027-11-01', true],
+    [[other({ status: 'terminated', effective_end_date: '2027-01-15' })], '2027-01-15', false],
+    [[other({ status: 'terminated', effective_end_date: '2027-01-15' })], '2027-01-16', true],
+    [[other({ template: { form_kind: 'renewal' }, start_date: '2027-11-01', end_date: '2028-10-31' })], '2028-10-31', false],
+    [[other({ status: 'cancelled' })], '2027-01-01', true], [[other({ status: 'draft' })], '2027-01-01', true],
+    [[other({ lead_id: 1 })], '2027-01-01', true], [[other({ template: { form_kind: 'reservation' } })], '2027-01-01', true],
+    [[other({ template: { form_kind: 'broker_appointment' } })], '2027-01-01', true],
+    [[other({ rent_room_id: 4 })], '2027-01-01', true],
+  ];
+  for (const [rows, startDate, ok] of cases) {
+    const h = harness();
+    h.state.contracts.push(...rows);
+    const label = `${JSON.stringify(rows[0].status)} ${rows[0].template.form_kind} ${startDate}`;
+    const attempt = create(h, { startDate, contractDate: '2026-10-25' });
+    if (ok) await attempt; else await assert.rejects(() => attempt, (e) => refused(e) || (e.getResponse().message.includes('2028-10-31')), label);
+    assert.equal(h.state.offers.length, ok ? 1 : 0, label);
+  }
+  // Editing a draft and changing a confirmed offer check it too.
+  const h = harness();
+  const offer = await create(h, { startDate: '2027-12-01' });
+  h.state.contracts.push(other());
+  await assert.rejects(() => h.service.update(7, offer.id, { ...terms, startDate: '2027-10-01', revision: 1 }), refused);
+  await h.service.recordConfirmation(7, offer.id, { revision: 1, method: 'phone', note: 'ok' });
+  await assert.rejects(() => revise(h, { id: offer.id, revision: 1 }, { startDate: '2027-10-31' }), refused);
+  assert.equal(h.state.offers[0].start_date, '2027-12-01');
 });

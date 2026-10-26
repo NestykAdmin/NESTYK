@@ -62,6 +62,8 @@ function harness(rows, options = {}) {
     // D2: the lead's offers, read to lock the numbers a confirmed offer fixes.
     '../lib/deal-offers-api':{listLeadDealOffers:async(leadId)=>{options.offerCalls?.push(leadId);return options.offers ?? [];}},
     '../lib/deal-offer':load('../lib/deal-offer.ts'),
+    // D2 round 2: the deal's confirmed offer on the contract (tested in deal-offer-section.test.cjs).
+    './DealOfferSection':{DealOfferSection:'deal-offer-section'},
     './HandoverCard':{HandoverCard:'handover-card'},
     './RejectedAttachmentsNotice':{RejectedAttachmentsNotice:'rejected-notice'},
   };
@@ -668,4 +670,35 @@ test('D11: when the tenant sent a newer slip, the return is refused and the scre
   const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
   assert.ok(texts.includes(contractsTh.slipReturn.changed));
   assert.ok(!texts.includes('Thai-only server text'));
+}));
+
+test('D2 round 2: a reservation or lease shows the deal\'s offer to read and change; a change reads the contract again', async () => atBangkokOctober12(async()=>{
+  const booking=row({id:21,formKind:'reservation',status:'draft',contractNo:'RS021',endDate:null,leadId:4,rentRoomId:9,reservationFee:15000});
+  const refreshed={...booking,monthlyRent:14000,reservationFee:14000};
+  const shows=(amount)=>nodes(h.render()).some(n=>[n.props?.children].flat().some(c=>typeof c==='string'&&c.includes(amount)));
+  let reads=0, changed=0;
+  const h=harness([booking], {props:{startCreate:null,initialContract:booking,onChanged:()=>{changed++;}},
+    api:{getAgentContract:async()=>{reads++;return reads>1?refreshed:booking;}}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const section=()=>nodes(h.render()).find(n=>n.type==='deal-offer-section');
+  assert.deepEqual({mode:section().props.mode,lead:section().props.leadId,room:section().props.roomId},{mode:'deal',lead:4,room:9});
+  assert.equal(shows('15,000'),true,'the booking amount before the change');
+  const before=reads;
+  section().props.onRevised({id:30});
+  await h.tick(); await h.tick();
+  assert.equal(reads,before+1,'the contract is read again (its unsigned documents may have changed)');
+  assert.deepEqual([shows('14,000'),shows('15,000')],[true,false],'the contract shows the booking amount read again');
+  assert.equal(section().key,'offer:4:9');
+  assert.ok(changed>0,'the list is told too');
+  // Not for a closed contract, a contract without a room, or other forms.
+  for (const patch of [{status:'cancelled'},{status:'terminated'},{rentRoomId:null},{formKind:'broker_appointment'}]) {
+    const c=row({id:22,formKind:'reservation',status:'draft',contractNo:'RS022',endDate:null,leadId:4,rentRoomId:9,...patch});
+    const o=harness([c], {props:{startCreate:null,initialContract:c}});
+    o.render(); o.resolve(); await o.tick(); o.render(); await o.tick();
+    assert.equal(nodes(o.render()).some(n=>n.type==='deal-offer-section'),false,JSON.stringify(patch));
+  }
+  const lease=row({id:23,contractNo:'LS023',leadId:4,rentRoomId:9,leaseAgreementStatus:'awaiting_signatures',status:'awaiting_signatures'});
+  const l=harness([lease], {props:{startCreate:null,initialContract:lease}});
+  l.render(); l.resolve(); await l.tick(); l.render(); await l.tick();
+  assert.ok(nodes(l.render()).some(n=>n.type==='deal-offer-section'),'a lease shows it too');
 }));

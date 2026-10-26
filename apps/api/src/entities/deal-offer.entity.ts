@@ -1,4 +1,4 @@
-import type { DealOfferConfirmationChannel, DealOfferConfirmationMethod, DealOfferStatus } from "@nestyk/types";
+import type { DealOfferConfirmationChannel, DealOfferConfirmationMethod, DealOfferStatus, DealOfferTerms } from "@nestyk/types";
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
 import { SerialTimestampEntity } from "./base.entity";
 import { LeadEntity } from "./lead.entity";
@@ -63,5 +63,32 @@ export class DealOfferEntity extends SerialTimestampEntity {
   @Column({ type: "int" }) created_by_user_id: number;
   @ManyToOne(() => UserEntity, { onDelete: "RESTRICT" })
   @JoinColumn({ name: "created_by_user_id", foreignKeyConstraintName: "deal_offers_created_by_user_id_fkey" })
+  created_by: UserEntity;
+}
+
+/**
+ * D2 round 2 (AC-2.4): a change to a confirmed offer, with the reason and how the landlord agreed, and the terms
+ * before and after. Migration supabase/migrations/20261026120000_deal_offer_revisions.sql.
+ */
+@Index("uq_deal_offer_revisions_offer_revision", ["deal_offer_id", "revision"], { unique: true })
+@Check("chk_deal_offer_revisions_agreed_via", "((agreed_via)::text = ANY ((ARRAY['phone'::character varying, 'line'::character varying, 'in_person'::character varying, 'other'::character varying])::text[]))")
+@Check("chk_deal_offer_revisions_reason", "(btrim((reason)::text) <> ''::text)")
+@Check("chk_deal_offer_revisions_revision", "(revision > 1)")
+@Check("chk_deal_offer_revisions_terms", "((jsonb_typeof(before_terms) = 'object'::text) AND (jsonb_typeof(after_terms) = 'object'::text) AND (before_terms <> after_terms))")
+@Entity({ name: "deal_offer_revisions" })
+export class DealOfferRevisionEntity extends SerialTimestampEntity {
+  @Column({ type: "int" }) deal_offer_id: number;
+  @ManyToOne(() => DealOfferEntity, { onDelete: "RESTRICT" })
+  @JoinColumn({ name: "deal_offer_id", foreignKeyConstraintName: "deal_offer_revisions_deal_offer_id_fkey" })
+  deal_offer: DealOfferEntity;
+  /** The offer's revision after this change. */
+  @Column({ type: "int" }) revision: number;
+  @Column({ type: "varchar", length: 500 }) reason: string;
+  @Column({ type: "varchar", length: 16 }) agreed_via: DealOfferConfirmationMethod;
+  @Column({ type: "jsonb" }) before_terms: DealOfferTerms;
+  @Column({ type: "jsonb" }) after_terms: DealOfferTerms;
+  @Column({ type: "int" }) created_by_user_id: number;
+  @ManyToOne(() => UserEntity, { onDelete: "RESTRICT" })
+  @JoinColumn({ name: "created_by_user_id", foreignKeyConstraintName: "deal_offer_revisions_created_by_user_id_fkey" })
   created_by: UserEntity;
 }

@@ -28,6 +28,13 @@ export class DealOffersController {
     return this.offers.update(user.id, id, body);
   }
 
+  /** D2 round 2 (AC-2.4): change a confirmed offer with a reason and how the landlord agreed. */
+  @Post("deal-offers/:id/revise")
+  @HttpCode(HttpStatus.OK)
+  revise(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Body() body: unknown) {
+    return this.offers.revise(user.id, id, body);
+  }
+
   @Post("deal-offers/:id/send")
   @HttpCode(HttpStatus.OK)
   send(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Body() body: unknown) {

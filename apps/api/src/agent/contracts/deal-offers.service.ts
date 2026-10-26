@@ -3,29 +3,35 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { DataSource, EntityManager, In, IsNull, Not } from "typeorm";
 import type {
   DealOffer,
   DealOfferConfirmationMethod,
+  DealOfferRevision,
   DealOfferStatus,
+  DealOfferTerms,
   LeaseAgreementInput,
   ReservationLetterInput,
 } from "@nestyk/types";
-import { DealOfferEntity } from "../../entities/deal-offer.entity";
+import { DealOfferEntity, DealOfferRevisionEntity } from "../../entities/deal-offer.entity";
+import { LeaseContractEntity } from "../../entities/lease-contract.entity";
+import { ContractDocumentStorageService } from "./contract-document-storage.service";
+import { CLOSED_CONTRACT, formKindOf, paidReservationAmount, refreshDealDrafts, type DraftFiles } from "./offer-drafts";
 import { LeadEntity } from "../../entities/lead.entity";
 import { RentRoomEntity } from "../../entities/rent-room.entity";
 import { UserEntity } from "../../entities/user.entity";
 import { AgreementTemplateEntity } from "../../entities/agreement-template.entity";
 import { AgreementDocumentEntity } from "../../entities/agreement-document.entity";
 import { contractAmount } from "./contract-money";
-import { isIsoDate, leaseTermEnd } from "./lease-term";
+import { asIsoDate, isIsoDate, leaseTermEnd } from "./lease-term";
 
 /**
  * D2 (AC-2.1 to 2.4, round 1, Aof 22 Oct 2026): the terms agreed for a lead and a room. The landlord confirms them
  * (in the app, or the agent records how the landlord confirmed), and only then can the room be booked. The numbers
- * then flow into the reservation letter and the lease. Round 1: a confirmed offer cannot change; the agent cancels it
- * and makes a new one. Editing after confirmation with a reason (rest of AC-2.4) is round 2.
+ * then flow into the reservation letter and the lease. Round 2 (Aof 26 Oct 2026): a confirmed offer changes through
+ * revise(), with a reason and how the landlord agreed; unsigned documents of the deal follow (offer-drafts.ts).
  * The contract date is where the lease's date starts (the agent can change it if the signing moves); the renewal
  * notice period is kept for the renewal work (D15).
  */
@@ -117,6 +123,46 @@ function assertRevision(row: DealOfferEntity, revision: number) {
 
 /** Amounts as the contract forms show them: "15000", "15000.5". */
 export const plainAmount = (value: string | null) => (value == null ? "" : String(Number(value)));
+
+/** The terms as the app shows and sends them; kept before and after each change of a confirmed offer. */
+export function offerTerms(o: DealOfferRow): DealOfferTerms {
+  return {
+    monthlyRent: plainAmount(o.monthly_rent),
+    termMonths: o.term_months,
+    startDate: String(o.start_date).slice(0, 10),
+    depositAmount: plainAmount(o.deposit_amount),
+    contractDate: String(o.contract_date).slice(0, 10),
+    rentDueDay: o.rent_due_day,
+    graceDay: o.grace_day,
+    lateFeePerDay: o.late_fee_per_day == null ? null : plainAmount(o.late_fee_per_day),
+    renewalNoticeDays: o.renewal_notice_days,
+    coBroke: o.co_broke,
+    coBrokeAgentName: o.co_broke_agent_name,
+  };
+}
+
+/**
+ * AC-2.5: a room still let (its lease or renewal not ended, or ended later than the new start) takes an offer only
+ * when the new lease starts after the current one ends: its end date, or the date it ended early. The deal's own
+ * leases and drafts do not count.
+ */
+export async function assertStartAfterRoomLease(db: DataSource | EntityManager, roomId: number, leadId: number, startDate: string) {
+  const rows = await db.getRepository(LeaseContractEntity).find({
+    where: { rent_room_id: roomId }, relations: { template: true, agreement_type: true },
+  });
+  const ends = rows
+    .filter((c) => c.lead_id !== leadId && !["cancelled", "draft"].includes(c.status) &&
+      ["lease", "renewal"].includes(formKindOf(c) ?? ""))
+    .map((c) => asIsoDate(c.effective_end_date) || asIsoDate(c.end_date))
+    .filter((end): end is string => Boolean(end))
+    .sort();
+  const last = ends[ends.length - 1];
+  if (last && startDate <= last)
+    throw new BadRequestException({
+      code: "OFFER_START_BEFORE_LEASE_END",
+      message: `ห้องนี้มีสัญญาเช่าเดิมถึงวันที่ ${last} วันเริ่มสัญญาใหม่ต้องหลังวันนั้น`,
+    });
+}
 
 /** Whole months of rent in the deposit (in satang, so no rounding error), or null. */
 function depositMonthsOf(o: DealOfferRow) {
@@ -242,21 +288,59 @@ export function landlordDealOffer(offer: DealOffer): DealOffer {
     confirmationNote: null,
     confirmedByName: offer.confirmationChannel === "app" ? offer.confirmedByName : null,
     coBrokeAgentName: null,
+    // D2 round 2: the landlord sees what changed and when, not the agent's reason or the other agent's name.
+    revisions: (offer.revisions ?? []).map((r) => ({
+      ...r,
+      reason: null,
+      before: { ...r.before, coBrokeAgentName: null },
+      after: { ...r.after, coBrokeAgentName: null },
+    })),
+    reservationPaid: null,
+  };
+}
+
+function serializeRevision(row: DealOfferRevisionEntity): DealOfferRevision {
+  return {
+    revision: row.revision,
+    reason: row.reason,
+    agreedVia: row.agreed_via,
+    before: row.before_terms,
+    after: row.after_terms,
+    createdAt: new Date(row.created_at).toISOString(),
   };
 }
 
 @Injectable()
 export class DealOffersService {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    @Optional() private readonly documents?: ContractDocumentStorageService,
+  ) {}
 
   private async view(row: DealOfferEntity, manager?: EntityManager): Promise<DealOffer> {
     const db = manager ?? this.db;
-    const [lead, room, confirmedBy] = await Promise.all([
+    const [lead, room, confirmedBy, revisions, reservations] = await Promise.all([
       db.getRepository(LeadEntity).findOneBy({ id: row.lead_id }),
       db.getRepository(RentRoomEntity).findOne({ where: { id: row.rent_room_id }, relations: { property: true } }),
       row.confirmed_by_user_id ? db.getRepository(UserEntity).findOneBy({ id: row.confirmed_by_user_id }) : null,
+      db.getRepository(DealOfferRevisionEntity).find({ where: { deal_offer_id: row.id }, order: { revision: "ASC" } }),
+      row.status === "confirmed"
+        ? db.getRepository(LeaseContractEntity).find({
+            where: { created_by_user_id: row.created_by_user_id, lead_id: row.lead_id, rent_room_id: row.rent_room_id },
+            relations: { template: true, agreement_type: true },
+            order: { id: "DESC" },
+          })
+        : [],
     ]);
-    return serializeDealOffer(row, lead, room, confirmedBy);
+    // AC-2.4: what the tenant paid (or sent the slip for) on the deal's reservation, so the agent is warned when the
+    // rent is changed below it.
+    const reservation = reservations.find((c) => formKindOf(c) === "reservation" && !CLOSED_CONTRACT.includes(c.status));
+    const paid = reservation ? paidReservationAmount(reservation) : null;
+    return {
+      ...serializeDealOffer(row, lead, room, confirmedBy),
+      revisions: revisions.map(serializeRevision),
+      reservationPaid: paid == null ? null : plainAmount(paid.toFixed(2)),
+    };
   }
 
   /** The agent's offers of one lead, newest first. */
@@ -299,6 +383,7 @@ export class DealOffersService {
         where: { lead_id: leadId, rent_room_id: roomId, status: In([...OPEN_OFFER_STATUSES]) },
       });
       if (open) throw new ConflictException({ code: "OFFER_EXISTS", message: "มีข้อเสนอของผู้เช่าและห้องนี้อยู่แล้ว" });
+      await assertStartAfterRoomLease(manager, roomId, leadId, terms.start_date);
       return manager.save(DealOfferEntity, manager.create(DealOfferEntity, {
         ...terms, lead_id: leadId, rent_room_id: roomId, status: "draft", revision: 1, created_by_user_id: agentId,
       }));
@@ -317,8 +402,8 @@ export class DealOffersService {
       throw new ConflictException({
         code: "OFFER_LOCKED",
         message: row.status === "confirmed"
-          ? "ข้อเสนอที่ผู้ให้เช่ายืนยันแล้วแก้ไม่ได้ ถ้าต้องเปลี่ยน ให้ยกเลิกแล้วทำข้อเสนอใหม่"
-          : "ข้อเสนอนี้ปิดแล้ว",
+          ? "ข้อเสนอที่ผู้ให้เช่ายืนยันแล้ว ต้องแก้ผ่าน \"แก้ข้อเสนอ\" พร้อมเหตุผล"
+          : statuses.includes("confirmed") ? "ข้อเสนอนี้ยังไม่ได้รับการยืนยัน หรือปิดแล้ว" : "ข้อเสนอนี้ปิดแล้ว",
       });
     assertRevision(row, revision);
     return row;
@@ -329,9 +414,53 @@ export class DealOffersService {
     const terms = validateDealOfferTerms(input, ["revision"]);
     const row = await this.db.transaction(async (manager) => {
       const row = await this.locked(manager, agentId, id, ["draft", "awaiting_landlord"], input);
+      await assertStartAfterRoomLease(manager, row.rent_room_id, row.lead_id, terms.start_date);
       await manager.update(DealOfferEntity, { id }, { ...terms, revision: row.revision + 1 });
       return manager.findOneByOrFail(DealOfferEntity, { id });
     });
+    return this.view(row);
+  }
+
+  /**
+   * D2 round 2 (AC-2.4, Aof 26 Oct 2026): the agent changes a confirmed offer the landlord agreed to change, with a
+   * reason and how the landlord agreed. The landlord does not confirm again. The deal's documents nobody has signed
+   * take the new terms (offer-drafts.ts); refused while the lease has a signature or a letter is partly signed.
+   */
+  async revise(agentId: number, id: number, input: unknown): Promise<DealOffer> {
+    const terms = validateDealOfferTerms(input, ["revision", "reason", "agreedVia"]);
+    const b = input as Record<string, unknown>;
+    const reason = typeof b.reason === "string" ? b.reason.trim() : "";
+    if (!reason || reason.length > 500) throw new BadRequestException("กรุณาระบุเหตุผลที่แก้ข้อเสนอ (ไม่เกิน 500 ตัวอักษร)");
+    if (!CONFIRMATION_METHODS.includes(b.agreedVia as DealOfferConfirmationMethod))
+      throw new BadRequestException("กรุณาเลือกช่องทางที่ผู้ให้เช่าตกลง");
+    const files: DraftFiles = { uploaded: [], replaced: [] };
+    let row: DealOfferEntity;
+    try {
+      row = await this.db.transaction(async (manager) => {
+        // The lead is locked first, as booking and saving a draft do, so a draft saved meanwhile sees this change.
+        const offer = await manager.findOne(DealOfferEntity, { where: { id, created_by_user_id: agentId } });
+        if (offer) await manager.findOne(LeadEntity, { where: { id: offer.lead_id }, lock: { mode: "pessimistic_write" } });
+        const row = await this.locked(manager, agentId, id, ["confirmed"], input);
+        const before = offerTerms(row);
+        const after = offerTerms({ ...row, ...terms });
+        if (JSON.stringify(before) === JSON.stringify(after))
+          throw new BadRequestException({ code: "OFFER_UNCHANGED", message: "ข้อเสนอไม่ได้เปลี่ยน" });
+        await assertStartAfterRoomLease(manager, row.rent_room_id, row.lead_id, terms.start_date);
+        const revision = row.revision + 1;
+        await refreshDealDrafts(manager, this.documents, agentId, { ...row, ...terms }, files);
+        await manager.update(DealOfferEntity, { id }, { ...terms, revision });
+        await manager.save(DealOfferRevisionEntity, manager.create(DealOfferRevisionEntity, {
+          deal_offer_id: id, revision, reason, agreed_via: b.agreedVia as DealOfferConfirmationMethod,
+          before_terms: before, after_terms: after, created_by_user_id: agentId,
+        }));
+        return manager.findOneByOrFail(DealOfferEntity, { id });
+      });
+    } catch (error) {
+      for (const path of files.uploaded) await this.documents?.remove(path).catch(() => undefined);
+      throw error;
+    }
+    // Committed: the replaced files go, and a failure from here on must not remove the new ones.
+    for (const path of files.replaced) await this.documents?.remove(path).catch(() => undefined);
     return this.view(row);
   }
 

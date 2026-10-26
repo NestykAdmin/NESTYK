@@ -32,6 +32,8 @@ export interface AgentContract {
   id: number;
   tenantId: number;
   leadId: number;
+  /** D2 round 2: the deal's room (to find the deal's offer). */
+  rentRoomId?: number | null;
   contractNo: string;
   templateId: number | null;
   templateVersion: number | null;
@@ -145,6 +147,30 @@ export interface DealOffer extends Omit<DealOfferTerms, "renewalNoticeDays"> {
   /** The room has a landlord account, so the landlord can confirm in the app. */
   landlordInApp: boolean;
   closedAt: string | null;
+  /** D2 round 2 (AC-2.4): changes made after the landlord confirmed, oldest first. */
+  revisions?: DealOfferRevision[];
+  /**
+   * What the tenant paid, or sent the slip for, on the deal's reservation (null when not yet, and in the landlord's
+   * view). A rent changed below it means the agent settles the difference with the tenant (the system computes none).
+   */
+  reservationPaid?: string | null;
+}
+/** D2 round 2 (AC-2.4): a change to a confirmed offer. */
+export interface DealOfferRevision {
+  /** The offer's revision after the change. */
+  revision: number;
+  /** The agent's reason (null in the landlord's view). */
+  reason: string | null;
+  /** How the landlord agreed to the change. */
+  agreedVia: DealOfferConfirmationMethod;
+  before: DealOfferTerms;
+  after: DealOfferTerms;
+  createdAt: string;
+}
+export interface ReviseDealOffer extends DealOfferTerms {
+  revision: number;
+  reason: string;
+  agreedVia: DealOfferConfirmationMethod;
 }
 /**
  * D10: one deposit invoice per lease, issued in the landlord's name once the lease document is generated.

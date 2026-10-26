@@ -12,10 +12,12 @@ const { AuthService } = require('../src/auth/auth.service.ts');
 const { AgentContractsController } = require('../src/agent/contracts/agent-contracts.controller.ts');
 const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
 const { AgreementDocumentEntity } = require('../src/entities/agreement-document.entity.ts');
+const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
+const { AgreementSignInviteEntity } = require('../src/entities/agreement-sign-invite.entity.ts');
 const { Module } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
 
-function fixture({ patch = {}, failUpdate = false, concurrentPatch, reassignTenant = false, docs = [] } = {}) {
+function fixture({ patch = {}, failUpdate = false, concurrentPatch, reassignTenant = false, docs = [], offer = null } = {}) {
   const invoice = {
     documentNo: 'INV-RS202600011', issueDate: '2026-10-01', dueDate: '2026-10-01', reference: 'RS202600011',
     customerName: 'Tenant', customerFirstName: 'Tenant', customerLastName: '', customerAddress: 'Project', customerTaxId: '', customerPhone: '0811111111', customerEmail: 'tenant@example.com',
@@ -41,7 +43,8 @@ function fixture({ patch = {}, failUpdate = false, concurrentPatch, reassignTena
       assert.equal(where.created_by_user_id, 7);
       assert.equal(lock.mode, 'pessimistic_write');
       if (concurrentPatch) Object.assign(row, concurrentPatch);
-      return row;
+      // A copy, like a row read from the database: later writes do not change what the service already read.
+      return structuredClone(row);
     },
     update: async (where, update) => {
       if (failUpdate) throw new Error('DB failure');
@@ -64,10 +67,16 @@ function fixture({ patch = {}, failUpdate = false, concurrentPatch, reassignTena
   };
   const db = {
     getRepository: () => repo,
-    transaction: async fn => fn({ getRepository: () => repo, findOneBy: async (_entity, where) => !reassignTenant && where.id === 2 && where.user_id === 8 ? row.tenant : null,
+    // D2 round 2: the deal's confirmed offer (looked up when a slip is returned).
+    transaction: async fn => fn({ getRepository: (entity) => entity === DealOfferEntity
+      ? { findOne: async ({ where }) => (offer && where.lead_id === row.lead_id && where.rent_room_id === row.rent_room_id && where.status === 'confirmed' ? offer : null) }
+      : repo, findOneBy: async (_entity, where) => !reassignTenant && where.id === 2 && where.user_id === 8 ? row.tenant : null,
       // D11: the slip return locks the reservation; the power of attorney is looked up among its attachments.
       findOne: async (entity, options) => { assert.equal(entity, LeaseContractEntity); return repo.findOne(options); },
-      update: async (entity, where, update) => { assert.equal(entity, LeaseContractEntity); assert.deepEqual(where, { id: 11 }); return repo.update(where, update); },
+      update: async (entity, where, update) => {
+        if (entity === AgreementSignInviteEntity) { updates.push({ invitesRevoked: where.agreement_id }); return; }
+        assert.equal(entity, LeaseContractEntity); assert.deepEqual(where, { id: 11 }); return repo.update(where, update);
+      },
       find: async (entity, { where }) => {
         assert.equal(entity, AgreementDocumentEntity);
         docQueries.push(where.agreement_id.value);
@@ -364,5 +373,40 @@ test('D11: routes POST /agent/contracts/:id/reservation-payment/return and /depo
   for (const [method, path] of [['returnReservationSlip', ':id/reservation-payment/return'], ['returnDepositSlip', ':id/deposit-payment/return']]) {
     assert.equal(Reflect.getMetadata('path', AgentContractsController.prototype[method]), path);
     assert.equal(Reflect.getMetadata('method', AgentContractsController.prototype[method]), 1);
+  }
+});
+
+// D2 round 2 (AC-2.4, TC-2.04 round 4): the rent of the confirmed offer changed after the tenant sent the slip; the
+// agent returns the slip, so the tenant pays the latest amount: the letter nobody signed and its invoice follow.
+const offerRow = (rent) => ({ monthly_rent: rent, term_months: 12, start_date: '2026-11-01', deposit_amount: '9000.00', contract_date: '2026-10-25',
+  rent_due_day: 1, grace_day: null, late_fee_per_day: null, renewal_notice_days: 30, co_broke: false, co_broke_agent_name: null });
+const letter = { issueDate: '2026-10-01', landlordName: 'Owner A', tenantName: 'Tenant', project: 'Project', unitNo: 'A1', monthlyRent: '5000',
+  reservationPayment: '5000', advanceAmount: '5000', depositAmount: '10000', termFrom: '2026-11-01' };
+test('D2 round 2: a slip returned after the offer\'s rent changed makes the invoice and the unsigned letter follow the new rent', async () => {
+  const f = fixture({ patch: { rent_room_id: 3, reservation_fee: '5000.00' }, offer: offerRow('4500.00') });
+  f.row.data.reservationLetter = { ...letter };
+  await f.service.uploadReservationPaymentSlip(8, 11, file);
+  const view = await f.service.returnReservationSlip(7, 11, { reason: 'โอนตามยอดใหม่', submittedAt: f.row.data.reservationPayment.submittedAt });
+  const invoice = f.row.data.financialDocuments.invoice;
+  assert.deepEqual([invoice.documentNo, invoice.items[0].unitPrice], ['INV-RS202600011', 4500], 'same invoice number, the new amount');
+  assert.equal(f.row.reservation_fee, '4500.00');
+  assert.deepEqual([f.row.data.reservationLetter.reservationPayment, f.row.data.reservationLetter.monthlyRent, f.row.data.reservationLetter.landlordName],
+    ['4500', '4500', 'Owner A']);
+  assert.equal(f.row.data.reservationPayment.returnNote, 'โอนตามยอดใหม่', 'the reason stays for the tenant');
+  assert.equal(view.reservationPayment.total, 4500);
+  assert.equal(view.reservationPayment.status, 'unpaid');
+  assert.ok(f.removed.includes('7/11/invoice/a.pdf'), 'the old invoice file is removed after the commit');
+  assert.ok(f.updates.some((u) => u.invitesRevoked === 11));
+  // Unchanged when the rent did not change, without an offer, or when someone signed the letter.
+  for (const [label, options, extra] of [
+    ['same rent', { offer: offerRow('5000.00') }, {}], ['no offer', {}, {}],
+    ['letter signed', { offer: offerRow('4500.00') }, { owner_signed_at: new Date() }],
+  ]) {
+    const g = fixture({ patch: { rent_room_id: 3, reservation_fee: '5000.00', ...extra }, ...options });
+    g.row.data.reservationLetter = { ...letter };
+    await g.service.uploadReservationPaymentSlip(8, 11, file);
+    await g.service.returnReservationSlip(7, 11, { reason: 'x', submittedAt: g.row.data.reservationPayment.submittedAt });
+    assert.deepEqual([g.row.data.financialDocuments.invoice.items[0].unitPrice, g.row.reservation_fee, g.row.invoice_url, g.row.data.reservationLetter.reservationPayment],
+      [5000, '5000.00', '7/11/invoice/a.pdf', '5000'], label);
   }
 });
