@@ -46,5 +46,15 @@
     "@types/react": "^19.1.0",
     "react": "19.1.0",
     "typescript": "~5.9.2"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./desktop": {
+      "types": "./src/desktop.ts",
+      "default": "./src/desktop.ts"
+    }
   }
 }

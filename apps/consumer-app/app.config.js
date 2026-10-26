@@ -46,6 +46,7 @@ module.exports = {
   },
   plugins: ['expo-router', 'expo-localization', 'expo-document-picker', ['expo-image-picker', { photosPermission: 'Allow NESTYK to select room photos for your listing.', cameraPermission: false, microphonePermission: false }]],
   extra: {
+    webGoogleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000/api/v1',
     baseUrl: process.env.EXPO_PUBLIC_BASE_URL || 'http://localhost:3000',
     defaultRole: process.env.EXPO_PUBLIC_DEFAULT_ROLE || 'guest',

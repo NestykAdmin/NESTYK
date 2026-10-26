@@ -1,3 +1,5 @@
+import { AgentDashboardController } from './dashboard/agent-dashboard.controller';
+import { AgentDashboardService } from './dashboard/agent-dashboard.service';
 import { AgreementAttachmentsService } from './contracts/agreement-attachments.service';
 import { AgreementAttachmentsController } from './contracts/agreement-attachments.controller';
 import { AgentTenantsController } from './tenants/agent-tenants.controller';
@@ -90,8 +92,8 @@ import { GeminiModule } from '../gemini/gemini.module';
       RoomShareLinkEntity,
     ]),
   ],
-  controllers: [AgreementAttachmentsController, AgentTenantsController, AgentContractsController, DealOffersController, PartyContractsController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
-  providers: [AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, HandoverService, DealOffersService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
+  controllers: [AgentDashboardController, AgreementAttachmentsController, AgentTenantsController, AgentContractsController, DealOffersController, PartyContractsController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
+  providers: [AgentDashboardService, AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, HandoverService, DealOffersService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
   exports: [AgentRoomsService, AgentListingsService, AgentPlacesService, RoomShareLinksService],
 })
 export class AgentModule {}

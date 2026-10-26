@@ -211,10 +211,9 @@ export function RoomShareLinkSheet({
         Alert.alert(rd.shareManageTitle, rd.shareLinkCopied);
         return;
       }
-      const result = await Share.share({
-        message: url,
-        url: Platform.OS === 'ios' ? url : undefined,
-      });
+      const result = await Share.share(
+        Platform.OS === 'ios' ? { url } : { message: url },
+      );
       if (Platform.OS === 'web' || result?.action === Share.sharedAction) {
         Alert.alert(rd.shareManageTitle, rd.shareLinkCopied);
       }
