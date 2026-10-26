@@ -2,13 +2,17 @@ import { SingleQueryPipe } from '../../common/single-query.pipe';
 import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import {
   BadRequestException,
+  ServiceUnavailableException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Optional,
   Param,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseGuards,
@@ -24,6 +28,7 @@ import {
 } from "../../auth/decorators/current-user.decorator";
 import { AgentContractsService } from "./agent-contracts.service";
 import { MAX_CONTRACT_DOCUMENT_BYTES } from "./contract-document-storage.service";
+import { HandoverService } from "./handover.service";
 
 function receiptPayload(body: unknown): unknown {
   if (
@@ -45,7 +50,14 @@ function receiptPayload(body: unknown): unknown {
 @UseGuards(AuthGuard, RolesGuard)
 @Roles("agent")
 export class AgentContractsController {
-  constructor(private readonly contracts: AgentContractsService) {}
+  constructor(
+    private readonly contracts: AgentContractsService,
+    @Optional() private readonly handover?: HandoverService,
+  ) {}
+  private handovers() {
+    if (!this.handover) throw new ServiceUnavailableException("ยังไม่เปิดใช้การส่งมอบห้อง");
+    return this.handover;
+  }
   @Get("end-reasons")
   endReasons() {
     return this.contracts.endReasons();
@@ -81,6 +93,70 @@ export class AgentContractsController {
     @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.issueDepositInvoice(user.id, id);
+  }
+  /** D11 (AC-3.4): return the tenant's booking slip with a reason (body: { reason }). */
+  @Post(":id/reservation-payment/return")
+  @HttpCode(HttpStatus.OK)
+  returnReservationSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.returnReservationSlip(user.id, id, body);
+  }
+  /** D11 (AC-5.4): return the tenant's deposit slip of a lease with a reason (body: { reason }). */
+  @Post(":id/deposit-payment/return")
+  @HttpCode(HttpStatus.OK)
+  returnDepositSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.returnDepositSlip(user.id, id, body);
+  }
+  /** D6: the handover record of a lease (annex 1 items, annex 2 photos, signatures). */
+  @Get(":id/handover") handoverView(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.handovers().agentView(user.id, id);
+  }
+  @Put(":id/handover") handoverSave(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.handovers().save(user.id, id, body);
+  }
+  @Post(":id/handover/photos")
+  @UseInterceptors(FileInterceptor("file", {
+    // fieldSize is in bytes: 200 Thai characters of caption are up to 600 bytes.
+    limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 1, fieldSize: 1024 },
+  }))
+  handoverPhoto(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+    @UploadedFile() file: { buffer: Buffer; size: number } | undefined,
+  ) {
+    return this.handovers().addPhoto(user.id, id, file, body);
+  }
+  @Delete(":id/handover/photos/:photoId") handoverPhotoRemove(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("photoId", DatabaseIdPipe) photoId: number,
+  ) {
+    return this.handovers().removePhoto(user.id, id, photoId);
+  }
+  /** D6: the landlord or the tenant signs the handover on the agent's device. */
+  @Post(":id/handover/sign")
+  @HttpCode(HttpStatus.OK)
+  handoverSign(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.handovers().signOnSite(user.id, id, body);
   }
   /** D17: who signed this contract and through which channel. */
   @Get(":id/signatures") signatures(

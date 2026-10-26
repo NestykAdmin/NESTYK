@@ -3,6 +3,7 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
 import { SerialEntity } from "./base.entity";
 import { AgreementDocumentEntity } from "./agreement-document.entity";
 import { AgreementSignInviteEntity } from "./agreement-sign-invite.entity";
+import { HandoverRecordEntity } from "./handover.entity";
 import { LeaseContractEntity } from "./lease-contract.entity";
 import { UserEntity } from "./user.entity";
 
@@ -10,8 +11,12 @@ import { UserEntity } from "./user.entity";
  * D17 + D9: one row per signature (who pressed, through which channel). Migration
  * supabase/migrations/20261021120000_agreement_signatures.sql. The old signature columns on
  * lease_contracts are still written too until the cleanup migration (S3 round 2).
+ * D6: a row with handover_record_id signs that handover record (landlord or tenant only), not the lease itself;
+ * code that reads the signatures of a lease filters handover_record_id IS NULL.
  */
-@Index("uq_agreement_signatures_live_party", ["agreement_id", "party"], { unique: true, where: "(voided_at IS NULL)" })
+@Index("uq_agreement_signatures_live_party", ["agreement_id", "party"], { unique: true, where: "((voided_at IS NULL) AND (handover_record_id IS NULL))" })
+@Index("uq_agreement_signatures_live_handover_party", ["handover_record_id", "party"], { unique: true, where: "((voided_at IS NULL) AND (handover_record_id IS NOT NULL))" })
+@Check("chk_agreement_signatures_handover", "((handover_record_id IS NULL) OR (((party)::text = ANY ((ARRAY['owner'::character varying, 'tenant'::character varying])::text[])) AND ((channel)::text = ANY ((ARRAY['app'::character varying, 'on_site'::character varying])::text[]))))")
 @Check("chk_agreement_signatures_party", "((party)::text = ANY ((ARRAY['owner'::character varying, 'tenant'::character varying, 'agent'::character varying, 'witness'::character varying])::text[]))")
 @Check("chk_agreement_signatures_channel", "((channel)::text = ANY ((ARRAY['app'::character varying, 'link'::character varying, 'on_site'::character varying, 'uploaded_file'::character varying, 'legacy'::character varying])::text[]))")
 @Check("chk_agreement_signatures_evidence", "(((channel)::text = 'legacy'::text) OR (((channel)::text = 'uploaded_file'::text) AND (signed_file_document_id IS NOT NULL)) OR (((channel)::text = ANY ((ARRAY['app'::character varying, 'link'::character varying, 'on_site'::character varying])::text[])) AND (signature_url IS NOT NULL)))")
@@ -51,4 +56,9 @@ export class AgreementSignatureEntity extends SerialEntity {
   @Column({ type: "timestamptz", default: () => "now()" }) signed_at: Date;
 
   @Column({ type: "timestamptz", nullable: true }) voided_at: Date | null;
+
+  @Column({ type: "int", nullable: true }) handover_record_id: number | null;
+  @ManyToOne(() => HandoverRecordEntity, { onDelete: "RESTRICT", nullable: true })
+  @JoinColumn({ name: "handover_record_id", foreignKeyConstraintName: "agreement_signatures_handover_record_id_fkey" })
+  handover_record: HandoverRecordEntity | null;
 }

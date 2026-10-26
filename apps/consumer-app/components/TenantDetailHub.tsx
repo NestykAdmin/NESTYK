@@ -104,6 +104,14 @@ export function TenantDetailHub({
         cta: d.nowConfirmCta,
       };
     }
+    if (next.kind === "deposit" || next.kind === "handover") {
+      const deposit = next.kind === "deposit";
+      return {
+        title: deposit ? d.nowDepositTitle : d.nowHandoverTitle,
+        body: (deposit ? d.nowDepositBody : d.nowHandoverBody).replace("{contract}", next.contract.agreementTypeName || next.contract.contractNo),
+        cta: deposit ? d.nowDepositCta : d.nowHandoverCta,
+      };
+    }
     if (next.kind === "sign") {
       return {
         title: d.nowSignTitle,
@@ -113,8 +121,9 @@ export function TenantDetailHub({
     }
     return {
       title: c.nextStepTitle,
-      body: tenant.email ? c.nextStepBody : c.reservedNeedsEmail,
-      cta: tenant.email ? c.makeReservation : c.addEmail,
+      // C3 (Aof, 22 Oct 2026): the reservation letter needs the tenant's email and ID or passport number.
+      body: !tenant.email ? c.reservedNeedsEmail : !tenant.identityNumber ? c.reservedNeedsIdentity : c.nextStepBody,
+      cta: !tenant.email ? c.addEmail : !tenant.identityNumber ? c.addIdentity : c.makeReservation,
     };
   }
 

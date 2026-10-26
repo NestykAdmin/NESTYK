@@ -82,6 +82,14 @@ test("document waiting on the agent", () => {
   assert.equal(card.historyRounds, 0);
 });
 
+// D7: a generated lease waiting for its deposit or handover is the agent's turn, still open, and not active yet.
+test("lease waiting for the deposit or the handover waits on the agent", () => {
+  for (const status of ["awaiting_deposit", "awaiting_handover"]) {
+    const card = ownerContractRoomCard([row({ status, formKind: "lease", ownerSignedAt: "signed", tenantSignedAt: "signed" })]);
+    assert.deepEqual([card.status, card.tone, card.pendingCount, card.needsOwner], ["awaiting_agent", "yellow", 1, false], status);
+  }
+});
+
 test("a room with no contracts stays idle and is not waiting on the owner", () => {
   const card = ownerContractRoomCard([]);
   assert.equal(card.status, "idle");

@@ -139,7 +139,9 @@ function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, fo
     create: (_, data) => data,
     save: async (entity, data) => { if (failSave && entity !== RoomTenancyEntity) throw Error('database failure'); const row = { id: saved.length + 10, ...data }; saved.push(row); return row; },
   };
-  const service = new AgentContractsService({ getRepository: (entity) => ({ findOneBy: async ({code, id, created_by_user_id}) => entity === LeaseContractEntity ? (draft?.id === id && created_by_user_id === draft.created_by_user_id ? draft : null) : ({ code, form_kind: code === 'reservation' ? 'reservation' : code === 'broker' ? 'broker_appointment' : 'lease' }), findOne: async ({where}) => ({id: 1, version: 1, form_kind: where.agreement_type_code === 'reservation' ? 'reservation' : where.agreement_type_code === 'broker' ? 'broker_appointment' : 'lease', data_schema: {type:'object'}}) }), transaction: async fn => { try { return await fn(manager); } catch (e) { saved.length = 0; rolledBack = true; throw e; } } }, {
+  // D2: no lead has a confirmed offer unless a test says so (withOffer).
+  const { DealOfferEntity: Offer } = require('../src/entities/deal-offer.entity.ts');
+  const service = new AgentContractsService({ getRepository: (entity) => entity === Offer ? { findOne: async () => null } : ({ findOneBy: async ({code, id, created_by_user_id}) => entity === LeaseContractEntity ? (draft?.id === id && created_by_user_id === draft.created_by_user_id ? draft : null) : ({ code, form_kind: code === 'reservation' ? 'reservation' : code === 'broker' ? 'broker_appointment' : 'lease' }), findOne: async ({where}) => ({id: 1, version: 1, form_kind: where.agreement_type_code === 'reservation' ? 'reservation' : where.agreement_type_code === 'broker' ? 'broker_appointment' : 'lease', data_schema: {type:'object'}}) }), transaction: async fn => { try { return await fn(manager); } catch (e) { saved.length = 0; rolledBack = true; throw e; } } }, {
     upload: async (agentId, contractId, kind, file) => {
       assert.equal(file.buffer.subarray(0, 4).toString(), '%PDF');
       const path = `${agentId}/${contractId}/${kind}/${uploads.length}.pdf`;
@@ -148,7 +150,7 @@ function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, fo
     remove: async path => removed.push(path),
   });
   service.view = async (agentId, id) => { assert.equal(agentId, 7); return saved.find(c => c.id === id) ?? draft; };
-  return { service, saved, calls, uploads, removed, rolledBack: () => rolledBack };
+  return { service, manager, saved, calls, uploads, removed, rolledBack: () => rolledBack };
 }
 test('creates tenancy and draft using server-owned identity and locked room', async () => {
   const f = fixture(); const c = await f.service.create(7, { ...valid, status: 'active', created_by_user_id: 99, tenantId: 99 });
@@ -344,6 +346,18 @@ test('invalid template and predecessor IDs are rejected', async () => {
 test('create rejects non-object bodies before loading a template', async () => {
   const f = fixture();
   for (const input of [null, undefined, [], 'lease', 1]) await assert.rejects(()=>f.service.create(7,input), e=>e.getStatus()===400);
+});
+
+test('D11: editing a reservation draft after its slip was returned keeps the reason for the tenant', async () => {
+  const reservation = { leadId: 1, startDate: '2026-10-01', moveInDate: '2026-10-15', reservationFee: 1000, agreementTypeCode: 'reservation' };
+  const returned = { returnNote: 'ยอดไม่ตรง', returnedAt: '2026-10-22T03:00:00.000Z', returnedBy: 7 };
+  const f = fixture({ draft: draftRow({ agreement_type_code: 'reservation', invoice_url: 'invoice.pdf', data: { reservationPayment: returned } }) });
+  const result = await f.service.updateDraft(7, 40, reservation);
+  assert.deepEqual(result.data.reservationPayment, returned);
+  assert.ok(result.data.financialDocuments.invoice, 'the invoice is made again as before');
+  // Nothing to keep when no slip was returned.
+  const plain = fixture({ draft: draftRow({ agreement_type_code: 'reservation', invoice_url: 'invoice.pdf' }) });
+  assert.equal('reservationPayment' in (await plain.service.updateDraft(7, 40, reservation)).data, false);
 });
 
 function draftRow(patch = {}) {
@@ -581,20 +595,184 @@ test('D1: contract candidates say which booked tenants can start a reservation l
   const service = new AgentContractsService({ getRepository: (entity) => ({ createQueryBuilder: () => (entity === LeadEntity ? leadQb : appointmentQb) }) }, {});
   const rows = await service.candidates(7);
   assert.deepEqual(rows.map((r) => [r.leadId, r.brokerAppointmentReady]), [[1, true], [4, false]]);
+  assert.deepEqual(rows.map((r) => r.rentRoomId), [3, 6], 'D2: the booked room, to find its confirmed offer');
   assert.ok(asked.some((c) => c[0] === 'andWhere' && JSON.stringify(c[2]?.roomIds) === '[3,6]'));
   assert.ok(asked.some((c) => c[0] === 'andWhere' && JSON.stringify(c[2]?.tenantIds) === '[2,5]'));
 });
 
+function withLeadNoOffer(f) {
+  const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
+  const base = f.service.db.getRepository;
+  f.service.db.getRepository = (entity) => (entity === LeadEntity
+    ? { findOneBy: async () => ({ id: 1, rent_room_id: 3, tenant_id: 2, created_by_user_id: 7 }) }
+    : entity === DealOfferEntity ? { findOne: async () => null } : base(entity));
+}
 test('D1: other document kinds and an existing reservation draft are not checked', async () => {
   for (const agreementTypeCode of ['lease', 'broker']) {
-    const f = fixture({ appointments: [] }); const base = f.service.db.getRepository;
-    f.service.db.getRepository = (entity) => (entity === LeadEntity ? assert.fail(`${agreementTypeCode} drafts are not checked`) : base(entity));
+    const f = fixture({ appointments: [] });
+    // D2 reads the lead for its confirmed offer (none here). The lead has a room and a tenant, so the broker
+    // appointment check would run if it applied to these drafts.
+    withLeadNoOffer(f);
+    f.service.hasBrokerAppointment = () => assert.fail(`${agreementTypeCode} drafts are not checked`);
     await f.service.create(7, { ...valid, agreementTypeCode });
   }
   // A reservation draft saved before the rule can still be edited with no appointment.
   const draft = { id: 40, lead_id: 1, created_by_user_id: 7, status: 'draft', agreement_type_code: 'reservation', template_id: 1, previous_agreement_id: null,
     data: {}, updated_at: new Date('2026-10-01T00:00:00Z'), tenant_id: 2, rent_room_id: 3 };
-  const f = fixture({ draft, appointments: [] }); const base = f.service.db.getRepository;
-  f.service.db.getRepository = (entity) => (entity === LeadEntity ? assert.fail('an existing draft is not checked') : base(entity));
+  const f = fixture({ draft, appointments: [] });
+  withLeadNoOffer(f);
+  f.service.hasBrokerAppointment = () => assert.fail('an existing draft is not checked');
   await f.service.updateDraft(7, 40, { leadId: 1, agreementTypeCode: 'reservation', startDate: '2026-10-01', moveInDate: '2026-10-15', reservationFee: 5000 });
+});
+
+// D2 (Aof, 22 Oct 2026): the numbers of an offer the landlord confirmed flow into the lease and the letter.
+const confirmedOfferRow = {
+  id: 30, revision: 2, lead_id: 1, rent_room_id: 3, status: 'confirmed', monthly_rent: '15000.00', term_months: 12, start_date: '2026-11-01',
+  deposit_amount: '30000.00', contract_date: '2026-10-25', rent_due_day: 1, grace_day: 5, late_fee_per_day: '200.00',
+  renewal_notice_days: 30, co_broke: false, co_broke_agent_name: null,
+};
+// `latest` is the offer read again inside the transaction, after the lead is locked (the same one unless a test says so).
+function withOffer(f, offer, latest = offer) {
+  const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
+  const base = f.service.db.getRepository;
+  f.service.db.getRepository = (entity) => {
+    if (entity === LeadEntity) return { findOneBy: async (where) => { assert.deepEqual(where, { id: 1, created_by_user_id: 7 }); return { id: 1, rent_room_id: 3, tenant_id: 2 }; } };
+    if (entity === DealOfferEntity) return { findOne: async ({ where }) => { assert.deepEqual(where, { lead_id: 1, rent_room_id: 3, status: 'confirmed' }); return offer; } };
+    return base(entity);
+  };
+  const inside = f.manager.getRepository;
+  f.manager.getRepository = (entity) => entity === DealOfferEntity
+    ? { findOne: async ({ where }) => { assert.deepEqual(where, { lead_id: 1, rent_room_id: 3, status: 'confirmed' }); f.calls.push(['offer read in transaction']); return latest; } }
+    : inside(entity);
+}
+test('D2: a lease draft takes rent, term, deposit, due day, grace day and late fee from the confirmed offer, whatever was typed', async () => {
+  const { emptyLeaseAgreement } = require('../src/agent/contracts/lease-agreement.ts');
+  const typed = { ...emptyLeaseAgreement(), issueDate: '2026-10-01', landlordName: 'Owner', tenantName: 'Tenant', project: 'Project',
+    termMonths: '12', termFrom: '2026-10-01', termTo: '2027-09-30', monthlyRent: '99999', depositAmount: '1', depositMonths: '',
+    advanceMonths: '0', advanceAmount: '0', rentDueDay: '9', graceDay: '', latePenalty: '' };
+  const f = fixture(); withOffer(f, confirmedOfferRow);
+  const c = await f.service.create(7, { ...valid, data: { leaseAgreement: typed } });
+  const lease = c.data.leaseAgreement;
+  assert.deepEqual(
+    [lease.issueDate, lease.monthlyRent, lease.termMonths, lease.termFrom, lease.termTo, lease.depositAmount, lease.depositMonths, lease.advanceMonths, lease.advanceAmount, lease.rentDueDay, lease.graceDay, lease.latePenalty],
+    ['2026-10-01', '15000', '12', '2026-11-01', '2027-10-31', '30000', '2', '1', '15000', '1', '5', '200'], 'the lease\'s date stays as typed (the signing may move)');
+  assert.equal(c.monthly_rent, '15000.00'); assert.equal(c.deposit, '30000.00');
+  assert.equal(c.start_date, '2026-11-01'); assert.equal(c.end_date, '2027-10-31');
+  assert.equal(lease.landlordName, 'Owner', 'the other fields stay as typed');
+  // No confirmed offer (a deal booked before offers existed): the typed numbers stay.
+  const old = fixture(); withOffer(old, null);
+  const kept = (await old.service.create(7, { ...valid, data: { leaseAgreement: typed } })).data.leaseAgreement;
+  assert.deepEqual([kept.monthlyRent, kept.termFrom, kept.rentDueDay, kept.graceDay], ['99999', '2026-10-01', '9', '']);
+  // D2 round 2: the offer was changed between reading it and locking the lead: refused, nothing saved.
+  const raced = fixture(); withOffer(raced, confirmedOfferRow, { ...confirmedOfferRow, revision: 3, monthly_rent: '14000.00' });
+  await assert.rejects(() => raced.service.create(7, { ...valid, data: { leaseAgreement: typed } }),
+    (e) => e.getStatus() === 409 && e.getResponse().code === 'OFFER_CHANGED');
+  assert.deepEqual(raced.saved, []);
+  assert.ok(raced.calls.findIndex((c) => c[0] === 'offer read in transaction') > raced.calls.findIndex((c) => c[0] === 'findOne' && c[1] === 'LeadEntity'),
+    'read again after the lead is locked');
+});
+test('D2: lease and letter defaults show the confirmed offer\'s numbers', async () => {
+  const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
+  const qb = { getMany: async () => [] };
+  for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = () => qb;
+  const lead = { id: 1, lease_duration_months: 12, rent_room: { id: 3, price_rows: [{ price: '18000', contract_type: { term_months: 12 } }], advance_rent_months: 1, deposit_months: 1 } };
+  let offer = { ...confirmedOfferRow, grace_day: null, late_fee_per_day: null, deposit_amount: '25000.00' };
+  const service = new AgentContractsService({ getRepository: (entity) => entity === DealOfferEntity
+    ? { findOne: async ({ where }) => { assert.deepEqual(where, { lead_id: 1, rent_room_id: 3, status: 'confirmed' }); return offer; } }
+    : { findOne: async () => lead, createQueryBuilder: () => qb } });
+  service.reservationDefaults = async () => ({ issueDate: '2026-10-14' });
+  const data = await service.leaseDefaults(7, 1);
+  assert.deepEqual(
+    [data.issueDate, data.monthlyRent, data.termFrom, data.termTo, data.depositAmount, data.depositMonths, data.rentDueDay, data.graceDay, data.latePenalty],
+    ['2026-10-25', '15000', '2026-11-01', '2027-10-31', '25000', '', '1', '', ''], 'the contract date starts the lease\'s date; a deposit that is not whole months leaves the months blank');
+  offer = null;
+  const room = await service.leaseDefaults(7, 1);
+  assert.equal(room.monthlyRent, '18000', 'no offer: the room price as before');
+  // The letter: rent, term, reservation = 1 month of rent (AC-2.2), deposit.
+  const { offerReservationFields } = require('../src/agent/contracts/deal-offers.service.ts');
+  assert.deepEqual(offerReservationFields(confirmedOfferRow), {
+    monthlyRent: '15000', termMonths: '12', termFrom: '2026-11-01', termTo: '2027-10-31', advanceMonths: '1', advanceAmount: '15000',
+    reservationPayment: '15000', depositAmount: '30000', depositMonths: '2', applyToAdvance: true, applyToDeposit: false, balanceDue: '30000',
+  });
+  // Whole months are counted in satang: 30,001.50 is exactly 2 x 15,000.75, and 0.30 is 3 x 0.10.
+  assert.equal(offerReservationFields({ ...confirmedOfferRow, monthly_rent: '15000.75', deposit_amount: '30001.50' }).depositMonths, '2');
+  assert.equal(offerReservationFields({ ...confirmedOfferRow, monthly_rent: '0.10', deposit_amount: '0.30' }).depositMonths, '3', 'no floating point miss');
+});
+test('D2: a reservation draft takes the confirmed offer\'s numbers, and its booking fee and move-in date follow', async () => {
+  const { emptyReservationLetter } = require('../src/agent/contracts/reservation-letter.ts');
+  // No real accounts in this test: the letter's logins are stubbed (the module is read at call time).
+  const login = require('../src/agent/contracts/party-login.ts'); const real = login.ensurePartyLogin;
+  login.ensurePartyLogin = async (_db, input) => (input.role === 'tenant' ? 60 : 61);
+  try {
+    const letter = { ...emptyReservationLetter(), issueDate: '2026-10-14', tenantName: 'Tenant One', tenantFirstName: 'Tenant', tenantLastName: 'One',
+      tenantPhone: '0812345678', tenantEmail: 'tenant@example.invalid', tenantId: 'A1234567', tenantNationality: 'British',
+      landlordName: 'Owner', landlordPhone: '0811111111', landlordEmail: 'owner@example.invalid', project: 'Condo',
+      termMonths: '6', termFrom: '2026-10-15', termTo: '2027-04-14', monthlyRent: '99999', advanceMonths: '0', advanceAmount: '0',
+      depositMonths: '0', depositAmount: '0', reservationPayment: '5000', paymentMethod: 'transfer' };
+    const make = (offer) => {
+      const f = fixture(); withOffer(f, offer);
+      const base = f.service.db.getRepository;
+      f.service.db.getRepository = (entity) => (entity === LeaseContractEntity
+        ? { ...base(entity), createQueryBuilder: () => { const qb = {}; for (const k of ['leftJoin', 'select', 'addSelect', 'distinct', 'where', 'andWhere']) qb[k] = () => qb; qb.getRawMany = async () => [{ roomId: '3', tenantId: '2' }]; return qb; } }
+        : base(entity));
+      f.service.reservationDefaults = async () => letter;
+      return f;
+    };
+    const body = { leadId: 1, agreementTypeCode: 'reservation', startDate: '2026-10-14', moveInDate: '2026-10-15', reservationFee: 5000, data: { reservationLetter: letter } };
+    const c = await make(confirmedOfferRow).service.create(7, body);
+    const saved = c.data.reservationLetter;
+    assert.deepEqual(
+      [saved.monthlyRent, saved.termMonths, saved.termFrom, saved.termTo, saved.advanceMonths, saved.advanceAmount, saved.reservationPayment, saved.depositAmount, saved.depositMonths, saved.applyToAdvance, saved.applyToDeposit, saved.balanceDue],
+      ['15000', '12', '2026-11-01', '2027-10-31', '1', '15000', '15000', '30000', '2', true, false, '30000']);
+    assert.equal(c.reservation_fee, '15000.00', 'the booking invoice is 1 month of rent');
+    assert.equal(c.data.financialDocuments.invoice.items[0].unitPrice, 15000);
+    assert.equal(c.move_in_date, '2026-11-01');
+    assert.equal(saved.project, 'Condo', 'the other fields stay as typed');
+    // No confirmed offer: the typed letter and fee stay.
+    const old = await make(null).service.create(7, body);
+    // (The letter is dated today, and a move-in before the letter's date moves to it, as before.)
+    const issued = old.data.reservationLetter.issueDate;
+    assert.deepEqual([old.data.reservationLetter.monthlyRent, old.reservation_fee, old.move_in_date], ['99999', '5000.00', issued > '2026-10-15' ? issued : '2026-10-15']);
+  } finally {
+    login.ensurePartyLogin = real;
+  }
+});
+test('D2: drafts saved without their form still take the offer\'s rent, deposit, dates and booking fee', async () => {
+  const lease = fixture(); withOffer(lease, confirmedOfferRow);
+  const c = await lease.service.create(7, { ...valid, monthlyRent: 99999, deposit: 1, startDate: '2026-10-01', endDate: '2027-09-30' });
+  assert.deepEqual([c.monthly_rent, c.deposit, c.start_date, c.end_date], ['15000.00', '30000.00', '2026-11-01', '2027-10-31']);
+  const plain = fixture(); withOffer(plain, null);
+  const kept = await plain.service.create(7, { ...valid, monthlyRent: 99999 });
+  assert.equal(kept.monthly_rent, '99999.00', 'no offer: as typed');
+  // A reservation without its letter: the booking invoice is still 1 month of rent, and the move-in is the start date.
+  const reservation = fixture(); withOffer(reservation, confirmedOfferRow);
+  const base = reservation.service.db.getRepository;
+  reservation.service.db.getRepository = (entity) => (entity === LeaseContractEntity
+    ? { ...base(entity), createQueryBuilder: () => { const qb = {}; for (const k of ['leftJoin', 'select', 'addSelect', 'distinct', 'where', 'andWhere']) qb[k] = () => qb; qb.getRawMany = async () => [{ roomId: '3', tenantId: '2' }]; return qb; } }
+    : base(entity));
+  const r = await reservation.service.create(7, { leadId: 1, agreementTypeCode: 'reservation', startDate: '2026-10-14', moveInDate: '2026-10-15', reservationFee: 5000 });
+  assert.deepEqual([r.reservation_fee, r.move_in_date, r.data.financialDocuments.invoice.items[0].unitPrice], ['15000.00', '2026-11-01', 15000]);
+});
+test('D2: the letter defaults carry the confirmed offer\'s numbers for the lead\'s room', async () => {
+  const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
+  const { PropertyOwnerEntity } = require('../src/entities/property-owner.entity.ts');
+  const { UserEntity } = require('../src/entities/user.entity.ts');
+  const { RentRoomContactEntity } = require('../src/entities/rent-room-contact.entity.ts');
+  const lead = { id: 1, created_by_user_id: 7, tenant: { id: 2, name: 'Tenant One', first_name: 'Tenant', last_name: 'One', phone: '0812345678', email: 't@example.invalid', identity_number: 'A1234567', nationality: 'British' },
+    rent_room: { id: 3, room_id: '1201', listing_title: null, owner_id: null, property_owner_id: null, advance_rent_months: 2, deposit_months: 1, property: { name: 'Aria', address: '1 Road' } } };
+  let offer = confirmedOfferRow; const asked = [];
+  const service = new AgentContractsService({ getRepository: (entity) => {
+    if (entity === LeadEntity) return { findOne: async ({ where }) => { assert.deepEqual(where, { id: 1, created_by_user_id: 7 }); return lead; } };
+    if (entity === DealOfferEntity) return { findOne: async ({ where }) => { asked.push(where); return offer; } };
+    if (entity === PropertyOwnerEntity || entity === UserEntity) return { findOneBy: async () => null };
+    if (entity === RentRoomContactEntity) return { find: async () => [] };
+    return assert.fail(`unexpected repository ${entity?.name}`);
+  } });
+  const letter = await service.reservationDefaults(7, 1);
+  assert.deepEqual(asked, [{ lead_id: 1, rent_room_id: 3, status: 'confirmed' }]);
+  assert.deepEqual([letter.monthlyRent, letter.reservationPayment, letter.termFrom, letter.termTo, letter.advanceMonths, letter.depositAmount, letter.balanceDue, letter.project],
+    ['15000', '15000', '2026-11-01', '2027-10-31', '1', '30000', '30000', 'Aria']);
+  offer = null;
+  const room = await service.reservationDefaults(7, 1);
+  assert.deepEqual([room.advanceMonths, room.depositMonths, room.reservationPayment], ['2', '1', ''], 'no offer: the room\'s months as before');
 });

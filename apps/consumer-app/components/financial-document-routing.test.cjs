@@ -7,16 +7,16 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { contractsTh, fillTemplate } = require('./test-i18n.cjs');
 
-function formHarness(props, apiOverrides = {}) {
-  const states = [], effects = [], refs = [], buttons = [], calls = [];
+function formHarness(props, apiOverrides = {}, dataPatch = {}) {
+  const states = [], effects = [], refs = [], buttons = [], calls = [], inputs = [];
   let index = 0, refIndex = 0, firstRender = true;
   const labels = { back: 'กลับ', create: 'สร้าง', confirm: 'ยืนยัน', pickInvoice: 'เลือกใบแจ้งหนี้', invalid: 'ผิดพลาด', required: 'กรอกให้ครบ', retry: 'ลองใหม่',
-    markPaid: 'บันทึกการชำระ', slipRequired: 'กรุณาแนบสลิป', paymentSlip: 'สลิปการชำระ', attachSlip: 'แนบสลิป' };
+    markPaid: 'บันทึกการชำระ', slipRequired: 'กรุณาแนบสลิป', paymentSlip: 'สลิปการชำระ', attachSlip: 'แนบสลิป', receiverName: 'ชื่อผู้รับเงิน' };
   const data = {
     documentNo: 'REC-RS202600011', issueDate: '2026-10-05', dueDate: '2026-10-05', reference: 'INV-RS202600011',
     customerName: 'Tenant', customerFirstName: 'Tenant', customerLastName: '', customerAddress: 'Project', customerTaxId: '', customerPhone: '', customerEmail: '',
     issuerName: 'NESTYK', issuerAddress: 'Bangkok', issuerTaxId: '', issuerPhone: '', issuerEmail: '',
-    items: [{ description: 'ค่าจอง', quantity: 1, unitPrice: 5000 }], discount: 0, vatRate: 0, paymentMethod: 'transfer', paymentDetails: 'Bank', receiverName: 'Agent', notes: '',
+    items: [{ description: 'ค่าจอง', quantity: 1, unitPrice: 5000 }], discount: 0, vatRate: 0, paymentMethod: 'transfer', paymentDetails: 'Bank', receiverName: 'Agent', notes: '', ...dataPatch,
   };
   const saved = { id: 11, receiptUrl: 'receipt.pdf' };
   const hookedReact = { ...React,
@@ -44,7 +44,7 @@ function formHarness(props, apiOverrides = {}) {
     if (name === 'expo-document-picker' || name === 'expo-image-picker') return {};
     if (name === '@nestyk/i18n') return { fillTemplate, useLocale: () => ({ t: { contracts: contractsTh, common: { cancel: 'ยกเลิก' }, agent: { contracts: { financial: labels, invoice: 'ใบแจ้งหนี้', receipt: 'ใบเสร็จ' } } } }) };
     if (name === '@nestyk/ui/native') return { tokens: { typography: { native: {} }, colors: { roles: { agent: '#f8b615' } } }, useMobileTheme: () => ({ theme: {} }), MobileIcon: () => null,
-      MobileInput: ({ label, value }) => React.createElement('input', { 'aria-label': label, value, onChange() {} }),
+      MobileInput: (props) => { inputs.push(props); return React.createElement('input', { 'aria-label': props.label, value: props.value, onChange() {} }); },
       MobileBottomSheet: () => null,
       MobileButton: ({ children, onPress }) => { buttons.push({ children, onPress }); return React.createElement('button', {}, children); },
     };
@@ -55,12 +55,12 @@ function formHarness(props, apiOverrides = {}) {
   new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, 'FinancialDocumentForm.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);
   const result = [];
   const render = () => {
-    index = 0; refIndex = 0; buttons.length = 0;
+    index = 0; refIndex = 0; buttons.length = 0; inputs.length = 0;
     const markup = renderToStaticMarkup(React.createElement(loaded.exports.FinancialDocumentForm, { onBack() {}, onCreated: value => result.push(value), ...props }));
     firstRender = false;
     return markup;
   };
-  return { render, calls, buttons, result, runEffects: async () => { for (const effect of effects) effect(); await new Promise(resolve => setImmediate(resolve)); } };
+  return { render, calls, buttons, inputs, result, runEffects: async () => { for (const effect of effects) effect(); await new Promise(resolve => setImmediate(resolve)); } };
 }
 
 test('booking receipt loads the linked invoice and submits back to that reservation', async () => {
@@ -70,10 +70,13 @@ test('booking receipt loads the linked invoice and submits back to that reservat
   assert.deepEqual(h.calls, [['linked-defaults', 11, 'receipt']]);
   assert.doesNotMatch(markup, /เลือกใบแจ้งหนี้/);
   assert.match(markup, /INV-RS202600011/);
+  assert.ok(h.inputs.some(input => input.label === 'ชื่อผู้รับเงิน'), 'the receiver is typed when the screen does not ask who received it');
   h.buttons.find(button => button.children === 'ยืนยัน').onPress();
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(h.calls[1].slice(0, 3), ['linked-create', 11, 'receipt']);
   assert.equal(h.calls[1][3].receiverName, 'Agent');
+  assert.equal('receivedBy' in h.calls[1][3], false, 'D11: no receiver choice unless the screen asks for one');
+  assert.equal(h.buttons.some(button => button.children === contractsTh.receipt.agent), false);
   assert.deepEqual(h.result, [{ id: 11, receiptUrl: 'receipt.pdf' }]);
 });
 
@@ -109,4 +112,67 @@ test('D10: the deposit receipt goes through with the tenant\'s slip on file; wit
       assert.match(h.render(), /กรุณาแนบสลิป/);
     }
   }
+});
+
+// D11 (AC-3.5, TC-3.15): the server prints the receiver (the landlord, or the agent with a power of attorney).
+const rc = contractsTh.receipt;
+const press = async (h, label) => { h.buttons.find((button) => [button.children].flat().join('') === label).onPress(); await new Promise((resolve) => setImmediate(resolve)); };
+test('D11: a booking receipt chooses who received the money and may carry the withholding tax', async () => {
+  // The server's receipt defaults leave the receiver empty: it is not asked for here, so it does not block the form.
+  const h = formHarness({ contractId: 11, kind: 'receipt', landlordReceipt: 'reservation' }, {}, { receiverName: '' });
+  h.render(); await h.runEffects();
+  let markup = h.render();
+  assert.equal(h.inputs.some((input) => input.label === 'ชื่อผู้รับเงิน'), false, 'no receiver name input');
+  assert.ok(h.buttons.some((button) => button.children === rc.landlord) && h.buttons.some((button) => button.children === rc.agent));
+  assert.doesNotMatch(markup, new RegExp(rc.agentHint));
+  await press(h, 'ยืนยัน');
+  assert.equal(h.calls[1][3].receivedBy, 'landlord', 'the landlord by default');
+  assert.equal('withholdingTax' in h.calls[1][3], false);
+  h.render();
+  await press(h, rc.agent);
+  markup = h.render();
+  assert.match(markup, new RegExp(rc.agentHint));
+  h.inputs.find((input) => input.label === rc.withholdingTax).onChangeText('1,000');
+  markup = h.render();
+  assert.match(markup, /รับเงินสุทธิ 4,000\.00/);
+  await press(h, 'ยืนยัน');
+  assert.deepEqual([h.calls[2][3].receivedBy, h.calls[2][3].withholdingTax], ['agent', 1000]);
+  for (const bad of ['5000', '6000', '-1', 'abc', '1.234']) {
+    h.render();
+    h.inputs.find((input) => input.label === rc.withholdingTax).onChangeText(bad);
+    h.render();
+    const before = h.calls.length;
+    await press(h, 'ยืนยัน');
+    assert.equal(h.calls.length, before, bad);
+    assert.match(h.render(), new RegExp(rc.withholdingInvalid), bad);
+  }
+});
+
+test('D11: a missing power of attorney shows the app\'s own reason', async () => {
+  const h = formHarness({ contractId: 11, kind: 'receipt', landlordReceipt: 'reservation' }, {
+    generateFinancialDocument: async () => { throw Object.assign(new Error('Thai-only server text'), { code: 'POWER_OF_ATTORNEY_REQUIRED' }); },
+  });
+  h.render(); await h.runEffects(); h.render();
+  await press(h, rc.agent);
+  h.render();
+  await press(h, 'ยืนยัน');
+  const markup = h.render();
+  assert.match(markup, new RegExp(rc.poaRequired));
+  assert.doesNotMatch(markup, /Thai-only server text/);
+});
+
+test('D11: a deposit receipt chooses the receiver but has no withholding tax', async () => {
+  const payloads = [];
+  const h = formHarness({ kind: 'receipt', fixedInvoiceId: 100, slipOnFile: true, landlordReceipt: 'deposit', onStandaloneCreated() {} }, {
+    createReceiptForInvoice: async (id, payload) => { payloads.push(payload); return { id }; },
+  }, { receiverName: '' });
+  h.render(); await h.runEffects(); h.render();
+  assert.equal(h.inputs.some((input) => input.label === rc.withholdingTax), false);
+  assert.equal(h.inputs.some((input) => input.label === 'ชื่อผู้รับเงิน'), false, 'no receiver name input');
+  await press(h, 'บันทึกการชำระ');
+  h.render();
+  await press(h, rc.agent);
+  h.render();
+  await press(h, 'บันทึกการชำระ');
+  assert.deepEqual(payloads.map((payload) => [payload.receivedBy, 'withholdingTax' in payload]), [['landlord', false], ['agent', false]]);
 });

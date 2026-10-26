@@ -50,7 +50,8 @@ INSERT INTO public.agreement_templates (id, agreement_type_code, version, name, 
 	(1, 'reservation', 1, 'หนังสือจองห้อง', 'reservation', '{"type": "object", "required": ["startDate", "moveInDate", "reservationFee"], "properties": {"startDate": {"type": "string"}, "moveInDate": {"type": "string"}, "reservationFee": {"type": "number", "minimum": 0}}, "additionalProperties": false}', 'reservation/mock-v2', false),
 	(5, 'reservation', 2, 'หนังสือจองห้อง', 'reservation', '{"type": "object", "required": ["startDate", "moveInDate", "reservationFee"], "properties": {"startDate": {"type": "string"}, "moveInDate": {"type": "string"}, "reservationFee": {"type": "number", "minimum": 0}}, "additionalProperties": false}', 'reservation/mock-v2', false),
 	(4, 'lease', 3, 'สัญญาเช่า', 'lease', '{"type": "object", "required": ["startDate", "endDate", "monthlyRent", "deposit"], "properties": {"deposit": {"type": "number", "minimum": 0}, "endDate": {"type": "string"}, "startDate": {"type": "string"}, "monthlyRent": {"type": "number", "exclusiveMinimum": 0}}, "additionalProperties": false}', NULL, false),
-	(9, 'lease', 5, 'สัญญาเช่าเพื่ออยู่อาศัย', 'lease', '{"type": "object", "required": ["startDate", "endDate", "monthlyRent", "deposit"], "properties": {"deposit": {"type": "number", "minimum": 0}, "endDate": {"type": "string"}, "startDate": {"type": "string"}, "monthlyRent": {"type": "number", "exclusiveMinimum": 0}, "leaseAgreement": {"type": "object"}}, "additionalProperties": false}', 'lease/v1', true),
+	(9, 'lease', 5, 'สัญญาเช่าเพื่ออยู่อาศัย', 'lease', '{"type": "object", "required": ["startDate", "endDate", "monthlyRent", "deposit"], "properties": {"deposit": {"type": "number", "minimum": 0}, "endDate": {"type": "string"}, "startDate": {"type": "string"}, "monthlyRent": {"type": "number", "exclusiveMinimum": 0}, "leaseAgreement": {"type": "object"}}, "additionalProperties": false}', 'lease/v1', false),
+	(11, 'lease', 6, 'สัญญาเช่าเพื่ออยู่อาศัย', 'lease', '{"type": "object", "required": ["startDate", "endDate", "monthlyRent", "deposit"], "properties": {"deposit": {"type": "number", "minimum": 0}, "endDate": {"type": "string"}, "startDate": {"type": "string"}, "monthlyRent": {"type": "number", "exclusiveMinimum": 0}, "leaseAgreement": {"type": "object"}}, "additionalProperties": false}', 'lease/v1', true),
 	(8, 'lease', 4, 'สัญญาเช่าเพื่ออยู่อาศัย', 'lease', '{"type": "object", "required": ["startDate", "endDate", "monthlyRent", "deposit"], "properties": {"deposit": {"type": "number", "minimum": 0}, "endDate": {"type": "string"}, "startDate": {"type": "string"}, "monthlyRent": {"type": "number", "exclusiveMinimum": 0}, "leaseAgreement": {"type": "object"}}, "additionalProperties": false}', 'lease/v1', false);
 
 
@@ -95,7 +96,11 @@ INSERT INTO public.agreement_template_document_requirements (id, template_id, gr
 	(18, 9, 'tenant_identity', 'ยืนยันตัวตนผู้เช่า', 'tenant', 'national_id'),
 	(19, 9, 'tenant_identity', 'ยืนยันตัวตนผู้เช่า', 'tenant', 'passport'),
 	(20, 9, 'lease_annex_1', 'เอกสารแนบท้าย 1', 'property', 'lease_annex_1'),
-	(21, 9, 'lease_annex_2', 'เอกสารแนบท้าย 2', 'property', 'lease_annex_2');
+	(21, 9, 'lease_annex_2', 'เอกสารแนบท้าย 2', 'property', 'lease_annex_2'),
+	(22, 11, 'owner_identity', 'ยืนยันตัวตนผู้ให้เช่า', 'owner', 'national_id'),
+	(23, 11, 'owner_identity', 'ยืนยันตัวตนผู้ให้เช่า', 'owner', 'passport'),
+	(24, 11, 'tenant_identity', 'ยืนยันตัวตนผู้เช่า', 'tenant', 'national_id'),
+	(25, 11, 'tenant_identity', 'ยืนยันตัวตนผู้เช่า', 'tenant', 'passport');
 
 
 --
@@ -321,14 +326,14 @@ INSERT INTO public.master_visa_types (id, code, sort_order, is_active) VALUES
 -- Name: agreement_template_document_requirements_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.agreement_template_document_requirements_id_seq', 21, true);
+SELECT pg_catalog.setval('public.agreement_template_document_requirements_id_seq', (SELECT max(id) FROM public.agreement_template_document_requirements), true);
 
 
 --
 -- Name: agreement_templates_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.agreement_templates_id_seq', 10, true);
+SELECT pg_catalog.setval('public.agreement_templates_id_seq', (SELECT max(id) FROM public.agreement_templates), true);
 
 
 --

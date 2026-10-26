@@ -1,7 +1,7 @@
-import { AgentCalendarScreen, emptyCalendarDraft } from '../components/AgentCalendarScreen';
-import { calendarDateKey, createCalendarDemoEvents, type CalendarDemoEvent } from '../lib/agent-calendar-demo';
-import { calendarViewingRange, viewingToCalendarEvent } from '../lib/agent-calendar-viewings';
-import { getAgentLead, listAgentViewings } from '../lib/agent-leads-api';
+import { AgentCalendarScreen } from '../components/AgentCalendarScreen';
+import { calendarDateKey } from '../lib/agent-calendar-demo';
+import { useAgentCalendarViewings } from '../lib/agent-calendar-viewings';
+import { getAgentLead } from '../lib/agent-leads-api';
 import { useLeadRoomViewing } from '../lib/use-lead-room-viewing';
 import {
   AgentTenantsScreen,
@@ -18,6 +18,10 @@ import { tenantWorkspaceCopy } from '../lib/tenant-workspace-copy';
 import { TenantNextBillCard } from '../components/TenantNextBillCard';
 import { OwnerConfirmedRent } from '../components/OwnerConfirmedRent';
 import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
+import { AgentWorkspace, AgentWorkspacePage } from '../components/agent-web/AgentWorkspace';
+import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
+import { AgentOverview } from '../components/agent-web/AgentOverview';
+import { useAgentDashboard } from '../lib/agent-dashboard';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
 import { AgentLeadDetailBody } from '../components/AgentLeadDetailBody';
@@ -29,13 +33,14 @@ import { AgentMoreToolsBody } from '../components/AgentMoreToolsBody';
 import { AgentRoomDetailModal, type RoomSharePreview } from '../components/AgentRoomDetailModal';
 import type { LeadRoomMatch } from '../lib/lead-match-preview';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Alert, BackHandler, Platform } from 'react-native';
 import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useLocale } from '@nestyk/i18n';
 import {
   MobileModePage,
+  MobileBrandLoader,
   MobileButton,
   MobileBadge,
   MobileInput,
@@ -56,7 +61,6 @@ import { UserRole, CONTRACT_PARTY_ROLE, type AgentLead, type AgentTenant, type C
 import {
   MobileCreateListingWizardBody,
   MobileAgentDashboardBody,
-  createAgentDashboardDemoFixture,
   defaultAgentListingConfig,
   type AgentDashboardDeepLink,
 } from '@nestyk/feature-listing';
@@ -138,11 +142,9 @@ export default function AppHomeScreen() {
   const router = useRouter();
   const { ready, isAuthenticated, session, displayName, initials, signOut } = useAuth();
   const [activeRole, setActiveRole] = useState<UserRole>(APP_CONFIG.defaultRole);
-  const [calendarEvents, setCalendarEvents] = useState(createCalendarDemoEvents);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => calendarDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => calendarDateKey(new Date()).slice(0, 7) + '-01');
-  const [calendarDraft, setCalendarDraft] = useState(emptyCalendarDraft);
-  const [calendarViewings, setCalendarViewings] = useState<CalendarDemoEvent[]>([]);
+  const [calendarReloadToken, setCalendarReloadToken] = useState(0);
   const [activeTab, setActiveTab] = useState<MobileAppTab>(() =>
     getDefaultTabForRole(APP_CONFIG.defaultRole),
   );
@@ -216,21 +218,6 @@ export default function AppHomeScreen() {
   );
 
   const unreadCount = [...notifications, ...messages].filter((n) => n.unread).length;
-
-  const calendarOpen = activeTab === 'calendar' && activeRole === 'agent';
-  useEffect(() => {
-    if (!calendarOpen) return;
-    let active = true;
-    const { from, to } = calendarViewingRange(calendarMonth);
-    listAgentViewings(from, to)
-      .then((rows) => {
-        if (active) setCalendarViewings(rows.map(viewingToCalendarEvent));
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [calendarOpen, calendarMonth]);
 
   const handleSearchPlaces = useCallback(
     (query: string) => searchPlaces(query, locale),
@@ -571,6 +558,10 @@ export default function AppHomeScreen() {
   const headingText = { color: theme.textHeading };
   const secondaryText = { color: theme.textSecondary };
 
+  const isAgentWeb = Platform.OS === 'web' && activeRole === 'agent';
+  const Page = isAgentWeb ? AgentWorkspacePage : MobileModePage;
+  const AgentHeader = isAgentWeb ? AgentSectionHeader : MobileSectionHeader;
+
   const isTenantWorkspace = activeRole === 'tenant' && (partyInbox || activeTab === 'bills');
   const screenTitle =
     activeRole === 'agent' || partyInbox || isTenantWorkspace
@@ -602,6 +593,7 @@ export default function AppHomeScreen() {
     const openMenu = () => setDrawerOpen(true);
 
     if (activeTab === 'dashboard') {
+      if (isAgentWeb) return null;
       return (
         <MobileWorkspaceHeader
           workspaceLabel={workspace}
@@ -623,7 +615,7 @@ export default function AppHomeScreen() {
       const canEditTenant = isTenantDetail && tenantDetail.canEdit;
 
       return (
-        <MobileSectionHeader
+        <AgentHeader
           title={
             isCreateLead
               ? leadEdit
@@ -637,7 +629,9 @@ export default function AppHomeScreen() {
                 ? getScreenTitle(activeTab, t)
                 : isSecondary
                   ? createListingHeaderTitle || t.agent.listings.addRoom
-                  : getScreenTitle(activeTab, t)
+                  : isAgentWeb
+                    ? activeTab === 'contracts' ? t.mobile.drawerMenu.agentContracts : t.mobile.tabs[activeTab]
+                    : getScreenTitle(activeTab, t)
           }
           workspaceLabel={
             isTenantDetail
@@ -797,11 +791,7 @@ export default function AppHomeScreen() {
     [t, openCreateListing, openCreateLead],
   );
 
-  const agentDashboardSnapshot = useMemo(() => {
-    const dateLabel = new Date().toLocaleDateString(
-      locale === 'th' ? 'th-TH' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : 'en-GB',
-      { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
-    );
+  const dashboardGreetingName = useMemo(() => {
     // Prefer a person-facing first name; avoid treating "Admin" as the role label.
     const raw = (displayName || '').trim();
     const first = raw.split(/\s+/)[0] || '';
@@ -809,11 +799,8 @@ export default function AppHomeScreen() {
       !first || first.toLowerCase() === 'admin' || raw === t.roles.guest
         ? (session?.email?.split('@')[0] || t.roles.agent)
         : first;
-    return createAgentDashboardDemoFixture({
-      greetingName,
-      localDateLabel: dateLabel,
-    });
-  }, [displayName, locale, session?.email, t.roles.agent, t.roles.guest, dashboardRefreshKey]);
+    return greetingName;
+  }, [displayName, session?.email, t.roles.agent, t.roles.guest]);
 
   const finishPageRefresh = useCallback((token: number) => {
     if (pendingRefresh.current !== token) return;
@@ -821,19 +808,28 @@ export default function AppHomeScreen() {
     setPageRefreshing(false);
   }, []);
 
+  const agentDashboardSnapshot = useAgentDashboard({
+    enabled: activeRole === 'agent' && activeTab === 'dashboard' && isAuthenticated,
+    accountId: session?.userId ?? null,
+    refreshToken: dashboardRefreshKey,
+    greetingName: dashboardGreetingName,
+    locale,
+    onSettled: finishPageRefresh,
+  });
+
+  const calendarViewings = useAgentCalendarViewings({
+    enabled: activeRole === 'agent' && activeTab === 'calendar' && isAuthenticated,
+    accountId: session?.userId ?? null,
+    visibleMonth: calendarMonth,
+    refreshToken: calendarReloadToken,
+    onSettled: finishPageRefresh,
+  });
+
   useEffect(() => {
     // A completion from a previous tab/role must never stop a newer refresh.
     pendingRefresh.current = null;
     setPageRefreshing(false);
   }, [activeRole, activeTab, partyInbox]);
-
-  useEffect(() => {
-    // Demo data is synchronous: finish after the new snapshot is committed.
-    // Replace this with the dashboard request's settlement when its API is connected.
-    if (activeRole === 'agent' && activeTab === 'dashboard' && dashboardRefreshKey > 0) {
-      finishPageRefresh(dashboardRefreshKey);
-    }
-  }, [agentDashboardSnapshot, dashboardRefreshKey, activeRole, activeTab, finishPageRefresh]);
 
   const handlePageRefresh = useCallback(() => {
     if (pendingRefresh.current !== null) return;
@@ -844,6 +840,8 @@ export default function AppHomeScreen() {
       setPartyContractsReloadToken(token);
     } else if (activeRole === 'agent' && activeTab === 'dashboard') {
       setDashboardRefreshKey(token);
+    } else if (activeRole === 'agent' && activeTab === 'calendar') {
+      setCalendarReloadToken(token);
     } else if ((activeRole === 'tenant' || activeRole === 'landlord') && activeTab === 'dashboard') {
       setBillsReloadToken(token);
     } else if (activeTab === 'clients') {
@@ -902,12 +900,29 @@ export default function AppHomeScreen() {
 
   const renderDashboardBody = () => {
     if (activeRole === 'agent') {
+      if (agentDashboardSnapshot.business.status === 'loading') {
+        return (
+          <View style={styles.bodyContainer}>
+            <MobileBrandLoader fill size="md" />
+          </View>
+        );
+      }
+      if (Platform.OS === 'web') {
+        return (
+          <AgentOverview
+            snapshot={agentDashboardSnapshot}
+            onNavigate={handleAgentDashboardNavigate}
+            onRefresh={handlePageRefresh}
+          />
+        );
+      }
       return (
         <View style={styles.bodyContainer}>
           <MobileAgentDashboardBody
             snapshot={agentDashboardSnapshot}
             onNavigate={handleAgentDashboardNavigate}
             initials={profileInitials}
+            onRefresh={handlePageRefresh}
           />
         </View>
       );
@@ -1150,14 +1165,22 @@ export default function AppHomeScreen() {
 
     if (activeTab === 'calendar' && activeRole === 'agent') {
       return <AgentCalendarScreen
-        events={[...calendarViewings, ...calendarEvents]}
-        onAdd={event => setCalendarEvents(previous => [...previous, event])}
+        key={session?.userId ?? 'guest'}
+        viewings={calendarViewings.viewings}
+        status={calendarViewings.status}
+        onRetry={() => setCalendarReloadToken(++refreshSequence.current)}
+        onSaved={viewing => {
+          if (viewing.status !== 'cancelled') {
+            const date = calendarDateKey(new Date(viewing.scheduledAt));
+            setCalendarSelectedDate(date);
+            setCalendarMonth(date.slice(0, 7) + '-01');
+          }
+          setCalendarReloadToken(++refreshSequence.current);
+        }}
         selectedDate={calendarSelectedDate}
         onSelectDate={setCalendarSelectedDate}
         visibleMonth={calendarMonth}
         onMonthChange={setCalendarMonth}
-        draft={calendarDraft}
-        onDraftChange={setCalendarDraft}
       />;
     }
 
@@ -1327,20 +1350,41 @@ export default function AppHomeScreen() {
     activeTab === 'leadInfo' ||
     (activeTab === 'clients' && creatingTenant);
 
+  const onPageRefresh =
+    isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
+    (!partyInbox && !isWizardTab && activeRole === 'agent' &&
+      ['dashboard', 'listingLead', 'listingRoom', 'calendar'].includes(activeTab))
+      ? handlePageRefresh : undefined;
+
   return (
     <>
-      <MobileModePage
+      <AgentWorkspace
+        enabled={isAgentWeb}
+        navigationDisabled={createLeadBusy || createTenantBusy || tenantDetail.saving}
+        activeTab={activeTab}
+        onRefresh={onPageRefresh}
+        refreshing={pageRefreshing}
+        onNavigate={handleTabPress}
+        onRoleChange={handleRoleChange}
+        onSignOut={handleAuthAction}
+        userName={profileName}
+        userEmail={profileEmail}
+        initials={profileInitials}
+        notificationCount={unreadCount}
+        notificationsOpen={notificationsOpen}
+        onNotificationsOpen={() => setNotificationsOpen(true)}
+        onNotificationsClose={() => setNotificationsOpen(false)}
+        activityItems={notifications}
+        messageItems={messages}
+        onNotificationsClear={() => setNotificationsRead(true)}
+      >
+      <Page
         role={activeRole}
         backgroundColor={isTenantWorkspace ? theme.surface : undefined}
         screenTitle={screenTitle}
         scrollable={partyInbox || !isWizardTab}
         refreshing={pageRefreshing}
-        onRefresh={
-          isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
-          (!partyInbox && !isWizardTab && activeRole === 'agent' &&
-          ['dashboard', 'listingLead', 'listingRoom'].includes(activeTab))
-            ? handlePageRefresh : undefined
-        }
+        onRefresh={onPageRefresh}
         header={
           activeRole === 'agent' ? (
             renderAgentHeader()
@@ -1483,7 +1527,7 @@ export default function AppHomeScreen() {
           ) : null
         }
         tabBar={
-          ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
+          isAgentWeb || ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
           (activeTab === 'clients' && creatingTenant) ||
           isTenantDetail ? null : (
             <MobileBottomTabBar
@@ -1519,10 +1563,11 @@ export default function AppHomeScreen() {
             renderTabBody()
           )}
         </React.Fragment>
-      </MobileModePage>
+      </Page>
+      </AgentWorkspace>
 
       <MobileProfileDrawer
-        visible={drawerOpen}
+        visible={!isAgentWeb && drawerOpen}
         onClose={() => setDrawerOpen(false)}
         userName={profileName}
         userEmail={profileEmail}
@@ -1566,7 +1611,7 @@ export default function AppHomeScreen() {
       />
 
       <MobileNotificationsPanel
-        visible={notificationsOpen}
+        visible={!isAgentWeb && notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       >
         <MobileNotificationsBody
@@ -1586,7 +1631,7 @@ const styles = StyleSheet.create({
   bodyContainer: { gap: 16 },
   wizardBody: { flex: 1, minHeight: 0, gap: 0 },
   // CreateLeadForm owns its padding and edge-to-edge footer; cancel MobileModePage body padding.
-  fullBleedBody: { margin: -16 },
+  fullBleedBody: { marginVertical: Platform.OS === 'web' ? 0 : -16, marginHorizontal: Platform.OS === 'web' ? 0 : -16 },
   card: {},
   sectionHeader: {
     fontFamily: tokens.typography.native.headingTh,

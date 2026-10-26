@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import {
   MobileButton,
@@ -15,12 +15,14 @@ import type {
   AgentDashboardDeepLink,
   AgentDashboardSnapshot,
   AgentWorkItemKind,
+  DashboardSectionStatus,
 } from '../dashboard/types';
 import { formatMoney, formatTimeLabel, interpolate } from '../dashboard/types';
 
 export type MobileAgentDashboardBodyProps = {
   snapshot: AgentDashboardSnapshot;
   onNavigate: (link: AgentDashboardDeepLink) => void;
+  onRefresh?: () => void;
   /** Initials for greeting avatar (display only). */
   initials?: string;
   avatarUri?: string | null;
@@ -94,6 +96,7 @@ function workItemIcon(kind: AgentWorkItemKind): AppIconName {
 export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> = ({
   snapshot,
   onNavigate,
+  onRefresh,
   initials = '?',
   avatarUri,
 }) => {
@@ -186,6 +189,22 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
     </View>
   );
 
+  const isReady = (status: DashboardSectionStatus) => status === 'available' || status === 'demo';
+  const sectionState = (status: DashboardSectionStatus, children: React.ReactNode) => {
+    if (status === 'loading') return <ActivityIndicator color={accent} accessibilityLabel={t.common.loading} />;
+    if (isReady(status)) return children;
+    return (
+      <View style={{ gap: 8 }} accessibilityLiveRegion="polite">
+        <Text style={{ color: theme.textSecondary }}>
+          {status === 'error' ? copy.webOverview.loadFailed : copy.unavailableSection}
+        </Text>
+        {status === 'error' && onRefresh ? (
+          <MobileButton variant="outline" onPress={onRefresh}>{t.agent.tenants.retry}</MobileButton>
+        ) : null}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.root}>
       {snapshot.isDemoPreview ? (
@@ -228,6 +247,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
 
         <Section>
           <Text style={[styles.sectionTitle, { color: ink }]}>{copy.businessOverview}</Text>
+          {sectionState(snapshot.business.status,
           <View style={styles.kpiGrid}>
             {[
               {
@@ -235,29 +255,34 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                 value: String(snapshot.business.availableListings),
                 sub: interpolate(copy.ofTotal, { count: snapshot.business.totalListings }),
                 onPress: () => onNavigate({ type: 'tab', tab: 'listingRoom' }),
+                status: snapshot.business.status,
               },
               {
                 label: copy.openLeads,
                 value: String(snapshot.business.openLeads),
                 sub: '',
                 onPress: () => onNavigate({ type: 'tab', tab: 'listingLead' }),
+                status: snapshot.business.status,
               },
               {
                 label: copy.currentClients,
                 value: String(snapshot.business.currentClients),
                 sub: interpolate(copy.tenantsCount, { count: snapshot.business.tenantsCount }),
                 onPress: () => onNavigate({ type: 'tab', tab: 'clients' }),
+                status: snapshot.business.status,
               },
               {
                 label: copy.commissionPending,
                 value: formatMoney(snapshot.business.commissionPending),
                 sub: '',
                 onPress: () => onNavigate({ type: 'action', id: 'viewCommission' }),
+                status: snapshot.commission.status,
               },
             ].map((kpi, index) => (
               <Pressable
                 key={kpi.label}
                 onPress={kpi.onPress}
+                disabled={!isReady(kpi.status)}
                 accessibilityRole="button"
                 style={({ pressed }) => [
                   styles.kpiCell,
@@ -269,20 +294,20 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                   },
                 ]}
               >
-                <Text style={[styles.kpiValue, { color: ink }]} numberOfLines={1}>{kpi.value}</Text>
+                <Text style={[styles.kpiValue, { color: ink }]} numberOfLines={1}>{isReady(kpi.status) ? kpi.value : '—'}</Text>
                 <Text style={[styles.kpiLabel, { color: theme.textSecondary }]} numberOfLines={2}>{kpi.label}</Text>
-                {kpi.sub ? (
+                {!isReady(kpi.status) ? <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{copy.unavailableSection}</Text> : kpi.sub ? (
                   <Text style={[styles.kpiSub, { color: theme.textSecondary }]} numberOfLines={1}>{kpi.sub}</Text>
                 ) : null}
               </Pressable>
             ))}
-          </View>
+          </View>)}
         </Section>
 
         <Section>
           <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color: ink }]}>{copy.actionRequired}</Text>
-            {snapshot.actionRequired.items.length ? (
+            {isReady(snapshot.actionRequired.status) && snapshot.actionRequired.items.length ? (
               <View style={styles.countPill}>
                 <Text style={styles.countPillText}>
                   {snapshot.actionRequired.items.reduce((n, i) => n + i.count, 0)}
@@ -290,7 +315,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               </View>
             ) : null}
           </View>
-          {!snapshot.actionRequired.items.length ? (
+          {sectionState(snapshot.actionRequired.status, !snapshot.actionRequired.items.length ? (
             <Text style={{ color: theme.textSecondary }}>{copy.emptyActions}</Text>
           ) : (
             snapshot.actionRequired.items.map((item) => {
@@ -321,7 +346,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                 </Pressable>
               );
             })
-          )}
+          ))}
         </Section>
 
         {/* Merged schedule: highlight + expand */}
@@ -330,7 +355,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             <Text style={[styles.sectionTitle, { color: ink }]}>{copy.todaysSchedule}</Text>
             <LinkRow label={copy.viewCalendar} onPress={() => onNavigate({ type: 'action', id: 'viewCalendar' })} />
           </View>
-          {!highlight ? (
+          {sectionState(snapshot.schedule.status, !highlight ? (
             <Text style={{ color: theme.textSecondary }}>{copy.noAppointments}</Text>
           ) : (
             <>
@@ -385,7 +410,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                 </Pressable>
               ) : null}
             </>
-          )}
+          ))}
         </Section>
       </View>
 
@@ -396,6 +421,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             <Text style={[styles.sectionTitle, { color: ink }]}>{copy.listingInventory}</Text>
             <LinkRow label={copy.viewAllListings} onPress={() => onNavigate({ type: 'tab', tab: 'listingRoom' })} />
           </View>
+          {sectionState(snapshot.inventory.status, <>
           <Text style={[styles.metaLabel, { color: theme.textSecondary }]}>{copy.availability}</Text>
           <RatioBar left={snapshot.inventory.available} right={snapshot.inventory.unavailable} leftColor={success} />
           <Text style={[styles.barCaption, { color: theme.textSecondary }]}>
@@ -430,6 +456,8 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               <MobileIcon name="chevron-right" size={16} color={theme.textSecondary} />
             </Pressable>
           ))}
+          {!snapshot.inventory.preview.length ? <Text style={{ color: theme.textSecondary }}>{t.common.noData}</Text> : null}
+          </>)}
         </Section>
 
         <Section>
@@ -437,6 +465,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             <Text style={[styles.sectionTitle, { color: ink }]}>{copy.clientOverview}</Text>
             <LinkRow label={copy.viewClients} onPress={() => onNavigate({ type: 'tab', tab: 'clients' })} />
           </View>
+          {sectionState(snapshot.clients.status, <>
           <View style={styles.clientStats}>
             {[
               { label: copy.draft, value: snapshot.clients.draft },
@@ -477,6 +506,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               </View>
             </View>
           ) : null}
+          </>)}
         </Section>
       </View>
 
@@ -487,9 +517,10 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
           <Text style={[styles.metaLabel, { color: theme.textSecondary }]}>
             {copy.rentCollection} · {periodLabel}
           </Text>
+          {sectionState(snapshot.rent.status, <>
           <Text style={[styles.moneyHero, { color: ink }]}>{formatMoney(snapshot.rent.totalDue)}</Text>
           <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{copy.totalDue}</Text>
-          <RatioBar left={snapshot.rent.received} right={snapshot.rent.overdue} leftColor={success} rightColor={subtle.dangerBg} />
+          <RatioBar left={snapshot.rent.received} right={Math.max(0, snapshot.rent.totalDue - snapshot.rent.received)} leftColor={success} />
           <View style={styles.moneyRow}>
             <Text style={{ color: subtle.successFg }}>{copy.received} {formatMoney(snapshot.rent.received)}</Text>
             <Text style={{ color: danger }}>{copy.overdue} {formatMoney(snapshot.rent.overdue)}</Text>
@@ -498,11 +529,13 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             {interpolate(copy.receivedPercent, { pct: rentPct })}
           </Text>
           <LinkRow label={copy.viewPayments} onPress={() => onNavigate({ type: 'action', id: 'viewPayments' })} />
+          </>)}
         </Section>
 
         <Section>
           <Text style={[styles.sectionTitle, { color: ink }]}>{copy.agentCommission}</Text>
           <Text style={[styles.metaLabel, { color: theme.textSecondary }]}>{periodLabel}</Text>
+          {sectionState(snapshot.commission.status, <>
           <Text style={[styles.moneyHero, { color: ink }]}>{formatMoney(snapshot.commission.total)}</Text>
           <Text style={{ color: theme.textSecondary, fontSize: 13 }}>{copy.totalThisMonth}</Text>
           <View style={styles.moneyRow}>
@@ -510,11 +543,12 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             <Text style={{ color: subtle.warningFg }}>{copy.pendingAmount} {formatMoney(snapshot.commission.pending)}</Text>
           </View>
           <LinkRow label={copy.openCommission} onPress={() => onNavigate({ type: 'action', id: 'viewCommission' })} />
+          </>)}
         </Section>
 
         <Section>
           <Text style={[styles.sectionTitle, { color: ink }]}>{copy.recentActivity}</Text>
-          {snapshot.activity.items.slice(0, 3).map((item) => (
+          {sectionState(snapshot.activity.status, snapshot.activity.items.length ? snapshot.activity.items.slice(0, 3).map((item) => (
             <Pressable
               key={item.id}
               onPress={() => onNavigate(item.deepLink)}
@@ -528,7 +562,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                 {formatTimeLabel(item.at, localeTag)}
               </Text>
             </Pressable>
-          ))}
+          )) : <Text style={{ color: theme.textSecondary }}>{t.common.noData}</Text>)}
         </Section>
 
         <Pressable

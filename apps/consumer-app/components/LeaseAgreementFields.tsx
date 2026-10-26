@@ -304,7 +304,10 @@ export function LeaseAgreementFields({
   errors,
   step,
   onStepChange,
+  lockedKeys,
 }: {
+  /** D2: numbers fixed by the offer the landlord confirmed (the API sets them whatever is typed). */
+  lockedKeys?: readonly string[];
   value: LeaseAgreementInput;
   onChange: (next: LeaseAgreementInput) => void;
   disabled?: boolean;
@@ -391,7 +394,7 @@ export function LeaseAgreementFields({
                 onChange(next);
               }}
               placeholder={field.placeholder}
-              editable={!disabled && field.key !== "termTo"}
+              editable={!disabled && field.key !== "termTo" && !lockedKeys?.includes(field.key)}
               maxLength={LEASE_AGREEMENT_MAX_LENGTH[field.key]}
               multiline={field.multiline}
               autoCapitalize={key.endsWith("Email") ? "none" : "sentences"}
@@ -505,6 +508,7 @@ export function LeaseAgreementFields({
   const shown = (index: number) => step === undefined || step === index;
   return (
     <View style={{ gap: 16 }}>
+      {lockedKeys?.length ? <Text style={[body, { color: theme.textSecondary }]}>{tc.offer.fromOffer}</Text> : null}
       {shown(0) && (
         <>
           {card(lc.document, renderFields(["issueDate"]))}

@@ -66,7 +66,7 @@ export default function LoginScreen() {
   const { theme, isDark } = useMobileTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signIn, isAuthenticated } = useAuth();
+  const { signIn, isAuthenticated, sessionExpired, dismissSessionExpired } = useAuth();
 
   const [email, setEmail] = useState(
     DEV_AUTH_CONFIG.enabled ? DEV_AUTH_CONFIG.email : "",
@@ -77,6 +77,8 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // A typed or sign-in error replaces the "session expired" notice.
+  const shownError = error ?? (sessionExpired ? t.mobile.auth.sessionExpired : null);
   const compact = height < 780;
   const keyboardOpen = focused !== null;
 
@@ -329,14 +331,14 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {error ? (
+              {shownError ? (
                 <Text
                   accessibilityRole="alert"
                   accessibilityLiveRegion="polite"
                   style={styles.errorText}
                   numberOfLines={2}
                 >
-                  {error}
+                  {shownError}
                 </Text>
               ) : null}
 
@@ -435,6 +437,7 @@ export default function LoginScreen() {
             {APP_CONFIG.defaultRole === "guest" ? (
               <TouchableOpacity
                 onPress={() => {
+                  dismissSessionExpired();
                   requestGuestBrowse();
                   router.replace("/");
                 }}

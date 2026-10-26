@@ -1460,14 +1460,14 @@ SELECT pg_catalog.setval('public.agreement_sign_invites_id_seq', 1, false);
 -- Name: agreement_template_document_requirements_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.agreement_template_document_requirements_id_seq', 21, true);
+SELECT pg_catalog.setval('public.agreement_template_document_requirements_id_seq', (SELECT max(id) FROM public.agreement_template_document_requirements), true);
 
 
 --
 -- Name: agreement_templates_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.agreement_templates_id_seq', 10, true);
+SELECT pg_catalog.setval('public.agreement_templates_id_seq', (SELECT max(id) FROM public.agreement_templates), true);
 
 
 --

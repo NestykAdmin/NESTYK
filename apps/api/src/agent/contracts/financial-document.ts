@@ -2,6 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 import type {
   FinancialDocumentInput,
   FinancialDocumentKind,
+  ReceiptReceiver,
 } from "@nestyk/types";
 
 export function financialKind(kind: string): FinancialDocumentKind {
@@ -215,6 +216,41 @@ export function buildReceiptFromInvoice(
     "receipt",
     options,
   );
+}
+
+/**
+ * D11 (AC-3.5): a booking or deposit receipt is received by the landlord, or by the agent when a power of attorney
+ * is attached. The receipt prints the receiver's name (no drawn signature, Aof 22 Oct 2026).
+ */
+export const POWER_OF_ATTORNEY_REQUIRED = "POWER_OF_ATTORNEY_REQUIRED";
+export const POWER_OF_ATTORNEY_MESSAGE =
+  "นายหน้ารับเงินแทนผู้ให้เช่าได้เมื่อแนบหนังสือมอบอำนาจไว้ในเอกสารแนบแล้วเท่านั้น";
+export function receiptReceiver(value: unknown): ReceiptReceiver {
+  if (value == null || value === "") return "landlord";
+  if (value === "landlord" || value === "agent") return value;
+  throw new BadRequestException("กรุณาเลือกผู้รับเงิน");
+}
+/** The name printed as the receiver: the landlord, or the agent marked as the landlord's attorney. */
+export function receiverLine(receiver: ReceiptReceiver, landlordName: string, agentName: string) {
+  const line = receiver === "agent"
+    ? `${agentName.trim() || "นายหน้า"} (ผู้รับมอบอำนาจ)`
+    : landlordName.trim();
+  return line.slice(0, 120);
+}
+/**
+ * D11 (TC-3.15): the withholding tax the tenant deducted from the booking payment, in baht. The receipt keeps the
+ * full amount and shows the tax and the net amount received. Empty = no tax.
+ */
+export function withholdingTaxOf(value: unknown, total: number): number {
+  if (value == null || value === "") return 0;
+  const raw = typeof value === "number" ? String(value) : typeof value === "string" ? value.replace(/,/g, "").trim() : "x";
+  if (raw === "") return 0;
+  if (!/^\d+(\.\d{1,2})?$/.test(raw))
+    throw new BadRequestException("ภาษีหัก ณ ที่จ่ายไม่ถูกต้อง");
+  const satang = Math.round(Number(raw) * 100);
+  if (satang >= Math.round(total * 100))
+    throw new BadRequestException("ภาษีหัก ณ ที่จ่ายต้องน้อยกว่ายอดรับชำระ");
+  return satang / 100;
 }
 
 export function bahtText(amount: number): string {

@@ -4,6 +4,7 @@ import { MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentContract } from "@nestyk/types";
 import { fillTemplate, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
+import { SlipReturnControl } from "./SlipReturnControl";
 
 export function ReservationPaymentCard({
   contract,
@@ -12,6 +13,7 @@ export function ReservationPaymentCard({
   onUpload,
   onIssueReceipt,
   onCreateInvoice,
+  onReturnSlip,
 }: {
   contract: AgentContract;
   busy: boolean;
@@ -19,6 +21,8 @@ export function ReservationPaymentCard({
   onUpload?: () => void;
   onIssueReceipt?: () => void;
   onCreateInvoice?: () => void;
+  /** D11 (AC-3.4): the agent returns the tenant's slip with a reason. */
+  onReturnSlip?: (reason: string) => Promise<boolean | void> | boolean | void;
 }) {
   const { theme } = useMobileTheme();
   const { t, locale } = useLocale();
@@ -87,6 +91,11 @@ export function ReservationPaymentCard({
         </Text>
       )}
       {closed && <Text style={text}>{pc.closed}</Text>}
+      {paymentStatus === "unpaid" && !closed && payment?.slipReturnReason && (
+        <Text style={{ ...text, color: "#B91C1C" }}>
+          {fillTemplate(t.contracts.slipReturn.returned, { reason: payment.slipReturnReason })}
+        </Text>
+      )}
       {contract.invoiceUrl ? (
         <MobileButton
           variant="outline"
@@ -120,6 +129,10 @@ export function ReservationPaymentCard({
         >
           {pc.viewSlip}
         </MobileButton>
+      )}
+      {onReturnSlip && paymentStatus === "submitted" && !closed && (
+        // A new slip starts a new control: a reason typed for the earlier slip is not kept for it.
+        <SlipReturnControl key={payment?.submittedAt ?? ""} busy={busy} onReturn={onReturnSlip} />
       )}
       {onUpload &&
         payment &&

@@ -5,6 +5,7 @@ import type { ReservationLetterInput } from "@nestyk/types";
 import { fillTemplate, useLocale, type ContractCopy } from "@nestyk/i18n";
 import { searchOwnerUsers } from "../lib/agent-contracts-api";
 import { localeTag } from "../lib/lead-format";
+import { identityNumberProblem } from "../lib/identity-number";
 
 export function emptyReservationLetterForm(): ReservationLetterInput {
   return {
@@ -110,6 +111,11 @@ export function reservationLetterFieldErrors(
     )
       errors[key] = messages.emailFormat;
   }
+  // C3 (Aof, 22 Oct 2026): the tenant's account is matched by this number. The field comes from the tenant
+  // record and is locked here, so the messages send the agent to the tenant details.
+  const idProblem = value.tenantId.trim() ? identityNumberProblem(value.tenantId, value.tenantNationality) : null;
+  if (!value.tenantId.trim()) errors.tenantId = messages.tenantIdMissing;
+  else if (idProblem) errors.tenantId = idProblem === "thai_id" ? messages.tenantIdThai : messages.tenantIdFormat;
   return errors;
 }
 
@@ -219,9 +225,12 @@ export function ReservationLetterFields({
   errors,
   step = 0,
   onStepChange,
+  lockedKeys,
 }: {
   step?: number;
   onStepChange?: (step: number) => void;
+  /** D2: numbers fixed by the offer the landlord confirmed (the API sets them whatever is typed). */
+  lockedKeys?: readonly string[];
   value: ReservationLetterInput;
   onChange: (next: ReservationLetterInput) => void;
   disabled?: boolean;
@@ -369,7 +378,7 @@ export function ReservationLetterFields({
         value={value[field.key]}
         onChangeText={(text) => set(field.key, text)}
         placeholder={field.placeholder}
-        editable={!disabled && !field.locked}
+        editable={!disabled && !field.locked && !lockedKeys?.includes(field.key)}
         multiline={field.multiline}
         keyboardType={
           field.email
@@ -481,6 +490,7 @@ export function ReservationLetterFields({
   const paymentFields = PAYMENT_FIELDS;
   return (
     <View style={{ gap: 16 }}>
+      {lockedKeys?.length ? <Text style={muted}>{tc.offer.fromOffer}</Text> : null}
       {step === 0 && (
         <>
           {card(
@@ -594,8 +604,8 @@ export function ReservationLetterFields({
                   <Pressable
                     key={key}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: value[key] }}
-                    disabled={disabled}
+                    accessibilityState={{ checked: value[key], disabled: disabled || !!lockedKeys?.includes(key) }}
+                    disabled={disabled || !!lockedKeys?.includes(key)}
                     onPress={() => onChange({ ...value, [key]: !value[key] })}
                     style={chipStyle(value[key])}
                   >

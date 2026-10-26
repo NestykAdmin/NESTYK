@@ -21,9 +21,15 @@ const {
   financialTotals,
   bahtText,
   validateFinancialDocument,
+  receiptReceiver,
+  receiverLine,
+  withholdingTaxOf,
 } = require("../src/agent/contracts/financial-document.ts");
+const { reservationInvoice } = require("../src/agent/contracts/reservation-invoice.ts");
+const zlib = require("node:zlib");
 const {
   createFinancialPdf,
+  receiptTaxRows,
 } = require("../src/agent/contracts/financial-pdf.ts");
 const {
   AgentContractsService,
@@ -521,4 +527,86 @@ test("invoice payer name is the opened tenant", async () => {
       }),
     /ไม่พบผู้เช่า/,
   );
+});
+
+// D11 (AC-3.3): the booking invoice is issued in the landlord's name, like the deposit invoice (no longer NESTYK).
+test("D11: the booking invoice is issued by the landlord on the reservation letter", () => {
+  const c = {
+    id: 11, contract_no: "RS202600011", start_date: "2026-11-01", reservation_fee: "20000",
+    rent_room: { room_id: "1201", property: { name: "Aria" }, owner_bank_name: "KBank", owner_bank_account: "111" },
+    tenant: { name: "Tenant B", phone: "0811111111", email: "t@example.com" },
+    party_snapshot: { ownerName: "Snapshot Owner", ownerPhone: "0822222222", propertyAddress: "1 Aria Rd", ownerTaxId: "1234567890123" },
+    data: { reservationLetter: { landlordName: "Landlord A", landlordPhone: "0899999999", landlordEmail: "owner@example.com", bankAccount: "SCB 222" } },
+  };
+  const invoice = reservationInvoice(c);
+  assert.deepEqual(
+    [invoice.issuerName, invoice.issuerAddress, invoice.issuerTaxId, invoice.issuerPhone, invoice.issuerEmail, invoice.paymentDetails],
+    ["Landlord A", "1 Aria Rd", "1234567890123", "0899999999", "owner@example.com", "SCB 222"],
+  );
+  assert.doesNotThrow(() => validateFinancialDocument(invoice, "invoice"));
+  // Without the letter: the booking snapshot; an e-mail or tax ID that is not valid is left out.
+  const bare = reservationInvoice({ ...c, party_snapshot: { ...c.party_snapshot, ownerTaxId: "12-3", ownerAddress: "9 Owner Rd" },
+    data: { reservationLetter: { landlordEmail: "not-an-email" } } });
+  assert.deepEqual([bare.issuerName, bare.issuerAddress, bare.issuerTaxId, bare.issuerPhone, bare.issuerEmail],
+    ["Snapshot Owner", "9 Owner Rd", "", "0822222222", ""]);
+  assert.equal(bare.paymentDetails, "KBank 111", "the room's bank account when the letter has none");
+  // No landlord name at all (an old reservation without a letter): the old issuer, not an empty one.
+  const nameless = reservationInvoice({ ...c, party_snapshot: { propertyAddress: "1 Aria Rd" }, data: {} });
+  assert.deepEqual([nameless.issuerName, nameless.issuerAddress], ["NESTYK", "Bangkok"]);
+  assert.doesNotThrow(() => validateFinancialDocument(nameless, "invoice"));
+});
+
+test("D11: receipt receiver, receiver line and withholding tax rules", () => {
+  assert.equal(receiptReceiver(undefined), "landlord");
+  assert.equal(receiptReceiver(""), "landlord");
+  assert.equal(receiptReceiver("agent"), "agent");
+  for (const bad of ["owner", 1, {}]) assert.throws(() => receiptReceiver(bad), /ผู้รับเงิน/);
+  assert.equal(receiverLine("landlord", " Landlord A ", "Agent B"), "Landlord A");
+  assert.equal(receiverLine("agent", "Landlord A", " Agent B "), "Agent B (ผู้รับมอบอำนาจ)");
+  assert.equal(receiverLine("agent", "Landlord A", ""), "นายหน้า (ผู้รับมอบอำนาจ)");
+  assert.equal(receiverLine("agent", "", "ก".repeat(200)).length, 120, "fits the receipt's 120 characters");
+  assert.equal(withholdingTaxOf(undefined, 20000), 0);
+  assert.equal(withholdingTaxOf(" ", 20000), 0);
+  assert.equal(withholdingTaxOf("1,000", 20000), 1000);
+  assert.equal(withholdingTaxOf(0.1, 20000), 0.1);
+  assert.equal(withholdingTaxOf("19999.99", 20000), 19999.99);
+  for (const bad of ["20000", "20000.01", "-5", "1e3", "1.001", "abc", [], true]) assert.throws(() => withholdingTaxOf(bad, 20000), /ภาษีหัก ณ ที่จ่าย/, String(bad));
+});
+
+/** The number of text-show operators in a PDF's (deflated) content streams. */
+function textShows(bytes) {
+  const raw = Buffer.from(bytes).toString("latin1");
+  let count = 0;
+  for (const match of raw.matchAll(/stream\r?\n/g)) {
+    const start = match.index + match[0].length;
+    const end = raw.indexOf("endstream", start);
+    try {
+      count += (zlib.inflateSync(Buffer.from(raw.slice(start, end), "latin1")).toString("latin1").match(/Tj/g) || []).length;
+    } catch {
+      // not a deflated stream
+    }
+  }
+  return count;
+}
+test("D11 (TC-3.15): the receipt rows for the tax: 20,000 with 1,000 withheld is 19,000 received", () => {
+  assert.deepEqual(receiptTaxRows("receipt", { ...sample, withholdingTax: 1000 }),
+    ["หักภาษี ณ ที่จ่าย 1,000.00 บาท", "รับเงินสุทธิ 19,000.00 บาท"]);
+  // The net is taken from the receipt total (after discount and VAT): (20,000 - 100) x 1.07 = 21,293.00.
+  assert.deepEqual(receiptTaxRows("receipt", { ...sample, vatRate: 7, discount: 100, withholdingTax: 995.5 }),
+    ["หักภาษี ณ ที่จ่าย 995.50 บาท", "รับเงินสุทธิ 20,297.50 บาท"]);
+  for (const data of [sample, { ...sample, withholdingTax: 0 }])
+    assert.deepEqual(receiptTaxRows("receipt", data), []);
+  assert.deepEqual(receiptTaxRows("invoice", { ...sample, withholdingTax: 1000 }), [], "an invoice has no tax rows");
+});
+test("D11 (TC-3.15): a receipt with withholding tax prints the tax and the net amount; an invoice and a receipt without tax do not", async () => {
+  const plain = textShows(await createFinancialPdf("receipt", sample));
+  const zero = textShows(await createFinancialPdf("receipt", { ...sample, withholdingTax: 0 }));
+  const taxed = textShows(await createFinancialPdf("receipt", { ...sample, withholdingTax: 1000 }));
+  assert.equal(zero, plain);
+  assert.ok(taxed > plain + 20, `2 more lines of text (${plain} -> ${taxed})`);
+  const invoice = textShows(await createFinancialPdf("invoice", sample));
+  assert.equal(textShows(await createFinancialPdf("invoice", { ...sample, withholdingTax: 1000 })), invoice, "an invoice has no tax lines");
+  // The tax lines take the first note rows, so a long note still fits the 6 rows.
+  const longNote = { ...sample, notes: "หมายเหตุยาว ".repeat(60), withholdingTax: 1000 };
+  assert.equal((await createFinancialPdf("receipt", longNote)).subarray(0, 4).toString(), "%PDF");
 });

@@ -4,10 +4,12 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
-import { apiPost } from '../api';
+import { apiPost, setSessionExpiredHandler } from '../api';
 import { DEV_AUTH_CONFIG, toDevAccessToken } from './dev-auth';
+import { createSessionExpiry, restoreSession } from './session-expiry';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 import {
   clearAuthSession,
@@ -39,11 +41,15 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** The login ran out (or was ended elsewhere): the sign-in screen shows a notice until the next sign-in. */
+  sessionExpired: boolean;
+  dismissSessionExpired: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function syncProfile(accessToken: string): Promise<AuthUserResponse> {
+/** Without a token, api.ts sends the current Supabase token and renews it when needed. */
+async function syncProfile(accessToken?: string): Promise<AuthUserResponse> {
   return apiPost<AuthUserResponse>('/auth/sync', {}, accessToken);
 }
 
@@ -79,15 +85,41 @@ function sessionFromSync(
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<StoredAuthSession | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const sessionRef = useRef<StoredAuthSession | null>(null);
+  sessionRef.current = session;
+  // Set by signOut; a re-render does not reset it (unlike sessionRef).
+  const signingOutRef = useRef(false);
 
   const applySession = useCallback(async (next: StoredAuthSession) => {
     await saveAuthSession(next);
     setSession(next);
   }, []);
 
+  // api.ts calls this when a signed-in user's session cannot be renewed (several requests may call it at once).
+  useEffect(() => {
+    const expire = createSessionExpiry({
+      isSignedIn: () => !signingOutRef.current && sessionRef.current?.mode === 'supabase',
+      clearStored: clearAuthSession,
+      client: getSupabaseClient,
+      onExpired: () => {
+        sessionRef.current = null; // before the next render, so later 401s do nothing
+        setSession(null);
+        setSessionExpired(true);
+      },
+    });
+    setSessionExpiredHandler(() => {
+      void expire();
+    });
+    return () => setSessionExpiredHandler(null);
+  }, []);
+
   const refreshProfile = useCallback(async () => {
     if (!session?.accessToken) return;
-    const profile = await syncProfile(session.accessToken);
+    // Dev login keeps its own token; a Supabase login lets api.ts send the current one.
+    const profile = await syncProfile(session.mode === 'dev' ? session.accessToken : undefined);
+    // Signed out or expired while waiting: do not save the session back.
+    if (sessionRef.current?.userId !== session.userId) return;
     const next = sessionFromSync(session.mode, session.accessToken, session.userId, profile);
     await applySession(next);
   }, [session, applySession]);
@@ -95,23 +127,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const stored = await loadAuthSession();
-      if (cancelled) return;
-      if (stored) {
-        try {
-          const profile = await syncProfile(stored.accessToken);
-          if (cancelled) return;
-          await applySession(
-            sessionFromSync(stored.mode, stored.accessToken, stored.userId, profile),
-          );
-        } catch {
-          if (!cancelled) {
-            await clearAuthSession();
-            setSession(null);
-          }
+      try {
+        const stored = await loadAuthSession();
+        if (cancelled) return;
+        const result = await restoreSession({ stored, client: getSupabaseClient(), sync: syncProfile });
+        if (cancelled) return;
+        if (result.kind === 'synced') {
+          await applySession(sessionFromSync(result.mode, result.accessToken, result.userId, result.profile));
+        } else if (result.kind === 'cached') {
+          await applySession(result.session);
+        } else {
+          await clearAuthSession();
+          setSession(null);
+          if (result.kind === 'expired') setSessionExpired(true);
         }
+      } catch {
+        // Storage failed: start signed out rather than stay on the splash screen.
+        await clearAuthSession().catch(() => undefined);
+        if (!cancelled) setSession(null);
+      } finally {
+        if (!cancelled) setReady(true);
       }
-      if (!cancelled) setReady(true);
     })();
     return () => {
       cancelled = true;
@@ -143,10 +179,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           const accessToken = data.session.access_token;
           const userId = data.user.id;
-          let profile = await syncProfile(accessToken);
-          const granted = await ensureAdminRole(accessToken, profile.roles);
-          if (granted) profile = granted;
-          await applySession(sessionFromSync('supabase', accessToken, userId, profile));
+          try {
+            let profile = await syncProfile(accessToken);
+            const granted = await ensureAdminRole(accessToken, profile.roles);
+            if (granted) profile = granted;
+            await applySession(sessionFromSync('supabase', accessToken, userId, profile));
+          } catch (syncError) {
+            // Signed in to Supabase but the API refused the profile: undo the Supabase sign-in,
+            // so a guest is not left holding this account's session.
+            await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+            throw syncError;
+          }
+          setSessionExpired(false);
           return;
         }
       }
@@ -169,6 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await applySession(
           sessionFromSync('dev', accessToken, DEV_AUTH_CONFIG.uuid, profile),
         );
+        setSessionExpired(false);
         return;
       }
 
@@ -178,17 +223,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const signOut = useCallback(async () => {
-    const supabase = getSupabaseClient();
-    if (supabase && session?.mode === 'supabase') {
-      try {
-        await supabase.auth.signOut();
-      } catch {
-        // ignore
+    // A request failing while signing out must not show "session expired".
+    signingOutRef.current = true;
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase && session?.mode === 'supabase') {
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // ignore
+        }
       }
+      await clearAuthSession();
+      sessionRef.current = null;
+      setSession(null);
+      setSessionExpired(false);
+    } finally {
+      signingOutRef.current = false;
     }
-    await clearAuthSession();
-    setSession(null);
   }, [session?.mode]);
+
+  const dismissSessionExpired = useCallback(() => setSessionExpired(false), []);
 
   const value = useMemo<AuthContextValue>(() => {
     const firstName = session?.firstName ?? '';
@@ -203,8 +258,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signIn,
       signOut,
       refreshProfile,
+      sessionExpired,
+      dismissSessionExpired,
     };
-  }, [ready, session, signIn, signOut, refreshProfile]);
+  }, [ready, session, signIn, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -59,9 +59,16 @@ function harness(rows, options = {}) {
     '../lib/signature-log':load('../lib/signature-log.ts', id=>id==='@nestyk/i18n'?{fillTemplate:require('./test-i18n.cjs').fillTemplate}:require(id)),
     './ContractCloseCard':{ContractCloseCard:'close-card',closeResultNotice:()=>'closed'},
     './DepositPaymentCard':{DepositPaymentCard:'deposit-card'},
+    // D2: the lead's offers, read to lock the numbers a confirmed offer fixes.
+    '../lib/deal-offers-api':{listLeadDealOffers:async(leadId)=>{options.offerCalls?.push(leadId);return options.offers ?? [];}},
+    '../lib/deal-offer':load('../lib/deal-offer.ts'),
+    // D2 round 2: the deal's confirmed offer on the contract (tested in deal-offer-section.test.cjs).
+    './DealOfferSection':{DealOfferSection:'deal-offer-section'},
+    './HandoverCard':{HandoverCard:'handover-card'},
     './RejectedAttachmentsNotice':{RejectedAttachmentsNotice:'rejected-notice'},
   };
-  for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ReservationPaymentCard','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
+  for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
+  dependencies['./ReservationPaymentCard']={ReservationPaymentCard:'reservation-card'};
   for (const name of ['expo-document-picker','expo-image-picker','expo-image']) dependencies[name]={};
   const screen=load('ContractsScreen.tsx',id=>{if (!(id in dependencies)) throw new Error(`Unexpected dependency: ${id}`);return dependencies[id];});
   const props={startCreate:'renewal',onStartCreateHandled:()=>{handled++;},...options.props};
@@ -457,7 +464,12 @@ test('D10: a generated lease shows the deposit card; the agent issues the invoic
   const tree=()=>nodes(h.render());
   const card=()=>tree().find(n=>n.type==='deposit-card');
   assert.equal(card().props.contract.depositPayment.status,'not_issued');
+  // D6: the lease also shows the handover card for this contract; it reloads when the deposit changes.
+  const handover=()=>tree().find(n=>n.type==='handover-card').props;
+  assert.deepEqual({id:handover().contractId,mode:handover().mode,date:handover().defaultDate},{id:7,mode:'agent',date:lease.startDate});
+  const keyBefore=handover().refreshKey;
   card().props.onIssueInvoice(); await h.tick();
+  assert.notEqual(handover().refreshKey,keyBefore,'the handover card is told the deposit changed');
   assert.deepEqual(issueCalls,[7]);
   assert.equal(card().props.contract.depositPayment.invoiceId,100,'the screen shows the issued invoice');
   assert.ok(tree().some(n=>n.type==='span'&&n.props.children===contractsTh.deposit.issued));
@@ -473,6 +485,8 @@ test('D10: a generated lease shows the deposit card; the agent issues the invoic
   form.props.onStandaloneCreated({id:100}); await h.tick();
   assert.equal(tree().some(n=>n.props?.fixedInvoiceId!=null),false,'back on the contract');
   assert.equal(card().props.contract.depositPayment.status,'paid','the contract is loaded again after the receipt');
+  assert.notEqual(handover().refreshKey,keyBefore);
+  assert.match(handover().refreshKey,/:paid$/,'the receipt (which opens the handover) reloads the handover card');
   card().props.onOpen('deposit-receipt');
   assert.ok(tree().some(n=>n.props?.url==='rec.pdf'));
 }));
@@ -490,6 +504,7 @@ test('D10: without a slip the tenant sent (none, or only one the agent attached)
   const r=harness([booking], {props:{startCreate:null,initialContract:booking}});
   r.render(); r.resolve(); await r.tick(); r.render(); await r.tick();
   assert.equal(nodes(r.render()).some(n=>n.type==='deposit-card'),false);
+  assert.equal(nodes(r.render()).some(n=>n.type==='handover-card'),false,'a reservation has no handover');
 }));
 
 test('B3: the signing card tells whoever still signs which attached documents the agent rejected', async () => atBangkokOctober12(async()=>{
@@ -510,4 +525,180 @@ test('B3: the signing card tells whoever still signs which attached documents th
   g.render(); g.resolve(); await g.tick(); g.render(); await g.tick();
   nodes(g.render()).find(n=>typeof n.props?.onReadinessChange==='function').props.onReadinessChange({contractId:11,ready:true,rejected});
   assert.equal(nodes(g.render()).some(n=>n.type==='rejected-notice'),false);
+}));
+
+test('D2: the letter and the lease lock the numbers of the offer the landlord confirmed for the chosen tenant\'s room', async () => atBangkokOctober12(async()=>{
+  const offerKeys=load('../lib/deal-offer.ts');
+  const cand={leadId:1,tenant:'Tenant 1',property:'P',room:'1',rentRoomId:3,brokerAppointmentReady:true};
+  const open=async(formKind, offers)=>{
+    const offerCalls=[];
+    // A lease starts only after a reservation letter is issued.
+    const issued=formKind==='lease'?[row({id:3,formKind:'reservation',status:'active',reservationLetterStatus:'ready',endDate:null})]:[];
+    const h=harness(issued, {props:{startCreate:null},candidates:[cand],offers,offerCalls,
+      api:{listAgreementTypes:async()=>[{code:formKind,formKind}],getReservationDefaults:async()=>({}),getLeaseDefaults:async()=>({})}});
+    h.render(); h.resolve(); await h.tick();
+    nodes(h.render()).find(n=>n.type==='contract-library').props.onCreate();
+    h.render(); await h.tick();
+    h.render().props.onSelect(formKind);
+    const type=formKind==='reservation'?'reservation-fields':'lease-fields';
+    for (let i=0;i<10&&!nodes(h.render()).some(n=>n.type===type);i++) await h.tick();
+    h.render(); await h.tick();
+    return {fields:nodes(h.render()).find(n=>n.type===type), offerCalls};
+  };
+  const confirmed={id:30,leadId:1,rentRoomId:3,status:'confirmed'};
+  let r=await open('reservation',[confirmed]);
+  assert.deepEqual(r.fields.props.lockedKeys,offerKeys.OFFER_RESERVATION_LOCKED_KEYS);
+  assert.deepEqual(r.offerCalls,[1]);
+  r=await open('lease',[confirmed]);
+  assert.deepEqual(r.fields.props.lockedKeys,offerKeys.OFFER_LEASE_LOCKED_KEYS);
+  // An offer for another room, one still waiting for the landlord, or none: nothing is locked.
+  for (const offers of [[{...confirmed,rentRoomId:4}],[{...confirmed,status:'awaiting_landlord'}],[]]) {
+    r=await open('reservation',offers);
+    assert.equal(r.fields.props.lockedKeys,undefined,JSON.stringify(offers));
+  }
+  // A broker appointment has no offer numbers: the offers are not even read.
+  const brokerCalls=[];
+  const broker=harness([], {props:{startCreate:null},candidates:[cand],offers:[confirmed],offerCalls:brokerCalls,
+    api:{listAgreementTypes:async()=>[{code:'broker_appointment',formKind:'broker_appointment'}],getBrokerAppointmentLeadDefaults:async()=>({})}});
+  broker.render(); broker.resolve(); await broker.tick();
+  nodes(broker.render()).find(n=>n.type==='contract-library').props.onCreate();
+  broker.render(); await broker.tick();
+  broker.render().props.onSelect('broker_appointment');
+  for (let i=0;i<10&&!nodes(broker.render()).some(n=>n.type==='broker-fields');i++) await broker.tick();
+  assert.ok(nodes(broker.render()).some(n=>n.type==='broker-fields'));
+  assert.deepEqual(brokerCalls,[]);
+}));
+
+test('D2: inside a tenant (no room in the candidate), the lead\'s confirmed offer still locks the letter', async () => atBangkokOctober12(async()=>{
+  const offerKeys=load('../lib/deal-offer.ts');
+  const open=async(offers)=>{
+    const tenant={id:1,leadId:1,name:'Tenant A',phone:'0812345678',email:'a@b.co',identityNumber:'A1234567',nationality:'British',fullAddress:null,contracts:[],brokerAppointmentReady:true};
+    const h=harness([], {props:{startCreate:null,tenant},offers,offerCalls:[],
+      api:{listAgreementTypes:async()=>[{code:'reservation',formKind:'reservation'}],getReservationDefaults:async()=>({})}});
+    h.render(); h.resolve(); await h.tick();
+    nodes(h.render()).find(n=>n.type==='contract-library').props.onCreate();
+    h.render(); await h.tick();
+    h.render().props.onSelect('reservation');
+    for (let i=0;i<10&&!nodes(h.render()).some(n=>n.type==='reservation-fields');i++) await h.tick();
+    h.render(); await h.tick();
+    return nodes(h.render()).find(n=>n.type==='reservation-fields');
+  };
+  assert.deepEqual((await open([{id:30,leadId:1,rentRoomId:3,status:'confirmed'}])).props.lockedKeys,offerKeys.OFFER_RESERVATION_LOCKED_KEYS);
+  assert.equal((await open([{id:30,leadId:1,rentRoomId:3,status:'awaiting_landlord'}])).props.lockedKeys,undefined);
+}));
+
+test('D2: an existing reservation draft (no room in its candidate) is locked by the lead\'s confirmed offer', async () => atBangkokOctober12(async()=>{
+  const offerKeys=load('../lib/deal-offer.ts');
+  const draft=row({id:7,formKind:'reservation',status:'draft',agreementTypeCode:'reservation',agreementTypeName:'Reservation',contractNo:'RS007',endDate:null,
+    ownerSignedAt:null,tenantSignedAt:null,agentSignedAt:null,data:{reservationLetter:{}}});
+  const tenant={id:1,leadId:1,name:'Tenant A',phone:'0812345678',email:'a@b.co',identityNumber:null,nationality:null,fullAddress:null,contracts:[],brokerAppointmentReady:true};
+  const offerCalls=[];
+  const h=harness([draft], {props:{startCreate:null,tenant,initialContract:draft},offers:[{id:30,leadId:1,rentRoomId:3,status:'confirmed'}],offerCalls,
+    api:{getAgentContractDraftTemplate:async()=>({id:2,dataSchema:{type:'object'}})}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const label=n=>nodes(n).filter(x=>x.type==='span').flatMap(x=>[x.props.children].flat()).join('');
+  nodes(h.render()).find(n=>n.type==='button'&&label(n)===contractsTh.screen.editDraft).props.onPress();
+  for (let i=0;i<10&&!nodes(h.render()).some(n=>n.type==='reservation-fields');i++) await h.tick();
+  h.render(); await h.tick();
+  assert.deepEqual(nodes(h.render()).find(n=>n.type==='reservation-fields').props.lockedKeys,offerKeys.OFFER_RESERVATION_LOCKED_KEYS);
+  assert.ok(offerCalls.includes(1));
+}));
+
+test('D14: when generating the reservation letter is refused for a missing co-broke file, the app shows its own reason', async () => atBangkokOctober12(async()=>{
+  const reservation=row({id:8,formKind:'reservation',status:'awaiting_agent_review',agreementTypeCode:'reservation',agreementTypeName:'Reservation',contractNo:'RS008',endDate:null,
+    reservationLetterStatus:'ready_to_generate',data:{reservationLetter:{}}});
+  const generateCalls=[];
+  const h=harness([reservation], {props:{startCreate:null,initialContract:reservation},
+    api:{generateAgentReservation:async(id)=>{generateCalls.push(id);throw Object.assign(new Error('Thai-only server text'),{code:'CO_BROKE_REQUIRED'});}}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const label=n=>nodes(n).filter(x=>x.type==='span').flatMap(x=>[x.props.children].flat()).join('');
+  const text=n=>[n.props.children].flat().filter(x=>typeof x==='string').join('')+label(n);
+  nodes(h.render()).find(n=>n.type==='button'&&text(n)===contractsTh.screen.confirmGenerate).props.onPress();
+  await h.tick(); await h.tick();
+  assert.deepEqual(generateCalls,[8]);
+  const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.ok(texts.includes(contractsTh.offer.coBrokeRequired));
+  assert.ok(!texts.includes('Thai-only server text'));
+}));
+
+test('D11: the agent returns a booking or deposit slip from the cards, and the receipt forms ask who received the money', async () => atBangkokOctober12(async()=>{
+  const payment={invoiceDocumentNo:'INV-RS011',receiptDocumentNo:null,total:5000,status:'submitted',paymentSlipUrl:'slip.jpg',submittedAt:'2026-10-11T03:00:00Z'};
+  const booking=row({id:11,formKind:'reservation',status:'draft',contractNo:'RS011',endDate:null,invoiceUrl:'inv.pdf',receiptUrl:null,reservationPayment:payment});
+  const returned={...booking,reservationPayment:{...payment,status:'unpaid',paymentSlipUrl:null,slipReturnReason:'ยอดไม่ตรง'}};
+  const calls=[]; let fail=false;
+  const h=harness([booking], {props:{startCreate:null,initialContract:booking},
+    api:{returnReservationSlip:async(id,reason,seen)=>{calls.push(['reservation',id,reason,seen]);if (fail) throw new Error('x');return returned;}}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const tree=()=>nodes(h.render());
+  const card=()=>tree().find(n=>n.type==='reservation-card');
+  assert.equal(await card().props.onReturnSlip('ยอดไม่ตรง'),true);
+  assert.deepEqual(calls,[['reservation',11,'ยอดไม่ตรง','2026-10-11T03:00:00Z']],'sends the slip the agent looked at');
+  assert.equal(card().props.contract.reservationPayment.slipReturnReason,'ยอดไม่ตรง','the screen shows the returned slip');
+  assert.ok(tree().some(n=>n.type==='span'&&n.props.children===contractsTh.slipReturn.done));
+  fail=true;
+  assert.equal(await card().props.onReturnSlip('again'),false,'a failed return keeps the reason in the card');
+  card().props.onIssueReceipt();
+  assert.equal(tree().find(n=>n.props?.kind==='receipt'&&n.props?.contractId===11).props.landlordReceipt,'reservation');
+  // The deposit card of a lease.
+  const deposit={status:'submitted',total:30000,invoiceId:100,invoiceDocumentNo:'DEP-LS012',dueDate:'2026-11-01',invoiceUrl:'dep.pdf',receiptDocumentNo:null,receiptUrl:null,paymentSlipUrl:'slip.jpg',submittedAt:'2026-10-11T03:00:00Z'};
+  const lease=row({id:12,contractNo:'LS012',leaseAgreementStatus:'ready',depositPayment:deposit});
+  const leaseReturned={...lease,depositPayment:{...deposit,status:'unpaid',paymentSlipUrl:null,submittedAt:null,slipReturnReason:'สลิปซ้ำ'}};
+  const l=harness([lease], {props:{startCreate:null,initialContract:lease},
+    api:{returnDepositSlip:async(id,reason,seen)=>{calls.push(['deposit',id,reason,seen]);return leaseReturned;}}});
+  l.render(); l.resolve(); await l.tick(); l.render(); await l.tick();
+  const depositCard=()=>nodes(l.render()).find(n=>n.type==='deposit-card');
+  assert.equal(await depositCard().props.onReturnSlip('สลิปซ้ำ'),true);
+  assert.deepEqual(calls.at(-1),['deposit',12,'สลิปซ้ำ','2026-10-11T03:00:00Z']);
+  assert.equal(depositCard().props.contract.depositPayment.slipReturnReason,'สลิปซ้ำ');
+  depositCard().props.onIssueReceipt();
+  assert.equal(nodes(l.render()).find(n=>n.props?.fixedInvoiceId===100).props.landlordReceipt,'deposit');
+}));
+
+test('D11: when the tenant sent a newer slip, the return is refused and the screen loads the newer slip', async () => atBangkokOctober12(async()=>{
+  const payment={invoiceDocumentNo:'INV-RS013',receiptDocumentNo:null,total:5000,status:'submitted',paymentSlipUrl:'old.jpg',submittedAt:'2026-10-11T03:00:00Z'};
+  const booking=row({id:13,formKind:'reservation',status:'draft',contractNo:'RS013',endDate:null,invoiceUrl:'inv.pdf',receiptUrl:null,reservationPayment:payment});
+  const newer={...booking,reservationPayment:{...payment,paymentSlipUrl:'new.jpg',submittedAt:'2026-10-12T03:00:00Z'}};
+  let latest=booking;
+  const h=harness([booking], {props:{startCreate:null,initialContract:booking},
+    api:{returnReservationSlip:async()=>{latest=newer;throw Object.assign(new Error('Thai-only server text'),{code:'SLIP_CHANGED'});},getAgentContract:async()=>latest}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const card=()=>nodes(h.render()).find(n=>n.type==='reservation-card');
+  assert.equal(card().props.contract.reservationPayment.paymentSlipUrl,'old.jpg');
+  assert.equal(await card().props.onReturnSlip('ยอดไม่ตรง'),false);
+  await h.tick();
+  assert.equal(card().props.contract.reservationPayment.paymentSlipUrl,'new.jpg','the newer slip is shown');
+  const texts=nodes(h.render()).filter(n=>n.type==='span').map(n=>n.props.children);
+  assert.ok(texts.includes(contractsTh.slipReturn.changed));
+  assert.ok(!texts.includes('Thai-only server text'));
+}));
+
+test('D2 round 2: a reservation or lease shows the deal\'s offer to read and change; a change reads the contract again', async () => atBangkokOctober12(async()=>{
+  const booking=row({id:21,formKind:'reservation',status:'draft',contractNo:'RS021',endDate:null,leadId:4,rentRoomId:9,reservationFee:15000});
+  const refreshed={...booking,monthlyRent:14000,reservationFee:14000};
+  const shows=(amount)=>nodes(h.render()).some(n=>[n.props?.children].flat().some(c=>typeof c==='string'&&c.includes(amount)));
+  let reads=0, changed=0;
+  const h=harness([booking], {props:{startCreate:null,initialContract:booking,onChanged:()=>{changed++;}},
+    api:{getAgentContract:async()=>{reads++;return reads>1?refreshed:booking;}}});
+  h.render(); h.resolve(); await h.tick(); h.render(); await h.tick();
+  const section=()=>nodes(h.render()).find(n=>n.type==='deal-offer-section');
+  assert.deepEqual({mode:section().props.mode,lead:section().props.leadId,room:section().props.roomId},{mode:'deal',lead:4,room:9});
+  assert.equal(shows('15,000'),true,'the booking amount before the change');
+  const before=reads;
+  section().props.onRevised({id:30});
+  await h.tick(); await h.tick();
+  assert.equal(reads,before+1,'the contract is read again (its unsigned documents may have changed)');
+  assert.deepEqual([shows('14,000'),shows('15,000')],[true,false],'the contract shows the booking amount read again');
+  assert.equal(section().key,'offer:4:9');
+  assert.ok(changed>0,'the list is told too');
+  // Not for a closed contract, a contract without a room, or other forms.
+  for (const patch of [{status:'cancelled'},{status:'terminated'},{rentRoomId:null},{formKind:'broker_appointment'}]) {
+    const c=row({id:22,formKind:'reservation',status:'draft',contractNo:'RS022',endDate:null,leadId:4,rentRoomId:9,...patch});
+    const o=harness([c], {props:{startCreate:null,initialContract:c}});
+    o.render(); o.resolve(); await o.tick(); o.render(); await o.tick();
+    assert.equal(nodes(o.render()).some(n=>n.type==='deal-offer-section'),false,JSON.stringify(patch));
+  }
+  const lease=row({id:23,contractNo:'LS023',leadId:4,rentRoomId:9,leaseAgreementStatus:'awaiting_signatures',status:'awaiting_signatures'});
+  const l=harness([lease], {props:{startCreate:null,initialContract:lease}});
+  l.render(); l.resolve(); await l.tick(); l.render(); await l.tick();
+  assert.ok(nodes(l.render()).some(n=>n.type==='deal-offer-section'),'a lease shows it too');
 }));

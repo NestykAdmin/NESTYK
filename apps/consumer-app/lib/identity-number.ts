@@ -27,3 +27,26 @@ export function nextIdentityNumberDraft(input: string): string {
     .slice(0, IDENTITY_NUMBER_MAX);
   return isThaiIdNumber(raw) ? formatThaiIdNumber(raw) : raw;
 }
+
+/*
+ * C3 (Aof, 22 Oct 2026): a tenant is matched by this number only, so a Thai ID must be right.
+ * Same rule as the API (apps/api/src/common/identity-number.ts).
+ */
+const THAI_NATIONALITY = new Set(["thai", "ไทย", "th", "tha", "สัญชาติไทย"]);
+export function isThaiNationality(value: string | null | undefined): boolean {
+  return THAI_NATIONALITY.has((value ?? "").trim().toLowerCase());
+}
+
+export type IdentityNumberProblem = "format" | "thai_id";
+
+/**
+ * null when acceptable. A Thai national must give a valid Thai ID; with no nationality, 13 digits are taken as a
+ * Thai ID and checked; any other nationality only needs 5–100 letters or digits (a Korean ID also has 13 digits).
+ */
+export function identityNumberProblem(value: string, nationality?: string | null): IdentityNumberProblem | null {
+  const raw = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9\s/-]{4,99}$/.test(raw)) return "format";
+  const digits = raw.replace(/[\s-]/g, "").toUpperCase();
+  const thai = isThaiNationality(nationality) || (!(nationality ?? "").trim() && /^\d{13}$/.test(digits));
+  return thai && !isThaiIdNumber(digits) ? "thai_id" : null;
+}

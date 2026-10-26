@@ -18,6 +18,8 @@ export type AgentInvoiceKind = "general" | "deposit";
 @Check("chk_agent_invoices_kind", "((invoice_kind)::text = ANY ((ARRAY['general'::character varying, 'deposit'::character varying])::text[]))")
 @Check("chk_agent_invoices_issuer", "((issuer_party)::text = ANY ((ARRAY['landlord'::character varying, 'agent'::character varying])::text[]))")
 @Check("chk_agent_invoices_deposit", "(((invoice_kind)::text <> 'deposit'::text) OR ((lease_contract_id IS NOT NULL) AND ((issuer_party)::text = 'landlord'::text) AND (amount IS NOT NULL) AND (amount > (0)::numeric) AND (due_date IS NOT NULL)))")
+@Check("chk_agent_invoices_void", "((voided_at IS NULL) OR (((invoice_kind)::text = 'deposit'::text) AND (receipt_pdf_path IS NULL) AND (receipt_document_no IS NULL)))")
+@Check("chk_agent_invoices_slip_return", "((slip_return_note IS NULL) OR (char_length(btrim((slip_return_note)::text)) > 0))")
 @Entity({ name: "agent_invoices" })
 export class AgentInvoiceEntity extends SerialTimestampEntity {
   @Column({ type: "int" })
@@ -87,4 +89,12 @@ export class AgentInvoiceEntity extends SerialTimestampEntity {
   /** When the tenant sent the slip in the app (a slip the agent attaches with the receipt leaves this empty). */
   @Column({ type: "timestamptz", nullable: true })
   slip_submitted_at: Date | null;
+
+  /** When the deposit invoice was cancelled because its lease was closed before the deposit was paid (migration 20261022140000). */
+  @Column({ type: "timestamptz", nullable: true })
+  voided_at: Date | null;
+
+  /** D11 (AC-5.4): why the agent returned the tenant's deposit slip; cleared when the tenant sends a new one (migration 20261022160000). */
+  @Column({ type: "varchar", length: 500, nullable: true })
+  slip_return_note: string | null;
 }

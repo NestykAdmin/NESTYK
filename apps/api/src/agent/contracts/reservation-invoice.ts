@@ -4,7 +4,13 @@ import type {
 } from "@nestyk/types";
 import type { LeaseContractEntity } from "../../entities/lease-contract.entity";
 
-/** One booking invoice belongs to the reservation, independently of standalone invoices. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TAX_ID = /^\d{13}$/;
+
+/**
+ * One booking invoice belongs to the reservation, independently of standalone invoices.
+ * D11 (AC-3.3): issued in the landlord's name (the landlord receives the booking money), like the deposit invoice.
+ */
 export function reservationInvoice(
   c: LeaseContractEntity,
 ): FinancialDocumentInput {
@@ -26,6 +32,8 @@ export function reservationInvoice(
     c.rent_room?.listing_title ||
     "ห้องพัก";
   const room = letter?.unitNo || snapshot.room || c.rent_room?.room_id;
+  // A reservation without the landlord's name (an old one with no letter) keeps the old issuer instead of an empty one.
+  const landlord = text(letter?.landlordName || snapshot.ownerName, 120);
   return {
     documentNo: previous?.documentNo || `INV-${c.contract_no || `RS${c.id}`}`,
     issueDate: previous?.issueDate || c.start_date,
@@ -56,11 +64,13 @@ export function reservationInvoice(
       letter?.tenantEmail || snapshot.tenantEmail || c.tenant?.email,
       120,
     ),
-    issuerName: "NESTYK",
-    issuerAddress: "Bangkok",
-    issuerTaxId: "",
-    issuerPhone: text(letter?.agentPhone || snapshot.agentPhone, 40),
-    issuerEmail: "",
+    issuerName: landlord || "NESTYK",
+    issuerAddress: landlord
+      ? text(snapshot.ownerAddress || snapshot.propertyAddress || letter?.address || project, 240)
+      : "Bangkok",
+    issuerTaxId: TAX_ID.test(text(snapshot.ownerTaxId, 13)) ? text(snapshot.ownerTaxId, 13) : "",
+    issuerPhone: text(letter?.landlordPhone || snapshot.ownerPhone, 40),
+    issuerEmail: EMAIL.test(text(letter?.landlordEmail, 120)) ? text(letter?.landlordEmail, 120) : "",
     items: [
       {
         description: text(

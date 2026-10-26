@@ -1,3 +1,5 @@
+import { AgentDashboardController } from './dashboard/agent-dashboard.controller';
+import { AgentDashboardService } from './dashboard/agent-dashboard.service';
 import { AgreementAttachmentsService } from './contracts/agreement-attachments.service';
 import { AgreementAttachmentsController } from './contracts/agreement-attachments.controller';
 import { AgentTenantsController } from './tenants/agent-tenants.controller';
@@ -6,6 +8,9 @@ import { AgentContractsController } from './contracts/agent-contracts.controller
 import { PartyContractsController } from './contracts/party-contracts.controller';
 import { AgentContractsService } from './contracts/agent-contracts.service';
 import { ContractDocumentStorageService } from './contracts/contract-document-storage.service';
+import { HandoverService } from './contracts/handover.service';
+import { DealOffersService } from './contracts/deal-offers.service';
+import { DealOffersController } from './contracts/deal-offers.controller';
 import { LeadEntity } from '../entities/lead.entity';
 import { LeadLocationEntity } from '../entities/lead-location.entity';
 import { LeadMatchRunEntity } from '../entities/lead-match-run.entity';
@@ -87,8 +92,8 @@ import { GeminiModule } from '../gemini/gemini.module';
       RoomShareLinkEntity,
     ]),
   ],
-  controllers: [AgreementAttachmentsController, AgentTenantsController, AgentContractsController, PartyContractsController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
-  providers: [AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
+  controllers: [AgentDashboardController, AgreementAttachmentsController, AgentTenantsController, AgentContractsController, DealOffersController, PartyContractsController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
+  providers: [AgentDashboardService, AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, HandoverService, DealOffersService, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
   exports: [AgentRoomsService, AgentListingsService, AgentPlacesService, RoomShareLinksService],
 })
 export class AgentModule {}

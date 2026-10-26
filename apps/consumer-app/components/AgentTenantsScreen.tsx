@@ -430,7 +430,8 @@ export function AgentTenantsScreen({
     const runAction = (action: TenantNextAction) => {
       setNotice("");
       const focus =
-        action.kind === "sign" || action.kind === "confirm" || action.kind === "broker_appointment"
+        action.kind === "sign" || action.kind === "confirm" || action.kind === "broker_appointment" ||
+        action.kind === "deposit" || action.kind === "handover"
           ? action.contract
           : null;
       setContractFocus(focus);
@@ -440,7 +441,8 @@ export function AgentTenantsScreen({
         setContractStart("broker_appointment");
         setSection("contracts");
       }
-      else if (!selected.email) {
+      // C3 (Aof, 22 Oct 2026): the reservation letter also needs the ID or passport number.
+      else if (!selected.email || !selected.identityNumber) {
         setSection("profile");
         beginEdit(selected);
       } else {

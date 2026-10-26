@@ -7,10 +7,11 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { i18nMock, contractsTh, fillTemplate, leadFormat } = require('./test-i18n.cjs');
 const loaded = { exports: {} };
+const loadTs = (file) => { const out = { exports: {} }; new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(require, out, out.exports); return out.exports; };
 const source = fs.readFileSync(path.join(__dirname, 'ReservationLetterFields.tsx'), 'utf8');
 const mockRequire = name => {
   if (name === 'react') return React;
-  if (name === 'react-native') return { View: 'section', Text: 'span', Pressable: ({ children, accessibilityRole, accessibilityState }) => React.createElement('div', { role: accessibilityRole, 'aria-checked': accessibilityState?.checked }, children) };
+  if (name === 'react-native') return { View: 'section', Text: 'span', Pressable: ({ children, accessibilityRole, accessibilityState, disabled }) => React.createElement('div', { role: accessibilityRole, 'aria-checked': accessibilityState?.checked, 'aria-disabled': accessibilityState?.disabled, 'data-disabled': disabled ? 'yes' : 'no' }, children) };
   if (name === '@nestyk/ui/native') return {
     useMobileTheme: () => ({ theme: {} }),
     tokens: { typography: { native: {} }, colors: { brand: { 50: '#fff9e8', 500: '#f8b615' } } },
@@ -19,6 +20,7 @@ const mockRequire = name => {
   if (name === '../lib/agent-contracts-api') return { searchOwnerUsers: async () => [] };
   if (name === '@nestyk/i18n') return i18nMock();
   if (name === '../lib/lead-format') return leadFormat;
+  if (name === '../lib/identity-number') return loadTs('../lib/identity-number.ts');
   throw new Error(`Unexpected dependency: ${name}`);
 };
 new Function('require', 'module', 'exports', ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);
@@ -61,9 +63,43 @@ test('payment allocation supports both independent choices and every existing pa
   assert.match(markup, /ตัวอักษร/);
 });
 
-test('required-field rules do not expand with the redesign', () => {
-  const value = { ...emptyReservationLetterForm(), tenantFirstName: 'Tenant', tenantPhone: '0800000000', tenantEmail: 'tenant@example.com', landlordFirstName: 'Owner', landlordPhone: '0800000001', landlordEmail: 'owner@example.com', project: 'Nest', reservationPayment: '5000' };
+test('required-field rules do not expand with the redesign (apart from the tenant ID number, C3)', () => {
+  const value = { ...emptyReservationLetterForm(), tenantFirstName: 'Tenant', tenantPhone: '0800000000', tenantEmail: 'tenant@example.com', tenantId: '1-2345-67890-12-1', landlordFirstName: 'Owner', landlordPhone: '0800000001', landlordEmail: 'owner@example.com', project: 'Nest', reservationPayment: '5000' };
   assert.deepEqual(reservationLetterFieldErrors(value, contractsTh.validation), {});
   const invalid = reservationLetterFieldErrors({ ...value, tenantEmail: 'invalid', project: '', termFrom: '15/10/2026' }, contractsTh.validation);
   assert.deepEqual(Object.keys(invalid).sort(), ['project', 'tenantEmail', 'termFrom']);
+});
+
+// C3 (Aof, 22 Oct 2026): the tenant's account is matched by the ID or passport number, so the letter needs it,
+// and a Thai ID must pass its check digit. 1234567890121 is valid: Σ d×(13−i) for the first 12 digits is 352,
+// 352 mod 11 = 0, (11 − 0) mod 10 = 1, the 13th digit.
+test('C3: the tenant ID number is required, a Thai ID must be valid, and the message sends the agent to the tenant details', () => {
+  const base = { ...emptyReservationLetterForm(), tenantFirstName: 'Tenant', tenantPhone: '0800000000', tenantEmail: 'tenant@example.com', landlordFirstName: 'Owner', landlordPhone: '0800000001', landlordEmail: 'owner@example.com', project: 'Nest', reservationPayment: '5000' };
+  const error = (patch) => reservationLetterFieldErrors({ ...base, ...patch }, contractsTh.validation).tenantId;
+  assert.equal(error({ tenantId: '' }), contractsTh.validation.tenantIdMissing);
+  assert.equal(error({ tenantId: '   ' }), contractsTh.validation.tenantIdMissing);
+  assert.equal(error({ tenantId: '1-2345-67890-12-3' }), contractsTh.validation.tenantIdThai, 'wrong check digit');
+  assert.equal(error({ tenantId: '1-2345-67890-12-1' }), undefined);
+  assert.equal(error({ tenantId: '1 2345 67890 12 1', tenantNationality: 'ไทย' }), undefined);
+  assert.equal(error({ tenantId: 'AA1234567', tenantNationality: 'Thai' }), contractsTh.validation.tenantIdThai, 'a Thai national needs a Thai ID');
+  assert.equal(error({ tenantId: 'AA1234567', tenantNationality: 'Japanese' }), undefined, 'a passport for a foreigner');
+  assert.equal(error({ tenantId: 'A1', tenantNationality: 'Japanese' }), contractsTh.validation.tenantIdFormat);
+  for (const key of ['tenantIdMissing', 'tenantIdThai', 'tenantIdFormat']) assert.ok(contractsTh.validation[key], key);
+});
+
+test('D2: numbers from the offer the landlord confirmed are read-only, and the form says where they come from', () => {
+  const offer = require('./test-i18n.cjs').contractsTh.offer;
+  const keys = loadTs('../lib/deal-offer.ts').OFFER_RESERVATION_LOCKED_KEYS;
+  const value = emptyReservationLetterForm();
+  for (const key of Object.keys(value)) if (typeof value[key] === 'string') value[key] = `field_${key}_value`;
+  const markup = [0, 1, 2, 3].map(step => renderToStaticMarkup(React.createElement(ReservationLetterFields, { value, step, onChange() {}, lockedKeys: keys }))).join('');
+  for (const key of keys.filter(k => typeof value[k] === 'string'))
+    assert.match(markup, new RegExp(`<input[^>]*readOnly=""[^>]*value="field_${key}_value"`), key);
+  assert.doesNotMatch(markup, /<input[^>]*readOnly=""[^>]*value="field_landlordFirstName_value"/, 'other fields stay editable');
+  // The reservation goes to the advance rent: both choices are fixed.
+  assert.equal((markup.match(/role="checkbox"[^>]*aria-disabled="true"[^>]*data-disabled="yes"/g) || []).length, 2, 'cannot be pressed, and says so');
+  assert.ok(markup.includes(offer.fromOffer));
+  const free = render(value, 2);
+  assert.equal((free.match(/aria-disabled="true"/g) || []).length, 0);
+  assert.ok(!free.includes(offer.fromOffer));
 });

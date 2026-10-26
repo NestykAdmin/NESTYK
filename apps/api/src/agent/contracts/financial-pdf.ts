@@ -67,6 +67,21 @@ const CHECKS = {
 
 const PAID_Y = { cash: 245.3, transfer: 228.7, cheque: 212.2, other: 195.7 };
 
+/**
+ * D11 (TC-3.15): the rows a receipt prints above its notes when the tenant withheld tax: the tax and the net amount
+ * received (the receipt total stays the full amount). None on an invoice or without tax.
+ */
+export function receiptTaxRows(kind: FinancialDocumentKind, data: FinancialDocumentInput): string[] {
+  const withheld = kind === "receipt" ? Number(data.withholdingTax ?? 0) : 0;
+  if (!(withheld > 0)) return [];
+  const money = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const total = financialTotals(data).total;
+  return [
+    `หักภาษี ณ ที่จ่าย ${money(withheld)} บาท`,
+    `รับเงินสุทธิ ${money(Math.round((total - withheld) * 100) / 100)} บาท`,
+  ];
+}
+
 export async function createFinancialPdf(
   kind: FinancialDocumentKind,
   data: FinancialDocumentInput,
@@ -325,7 +340,9 @@ export async function createFinancialPdf(
     }
   }
 
-  lines(data.notes, NOTE_W, 8, NOTE_Y.length).forEach((row, index) => {
+  // D11 (TC-3.15): the tax the tenant withheld and the net amount received, above the notes.
+  const taxRows = receiptTaxRows(kind, data);
+  [...taxRows, ...lines(data.notes, NOTE_W, 8, NOTE_Y.length - taxRows.length)].forEach((row, index) => {
     const y = NOTE_Y[index];
     if (y != null) draw(row, NOTE_X, y, 8);
   });

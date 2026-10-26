@@ -29,8 +29,9 @@ import {
 
 type TextField = Exclude<
   keyof FinancialDocumentInput,
-  "items" | "vatRate" | "discount"
+  "items" | "vatRate" | "discount" | "receivedBy" | "withholdingTax"
 >;
+type ReceiptReceiver = NonNullable<FinancialDocumentInput["receivedBy"]>;
 
 function withCustomerNames(data: FinancialDocumentInput): FinancialDocumentInput {
   const first = data.customerFirstName?.trim() ?? "";
@@ -66,6 +67,7 @@ export function FinancialDocumentForm({
   payer,
   fixedInvoiceId,
   slipOnFile = false,
+  landlordReceipt,
   onBack,
   onCreated,
   onStandaloneCreated,
@@ -86,6 +88,11 @@ export function FinancialDocumentForm({
   fixedInvoiceId?: number;
   /** D10: the tenant already sent the slip for this (deposit) invoice, so attaching one is optional. */
   slipOnFile?: boolean;
+  /**
+   * D11 (AC-3.5): a booking or deposit receipt. The server prints the receiver: the landlord, or the agent when a
+   * power of attorney is attached. A booking receipt may also show the tax the tenant withheld (TC-3.15).
+   */
+  landlordReceipt?: "reservation" | "deposit";
   onBack: () => void;
   onCreated: (value: AgentContract) => void;
   onStandaloneCreated?: (value: StandaloneInvoice) => void;
@@ -116,8 +123,11 @@ export function FinancialDocumentForm({
     file?: File;
   } | null>(null);
   const [slipSourceOpen, setSlipSourceOpen] = useState(false);
+  const [receivedBy, setReceivedBy] = useState<ReceiptReceiver>("landlord");
+  const [withholding, setWithholding] = useState("");
   const saving = useRef(false);
   const isReceipt = kind === "receipt";
+  const rc = t.contracts.receipt;
   const title = { color: theme.textHeading };
   const muted = { color: theme.textSecondary };
   useEffect(() => {
@@ -280,7 +290,7 @@ export function FinancialDocumentForm({
     ? [
         "documentNo",
         "issueDate",
-        "receiverName",
+        ...(landlordReceipt ? [] : (["receiverName"] as const)),
         ...(form?.paymentMethod && form.paymentMethod !== "cash"
           ? (["paymentDetails"] as const)
           : []),
@@ -386,6 +396,12 @@ export function FinancialDocumentForm({
         setError(labels.required);
         return;
       }
+      const withheld = landlordReceipt === "reservation" ? withholding.replace(/,/g, "").trim() : "";
+      if (withheld && (!/^\d+(\.\d{1,2})?$/.test(withheld) || Math.round(Number(withheld) * 100) >= Math.round(total * 100))) {
+        setError(rc.withholdingInvalid);
+        return;
+      }
+      const receiver = landlordReceipt ? { receivedBy, ...(withheld ? { withholdingTax: Number(withheld) } : {}) } : {};
       saving.current = true;
       setBusy(true);
       setError("");
@@ -396,6 +412,7 @@ export function FinancialDocumentForm({
             paymentMethod: form.paymentMethod,
             paymentDetails: form.paymentDetails,
             receiverName: form.receiverName,
+            ...receiver,
           }));
           return;
         }
@@ -410,12 +427,17 @@ export function FinancialDocumentForm({
               paymentDetails: markingPaid ? "" : form.paymentDetails,
               receiverName: form.receiverName,
               notes: form.notes,
+              ...receiver,
             },
             markingPaid ? (slip ?? undefined) : undefined,
           ),
         );
       } catch (e) {
-        setError(localizedError(e, t.common.errorGeneric, locale));
+        setError(
+          (e as { code?: string } | null)?.code === "POWER_OF_ATTORNEY_REQUIRED"
+            ? rc.poaRequired
+            : localizedError(e, t.common.errorGeneric, locale),
+        );
       } finally {
         saving.current = false;
         setBusy(false);
@@ -670,9 +692,53 @@ export function FinancialDocumentForm({
           <Text style={[{ fontSize: 14, lineHeight: 22 }, muted]}>
             {form.reference ? `${labels.reference} ${form.reference}` : ""}
           </Text>
-          {RECEIPT_FIELDS.filter((key) => key !== "paymentDetails" && key !== "notes").map(
+          {RECEIPT_FIELDS.filter((key) => key !== "paymentDetails" && key !== "notes" &&
+            !(landlordReceipt && key === "receiverName")).map(
             (key) => input(key, key === "documentNo" ? 40 : key === "issueDate" ? 10 : 120),
           )}
+          {landlordReceipt ? (
+            <>
+              <Text style={{ color: theme.textHeading, lineHeight: 24 }}>{rc.receivedBy} *</Text>
+              {(["landlord", "agent"] as const).map((who) => (
+                <MobileButton
+                  key={who}
+                  variant={receivedBy === who ? "primary" : "outline"}
+                  disabled={busy}
+                  onPress={() => setReceivedBy(who)}
+                >
+                  {rc[who]}
+                </MobileButton>
+              ))}
+              {receivedBy === "agent" ? (
+                <Text style={{ color: theme.textSecondary, lineHeight: 22 }}>{rc.agentHint}</Text>
+              ) : null}
+              {landlordReceipt === "reservation" ? (
+                <>
+                  <MobileInput
+                    label={rc.withholdingTax}
+                    value={withholding}
+                    editable={!busy}
+                    keyboardType="decimal-pad"
+                    maxLength={12}
+                    onChangeText={setWithholding}
+                  />
+                  <Text style={{ color: theme.textSecondary, lineHeight: 22 }}>{rc.withholdingHint}</Text>
+                  {/^\d+(\.\d{1,2})?$/.test(withholding.replace(/,/g, "").trim()) &&
+                  Number(withholding.replace(/,/g, "")) > 0 &&
+                  Number(withholding.replace(/,/g, "")) < total ? (
+                    <Text style={{ color: theme.textHeading, lineHeight: 22 }}>
+                      {fillTemplate(rc.net, {
+                        amount: (Math.round((total - Number(withholding.replace(/,/g, ""))) * 100) / 100).toLocaleString("th-TH", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }),
+                      })}
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          ) : null}
           {fixedInvoiceId != null ? (
             <>
               <Text style={{ color: theme.textHeading, lineHeight: 24 }}>

@@ -9,6 +9,7 @@ const { LeadEntity } = require('../src/entities/lead.entity.ts');
 const { TenantEntity } = require('../src/entities/tenant.entity.ts');
 const { RentRoomEntity } = require('../src/entities/rent-room.entity.ts');
 const { LeadViewingEntity } = require('../src/entities/lead-viewing.entity.ts');
+const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
 const { QueryFailedError } = require('typeorm');
 const { AuthService } = require('../src/auth/auth.service.ts');
 const { Module } = require('@nestjs/common'); const { NestFactory } = require('@nestjs/core');
@@ -26,9 +27,16 @@ test('validates required identity/contact fields and optional email without acce
   assert.equal(validateTenant({ ...valid, identityNumber: '1-2345-67890-12-3', nationality: ' ไทย ' }).nationality, 'ไทย');
 });
 function fixture(options = {}) {
-  const saved = []; const reads = []; const lead = { id: 1, name: 'Original lead', phone: '0899999999', status: 'inprogress', tenant_id: null, ...options.lead };
+  const saved = []; const writes = []; const reads = []; const lead = { id: 1, name: 'Original lead', phone: '0899999999', status: 'inprogress', tenant_id: null, ...options.lead };
+  // D2: the offer the landlord confirmed (a confirmed one unless a test says otherwise), and the offers closed on booking.
+  const offerUpdates = [];
   const manager = {
     findOne: async (entity, query) => {
+      if (entity === DealOfferEntity) {
+        reads.push('offer');
+        assert.deepEqual(query.where, { lead_id: 1, rent_room_id: 2, status: 'confirmed' }); assert.equal(query.lock.mode, 'pessimistic_write');
+        return 'offer' in options ? options.offer : { id: 30, lead_id: 1, rent_room_id: 2, status: 'confirmed' };
+      }
       reads.push(entity === RentRoomEntity ? 'room' : query.where.rent_room_id !== undefined ? 'booked' : 'lead');
       // The room is locked like the lead, so two bookings of one room cannot both pass the lookup below.
       if (entity === RentRoomEntity) { assert.equal(query.where.id, 2); assert.equal(query.where.created_by_user_id, 7); assert.equal(query.lock.mode, 'pessimistic_write'); return options.foreignRoom ? null : { id: 2 }; }
@@ -38,15 +46,19 @@ function fixture(options = {}) {
     },
     findOneBy: async (entity) => { assert.equal(entity, TenantEntity); return options.existingTenant ? { id: 8 } : null; },
     create: (_, value) => value,
+    update: async (entity, where, patch) => { assert.equal(entity, DealOfferEntity); writes.push(entity); offerUpdates.push({ where, patch }); return { affected: 1 }; },
+    // The offers to close are locked first, in id order (two bookings at once must not deadlock).
+    find: async (entity, query) => { assert.equal(entity, DealOfferEntity); writes.push('lock offers'); offerUpdates.push({ locked: query }); return []; },
     save: async (entity, value) => {
       if (entity === LeadEntity && options.failLeadSave) throw Error('save failed');
       if (entity === LeadEntity && options.bookingRace) throw new QueryFailedError('UPDATE leads', [], Object.assign(new Error('duplicate key value'), { code: '23505', constraint: 'uq_leads_one_booked_per_room' }));
-      const row = { id: 8, ...value }; saved.push(row); return row;
+      // `writes` is not cleared on rollback, so a test can tell whether anything was written at all.
+      writes.push(entity); const row = { id: 8, ...value }; saved.push(row); return row;
     },
   };
-  const db = { transaction: async action => { const before = { ...lead }; try { return await action(manager); } catch (e) { saved.length = 0; Object.assign(lead, before); throw e; } } };
+  const db = { transaction: async action => { const before = { ...lead }; try { return await action(manager); } catch (e) { saved.length = 0; offerUpdates.length = 0; Object.assign(lead, before); throw e; } } };
   const service = new AgentTenantsService(db, {}); service.view = async (agent, id) => { assert.equal(agent, 7); return saved.find(t => t.id === id); };
-  return { service, saved, lead, reads };
+  return { service, saved, writes, lead, reads, offerUpdates };
 }
 test('promotion links tenant and room, keeps original Lead contact, and does not create a contract', async () => {
   const f = fixture(); const result = await f.service.create(7, { ...valid, created_by_user_id: 99, user_id: 99 });
@@ -144,12 +156,12 @@ test('updates tenant profile fields without requiring lead or room ids', async (
     phone: '0899999999',
     email: 'new@example.invalid',
     note: 'updated',
-    identityNumber: 'A1234567',
+    identityNumber: '1-2345-67890-12-1',
     nationality: 'ไทย',
   });
   assert.equal(tenant.name, 'New Name');
   assert.equal(tenant.phone, '0899999999');
-  assert.equal(tenant.identity_number, 'A1234567');
+  assert.equal(tenant.identity_number, '1-2345-67890-12-1');
   assert.equal(tenant.nationality, 'ไทย');
   assert.equal(result.name, 'New Name');
   assert.equal(refreshed.length, 1);
@@ -197,7 +209,7 @@ const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.t
 const { UserEntity } = require('../src/entities/user.entity.ts');
 const { AgreementSignInviteEntity } = require('../src/entities/agreement-sign-invite.entity.ts');
 
-const editedTenant = { id: 8, name: 'สมชาย ใจดี', first_name: 'สมชาย', last_name: 'ใจดี', phone: '0899999999', email: 'new@example.invalid', identity_number: 'A1234567', nationality: 'ไทย' };
+const editedTenant = { id: 8, name: 'สมชาย ใจดี', first_name: 'สมชาย', last_name: 'ใจดี', phone: '0899999999', email: 'new@example.invalid', identity_number: 'A1234567', nationality: 'British' };
 const draftRow = (over = {}) => ({ id: 1, contract_no: 'RS0001', status: 'draft', tenant_id: 8, created_by_user_id: 7, start_date: '2026-11-01',
   document_url: null, invoice_url: null, receipt_url: null,
   owner_signed_at: null, tenant_signed_at: null, agent_signed_at: null, owner_signature_url: null, tenant_signature_url: null, agent_signature_url: null,
@@ -245,9 +257,9 @@ test('editing a tenant refreshes only untouched drafts, rebuilds the booking inv
   const [[where1, first], [where2, second]] = h.writes;
   assert.deepEqual(where1, { id: 1, created_by_user_id: 7 });
   assert.deepEqual(first.party_snapshot, { tenantName: 'สมชาย ใจดี', tenantPhone: '0899999999', ownerName: 'Owner',
-    tenantEmail: 'new@example.invalid', tenantIdNumber: 'A1234567', tenantNationality: 'ไทย' });
+    tenantEmail: 'new@example.invalid', tenantIdNumber: 'A1234567', tenantNationality: 'British' });
   assert.deepEqual(first.data.reservationLetter, { tenantName: 'สมชาย ใจดี', tenantFirstName: 'สมชาย', tenantLastName: 'ใจดี', tenantPhone: '0899999999',
-    tenantEmail: 'new@example.invalid', tenantId: 'A1234567', tenantNationality: 'ไทย', project: 'Condo', reservationPayment: '1000' });
+    tenantEmail: 'new@example.invalid', tenantId: 'A1234567', tenantNationality: 'British', project: 'Condo', reservationPayment: '1000' });
   // The booking invoice keeps its number and date but now names the edited tenant.
   const rebuilt = first.data.financialDocuments.invoice;
   assert.deepEqual([rebuilt.documentNo, rebuilt.issueDate, rebuilt.customerName, rebuilt.customerEmail], ['INV-RS0001', '2026-10-01', 'สมชาย ใจดี', 'new@example.invalid']);
@@ -274,29 +286,35 @@ test('a failed refresh removes the invoice file it uploaded, and a draft with an
   await assert.rejects(() => down.service.saveTenantAndRefreshDrafts(7, editedTenant), (e) => e.getStatus() === 503 && /ใบแจ้งหนี้ค่าจอง/.test(e.message));
   assert.deepEqual(down.writes, []);
   // A draft whose letter is current but whose invoice still names the old details is refreshed.
-  const current = { ...draftRow().data.reservationLetter, tenantName: 'สมชาย ใจดี', tenantFirstName: 'สมชาย', tenantLastName: 'ใจดี', tenantPhone: '0899999999', tenantEmail: 'new@example.invalid', tenantId: 'A1234567', tenantNationality: 'ไทย' };
+  const current = { ...draftRow().data.reservationLetter, tenantName: 'สมชาย ใจดี', tenantFirstName: 'สมชาย', tenantLastName: 'ใจดี', tenantPhone: '0899999999', tenantEmail: 'new@example.invalid', tenantId: 'A1234567', tenantNationality: 'British' };
   const stale = refreshHarness([draftRow({ invoice_url: 'invoice/1/old.pdf',
-    party_snapshot: { tenantName: 'สมชาย ใจดี', tenantPhone: '0899999999', tenantEmail: 'new@example.invalid', tenantIdNumber: 'A1234567', tenantNationality: 'ไทย' },
+    party_snapshot: { tenantName: 'สมชาย ใจดี', tenantPhone: '0899999999', tenantEmail: 'new@example.invalid', tenantIdNumber: 'A1234567', tenantNationality: 'British' },
     data: { reservationLetter: current, financialDocuments: { invoice } } })]);
   assert.deepEqual(await stale.service.saveTenantAndRefreshDrafts(7, editedTenant), [1]);
   assert.equal(stale.writes[0][1].data.financialDocuments.invoice.customerName, 'สมชาย ใจดี');
 });
 
-test('same tenant person: matching ID, or any spelling of the name after titles and invisible characters are dropped', () => {
-  assert.equal(sameTenantPerson({ firstName: 'Somchai', lastName: 'Jaidee' }, { name: '  somchai   jaidee ' }), true);
-  assert.equal(sameTenantPerson({ name: 'นายสมชาย ใจดี' }, { firstName: 'สมชาย', lastName: 'ใจดี' }), true);
-  assert.equal(sameTenantPerson({ name: 'Mr. Somchai Jaidee' }, { name: 'Somchai Jaidee' }), true);
+// C3, decided by Aof on 22 Oct 2026: the ID number (Thai ID or passport) alone decides; names are not compared.
+// Only a record without any number (saved before the number was required) falls back to the name.
+test('same tenant person: the same ID number is one person, a different number is another, whatever the names', () => {
+  // Same number written differently (dashes, spaces, case): one person, even with a different spelling of the name.
+  assert.equal(sameTenantPerson({ name: 'Somchai', identityNumber: '1-2345-67890-12-1' }, { name: 'Somchai J.', identityNumber: '1234567890121' }), true);
+  assert.equal(sameTenantPerson({ name: 'Wei Li', identityNumber: 'e 1234-5678' }, { name: 'Li Wei', identityNumber: 'E12345678' }), true);
+  // Different numbers: two people, even when the names match exactly (Thai IDs, passports, or one of each).
+  // Both are valid Thai IDs (check digits worked out in test/identity-number.test.cjs).
+  assert.equal(sameTenantPerson({ name: 'สมชาย ใจดี', identityNumber: '1234567890121' }, { name: 'สมชาย ใจดี', identityNumber: '3101234567893' }), false);
+  assert.equal(sameTenantPerson({ name: 'Wei Li', identityNumber: 'E12345678' }, { name: 'Wei Li', identityNumber: 'E87654321' }), false);
+  assert.equal(sameTenantPerson({ name: 'Wei Li', identityNumber: 'E12345678' }, { name: 'Wei Li', identityNumber: '1234567890121' }), false);
+});
+
+test('same tenant person: an old record without any number falls back to the name', () => {
+  assert.equal(sameTenantPerson({ firstName: 'Somchai', lastName: 'Jaidee' }, { name: '  somchai   jaidee ', identityNumber: '1234567890121' }), true);
+  assert.equal(sameTenantPerson({ name: 'นายสมชาย ใจดี' }, { firstName: 'สมชาย', lastName: 'ใจดี', identityNumber: '1234567890121' }), true);
+  assert.equal(sameTenantPerson({ name: 'Mr. Somchai Jaidee', identityNumber: '' }, { name: 'Somchai Jaidee', identityNumber: 'E12345678' }), true);
   assert.equal(sameTenantPerson({ name: 'สม\u200Bชาย ใจดี' }, { name: 'สมชาย ใจดี' }), true);
   assert.equal(sameTenantPerson({ name: 'น\u0E4D\u0E32ฝน' }, { name: 'นำฝน' }), true);
-  // first_name filled but the full name only in `name`
   assert.equal(sameTenantPerson({ name: 'Wei Li', firstName: 'Wei', lastName: '' }, { firstName: 'Wei', lastName: 'Li' }), true);
-  assert.equal(sameTenantPerson({ name: 'Somchai', identityNumber: '1-2345-67890-12-3' }, { name: 'Somchai J.', identityNumber: '1234567890123' }), true);
-  // A passport on one record and a Thai ID on the other: the name decides.
-  assert.equal(sameTenantPerson({ name: 'Wei Li', identityNumber: 'E12345678' }, { name: 'Wei Li', identityNumber: '1234567890123' }), true);
-  assert.equal(sameTenantPerson({ name: 'Somchai Jaidee' }, { name: 'Somsri Jaidee' }), false);
-  assert.equal(sameTenantPerson({ name: 'Somchai Jaidee', identityNumber: '1111111111111' }, { name: 'Somsri Jaidee' }), false);
-  // Two different Thai ID numbers are two people even when the names match.
-  assert.equal(sameTenantPerson({ name: 'สมชาย ใจดี', identityNumber: '1111111111111' }, { name: 'สมชาย ใจดี', identityNumber: '2222222222222' }), false);
+  assert.equal(sameTenantPerson({ name: 'Somchai Jaidee' }, { name: 'Somsri Jaidee', identityNumber: '1234567890121' }), false);
   // An English title needs a dot or a space, so a name that only starts with those letters is kept.
   assert.equal(sameTenantPerson({ name: 'Mrinal Shah' }, { name: 'Inal Shah' }), false);
   assert.equal(sameTenantPerson({ name: 'Ms Pim Sukjai' }, { name: 'Pim Sukjai' }), true);
@@ -315,6 +333,20 @@ test('a tenant login is refused before any account is touched when the email bel
   // No account, the same person on another lead, or this lead's own record: the login carries on.
   for (const [user, tenants] of [[null, []], [{ id: 5 }, [{ lead_id: 3, name: 'x', first_name: 'Pim', last_name: 'Sukjai' }]], [{ id: 5 }, [{ lead_id: 10, name: 'Someone else' }]]])
     await assert.rejects(() => ensurePartyLogin(db(user, tenants, 'reached login'), input), /reached login/);
+  // C3: with numbers on both sides, the number decides, not the name.
+  const withId = { ...input, identityNumber: '1-2345-67890-12-1' };
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5 }, [{ lead_id: 3, name: 'Somebody', first_name: 'X', last_name: 'Y', identity_number: '1234567890121' }], 'reached login'), withId), /reached login/,
+    'same number, different name: the same person');
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5 }, [{ lead_id: 3, name: 'Pim Sukjai', first_name: 'Pim', last_name: 'Sukjai', identity_number: '3101234567893' }], 'account touched'), withId),
+    (e) => e.getStatus() === 409 && e.getResponse().code === 'TENANT_EMAIL_IN_USE', 'same name, different number: another person');
+  // An old tenant record without a number uses the number kept on the account.
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5, identity_number: '3101234567893' }, [{ lead_id: 3, name: 'Pim Sukjai', first_name: 'Pim', last_name: 'Sukjai', identity_number: null }], 'account touched'), withId),
+    (e) => e.getStatus() === 409, 'the account says another number');
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5, identity_number: '1234567890121' }, [{ lead_id: 3, name: 'Somebody', identity_number: null }], 'reached login'), withId), /reached login/,
+    'the account says the same number');
+  // The tenant record's own number comes first; the account's number is only for records without one.
+  await assert.rejects(() => ensurePartyLogin(db({ id: 5, identity_number: '3101234567893' }, [{ lead_id: 3, name: 'Somebody', identity_number: '1234567890121' }], 'reached login'), withId), /reached login/,
+    'the record matches even though the account keeps another number');
   // Landlord logins are not checked; a tenant login is checked even if a caller forgets the lead
   // (the type requires tenantLeadId for tenants, so tsc also catches that).
   await assert.rejects(() => ensurePartyLogin(db({ id: 5 }, [{ lead_id: 3, name: 'Wei Li' }], 'reached login'), { ...input, role: 'landlord', tenantLeadId: undefined }), /reached login/);
@@ -366,3 +398,89 @@ test('D1: each tenant says whether its room + tenant has a valid broker appointm
     'the detail view only asks about its own room and tenant');
 });
 
+
+// C3 (Aof, 22 Oct 2026): a Thai ID must pass its check digit, and a Thai national must give a Thai ID.
+test('C3: booking a tenant refuses a wrong Thai ID before any write; a passport or no number still books', async () => {
+  const { IDENTITY_NUMBER_MESSAGES } = require('../src/common/identity-number.ts');
+  for (const [identityNumber, nationality, lead] of [['1234567890123', '', {}], ['E12345678', 'ไทย', {}], ['E12345678', '', { nationality: 'Thai' }], ['9001011234567', '', {}]]) {
+    const f = fixture({ lead });
+    await assert.rejects(() => f.service.create(7, { ...valid, identityNumber, nationality }),
+      (e) => e.getStatus() === 400 && e.message === IDENTITY_NUMBER_MESSAGES.thai_id, `${identityNumber} / ${nationality || lead.nationality}`);
+    assert.deepEqual(f.writes, [], 'refused before any write');
+    assert.equal(f.lead.status, 'inprogress');
+  }
+  // The nationality typed for the tenant wins over the lead's.
+  for (const [identityNumber, nationality, lead] of [['1-2345-67890-12-1', 'ไทย', {}], ['E12345678', 'British', {}], ['E12345678', 'British', { nationality: 'Thai' }], ['9001011234567', 'Korean', {}], ['', '', { nationality: 'Thai' }]]) {
+    const f = fixture({ lead });
+    await f.service.create(7, { ...valid, identityNumber, nationality });
+    assert.equal(f.lead.status, 'booked', `${identityNumber || 'no number'} / ${nationality} books`);
+  }
+});
+
+test('C3: editing a tenant checks only a changed number or nationality, so an old record can still be edited', async () => {
+  const { IDENTITY_NUMBER_MESSAGES } = require('../src/common/identity-number.ts');
+  const qb = {}; let tenant;
+  for (const k of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[k] = () => qb;
+  qb.getOne = async () => tenant;
+  const refreshed = [];
+  const service = new AgentTenantsService({ getRepository: () => ({ createQueryBuilder: () => qb }) },
+    { list: async () => [], saveTenantAndRefreshDrafts: async (agentId, row) => { refreshed.push(row.identity_number); return []; } });
+  service.view = async () => ({ id: 8 });
+  const base = { id: 8, lead_id: 1, name: 'Pim', phone: '0811111111', email: null, note: null, user_id: null, created_at: new Date('2026-09-11'), lead: null };
+  // An old record with a number that fails the check: other edits still save when the number stays the same.
+  tenant = { ...base, identity_number: '1234567890123', nationality: 'ไทย' };
+  await service.update(7, 8, { ...profile, name: 'Pim Sukjai', identityNumber: '1-2345-67890-12-3', nationality: 'ไทย' });
+  assert.equal(tenant.name, 'Pim Sukjai');
+  assert.deepEqual(refreshed, ['1-2345-67890-12-3'], 'the edit is saved');
+  // Changing the number, or the nationality, checks it.
+  for (const [record, edit] of [
+    [{ identity_number: null, nationality: null }, { identityNumber: '1234567890123', nationality: '' }],
+    [{ identity_number: 'E12345678', nationality: 'British' }, { identityNumber: 'E12345678', nationality: 'ไทย' }],
+  ]) {
+    tenant = { ...base, ...record };
+    const before = refreshed.length;
+    await assert.rejects(() => service.update(7, 8, { ...profile, ...edit }), (e) => e.getStatus() === 400 && e.message === IDENTITY_NUMBER_MESSAGES.thai_id);
+    assert.equal(refreshed.length, before, 'nothing is saved');
+    assert.equal(tenant.identity_number, record.identity_number, 'the record keeps its number');
+  }
+  tenant = { ...base, identity_number: null, nationality: null };
+  await service.update(7, 8, { ...profile, identityNumber: '1234567890121', nationality: 'ไทย' });
+  assert.equal(tenant.identity_number, '1234567890121');
+  assert.deepEqual(refreshed, ['1-2345-67890-12-3', '1234567890121'], 'a valid new number is saved');
+});
+
+test('D2: a new booking needs the offer the landlord confirmed for this lead and room, and closes the room\'s other offers', async () => {
+  // Aof, 22 Oct 2026 (AC-2.4, AC-3.1). The offer is looked up after the lead and the room are locked.
+  const refused = fixture({ offer: null });
+  await assert.rejects(() => refused.service.create(7, valid),
+    (e) => e.getStatus() === 400 && e.getResponse().code === 'OFFER_NOT_CONFIRMED');
+  assert.deepEqual(refused.reads, ['lead', 'room', 'booked', 'offer']);
+  assert.deepEqual(refused.writes, [], 'refused before any write');
+  assert.equal(refused.lead.status, 'inprogress');
+  assert.equal(refused.lead.tenant_id, null);
+  // A room another lead booked is still refused first, with its own message.
+  const taken = fixture({ offer: null, roomBookedBy: { id: 5, name: 'Other lead', created_by_user_id: 7 } });
+  await assert.rejects(() => taken.service.create(7, valid), (e) => e.getStatus() === 409);
+  const f = fixture();
+  await f.service.create(7, valid);
+  assert.equal(f.lead.status, 'booked');
+  assert.equal(f.offerUpdates.length, 3);
+  const [{ locked }, taken2, elsewhere] = f.offerUpdates;
+  assert.equal(locked.lock.mode, 'pessimistic_write'); assert.deepEqual(locked.order, { id: 'ASC' });
+  assert.deepEqual(locked.where, [taken2.where, elsewhere.where], 'the same 2 groups the updates close');
+  // Other leads' open offers for this room: room taken.
+  assert.equal(taken2.where.rent_room_id, 2);
+  assert.equal(taken2.where.lead_id._type, 'not'); assert.equal(taken2.where.lead_id._value, 1, 'not this lead\'s own offer');
+  assert.equal(taken2.where.status._type, 'in'); assert.deepEqual([...taken2.where.status._value].sort(), ['awaiting_landlord', 'confirmed', 'draft']);
+  assert.equal(taken2.patch.status, 'room_taken'); assert.ok(taken2.patch.closed_at instanceof Date);
+  // This lead's open offers on other rooms: cancelled, so no landlord keeps a room for them.
+  assert.equal(elsewhere.where.lead_id, 1);
+  assert.equal(elsewhere.where.rent_room_id._type, 'not'); assert.equal(elsewhere.where.rent_room_id._value, 2);
+  assert.deepEqual([...elsewhere.where.status._value].sort(), ['awaiting_landlord', 'confirmed', 'draft']);
+  assert.equal(elsewhere.patch.status, 'cancelled'); assert.equal(elsewhere.patch.closed_at, taken2.patch.closed_at);
+  assert.deepEqual(f.writes, [TenantEntity, LeadEntity, 'lock offers', DealOfferEntity, DealOfferEntity], 'locked, then closed, after the booking is saved, in the same transaction');
+  // A booking that fails before the lead is saved closes nothing (`writes` is not cleared on rollback).
+  const failed = fixture({ failLeadSave: true });
+  await assert.rejects(() => failed.service.create(7, valid), /save failed/);
+  assert.deepEqual(failed.writes, [TenantEntity]);
+});

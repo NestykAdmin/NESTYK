@@ -1,10 +1,12 @@
 import { DatabaseIdPipe } from '../../common/database-id.pipe';
 import {
+  ServiceUnavailableException,
   Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
+  Optional,
   Param,
   Post,
   UploadedFile,
@@ -22,6 +24,8 @@ import {
 import { AgentContractsService } from "./agent-contracts.service";
 import { AgreementAttachmentsService } from "./agreement-attachments.service";
 import { MAX_CONTRACT_DOCUMENT_BYTES } from "./contract-document-storage.service";
+import { HandoverService } from "./handover.service";
+import { DealOffersService } from "./deal-offers.service";
 
 @Controller("contracts")
 @UseGuards(AuthGuard, RolesGuard)
@@ -30,7 +34,55 @@ export class PartyContractsController {
   constructor(
     private readonly contracts: AgentContractsService,
     private readonly attachments: AgreementAttachmentsService,
+    @Optional() private readonly handover?: HandoverService,
+    @Optional() private readonly offers?: DealOffersService,
   ) {}
+  private handovers() {
+    if (!this.handover) throw new ServiceUnavailableException("ยังไม่เปิดใช้การส่งมอบห้อง");
+    return this.handover;
+  }
+
+  /** D6: the handover record of the lease (the landlord and the tenant review it, then sign). */
+  @Get("mine/:id/handover")
+  handoverView(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.handovers().partyView(user.id, id);
+  }
+
+  @Post("mine/:id/handover/sign")
+  @HttpCode(HttpStatus.OK)
+  handoverSign(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.handovers().partySign(user.id, id, body);
+  }
+
+  private dealOffers() {
+    if (!this.offers) throw new ServiceUnavailableException("ยังไม่เปิดใช้ข้อเสนอ");
+    return this.offers;
+  }
+
+  /** D2: offers on the landlord's rooms, to confirm (awaiting_landlord) or already confirmed. */
+  @Get("mine/deal-offers")
+  @Roles("landlord")
+  landlordOffers(@CurrentUser() user: AuthRequestUser) {
+    return this.dealOffers().listForLandlord(user.id);
+  }
+
+  @Post("mine/deal-offers/:id/confirm")
+  @Roles("landlord")
+  @HttpCode(HttpStatus.OK)
+  landlordConfirm(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.dealOffers().confirmAsLandlord(user.id, id, body);
+  }
 
   @Get("mine")
   mine(@CurrentUser() user: AuthRequestUser) {

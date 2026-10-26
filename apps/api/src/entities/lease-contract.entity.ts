@@ -14,8 +14,9 @@ export type LeaseContractStatus =
   | "draft"
   | "awaiting_signatures"
   | "awaiting_agent_review"
-  | "awaiting_payment"
-  | "awaiting_payment_verification"
+  // D7: a generated lease waits for the deposit receipt, then for the handover, before it is active.
+  | "awaiting_deposit"
+  | "awaiting_handover"
   | "active"
   | "cancelled"
   | "expired"
@@ -35,7 +36,7 @@ export type LeaseContractStatus =
 @Index("idx_lease_contracts_tenant_id", ["tenant_id"])
 @Check("chk_agreement_data", "((jsonb_typeof(data) = 'object'::text) AND (jsonb_typeof(party_snapshot) = 'object'::text))")
 @Check("chk_agreement_lineage", "((((agreement_kind)::text = 'new'::text) AND (previous_agreement_id IS NULL)) OR (((agreement_kind)::text = 'renewal'::text) AND (previous_agreement_id IS NOT NULL) AND (root_agreement_id IS NOT NULL) AND (previous_agreement_id <> id) AND (root_agreement_id <> id)))")
-@Check("chk_lease_contracts_status", "((status)::text = ANY ((ARRAY['draft'::character varying, 'awaiting_signatures'::character varying, 'awaiting_agent_review'::character varying, 'awaiting_payment'::character varying, 'awaiting_payment_verification'::character varying, 'active'::character varying, 'cancelled'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))")
+@Check("chk_lease_contracts_status", "((status IS NOT NULL) AND ((status)::text = ANY ((ARRAY['draft'::character varying, 'awaiting_signatures'::character varying, 'awaiting_agent_review'::character varying, 'awaiting_deposit'::character varying, 'awaiting_handover'::character varying, 'active'::character varying, 'cancelled'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[])))")
 @Check("chk_reservation_fee_nonnegative", "(reservation_fee >= (0)::numeric)")
 @Index("idx_contract_end_reason", ["end_reason_id"])
 @Entity({ name: "lease_contracts" })

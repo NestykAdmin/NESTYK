@@ -44,11 +44,12 @@ test('a party can sign once their own documents are attached',async()=>{
  await service.assertReadyForSubject({id:11,template_id:1},'owner');
  await assert.rejects(()=>service.assertReady({id:11,template_id:1}),e=>e.getStatus()===400);
 });
-test('attachments stay editable until contract is active or reservation letter is finalized',()=>{
+test('attachments stay editable until the lease is generated (deposit, handover or active) or reservation letter is finalized',()=>{
  assert.equal(documentsEditable({status:'draft'}),true);
  assert.equal(documentsEditable({status:'awaiting_signatures',owner_signed_at:new Date()}),true);
  assert.equal(documentsEditable({status:'awaiting_agent_review',owner_signed_at:new Date(),tenant_signed_at:new Date(),agent_signed_at:new Date()}),true);
- for(const status of ['active','cancelled','expired','terminated','awaiting_payment','awaiting_payment_verification'])
+ // D7: a generated lease waiting for its deposit or handover is past signing, so its attachments are fixed too.
+ for(const status of ['active','cancelled','expired','terminated','awaiting_deposit','awaiting_handover'])
   assert.equal(documentsEditable({status}),false);
  assert.equal(documentsEditable({
   status:'awaiting_agent_review',
