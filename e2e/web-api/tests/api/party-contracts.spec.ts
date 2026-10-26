@@ -1,20 +1,24 @@
 import type { APIResponse } from '@playwright/test';
+import { env } from '../../src/config/env';
 import { expect, test, type ApiSession } from '../../src/fixtures/api.fixture';
 import { expectError, expectJson } from '../../src/support/http';
 import { isDescending } from '../../src/support/pagination';
 
 /**
- * สัญญาฝั่งคู่สัญญา: สัญญาที่ส่งถึงผู้เช่าหรือเจ้าของห้อง (/contracts/mine) และลิงก์ลงนามที่เปิดได้โดยไม่ต้องล็อกอิน (/public/contract-sign)
+ * สัญญาฝั่งคู่สัญญา: สัญญาที่ส่งถึงผู้เช่าหรือเจ้าของห้อง (/contracts/mine)
+ * และเส้นทางลิงก์ลงนามแบบไม่ต้องล็อกอิน (/public/contract-sign) ที่ทีมลบแล้ว ต้องเปิดไม่ได้
  *
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) เทสกลุ่ม /contracts/mine เรียกด้วย qa-tenant (ข้ามถ้ายังไม่ได้ตั้ง uuid)
  *     เส้นทางกลุ่มนี้รับ tenant กับ landlord (party-contracts.controller.ts:28 ที่ develop 84087e2 landlord คือชื่อใหม่ของ owner)
  *     qa-agent ไม่มี 2 บทบาทนี้ จึงใช้ไม่ได้ (403 ของ qa-agent ตรวจใน roles.spec.ts)
  *   - ถ้า qa-tenant ยังไม่มีสัญญา รายการสัญญาตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
+ *   - API ตั้งแต่ develop b228ee3: เทส deposit-payment-slip และเทสลิงก์ลงนามที่ถูกลบ เขียนตามรุ่นนี้ กับ API รุ่นก่อน 2 กลุ่มนี้จะไม่ผ่าน
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
- *   เส้นทาง POST ถูกเรียกกับสัญญาที่ไม่มีอยู่จริง และลิงก์ลงนามที่ไม่เคยถูกออก ทุกเส้นทางหาสัญญาหรือลิงก์ก่อนบันทึก
- *   (contractForParty, documentForParty, signAsParty และ loadInvite ใน apps/api/src/agent/contracts/agent-contracts.service.ts)
+ *   เส้นทาง POST ถูกเรียกกับสัญญาที่ไม่มีอยู่จริง ทุกเส้นทางหาสัญญาก่อนบันทึก
+ *   (contractForParty, documentForParty, signAsParty และ uploadDepositPaymentSlip ใน apps/api/src/agent/contracts/agent-contracts.service.ts)
+ *   เส้นทางลิงก์ลงนามที่ถูกลบไม่มีโค้ดรับคำขอแล้ว จึงไม่มีอะไรถูกบันทึก
  */
 
 /** เลขจำนวนเต็มที่มากที่สุดที่คอลัมน์ id (ชนิด integer ของ PostgreSQL) เก็บได้ = 2^31 - 1 */
@@ -26,17 +30,14 @@ const ID_OUT_OF_RANGE = 'ID must be an integer between 1 and 2147483647';
 /** id ที่ไม่มีสัญญาไหนใช้: ใช้ค่าที่มากที่สุดที่ฐานข้อมูลเก็บได้ */
 const NO_SUCH_ID = INT32_MAX;
 
-/** ข้อความที่ API ตอบ ที่มา: contractForParty และ loadInvite ใน agent-contracts.service.ts */
+/** ข้อความที่ API ตอบ ที่มา: contractForParty ใน agent-contracts.service.ts */
 const MESSAGE = {
   contractNotFound: 'ไม่พบสัญญา',
-  linkNotFound: 'ไม่พบลิงก์ลงนาม',
+  /** ข้อความเดิมของเส้นทางลิงก์ลงนามที่ถูกลบ (loadInvite) ถ้ากลับมาเห็นข้อความนี้ แปลว่าเส้นทางเดิมกลับมา */
+  retiredLinkNotFound: 'ไม่พบลิงก์ลงนาม',
 } as const;
 
-/**
- * ลิงก์ลงนามที่รูปแบบถูกแต่ไม่เคยถูกออก
- * รูปแบบที่ระบบรับ: ตัวอักษรอังกฤษ ตัวเลข _ และ - ยาว 20 ถึง 128 ตัว (isPlausibleShareLinkToken ใน apps/api/src/common/share-link-token.ts)
- * ลิงก์จริงยาว 43 ตัว เทสจึงใช้ความยาวเท่ากัน
- */
+/** ลิงก์ลงนามรูปแบบเดียวกับลิงก์จริงของระบบเดิม (ยาว 43 ตัว) ที่ไม่เคยถูกออก */
 const NEVER_ISSUED_TOKEN = `e2e-never-issued-${'A'.repeat(26)}`;
 
 test.describe('GET /contracts/mine', () => {
@@ -70,6 +71,11 @@ test.describe('party routes with a contract that does not exist', () => {
     { name: 'POST /contracts/mine/:id/sign', call: (party, id) => party.partyContracts.sign(id, {}) },
     { name: 'POST /contracts/mine/:id/payment-slip without a file', call: (party, id) => party.partyContracts.uploadPaymentSlip(id) },
     { name: 'POST /contracts/mine/:id/attachments without a file', call: (party, id) => party.partyContracts.uploadAttachment(id) },
+    // เส้นทางใหม่ใน develop b228ee3: หาสัญญาก่อนตรวจว่าเป็นผู้เช่าและก่อนอ่านไฟล์ (uploadDepositPaymentSlip ใน agent-contracts.service.ts)
+    {
+      name: 'POST /contracts/mine/:id/deposit-payment-slip without a file',
+      call: (party, id) => party.partyContracts.uploadDepositPaymentSlip(id),
+    },
   ];
   for (const lookup of lookups) {
     test(`${lookup.name} answers 404 for a contract that does not exist`, async ({ qa }) => {
@@ -94,26 +100,34 @@ test.describe('party routes with a contract that does not exist', () => {
   });
 });
 
-test.describe('public sign links (no login)', () => {
-  test('GET answers 404 without asking for a login, for a token that cannot be a sign link', async ({ anonymous }) => {
-    // ขั้นที่ 1: เปิดลิงก์โดยไม่ล็อกอิน ด้วย token ที่ผิดรูปแบบ 3 แบบ: สั้นกว่า 20 ตัว ยาวกว่า 128 ตัว และมีจุด
-    for (const token of ['too-short', 'A'.repeat(129), 'has.dots.are.not.allowed.here']) {
-      // ขั้นที่ 2: ต้องได้ 404 ว่าไม่พบลิงก์ (ไม่ใช่ 401 เพราะเส้นทางนี้เปิดได้โดยไม่ต้องล็อกอิน)
-      const message = await expectError(await anonymous.publicContractSign.preview(token), 404);
-      expect(message, `token ยาว ${token.length} ตัว`).toBe(MESSAGE.linkNotFound);
-    }
-  });
+test.describe('retired public sign links (no login)', () => {
+  /**
+   * ทีมลบการลงนามผ่านลิงก์แบบไม่ต้องล็อกอินแล้ว (controller ของ /public/contract-sign ไม่อยู่ใน agent.module.ts ตั้งแต่ develop b228ee3)
+   * ตอนนี้คู่สัญญาลงนามในแอปหลังล็อกอิน (POST /contracts/mine/:id/sign) หรือนายหน้าลงนามแทนบนเครื่องของนายหน้า (POST /agent/contracts/:id/sign)
+   *
+   * วิธีตรวจ: เส้นทางที่ไม่มีอยู่ NestJS ตอบ 404 พร้อมข้อความของตัวเอง "Cannot <วิธีเรียก> <ที่อยู่>"
+   *   ตรวจแค่รหัส 404 ไม่พอ เพราะเส้นทางเดิมก็ตอบ 404 ("ไม่พบลิงก์ลงนาม") เมื่อลิงก์ไม่เคยถูกออก
+   *   ถ้าเส้นทางเดิมกลับมา ข้อความจะเปลี่ยนจาก "Cannot ..." และเทสนี้จะไม่ผ่าน เพื่อให้ถามทีมว่าตั้งใจเปิดกลับหรือไม่
+   */
+  const routes: { method: 'GET' | 'POST'; call: (anonymous: ApiSession) => Promise<APIResponse> }[] = [
+    { method: 'GET', call: (anonymous) => anonymous.retiredContractSign.preview(NEVER_ISSUED_TOKEN) },
+    { method: 'POST', call: (anonymous) => anonymous.retiredContractSign.sign(NEVER_ISSUED_TOKEN, {}) },
+  ];
+  for (const route of routes) {
+    test(`${route.method} /public/contract-sign/:token no longer exists`, async ({ anonymous }) => {
+      // ขั้นที่ 1: เรียกเส้นทางเดิมโดยไม่ล็อกอิน ด้วยลิงก์รูปแบบถูกที่ไม่เคยถูกออก
+      const response = await route.call(anonymous);
+      const message = await expectError(response, 404);
 
-  test('GET answers 404 for a well-formed token that was never issued', async ({ anonymous }) => {
-    // ขั้นที่ 1: เปิดลิงก์ที่รูปแบบถูกแต่ไม่เคยถูกออก   ขั้นที่ 2: ระบบหาลิงก์ในฐานข้อมูลไม่เจอ ต้องได้ 404
-    expect(await expectError(await anonymous.publicContractSign.preview(NEVER_ISSUED_TOKEN), 404)).toBe(MESSAGE.linkNotFound);
-  });
+      // ขั้นที่ 2: คำตอบต้องมาจากที่อยู่เดิม ไม่ใช่ที่อยู่อื่นที่ถูกส่งต่อ (redirect) ไป
+      //   ที่อยู่ที่คาดสร้างจาก E2E_API_BASE_URL เอง เพราะ response.url() เป็นที่อยู่ปลายทางหลัง Playwright ตามการส่งต่อแล้ว
+      const expectedPath = new URL(`public/contract-sign/${NEVER_ISSUED_TOKEN}`, `${env.apiBaseUrl}/`).pathname;
+      expect(new URL(response.url()).pathname).toBe(expectedPath);
 
-  test('POST answers 404 for a token that was never issued, before reading the signature', async ({ anonymous }) => {
-    // ขั้นที่ 1: ลงนามผ่านลิงก์ที่ไม่เคยถูกออก โดยไม่ส่งลายเซ็น
-    const response = await anonymous.publicContractSign.sign(NEVER_ISSUED_TOKEN, {});
-
-    // ขั้นที่ 2: ระบบหาลิงก์ก่อนอ่านลายเซ็น จึงต้องได้ 404 (ไม่ใช่ 400 เรื่องลายเซ็น และไม่มีอะไรถูกบันทึก)
-    expect(await expectError(response, 404)).toBe(MESSAGE.linkNotFound);
-  });
+      // ขั้นที่ 3: ข้อความต้องเป็นของ NestJS ว่าไม่มีเส้นทางนี้ ไม่ใช่ข้อความเดิมของระบบลิงก์ลงนาม
+      //   NestJS ใส่ path ที่ได้รับ (รวม /api/v1 ที่ main.ts ตั้งเป็นคำนำหน้า) ไว้ในข้อความ "Cannot <วิธีเรียก> <path>"
+      expect(message).not.toBe(MESSAGE.retiredLinkNotFound);
+      expect(message).toBe(`Cannot ${route.method} ${expectedPath}`);
+    });
+  }
 });

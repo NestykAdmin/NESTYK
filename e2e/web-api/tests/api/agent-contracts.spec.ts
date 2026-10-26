@@ -15,12 +15,16 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบจาก migration ของ apps/api และ qa-agent มีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย
  *   - API รุ่น DEV/main f7d52ed ขึ้นไป และฐานข้อมูลรัน migration ถึง 20261014-contract-closure.sql แล้ว
  *     ถ้ายังไม่รันถึง 20261012-lease-renewal-agreement.sql เทส GET /agent/contracts/types และ templates of lease_renewal
- *     จะไม่ผ่าน เพราะยังไม่มีประเภท lease_renewal ส่วน 20261014 ต้องมีเพราะ API รุ่นนี้อ่านคอลัมน์ leads.booking_released_at
+ *     จะไม่ผ่าน เพราะยังไม่มีประเภท lease_renewal ส่วน 20261014 ต้องมีเพราะ API รุ่น f7d52ed อ่านคอลัมน์ leads.booking_released_at
+ *   - เทสของเส้นทางใหม่ (GET :id/signatures, POST :id/deposit-invoice, POST :id/witness-sign) ต้องใช้ API ตั้งแต่ develop b228ee3
+ *     และฐานข้อมูลขึ้น supabase/migrations/20261021120000 กับ 20261021130000 แล้ว กับ API รุ่นก่อน เทสเหล่านี้ได้ "Cannot ..." ของ NestJS
  *   - ถ้า qa-agent ยังไม่มีสัญญา ลีดที่จองแล้วและพร้อมทำสัญญา (candidates) ใบแจ้งหนี้ หรือหนังสือยืนยันค่าคอมมิชชั่น
  *     เทสของรายการนั้นตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
- *   เรียกเฉพาะเส้นทางที่อ่านข้อมูล (GET) กับ POST /auth/sync ด้วยบัญชีที่มีอยู่แล้ว ซึ่งไม่เขียนข้อมูล (sync ใน apps/api/src/auth/auth.service.ts)
+ *   เรียกเส้นทางที่อ่านข้อมูล (GET) กับ POST /auth/sync ด้วยบัญชีที่มีอยู่แล้ว ซึ่งไม่เขียนข้อมูล (sync ใน apps/api/src/auth/auth.service.ts)
+ *   POST deposit-invoice กับ witness-sign ถูกเรียกกับสัญญาที่ไม่มีอยู่จริงเท่านั้น ทั้ง 2 เส้นทางหาสัญญาก่อนบันทึก
+ *   (issueDepositInvoice และ witnessSign ใน agent-contracts.service.ts)
  *   เส้นทาง next-number ล็อกเลขชั่วคราวระหว่างอ่าน (advisory lock) แต่ไม่จองเลขและไม่เขียนข้อมูล
  */
 
@@ -58,7 +62,15 @@ const MESSAGE = {
   noDefaults: 'ไม่พบผู้เช่าสำหรับดึงข้อมูลตั้งต้น',
   invoiceNotFound: 'ไม่พบใบแจ้งหนี้',
   unknownKind: 'ชนิดเอกสารไม่ถูกต้อง',
+  witnessNameRequired: 'กรุณาระบุชื่อพยาน',
 } as const;
+
+/**
+ * ภาพลายเซ็น PNG ขนาด 1x1 จุด (สีน้ำเงินโปร่งครึ่งหนึ่ง) แบบ base64 สำหรับเส้นทางที่ตรวจลายเซ็นก่อนหาสัญญา
+ * เกณฑ์ของ API: ขึ้นต้นด้วยลายเซ็นไฟล์ PNG ยาวอย่างน้อย 32 ไบต์ และ sharp อ่านได้ (validateSign ใน agent-contracts.service.ts
+ * กับ validateSignaturePng ใน signature-image.ts) ภาพนี้ยาว 70 ไบต์
+ */
+const SIGNATURE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 /** ปี ค.ศ. ตามเวลาประเทศไทย แบบเดียวกับ contractYear ใน agent-contracts.service.ts (ใช้เป็นปีในเลขที่เอกสาร) */
 function bangkokYear(date = new Date()): number {
@@ -202,10 +214,8 @@ test.describe('a contract that does not exist', () => {
     { name: 'GET /agent/contracts/:id/draft-template', call: (agent, id) => agent.contracts.draftTemplate(id) },
     { name: 'GET /agent/contracts/:id/attachments', call: (agent, id) => agent.contracts.attachments(id) },
     { name: 'GET /agent/contracts/:id/attachments/:documentId/url', call: (agent, id) => agent.contracts.attachmentUrl(id, 1) },
-    {
-      name: 'GET /agent/contracts/:id/attachments/broker-appointment/defaults',
-      call: (agent, id) => agent.contracts.brokerAppointmentAttachmentDefaults(id),
-    },
+    // เส้นทางใหม่ใน develop b228ee3: หาสัญญาของนายหน้าก่อนอ่านตาราง agreement_signatures (signatureLog ใน agent-contracts.service.ts)
+    { name: 'GET /agent/contracts/:id/signatures', call: (agent, id) => agent.contracts.signatures(id) },
     { name: 'GET /agent/contracts/:id/financial-documents/invoice', call: (agent, id) => agent.contracts.financialDocumentDefaults(id, 'invoice') },
   ];
   for (const lookup of lookups) {
@@ -214,6 +224,30 @@ test.describe('a contract that does not exist', () => {
       expect(await expectError(await lookup.call(agent, NO_SUCH_ID), 404)).toBe(MESSAGE.contractNotFound);
     });
   }
+
+  test('POST /agent/contracts/:id/deposit-invoice answers 404 for a contract that does not exist', async ({ agent }) => {
+    // เส้นทางใหม่ใน develop b228ee3 ไม่มีเนื้อคำขอ บรรทัดแรกของ issueDepositInvoice หาสัญญาของนายหน้า จึงตอบ 404 ก่อนสร้างใบแจ้งหนี้
+    // ขั้นที่ 1: ขอออกใบแจ้งหนี้เงินประกันของสัญญาที่ไม่มีจริง   ขั้นที่ 2: ต้องได้ 404 ว่าไม่พบสัญญา (ไม่มีอะไรถูกบันทึก)
+    expect(await expectError(await agent.contracts.depositInvoice(NO_SUCH_ID), 404)).toBe(MESSAGE.contractNotFound);
+  });
+
+  test('POST /agent/contracts/:id/witness-sign checks the witness name before looking up the contract', async ({ agent }) => {
+    // witnessSign ตรวจชื่อพยานและลายเซ็นก่อนหาสัญญา (agent-contracts.service.ts) คำขอที่ไม่บอกชื่อจึงได้ 400 แม้สัญญาไม่มีอยู่
+    // ขั้นที่ 1: ส่งลายเซ็นที่ถูกต้อง แต่ไม่บอกชื่อพยานและไม่ได้บอกว่านายหน้าเป็นพยานเอง
+    const response = await agent.contracts.witnessSign(NO_SUCH_ID, { signaturePng: SIGNATURE_PNG });
+
+    // ขั้นที่ 2: ต้องได้ 400 ขอชื่อพยาน (ไม่ใช่ 404)
+    expect(await expectError(response, 400)).toBe(MESSAGE.witnessNameRequired);
+  });
+
+  test('POST /agent/contracts/:id/witness-sign answers 404 for a contract that does not exist', async ({ agent }) => {
+    // ขั้นที่ 1: ส่งคำขอที่ผ่านการตรวจค่าทั้งหมด (นายหน้าเป็นพยานเอง + ลายเซ็น PNG ที่อ่านได้) ไปที่สัญญาที่ไม่มีจริง
+    //   ต้องส่งลายเซ็นที่อ่านได้ เพราะลายเซ็นถูกตรวจก่อนหาสัญญา ถ้าลายเซ็นผิดจะได้ 400 และเทสนี้จะไม่ได้ตรวจการหาสัญญา
+    const response = await agent.contracts.witnessSign(NO_SUCH_ID, { asAgent: true, signaturePng: SIGNATURE_PNG });
+
+    // ขั้นที่ 2: ต้องได้ 404 ว่าไม่พบสัญญา ระบบเก็บไฟล์ลายเซ็นหลังหาสัญญาเจอเท่านั้น จึงไม่มีอะไรถูกบันทึก
+    expect(await expectError(response, 404)).toBe(MESSAGE.contractNotFound);
+  });
 
   test('financial-documents answers 400 for an unknown kind before looking up the contract', async ({ agent }) => {
     // ขั้นที่ 1: ขอเอกสารชนิดที่ไม่มีจริง ของสัญญาที่ไม่มีจริง

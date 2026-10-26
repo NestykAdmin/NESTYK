@@ -56,18 +56,30 @@ export class PartyContractsApi {
   uploadAttachment(id: number | string): Promise<APIResponse> {
     return this.client.post(`contracts/mine/${id}/attachments`);
   }
+
+  /**
+   * POST /contracts/mine/:id/deposit-payment-slip : ผู้เช่าส่งสลิปเงินประกันของสัญญาเช่า (ดูข้อควรระวังด้านบน)
+   * ตัวเรียกนี้ยังไม่แนบไฟล์ เพราะเทสตอนนี้ใช้ตรวจแค่ว่าระบบหาสัญญาก่อนอ่านไฟล์
+   */
+  uploadDepositPaymentSlip(id: number | string): Promise<APIResponse> {
+    return this.client.post(`contracts/mine/${id}/deposit-payment-slip`);
+  }
 }
 
-/** เส้นทางกลุ่ม /public/contract-sign : ลิงก์ลงนามที่คู่สัญญาเปิดได้โดยไม่ต้องล็อกอิน */
-export class PublicContractSignApi {
+/**
+ * เส้นทางกลุ่ม /public/contract-sign ที่ทีมลบแล้ว (ลงนามผ่านลิงก์โดยไม่ต้องล็อกอิน)
+ * ถูกลบใน develop ช่วง 740743e ถึง b228ee3 (ไม่มี controller นี้ใน apps/api/src/agent/agent.module.ts แล้ว)
+ * ตัวเรียกนี้มีไว้ตรวจว่าเส้นทางเดิมเปิดไม่ได้แล้วเท่านั้น
+ */
+export class RetiredContractSignApi {
   constructor(private readonly client: ApiClient) {}
 
-  /** GET /public/contract-sign/:token : ข้อมูลสัญญาของลิงก์นี้ */
+  /** GET /public/contract-sign/:token (เส้นทางเดิม) */
   preview(token: string): Promise<APIResponse> {
     return this.client.get(`public/contract-sign/${encodeURIComponent(token)}`);
   }
 
-  /** POST /public/contract-sign/:token : ลงนามผ่านลิงก์ (ใช้กับลิงก์ที่ไม่เคยถูกออกเท่านั้น) */
+  /** POST /public/contract-sign/:token (เส้นทางเดิม) */
   sign(token: string, body: unknown): Promise<APIResponse> {
     return this.client.post(`public/contract-sign/${encodeURIComponent(token)}`, body);
   }

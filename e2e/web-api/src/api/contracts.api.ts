@@ -7,9 +7,11 @@ export type AgreementDefaultsKind = 'reservation' | 'broker-appointment' | 'leas
 /**
  * เส้นทางกลุ่ม /agent/contracts : สัญญาและเอกสารการเงินของนายหน้าคนที่ล็อกอิน
  *
- * ตัวเรียกนี้มีเฉพาะเส้นทางที่อ่านข้อมูล เส้นทาง POST ของกลุ่มนี้ (สร้างสัญญา ออกเอกสาร ลงนาม) ยังไม่มีตัวเรียก
- * เพราะเขียนข้อมูลที่ย้อนไม่ได้ และการสร้างสัญญายังสร้างบัญชีผู้ใช้ให้คู่สัญญาด้วย
+ * ตัวเรียกส่วนใหญ่เป็นเส้นทางที่อ่านข้อมูล เส้นทาง POST ของกลุ่มนี้ (สร้างสัญญา ออกเอกสาร ลงนาม) เขียนข้อมูลที่ย้อนไม่ได้
+ * และการสร้างสัญญายังสร้างบัญชีผู้ใช้ให้คู่สัญญาด้วย
  * (saveDraft ใน apps/api/src/agent/contracts/agent-contracts.service.ts เรียก ensurePartyLogin ตอนบันทึกหนังสือจอง)
+ * POST ที่มีตัวเรียก (depositInvoice, witnessSign) มีไว้ส่งไปที่สัญญาที่ไม่มีอยู่จริงเท่านั้น
+ * ถ้าส่งไปที่สัญญาที่มีอยู่จริงของผู้เรียก ระบบจะบันทึกทันที
  */
 export class ContractsApi {
   constructor(private readonly client: ApiClient) {}
@@ -103,8 +105,25 @@ export class ContractsApi {
     return this.client.get(`agent/contracts/${id}/attachments/${documentId}/url`);
   }
 
-  /** GET /agent/contracts/:id/attachments/broker-appointment/defaults : ข้อมูลตั้งต้นของสัญญาแต่งตั้งนายหน้าที่แนบกับหนังสือจอง */
-  brokerAppointmentAttachmentDefaults(id: number | string): Promise<APIResponse> {
-    return this.client.get(`agent/contracts/${id}/attachments/broker-appointment/defaults`);
+  /** GET /agent/contracts/:id/signatures : ใครลงนามสัญญานี้แล้ว ผ่านช่องทางไหน (อ่านอย่างเดียว) */
+  signatures(id: number | string): Promise<APIResponse> {
+    return this.client.get(`agent/contracts/${id}/signatures`);
+  }
+
+  /**
+   * POST /agent/contracts/:id/deposit-invoice : ออกใบแจ้งหนี้เงินประกันของสัญญาเช่าอีกครั้ง (ไม่มีเนื้อคำขอ)
+   * ถ้าสัญญามีอยู่จริงและเป็นสัญญาเช่าที่สร้างเอกสารแล้ว ระบบจะสร้างใบแจ้งหนี้และไฟล์ PDF (ดูข้อควรระวังที่หัวไฟล์)
+   */
+  depositInvoice(id: number | string): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/deposit-invoice`);
+  }
+
+  /**
+   * POST /agent/contracts/:id/witness-sign : พยานของสัญญาเช่าลงนามบนเครื่องของนายหน้า
+   * เนื้อคำขอ: asAgent (นายหน้าเป็นพยานเอง) หรือ signerName (ชื่อพยาน) และ signaturePng (ภาพลายเซ็น PNG แบบ base64)
+   * ถ้าสัญญามีอยู่จริง ระบบจะเก็บไฟล์ลายเซ็นและบันทึกการลงนาม (ดูข้อควรระวังที่หัวไฟล์)
+   */
+  witnessSign(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/witness-sign`, body);
   }
 }

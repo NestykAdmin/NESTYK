@@ -6,7 +6,7 @@ import { ContractsApi } from '../api/contracts.api';
 import { HealthApi } from '../api/health.api';
 import { LeadsApi } from '../api/leads.api';
 import { ListingsApi } from '../api/listings.api';
-import { PartyContractsApi, PublicContractSignApi } from '../api/party-contracts.api';
+import { PartyContractsApi, RetiredContractSignApi } from '../api/party-contracts.api';
 import { PlacesApi } from '../api/places.api';
 import { TenantsApi } from '../api/tenants.api';
 import { env } from '../config/env';
@@ -24,8 +24,8 @@ export interface ApiSession {
   contracts: ContractsApi;
   /** สัญญาในฐานะคู่สัญญา (ผู้เช่าหรือเจ้าของห้อง) */
   partyContracts: PartyContractsApi;
-  /** ลิงก์ลงนามที่เปิดได้โดยไม่ต้องล็อกอิน */
-  publicContractSign: PublicContractSignApi;
+  /** เส้นทางลิงก์ลงนามแบบไม่ต้องล็อกอินที่ทีมลบแล้ว (ใช้ตรวจว่าเปิดไม่ได้แล้วเท่านั้น) */
+  retiredContractSign: RetiredContractSignApi;
   /** บิลค่าเช่าและสลิป (ผู้เช่า เจ้าของห้อง นายหน้า) */
   bills: BillsApi;
   /** ค้นสถานที่ (เรียกด้วยบทบาทที่ไม่ใช่ agent เท่านั้น ดู places.api.ts) */
@@ -43,7 +43,7 @@ function createSession(request: APIRequestContext): ApiSession {
     tenants: new TenantsApi(client),
     contracts: new ContractsApi(client),
     partyContracts: new PartyContractsApi(client),
-    publicContractSign: new PublicContractSignApi(client),
+    retiredContractSign: new RetiredContractSignApi(client),
     bills: new BillsApi(client),
     places: new PlacesApi(client),
   };
