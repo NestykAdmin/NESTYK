@@ -92,6 +92,27 @@ export interface AgentContract {
   } | null;
   /** D10: the deposit of a generated lease (null when not a lease, not generated yet, or the deposit is 0). */
   depositPayment?: DepositPayment | null;
+  /**
+   * D13 (AC-3.7): a reservation letter's commission confirmation, worked out from the letter's rent and term. The
+   * landlord and the agent sign it with the letter; `url` is the signed PDF once the letter is generated. Only the
+   * agent and the landlord get it (null for the tenant).
+   */
+  commission?: ReservationCommission | null;
+  /**
+   * D3 (AC-3.6): a reservation letter must be signed by everyone by the end of this day (Bangkok), the 3rd day after
+   * it was made. Null once everyone signed, and for other agreements. Past it the agent is only warned.
+   */
+  signDueDate?: string | null;
+  /**
+   * D4 (AC-5.5): a lease waiting for its deposit or its handover: the handover day (the lease start unless the agent
+   * moved it, with a reason) and the moves.
+   */
+  handoverDue?: HandoverDue | null;
+  /**
+   * D5 (AC-C.1 to C.4): the deal cancellation that closed this agreement (null when none). The landlord and the tenant
+   * get it without the evidence and the refund proof.
+   */
+  cancellation?: DealCancellation | null;
 }
 /**
  * D2 (AC-2.1 to 2.4, round 1): the terms agreed for a lead and a room, confirmed by the landlord before the room is
@@ -177,6 +198,47 @@ export interface ReviseDealOffer extends DealOfferTerms {
  * not_issued = the lease is generated but issuing failed; the agent can issue it again.
  * voided = the lease was closed while it waited for the deposit, so the unpaid invoice is cancelled.
  */
+/** D4: the handover day and each time the agent moved it. */
+export interface HandoverDue {
+  date: string;
+  history: Array<{ from: string; to: string; reason: string; at: string }>;
+}
+/**
+ * D4 (AC-3.6, 4.6, 5.5, 7.4 to 7.6): a reminder for the agent (or the landlord, for rent 15 days late). It is
+ * worked out from the current state each time (`GET /agent/reminders`, `GET /contracts/mine/reminders`); the daily
+ * job e-mails each one once.
+ */
+export type ContractReminderKind =
+  | "reservation_sign_late" | "lease_sign_late" | "deposit_unpaid" | "rent_overdue" | "rent_overdue_15" | "renewal_notice"
+  | "refund_late";
+export interface ContractReminder {
+  kind: ContractReminderKind;
+  contractId: number;
+  tenantId: number | null;
+  billId: number | null;
+  billPeriod: string | null;
+  amount: number | null;
+  /**
+   * The due day it is about: the signing due day, the handover day, the grace day or due day of the bill, the lease
+   * end, or the refund's due day (refund_late, with `amount` to refund).
+   */
+  dueDate: string;
+  contractNo: string;
+  tenantName: string;
+  property: string;
+  room: string | null;
+}
+/** D13: 1 month of rent per full year, the rest by days ÷ 365 (whole baht, .5 up). Amounts are plain numbers as strings. */
+export interface ReservationCommission {
+  documentNo: string;
+  monthlyRent: string;
+  leaseStart: string;
+  leaseEnd: string;
+  fullYears: number;
+  restDays: number;
+  amount: string;
+  url: string | null;
+}
 export interface DepositPayment {
   status: "not_issued" | "unpaid" | "submitted" | "paid" | "voided";
   total: number;
@@ -634,4 +696,53 @@ export interface LeaseRenewalInput {
   tenantSignName: string;
   landlordSignaturePng: string;
   tenantSignaturePng: string;
+}
+
+/** D5: who caused a deal to be cancelled (whoever asked to cancel). */
+export type DealCancellationParty = "tenant" | "landlord";
+/**
+ * D5 (AC-C.1 to C.4): a deal cancelled before the room was handed over. Amounts are what was received with a receipt;
+ * the tenant at fault forfeits it, the landlord at fault means it is refunded by `refundDueOn` (7 days after
+ * `notifiedOn`).
+ */
+export interface DealCancellation {
+  id: number;
+  /** The deal's latest agreement (the lease, else the booking letter). */
+  mainContractId: number;
+  contractIds: number[];
+  atFault: DealCancellationParty;
+  reason: string;
+  notifiedOn: string | null;
+  bookingReceived: number;
+  depositReceived: number;
+  forfeitedAmount: number;
+  refundAmount: number;
+  refundDueOn: string | null;
+  refundedOn: string | null;
+  refundProofUrl: string | null;
+  evidenceUrls: string[];
+  /** The broker appointment for the room was ended too. */
+  appointmentEnded: boolean;
+  cancelledAt: string | null;
+}
+/** D5: what cancelling the deal would close, and the money received with a receipt so far. */
+export interface DealCancellationPreview {
+  mainContractId: number;
+  contracts: Array<{ id: number; contractNo: string; formKind: "reservation" | "lease"; status: AgentContractStatus }>;
+  bookingReceived: number;
+  depositReceived: number;
+  /** A slip was sent and no receipt issued yet: it does not count until the agent issues the receipt. */
+  pendingSlip: boolean;
+  /** A broker appointment for the room and tenant is in force (it can be ended when the landlord is at fault). */
+  appointmentActive: boolean;
+  refundDays: number;
+}
+/** D5: the form sent with the evidence files (multipart `payload`). */
+export interface CancelDeal {
+  atFault: DealCancellationParty;
+  reason: string;
+  /** Required when the landlord is at fault. */
+  notifiedOn?: string | null;
+  /** Landlord at fault only: also end the broker appointment for the room. */
+  endAppointment?: boolean;
 }

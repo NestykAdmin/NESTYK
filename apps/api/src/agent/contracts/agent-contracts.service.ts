@@ -9,7 +9,8 @@ import { reservationInvoice } from "./reservation-invoice";
 import { depositInvoice, depositInvoiceNo, depositReceiptNo, leaseDepositAmount } from "./deposit-invoice";
 import { tenantDraftPatch } from "../tenants/tenant-draft-sync";
 import { validateCommissionConfirmation } from "./commission-confirmation";
-import { createCommissionConfirmationPdf } from "./commission-confirmation-pdf";
+import { createCommissionConfirmationPdf, stampCommissionSignatures } from "./commission-confirmation-pdf";
+import { reservationCommission, reservationCommissionInput } from "./reservation-commission";
 import {
   AgreementAttachmentsService,
   reservationLetterFinalized,
@@ -79,6 +80,9 @@ import { hasSignature, refreshReservationDraft, type DraftFiles } from "./offer-
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
 import { closeLeaseContract, contractEndReasons } from "./contract-closure";
 import { bangkokToday } from "../../billing/rent-schedule";
+import { handoverDueDate } from "../reminders/contract-reminders";
+import { cancelDeal, dealCancellationPreview, recordDealRefund, serializeDealCancellation } from "./deal-cancellation";
+import { DealCancellationEntity } from "../../entities/deal-cancellation.entity";
 import type {
   AgentContract,
   AgentContractDocumentKind,
@@ -446,6 +450,8 @@ export function validateContract(
 
 /** D10: a lease row with its deposit invoice attached by signedFor (undefined = not loaded). */
 type WithDepositInvoice = LeaseContractEntity & { depositInvoice?: AgentInvoiceEntity | null };
+/** D5: a cancelled row with the deal cancellation that closed it, attached by signedFor (undefined = not loaded). */
+type WithCancellation = LeaseContractEntity & { dealCancellation?: DealCancellationEntity | null };
 
 @Injectable()
 export class AgentContractsService {
@@ -874,7 +880,40 @@ export class AgentContractsService {
         slipReturnReason: !c.receipt_url && !payment?.slipPath ? payment?.returnNote ?? null : null,
       } : null,
       depositPayment: this.depositPayment(c, url),
+      ...this.reservationTerms(c, url),
+      ...this.handoverDue(c),
+      ...((c as WithCancellation).dealCancellation !== undefined
+        ? { cancellation: (c as WithCancellation).dealCancellation ? serializeDealCancellation((c as WithCancellation).dealCancellation!, url) : null }
+        : {}),
     };
+  }
+  /** D4 (AC-5.5): a lease waiting for its deposit or handover: the handover day and each time it was moved. */
+  private handoverDue(c: LeaseContractEntity) {
+    if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "lease") return {};
+    if (!["awaiting_deposit", "awaiting_handover"].includes(c.status)) return { handoverDue: null };
+    const date = handoverDueDate({ startDate: asIsoDate(c.start_date), data: c.data });
+    const history = ((c.data?.handoverDue as { history?: Array<{ from: string; to: string; reason: string; at: string }> } | undefined)?.history ?? [])
+      .map(({ from, to, reason, at }) => ({ from, to, reason, at }));
+    return { handoverDue: date ? { date, history } : null };
+  }
+  /**
+   * D13 (AC-3.7) and D3 (AC-3.6) for a reservation letter: its commission confirmation (worked out from the letter,
+   * the signed PDF once generated) and the day everyone must have signed by (the 3rd day after it was made).
+   */
+  private reservationTerms(c: LeaseContractEntity, url: (path: string | null | undefined) => string | null) {
+    if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "reservation") return {};
+    const commission = reservationCommission(c);
+    const made = c.created_at ? bangkokDate(new Date(c.created_at)) : "";
+    return {
+      commission: commission ? { ...commission, url: url(c.data?.commissionConfirmationPath as string | undefined) } : null,
+      signDueDate: made && ["draft", "awaiting_signatures"].includes(c.status) ? shiftIsoDate(made, 3) : null,
+    };
+  }
+  /** What a landlord or tenant gets: the commission confirmation is between the landlord and the agent only. */
+  private forParty<T extends AgentContract>(view: T, parties: readonly string[]): T {
+    const out = parties.includes("owner") || !("commission" in view) ? view : { ...view, commission: null };
+    // D5: the parties see why and the money, not the agent's evidence or refund proof.
+    return out.cancellation ? { ...out, cancellation: { ...out.cancellation, evidenceUrls: [], refundProofUrl: null } } : out;
   }
   /** D10: a generated lease with a deposit above 0 has (or should have) one deposit invoice. */
   private depositEligible(c: LeaseContractEntity) {
@@ -925,22 +964,36 @@ export class AgentContractsService {
       c.invoice_url,
       c.receipt_url,
       (c.data?.reservationPayment as { slipPath?: string } | undefined)?.slipPath,
+      c.data?.commissionConfirmationPath as string | undefined,
       c.owner_signature_url,
       c.tenant_signature_url,
       c.agent_signature_url,
     ];
   }
+  /** D5: the deal cancellation of each cancelled row. */
+  private async loadCancellations(rows: LeaseContractEntity[]) {
+    const ids = rows.filter((row) => row.status === "cancelled").map((row) => row.id);
+    if (!ids.length) return;
+    const found = await this.db.getRepository(DealCancellationEntity).createQueryBuilder("dc")
+      .where("dc.contract_ids && CAST(:ids AS int[])", { ids }).getMany();
+    for (const row of rows)
+      if (ids.includes(row.id)) (row as WithCancellation).dealCancellation = found.find((dc) => Array.isArray(dc.contract_ids) && dc.contract_ids.includes(row.id)) ?? null;
+  }
   private async signedFor(rows: LeaseContractEntity[]) {
     await this.loadDepositInvoices(rows);
+    await this.loadCancellations(rows);
     if (!this.documents) return new Map<string, string>();
     return this.documents.signPaths(
       rows.flatMap((row) => {
         const deposit = (row as WithDepositInvoice).depositInvoice;
+        const cancellation = (row as WithCancellation).dealCancellation;
         return [
           ...this.documentPaths(row),
           deposit?.pdf_path,
           deposit?.receipt_pdf_path,
           deposit?.payment_slip_path,
+          ...(cancellation?.evidence_paths ?? []),
+          cancellation?.refund_proof_path,
         ];
       }),
     );
@@ -1051,6 +1104,7 @@ export class AgentContractsService {
     }
     const base = await createReservationMock(serialized);
     let pdf = base;
+    let commissionPdf: Buffer | null = null;
     if (generate) {
       const signatures = await Promise.all(
         CONTRACT_SIGN_PARTIES.map(async (party) => {
@@ -1060,8 +1114,24 @@ export class AgentContractsService {
           return this.documents!.download(path);
         }),
       );
+      // D13 (AC-3.7): the landlord's and the agent's signatures on the letter also sign its commission confirmation.
+      // A letter saved before letters had their fields (none in its data) is issued without one, as before.
+      const letter = c.data?.reservationLetter as { issueDate?: string } | undefined;
+      const day = (at: Date | null) => (at ? bangkokDate(new Date(at)) : "");
+      const commission = letter
+        ? reservationCommissionInput(c, {
+            issueDate: isIsoDate(letter.issueDate) ? letter.issueDate : day(c.created_at),
+            landlordSignDate: day(c.owner_signed_at),
+            agentSignDate: day(c.agent_signed_at),
+          })
+        : null;
+      if (letter && !commission)
+        throw new BadRequestException("ค่าเช่าหรือระยะเวลาเช่าในหนังสือจองไม่ครบ จึงสร้างหนังสือยืนยันค่าคอมไม่ได้");
       try {
         pdf = await stampReservationSignatures(base, signatures);
+        if (commission)
+          commissionPdf = await stampCommissionSignatures(
+            await createCommissionConfirmationPdf(commission), signatures[0]!, signatures[2]!);
       } catch {
         throw new BadRequestException(
           "ไม่สามารถอ่านภาพลายเซ็นเพื่อสร้าง PDF ได้",
@@ -1074,7 +1144,9 @@ export class AgentContractsService {
       pdf,
       generate,
     );
+    let commissionStored: { path: string } | null = null;
     try {
+      if (commissionPdf) commissionStored = await this.documents.uploadCommissionConfirmation(agentId, commissionPdf);
       // Compare-and-swap prevents a slow preview from replacing a generated PDF.
       const result = await this.db.getRepository(LeaseContractEntity).update(
         {
@@ -1086,6 +1158,7 @@ export class AgentContractsService {
         },
         {
           document_url: stored.path,
+          ...(commissionStored ? { data: { ...(c.data ?? {}), commissionConfirmationPath: commissionStored.path } } : {}),
           ...(generate &&
           ["draft", "awaiting_signatures", "awaiting_agent_review"].includes(
             c.status,
@@ -1098,6 +1171,7 @@ export class AgentContractsService {
         throw new ConflictException("เอกสารถูกเปลี่ยนแล้ว กรุณาลองอีกครั้ง");
     } catch (error) {
       await this.documents.remove(stored.path).catch(() => undefined);
+      if (commissionStored) await this.documents.remove(commissionStored.path).catch(() => undefined);
       throw error;
     }
     return this.view(agentId, id);
@@ -2041,6 +2115,44 @@ export class AgentContractsService {
     return [user?.first_name, user?.last_name].filter((part) => part?.trim()).join(" ").trim();
   }
   /** D11 (AC-3.4): the agent returns the tenant's booking slip with a reason; the tenant then sends a new one. */
+  /**
+   * D4 (AC-5.5, Aof 26 Oct 2026): the agent moves the handover day of a lease waiting for its deposit or its
+   * handover, with a reason (body: { date, reason }). The reminder that the deposit is unpaid follows the new day.
+   */
+  async moveHandoverDue(agentId: number, id: number, input: unknown) {
+    const b = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+    const reason = typeof b.reason === "string" ? b.reason.trim() : "";
+    if (!isIsoDate(b.date)) throw new BadRequestException("วันส่งมอบไม่ถูกต้อง");
+    if (!reason || reason.length > 500) throw new BadRequestException("กรุณาระบุเหตุผลที่เลื่อนวันส่งมอบ (ไม่เกิน 500 ตัวอักษร)");
+    const date = b.date;
+    if (date < bangkokToday()) throw new BadRequestException("วันส่งมอบใหม่ต้องไม่ก่อนวันนี้");
+    const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
+    if (!c) throw new NotFoundException("ไม่พบสัญญา");
+    if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "lease")
+      throw new BadRequestException("เลื่อนวันส่งมอบได้เฉพาะสัญญาเช่า");
+    await this.db.transaction(async (manager) => {
+      const current = await manager.findOne(LeaseContractEntity, {
+        where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
+      });
+      if (!current) throw new NotFoundException("ไม่พบสัญญา");
+      if (!["awaiting_deposit", "awaiting_handover"].includes(current.status))
+        throw new BadRequestException("เลื่อนวันส่งมอบได้เฉพาะสัญญาเช่าที่รอเงินประกันหรือรอส่งมอบห้อง");
+      const from = handoverDueDate({ startDate: asIsoDate(current.start_date), data: current.data });
+      if (from === date) throw new BadRequestException("วันส่งมอบใหม่ต้องต่างจากวันเดิม");
+      const previous = current.data?.handoverDue as { history?: unknown[] } | undefined;
+      await manager.update(LeaseContractEntity, { id }, {
+        data: {
+          ...current.data,
+          handoverDue: {
+            date,
+            history: [...(previous?.history ?? []), { from, to: date, reason, at: new Date().toISOString(), by: agentId }],
+          },
+        },
+      });
+    });
+    return this.view(agentId, id);
+  }
+
   async returnReservationSlip(agentId: number, id: number, input: unknown) {
     const reason = slipReturnReason(input);
     const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
@@ -2113,8 +2225,9 @@ export class AgentContractsService {
   }
   private reservationSigningBlockedReason(c: LeaseContractEntity, parties: AgentContractSignParty[]) {
     const formKind = c.template?.form_kind ?? c.agreement_type?.form_kind ?? "lease";
-    return formKind === "reservation" && parties.includes("tenant") && !c.receipt_url
-      ? "ผู้เช่าต้องชำระค่าจอง และรอเอเจนต์ตรวจสอบการชำระพร้อมออกใบเสร็จก่อนลงนาม"
+    // D3 (AC-3.6): every party signs the letter only after the booking receipt is issued.
+    return formKind === "reservation" && parties.length > 0 && !c.receipt_url
+      ? "ทุกฝ่ายลงนามหนังสือจองได้หลังผู้เช่าชำระค่าจอง และเอเจนต์ออกใบเสร็จแล้ว"
       : null;
   }
   private assertReservationPaidForSigning(c: LeaseContractEntity, parties: AgentContractSignParty[]) {
@@ -2271,7 +2384,9 @@ export class AgentContractsService {
     return { contract: c, parties };
   }
   async financialDocumentForParty(userId: number, id: number, kind: string) {
-    const { contract: c } = await this.contractForParty(userId, id);
+    const { contract: c, parties } = await this.contractForParty(userId, id);
+    // D13: the commission confirmation is the landlord's (and the agent's), not the tenant's.
+    if (kind === "commission-confirmation" && !parties.includes("owner")) throw new NotFoundException("ไม่พบเอกสารการชำระเงิน");
     // D10: both parties of a lease can open its deposit invoice, slip and receipt.
     const deposit = kind.startsWith("deposit-") && this.depositEligible(c)
       ? await this.db.getRepository(AgentInvoiceEntity).findOne({ where: { lease_contract_id: c.id, invoice_kind: "deposit" } })
@@ -2282,6 +2397,7 @@ export class AgentContractsService {
       : kind === "deposit-invoice" ? deposit?.pdf_path
       : kind === "deposit-receipt" ? deposit?.receipt_pdf_path
       : kind === "deposit-payment-slip" ? deposit?.payment_slip_path
+      : kind === "commission-confirmation" ? (c.data?.commissionConfirmationPath as string | undefined)
       : null;
     if (!path) throw new NotFoundException("ไม่พบเอกสารการชำระเงิน");
     if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
@@ -2337,7 +2453,7 @@ export class AgentContractsService {
     }
     if (oldPath) await documents.remove(oldPath).catch(() => undefined);
     const { contract: updated, parties: mine } = await this.contractForParty(userId, id);
-    return { ...this.serialize(updated, await this.signedFor([updated])), myParties: mine };
+    return { ...this.forParty(this.serialize(updated, await this.signedFor([updated])), mine), myParties: mine };
   }
   /** D10: the tenant of a generated lease sends the deposit slip; the agent then issues the receipt. */
   async uploadDepositPaymentSlip(userId: number, id: number, file: { buffer: Buffer; size: number; originalname?: string } | undefined) {
@@ -2383,7 +2499,7 @@ export class AgentContractsService {
     }
     if (oldPath) await documents.remove(oldPath).catch(() => undefined);
     const { contract: updated, parties: mine } = await this.contractForParty(userId, id);
-    return { ...this.serialize(updated, await this.signedFor([updated])), myParties: mine };
+    return { ...this.forParty(this.serialize(updated, await this.signedFor([updated])), mine), myParties: mine };
   }
   async documentForParty(userId: number, id: number) {
 
@@ -2519,7 +2635,7 @@ export class AgentContractsService {
     const signed = await this.signedFor(rows);
     const today = bangkokToday();
     return rows.map((row) => ({
-      ...this.serialize(row, signed),
+      ...this.forParty(this.serialize(row, signed), this.partiesFor(userId, row)),
       myParties: this.partiesFor(userId, row),
       nextRentBill:
         row.status === "active" &&
@@ -2619,7 +2735,7 @@ export class AgentContractsService {
     }
     const latest = await this.inboxQuery().andWhere("c.id = :id", { id }).getOne();
     return {
-      ...this.serialize(latest ?? c, await this.signedFor([latest ?? c])),
+      ...this.forParty(this.serialize(latest ?? c, await this.signedFor([latest ?? c])), this.partiesFor(userId, latest ?? c)),
       myParties: this.partiesFor(userId, latest ?? c),
     };
   }
@@ -3078,6 +3194,21 @@ export class AgentContractsService {
   async close(agentId: number, id: number, input: unknown) {
     const billing = await closeLeaseContract(this.db, agentId, id, input);
     return { contract: await this.view(agentId, id), billing };
+  }
+
+  /** D5 (AC-C.1 to C.4): what cancelling the deal of this booking letter or lease would close, and the money so far. */
+  dealCancellationPreview(agentId: number, id: number) {
+    return dealCancellationPreview(this.db, agentId, id);
+  }
+  /** D5: cancel the deal before the handover, with who caused it, a reason and evidence files. */
+  async cancelDeal(agentId: number, id: number, input: unknown, files: Array<{ buffer: Buffer; size: number; originalname?: string }> | undefined) {
+    await cancelDeal(this.db, this.documents, agentId, id, input, files);
+    return this.view(agentId, id);
+  }
+  /** D5 (AC-C.2, C.3): the refund to the tenant, recorded once with its proof. */
+  async recordDealRefund(agentId: number, id: number, input: unknown, file: { buffer: Buffer; size: number; originalname?: string } | undefined) {
+    await recordDealRefund(this.db, this.documents, agentId, id, input, file);
+    return this.view(agentId, id);
   }
 
   async cancelDraft(agentId: number, id: number, input: unknown) {

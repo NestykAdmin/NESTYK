@@ -9,6 +9,8 @@ import { listMyContracts, listMyOwnedRooms, type OwnedRoom } from "../lib/party-
 import { PartyContractDetail } from "./PartyContractDetail";
 import { TenantContractList } from "./TenantContractList";
 import { LandlordDealOffers } from "./LandlordDealOffers";
+import { ContractReminderList } from "./ContractReminderList";
+import { listLandlordReminders } from "../lib/reminders-api";
 
 export type PartyContractRoom = {
   key: string;
@@ -104,6 +106,8 @@ export function PartyContractsScreen({
       {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
       {/* D2: offers on the landlord's rooms, to confirm before the agent books the room. */}
       {mode === "owner" && !history ? <LandlordDealOffers reloadToken={reloadToken} /> : null}
+      {/* D4 (AC-7.5): rent 15 days late on the landlord's rooms. */}
+      {mode === "owner" && !history ? <ContractReminderList load={listLandlordReminders} reloadKey={reloadToken} audience="landlord" /> : null}
       {(rows.length || (!loading && !error)) ? (
         <TenantContractList
           mode={mode}

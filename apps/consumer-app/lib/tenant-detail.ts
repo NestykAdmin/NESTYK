@@ -139,13 +139,14 @@ export type TenantNextAction =
   | { kind: "broker_appointment"; contract: AgentContract | null }
   | { kind: "reservation" }
   | { kind: "confirm"; contract: AgentContract }
-  | { kind: "sign"; contract: AgentContract }
+  // D3 (AC-3.6): late = a reservation letter past its 3-day signing due day (a warning only).
+  | { kind: "sign"; contract: AgentContract; late?: boolean }
   // D7: a generated lease waits for its deposit receipt, then for the handover.
   | { kind: "deposit"; contract: AgentContract }
   | { kind: "handover"; contract: AgentContract };
 
 /** The one thing the agent should do next for this tenant, most urgent first. */
-export function tenantNextAction(tenant: AgentTenant, billing: AgentTenantBilling | null): TenantNextAction | null {
+export function tenantNextAction(tenant: AgentTenant, billing: AgentTenantBilling | null, today = new Date()): TenantNextAction | null {
   const slip = billing?.bills
     .filter((b) => b.status === "awaiting_review")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
@@ -153,6 +154,9 @@ export function tenantNextAction(tenant: AgentTenant, billing: AgentTenantBillin
   const open = tenant.contracts.filter((c) => c.status !== "cancelled");
   const signed = open.find((c) => c.status === "awaiting_agent_review");
   if (signed) return { kind: "confirm", contract: signed };
+  // Same rule as reservationSigningOverdue (lib/contract-signing.ts): past the due day, Bangkok time.
+  const late = open.find((c) => c.formKind === "reservation" && !!c.signDueDate && dateKey(today) > c.signDueDate);
+  if (late) return { kind: "sign", contract: late, late: true };
   const signing = open.find((c) => c.status === "awaiting_signatures");
   if (signing) return { kind: "sign", contract: signing };
   const deposit = open.find((c) => c.status === "awaiting_deposit");

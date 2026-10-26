@@ -41,7 +41,8 @@ function row(overrides = {}) {
     agent_signature_url: null,
     document_url: null,
     invoice_url: null,
-    receipt_url: null,
+    // D3 (AC-3.6): a reservation letter is signed only after the booking receipt, so the rows here have one.
+    receipt_url: '7/11/receipt/paid.pdf',
     created_by_user_id: 7,
     ...overrides,
   };
@@ -162,15 +163,13 @@ test('signing every remaining party moves the contract to agent review', async (
   assert.equal(result.status, 'awaiting_agent_review');
 });
 
-test('proxy signing cannot bypass booking payment, including a submitted slip', async () => {
+test('D3 (AC-3.6, TC-3.06): no party is signed for before the booking receipt, even with a slip waiting for review', async () => {
   for (const data of [{}, { reservationPayment: { slipPath: 'slip.jpg' } }]) {
-    const { service, updates, current } = serviceFor(row({ data }));
-    await assert.rejects(() => service.sign(7, 11, { parties: ['owner', 'tenant', 'agent'], signaturePng }), /ต้องชำระค่าจอง/);
-    assert.equal(updates.length, 0);
-    assert.equal(current.tenant_signed_at, null);
-    await service.sign(7, 11, { parties: ['owner', 'agent'], signaturePng });
-    assert.ok(current.owner_signed_at && current.agent_signed_at);
-    assert.equal(current.tenant_signed_at, null);
+    for (const parties of [['owner'], ['agent'], ['tenant'], ['owner', 'agent']]) {
+      const { service, updates, current, signatures } = serviceFor(row({ data, receipt_url: null }));
+      await assert.rejects(() => service.sign(7, 11, { parties, signaturePng }), (e) => e.getStatus() === 400 && /ใบเสร็จ/.test(e.message), JSON.stringify(parties));
+      assert.deepEqual([updates.length, signatures.length, current.owner_signed_at, current.agent_signed_at, current.tenant_signed_at], [0, 0, null, null, null]);
+    }
   }
 });
 

@@ -486,6 +486,48 @@ test('mock preview works before signing, generation stamps three images and pers
   assert.equal(h.objects.size, count);
 });
 
+// D13 (AC-3.7, Aof 26 Oct 2026): the landlord's and the agent's signatures on the letter also sign the deal's
+// commission confirmation, generated with the letter.
+const commissionLetter = { reservationLetter: { issueDate: '2026-10-20', landlordName: 'Owner A', agentName: 'Agent B', tenantName: 'สมชาย',
+  project: 'Aria', unitNo: '1201', address: '1 Road', monthlyRent: '20000', termMonths: '6', termFrom: '2026-11-01', termTo: '2027-04-30' } };
+async function signAll(h) {
+  const png = await signaturePng();
+  for (const party of ['owner', 'tenant', 'agent']) {
+    h.row[`${party}_signed_at`] = new Date('2026-10-21T03:00:00Z');
+    const path = `7/11/signatures/${party}.png`;
+    h.row[`${party}_signature_url`] = path;
+    h.objects.set(path, { buffer: png });
+  }
+}
+test('D13: generating the letter also makes its commission confirmation, signed by the landlord and the agent', async () => {
+  const h = pdfHarness({ data: structuredClone(commissionLetter), created_at: new Date('2026-10-20T02:00:00Z') });
+  const before = await h.service.reservationPdf(7, 11, false);
+  assert.deepEqual(before.commission, { documentNo: 'CCM-EC-11', monthlyRent: '20000', leaseStart: '2026-11-01', leaseEnd: '2027-04-30',
+    fullYears: 0, restDays: 181, amount: '9918', url: null }, 'worked out from the letter (TC-3.10) before anything is signed');
+  assert.equal(h.row.data.commissionConfirmationPath, undefined, 'a preview makes no commission confirmation');
+  await signAll(h);
+  const result = await h.service.reservationPdf(7, 11, true);
+  const path = h.row.data.commissionConfirmationPath;
+  assert.match(path, /^7\/commission-confirmations\/.+\.pdf$/);
+  assert.equal(result.commission.url, `https://signed.example/${path}`);
+  assert.equal(h.row.data.reservationLetter.monthlyRent, '20000', 'the rest of the data is kept');
+  const commission = await PDFDocument.load(h.objects.get(path).buffer);
+  const images = commission.getPages()[0].node.Resources().lookup(PDFName.of('XObject'), PDFDict);
+  assert.equal(images.keys().length, 2, 'the landlord\'s and the agent\'s signatures, not the tenant\'s');
+  // A failed commit removes both new files.
+  const failed = pdfHarness({ data: structuredClone(commissionLetter), created_at: new Date('2026-10-20T02:00:00Z') });
+  await signAll(failed);
+  failed.repo.update = async () => ({ affected: 0 });
+  const signatures = new Set(failed.objects.keys());
+  await assert.rejects(() => failed.service.reservationPdf(7, 11, true), (e) => e.getStatus() === 409);
+  assert.deepEqual([...failed.objects.keys()].filter((key) => !signatures.has(key)), []);
+  // A letter without its rent or term cannot be generated (a letter saved before letters had fields is, as before).
+  const broken = pdfHarness({ data: { reservationLetter: { ...commissionLetter.reservationLetter, monthlyRent: '' } } });
+  await signAll(broken);
+  await assert.rejects(() => broken.service.reservationPdf(7, 11, true), (e) => e.getStatus() === 400 && /ค่าคอม/.test(e.message));
+  assert.equal(broken.row.document_url, null);
+});
+
 test('PDF writes reject inaccessible or non-reservation contracts and clean up failed commits', async () => {
   const h = pdfHarness({ agreement_type: { form_kind: 'lease' } });
   await assert.rejects(() => h.service.reservationPdf(7, 11, false), error => error.getStatus() === 400);

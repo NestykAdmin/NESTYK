@@ -121,7 +121,7 @@ export const th: TranslationSchema = {
       signed: 'บันทึกลายเซ็นแล้ว',
       signFailed: 'ลงนามไม่สำเร็จ',
       drawSignatureFirst: 'กรุณาวาดลายเซ็นก่อนยืนยัน',
-      bookingPaymentBeforeSigning: 'ผู้เช่าต้องชำระค่าจอง และรอเอเจนต์ตรวจสอบการชำระพร้อมออกใบเสร็จก่อนลงนาม',
+      bookingPaymentBeforeSigning: 'ทุกฝ่ายลงนามหนังสือจองได้หลังผู้เช่าชำระค่าจอง และเอเจนต์ออกใบเสร็จแล้ว',
     },
     profile: {
       hubSubtitle: 'PropTech Living Hub',
@@ -491,6 +491,8 @@ export const th: TranslationSchema = {
         nowSignTitle: 'สัญญารอเซ็น',
         nowSignBody: '{contract} · ตามให้ทุกฝ่ายเซ็นให้ครบ',
         nowSignCta: 'ไปที่สัญญา',
+        nowSignLateTitle: 'หนังสือจองเลยกำหนดลงนาม',
+        nowSignLateBody: '{contract} · ครบกำหนด {date} ตามให้ทุกฝ่ายลงนามให้ครบ',
         nowBrokerTitle: 'ทำสัญญาแต่งตั้งนายหน้าก่อน',
         nowBrokerBody: 'ยังไม่มีสัญญาแต่งตั้งนายหน้าที่มีผลสำหรับห้องและผู้เช่านี้ ให้ผู้ให้เช่าและนายหน้าลงนามในสัญญาแต่งตั้งนายหน้าและออกเอกสารก่อน จึงจะทำหนังสือจองได้ สัญญาแต่งตั้งมีอายุ 1 ปีนับจากวันที่ทำสัญญา',
         nowBrokerCta: 'ทำสัญญาแต่งตั้งนายหน้า',

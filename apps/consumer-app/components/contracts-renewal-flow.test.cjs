@@ -69,6 +69,13 @@ function harness(rows, options = {}) {
   };
   for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
   dependencies['./ReservationPaymentCard']={ReservationPaymentCard:'reservation-card'};
+  // D13 + D3: the commission confirmation and the signing due day (tested in reservation-terms.test.cjs).
+  dependencies['./ReservationTerms']={ReservationTerms:'reservation-terms'};
+  // D4: the handover day control (tested in handover-due-control.test.cjs).
+  dependencies['./HandoverDueControl']={HandoverDueControl:'handover-due'};
+  // D5: the deal cancellation card (tested in deal-cancellation-card.test.cjs).
+  dependencies['./DealCancellationCard']={DealCancellationCard:'deal-cancellation'};
+  dependencies['../lib/deal-cancellation']={canCancelDeal:()=>false};
   for (const name of ['expo-document-picker','expo-image-picker','expo-image']) dependencies[name]={};
   const screen=load('ContractsScreen.tsx',id=>{if (!(id in dependencies)) throw new Error(`Unexpected dependency: ${id}`);return dependencies[id];});
   const props={startCreate:'renewal',onStartCreateHandled:()=>{handled++;},...options.props};

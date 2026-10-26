@@ -21,7 +21,8 @@ export function openMyContractDocument(id: number): Promise<{ url: string }> {
   return apiPost(`/contracts/mine/${id}/document`, {});
 }
 
-export function openMyFinancialDocument(id: number, kind: "invoice" | "receipt" | "payment-slip" | DepositFinancialDocumentKind): Promise<{ url: string }> {
+/** D13: "commission-confirmation" is the landlord's only (the API refuses it for the tenant). */
+export function openMyFinancialDocument(id: number, kind: "invoice" | "receipt" | "payment-slip" | "commission-confirmation" | DepositFinancialDocumentKind): Promise<{ url: string }> {
   return apiGet(`/contracts/mine/${id}/financial-documents/${kind}`);
 }
 

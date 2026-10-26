@@ -74,7 +74,8 @@ export function ContractTypePicker({
       {([
         { title: library.rental, kinds: ["reservation", "lease", "renewal"] },
         { title: library.finance, kinds: ["invoice"] },
-        { title: library.brokerage, kinds: ["broker_appointment", "agent_commission"] },
+        // D13 (Aof 26 Oct 2026): the commission confirmation comes with the reservation letter, not as its own document.
+        { title: library.brokerage, kinds: ["broker_appointment"] },
       ]).map(group => <View key={group.title} style={styles.group}>
         <Text style={[styles.groupTitle, { color: theme.textHeading }]}>{group.title}</Text>
         {CREATE_OPTIONS.filter(option => group.kinds.includes(option.kind)).map(option => {

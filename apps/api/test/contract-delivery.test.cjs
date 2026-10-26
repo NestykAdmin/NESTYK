@@ -170,7 +170,7 @@ test('reservation delivery remains possible before payment but tenant signing ne
   const deliveredWrites = f.updates.length;
   for (const data of [{}, { reservationPayment: { slipPath: 'slip.jpg' } }]) {
     f.current.data = data;
-    await assert.rejects(() => f.service.signAsParty(8, 11, { party: 'tenant', signaturePng }), /ต้องชำระค่าจอง/);
+    await assert.rejects(() => f.service.signAsParty(8, 11, { party: 'tenant', signaturePng }), /ใบเสร็จ/);
     assert.equal(f.updates.length, deliveredWrites);
     assert.equal(f.current.tenant_signed_at, null);
   }
@@ -180,11 +180,18 @@ test('reservation delivery remains possible before payment but tenant signing ne
   assert.equal(f.updates.at(-1)[0].receipt_url, '7/11/receipt/paid.pdf');
 });
 
-test('delivered owner can sign a reservation while tenant payment is pending', async () => {
+test('D3 (AC-3.6, TC-3.06): the delivered landlord signs a reservation in the app only after the booking receipt', async () => {
   const f = serviceFor(contract({
     template: { form_kind: 'reservation' }, agreement_type: { form_kind: 'reservation' },
     owner_delivered_at: new Date(),
   }));
+  for (const data of [{}, { reservationPayment: { slipPath: 'slip.jpg' } }]) {
+    f.current.data = data;
+    await assert.rejects(() => f.service.signAsParty(9, 11, { party: 'owner', signaturePng }), (e) => e.getStatus() === 400 && /ใบเสร็จ/.test(e.message));
+    assert.equal(f.current.owner_signed_at, null);
+  }
+  assert.deepEqual(f.updates, []);
+  f.current.receipt_url = '7/11/receipt/paid.pdf';
   await f.service.signAsParty(9, 11, { party: 'owner', signaturePng });
   assert.ok(f.current.owner_signed_at);
   assert.equal(f.current.tenant_signed_at, null);

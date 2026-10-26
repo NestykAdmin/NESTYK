@@ -78,12 +78,13 @@ test('missing commission PDF is visible as pending and cannot open; busy disable
   const busy = render({ ...view, folder: 'rental' }, { busy: true });
   assert.equal(busy.nodes.find(n => n.props?.accessibilityLabel?.endsWith('LS008')).props.disabled, true);
 });
-test('grouped create menu dispatches all six existing document kinds and keeps renewal disabled', () => {
-  let selected;
-  const tree = ContractTypePicker({ onSelect: kind => { selected = kind; }, onBack() {}, disabledKinds: ['renewal'] });
+test('grouped create menu dispatches the five document kinds and keeps renewal disabled; no standalone commission (D13)', () => {
+  const selected = [];
+  const tree = ContractTypePicker({ onSelect: kind => { selected.push(kind); }, onBack() {}, disabledKinds: ['renewal'] });
   const buttons = nodes(tree).filter(n => n.props?.accessibilityLabel);
-  assert.equal(buttons.length, 6);
-  for (const n of buttons.filter(n => !n.props.disabled)) { n.props.onPress(); assert.ok(['reservation', 'lease', 'invoice', 'broker_appointment', 'agent_commission'].includes(selected)); }
+  assert.equal(buttons.length, 5);
+  for (const n of buttons.filter(n => !n.props.disabled)) n.props.onPress();
+  assert.deepEqual(selected, ['reservation', 'lease', 'invoice', 'broker_appointment'], 'the commission confirmation now comes with the reservation letter');
   const renewal = buttons.find(n => n.props.disabled);
   assert.match(renewal.props.accessibilityLabel, /ต่อสัญญา/);
 });

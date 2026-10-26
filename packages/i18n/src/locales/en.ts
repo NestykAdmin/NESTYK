@@ -121,7 +121,7 @@ export const en: TranslationSchema = {
       signed: 'Signature saved',
       signFailed: 'Could not sign',
       drawSignatureFirst: 'Please draw your signature before confirming',
-      bookingPaymentBeforeSigning: 'The tenant must pay the booking fee and wait for the agent to verify it and issue a receipt before signing',
+      bookingPaymentBeforeSigning: 'Everyone signs the booking letter after the tenant pays the booking fee and the agent issues the receipt',
     },
     profile: {
       hubSubtitle: 'PropTech Living Hub',
@@ -491,6 +491,8 @@ export const en: TranslationSchema = {
         nowSignTitle: 'Contract awaiting signatures',
         nowSignBody: '{contract} · follow up until every party signs',
         nowSignCta: 'Go to contract',
+        nowSignLateTitle: 'Booking letter past its signing date',
+        nowSignLateBody: '{contract} · due {date}. Follow up so everyone signs',
         nowBrokerTitle: 'Broker appointment first',
         nowBrokerBody: 'There is no active broker appointment for this room and tenant yet. The landlord and the agent sign it and the document is created first; then the reservation letter can start. An appointment lasts 1 year from its date',
         nowBrokerCta: 'Create broker appointment',

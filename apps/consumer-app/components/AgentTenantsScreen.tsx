@@ -35,6 +35,8 @@ import { TenantPaymentsBody } from "./TenantPaymentsBody";
 import { TenantRoomBody } from "./TenantRoomBody";
 import { TenantAttachmentsBody } from "./TenantAttachmentsBody";
 import { TenantWorkBody } from "./TenantWorkBody";
+import { ContractReminderList } from "./ContractReminderList";
+import { listAgentReminders } from "../lib/reminders-api";
 import { TenantDirectoryBody, type TenantDirectoryFilter } from "./TenantDirectoryBody";
 import { DetailCard, DetailField } from "./TenantDetailParts";
 
@@ -693,6 +695,19 @@ export function AgentTenantsScreen({
       )}
       <Animated.View key={listView} entering={FadeIn.duration(150)}>
         {listView === "work" ? (
+          <>
+          {/* D4: what is late or due, from the API (also e-mailed once a day); tapping opens the contract or the bill. */}
+          <ContractReminderList
+            load={listAgentReminders}
+            reloadKey={items}
+            audience="agent"
+            onOpen={(reminder) => {
+              if (reminder.tenantId == null) return;
+              const tenant = items.find((row) => row.id === reminder.tenantId);
+              setContractFocus(tenant?.contracts.find((row) => row.id === reminder.contractId) ?? null);
+              void open(reminder.tenantId, reminder.billId != null ? "payments" : "contracts");
+            }}
+          />
           <TenantWorkBody
             items={workItems}
             kind={workKind}
@@ -703,6 +718,7 @@ export function AgentTenantsScreen({
             onOpenTenant={(item) => openWork(item, null)}
             onAction={(item) => openWork(item, item.kind === "slip" ? "payments" : "contracts")}
           />
+          </>
         ) : (
           <TenantDirectoryBody
             tenants={items}
