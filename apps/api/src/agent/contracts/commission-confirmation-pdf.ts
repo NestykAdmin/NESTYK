@@ -161,3 +161,26 @@ export async function createCommissionConfirmationPdf(
   }
   return Buffer.from(await pdf.save());
 }
+
+/**
+ * D13 (AC-3.7): where the landlord's and the agent's signatures go, above their lines at the foot of the page
+ * (points from the bottom left; the page is US Letter, 612 × 792). Measured on the rendered template.
+ */
+export const COMMISSION_SIGNATURE_SLOTS = {
+  owner: { x: 66, y: 138, maxW: 146, maxH: 36 },
+  agent: { x: 330, y: 138, maxW: 146, maxH: 36 },
+} as const;
+
+/** Puts the landlord's and the agent's signature images (PNG) on a commission confirmation. */
+export async function stampCommissionSignatures(base: Buffer, owner: Buffer, agent: Buffer): Promise<Buffer> {
+  const pdf = await PDFDocument.load(base);
+  const page = pdf.getPages()[0];
+  if (!page) throw new Error("แม่แบบเอกสารไม่มีหน้า");
+  for (const [party, png] of [["owner", owner], ["agent", agent]] as const) {
+    const slot = COMMISSION_SIGNATURE_SLOTS[party];
+    const image = await pdf.embedPng(png);
+    const size = image.scaleToFit(slot.maxW, slot.maxH);
+    page.drawImage(image, { x: slot.x + (slot.maxW - size.width) / 2, y: slot.y, width: size.width, height: size.height });
+  }
+  return Buffer.from(await pdf.save());
+}

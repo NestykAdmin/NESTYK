@@ -485,6 +485,8 @@ export interface TranslationSchema {
         nowSignTitle: string;
         nowSignBody: string;
         nowSignCta: string;
+        nowSignLateTitle: string;
+        nowSignLateBody: string;
         nowBrokerTitle: string;
         nowBrokerBody: string;
         nowBrokerCta: string;

@@ -1,7 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import type { CommissionConfirmationInput } from "@nestyk/types";
 
-const LIMITS: Record<keyof CommissionConfirmationInput, number> = {
+export const COMMISSION_LIMITS: Record<keyof CommissionConfirmationInput, number> = {
   documentNo: 40,
   issueDate: 10,
   landlordName: 80,
@@ -77,7 +77,7 @@ export function validateCommissionConfirmation(
     if (obj[lastKey] == null) obj[lastKey] = "";
   }
   const result = {} as CommissionConfirmationInput;
-  for (const [key, limit] of Object.entries(LIMITS) as Array<
+  for (const [key, limit] of Object.entries(COMMISSION_LIMITS) as Array<
     [keyof CommissionConfirmationInput, number]
   >) {
     if (obj[key] != null && typeof obj[key] !== "string")

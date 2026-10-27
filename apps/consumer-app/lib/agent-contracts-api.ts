@@ -36,6 +36,11 @@ export async function returnReservationSlip(id: number, reason: string, submitte
   return apiPost(`/agent/contracts/${id}/reservation-payment/return`, { reason, submittedAt });
 }
 /** D11 (AC-5.4): the same for the deposit slip of a lease. */
+/** D4 (AC-5.5): move the handover day of a lease waiting for its deposit or handover, with a reason. */
+export function moveHandoverDue(id: number, date: string, reason: string): Promise<AgentContract> {
+  return apiPost(`/agent/contracts/${id}/handover-due`, { date, reason });
+}
+
 export async function returnDepositSlip(id: number, reason: string, submittedAt: string | null): Promise<AgentContract> {
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/deposit-payment/return`, { reason, submittedAt });
@@ -396,6 +401,41 @@ export async function generateFinancialDocument(
 export async function updateAgentContractDraft(id: number, input: CreateAgentContract, expectedDraftRevision: unknown = null): Promise<AgentContract> {
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/draft`, { ...input, expectedDraftRevision });
+}
+type PickedFile = { uri: string; name: string; mimeType: string; file?: File };
+async function appendFile(form: FormData, field: string, file: PickedFile) {
+  if (Platform.OS === "web") form.append(field, file.file ?? (await (await fetch(file.uri)).blob()), file.name);
+  else form.append(field, { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+}
+async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  try {
+    return await apiRequest<T>(path, { method: "POST", body: form, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+/** D5 (AC-C.4): what cancelling the deal of this booking letter or lease would close, and the money received so far. */
+export async function getDealCancellationPreview(id: number): Promise<import("@nestyk/types").DealCancellationPreview> {
+  await ensureAgentSession();
+  return apiGet(`/agent/contracts/${id}/cancellation-preview`);
+}
+/** D5: cancel the deal before the handover, with who caused it, a reason and 1 to 5 evidence files. */
+export async function cancelDeal(id: number, input: import("@nestyk/types").CancelDeal, evidence: PickedFile[]): Promise<AgentContract> {
+  await ensureAgentSession();
+  const form = new FormData();
+  form.append("payload", JSON.stringify(input));
+  for (const file of evidence) await appendFile(form, "evidence", file);
+  return postForm(`/agent/contracts/${id}/cancel-deal`, form);
+}
+/** D5 (AC-C.2, C.3): record the refund to the tenant once, with its proof. */
+export async function recordDealRefund(id: number, refundedOn: string, proof: PickedFile): Promise<AgentContract> {
+  await ensureAgentSession();
+  const form = new FormData();
+  form.append("payload", JSON.stringify({ refundedOn }));
+  await appendFile(form, "file", proof);
+  return postForm(`/agent/contracts/${id}/cancellation/refund`, form);
 }
 export async function cancelAgentContractDraft(id: number, reason: string): Promise<AgentContract> {
   await ensureAgentSession();

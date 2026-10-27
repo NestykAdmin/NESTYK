@@ -13,7 +13,7 @@ const i18nMock = {
     t: {
       common: { fileTooLarge: 'ไฟล์ต้องไม่เกิน {size} MB' },
       contracts: contractsTh,
-      mobile: { partyContracts: { bookingPaymentBeforeSigning: 'ผู้เช่าต้องชำระค่าจอง และรอเอเจนต์ตรวจสอบการชำระพร้อมออกใบเสร็จก่อนลงนาม' } },
+      mobile: { partyContracts: { bookingPaymentBeforeSigning: 'ทุกฝ่ายลงนามหนังสือจองได้หลังผู้เช่าชำระค่าจอง และเอเจนต์ออกใบเสร็จแล้ว' } },
     },
   }),
   fillTemplate,
@@ -58,9 +58,14 @@ function harness(contract, checklist = { requirements: [], documents: [], docume
     if (name === './RejectedAttachmentsNotice') return { RejectedAttachmentsNotice: ({ items }) => { notices.push(items); return null; } };
     if (name === '@nestyk/i18n') return i18nMock;
     if (name === '../lib/lead-format') return leadFormat;
+    // D13: the commission confirmation on a letter (tested in reservation-terms.test.cjs); today is fixed.
+    if (name === './ReservationTerms') return { ReservationTerms: (props) => { cards.terms = props; return null; } };
+    if (name === '../lib/tenant-detail') return { dateKey: () => '2026-10-14' };
     if (name === './ReservationPaymentCard') return { ReservationPaymentCard: (props) => { cards.reservation = props; return null; } };
     if (name === './DepositPaymentCard') return { DepositPaymentCard: (props) => { cards.deposit = props; return null; } };
     if (name === './HandoverCard') return { HandoverCard: (props) => { cards.handover = props; return null; } };
+    // D5: a cancelled deal's summary (tested in deal-cancellation-card.test.cjs).
+    if (name === './DealCancellationCard') return { DealCancellationSummary: () => null };
     if (name === './TenantContractList') return { TenantContractAttachments: () => null };
     if (name === './ContractDocumentPreview') return { ContractDocumentPreview: () => null };
     if (name === './ContractSignaturePad') return { ContractSignaturePad: () => null };
@@ -85,18 +90,30 @@ const booking = { id: 11, formKind: 'reservation', status: 'draft', myParties: [
 test('tenant sees why signing is disabled even when their documents are ready', async () => {
   const h = harness({ ...booking, reservationPayment: { status: 'submitted' } });
   await h.ready();
-  assert.match(h.render(), /ต้องชำระค่าจอง/);
+  assert.match(h.render(), /ออกใบเสร็จแล้ว/);
   assert.equal(h.buttons.find(button => button.label === 'ลงนามผู้เช่า').disabled, true);
 });
 
-test('tenant signing unlocks after receipt issuance and owner signing needs no booking payment', async () => {
-  for (const contract of [{ ...booking, receiptUrl: 'receipt.pdf' }, { ...booking, myParties: ['owner'] }]) {
-    const h = harness(contract);
-    await h.ready();
-    assert.doesNotMatch(h.render(), /ต้องชำระค่าจอง/);
-    const label = contract.myParties[0] === 'tenant' ? 'ลงนามผู้เช่า' : 'ลงนามผู้ให้เช่า';
-    assert.equal(h.buttons.find(button => button.label === label).disabled, false);
+test('D3 (AC-3.6): the tenant and the landlord sign the letter only after the booking receipt', async () => {
+  for (const [party, label] of [['tenant', 'ลงนามผู้เช่า'], ['owner', 'ลงนามผู้ให้เช่า']]) {
+    const waiting = harness({ ...booking, myParties: [party] });
+    await waiting.ready();
+    assert.match(waiting.render(), /ออกใบเสร็จแล้ว/, party);
+    assert.equal(waiting.buttons.find(button => button.label === label).disabled, true, `${party}: no receipt yet`);
+    const paid = harness({ ...booking, myParties: [party], receiptUrl: 'receipt.pdf' });
+    await paid.ready();
+    assert.doesNotMatch(paid.render(), /ออกใบเสร็จแล้ว/, party);
+    assert.equal(paid.buttons.find(button => button.label === label).disabled, false, `${party}: receipt issued`);
   }
+});
+
+test('D13: the letter shows its commission confirmation (no due day for the parties); the landlord opens the PDF', async () => {
+  const h = harness({ ...booking, myParties: ['owner'], receiptUrl: 'receipt.pdf' });
+  await h.ready();
+  h.render();
+  assert.deepEqual([h.cards.terms.contract.id, h.cards.terms.showDue, h.cards.terms.today], [11, false, '2026-10-14']);
+  await h.cards.terms.onOpenCommission('ignored, a fresh link is asked for');
+  assert.deepEqual(h.calls.at(-1), ['open', 11, 'commission-confirmation']);
 });
 
 const lease = { id: 12, formKind: 'lease', status: 'active', myParties: ['tenant'], contractNo: 'LS202600012', startDate: '2026-11-01', endDate: '2027-10-31',

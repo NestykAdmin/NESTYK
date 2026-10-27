@@ -121,7 +121,7 @@ export const ja: TranslationSchema = {
       signed: '署名を保存しました',
       signFailed: '署名できませんでした',
       drawSignatureFirst: '確定する前に署名を書いてください',
-      bookingPaymentBeforeSigning: '署名の前に、入居者が予約金を支払い、エージェントが確認して領収書を発行する必要があります',
+      bookingPaymentBeforeSigning: '予約書は、入居者が予約金を支払い、エージェントが領収書を発行した後に全員が署名します',
     },
     profile: {
       hubSubtitle: 'PropTech Living Hub',
@@ -491,6 +491,8 @@ export const ja: TranslationSchema = {
         nowSignTitle: '署名待ちの契約',
         nowSignBody: '{contract} · 全員の署名が揃うまでフォロー',
         nowSignCta: '契約を開く',
+        nowSignLateTitle: '予約書の署名期限を過ぎています',
+        nowSignLateBody: '{contract} · 期限 {date}。全員の署名を催促してください',
         nowBrokerTitle: '先に仲介委任契約を',
         nowBrokerBody: 'この部屋と入居者の有効な仲介委任契約がまだありません。貸主と仲介者が仲介委任契約に署名し書類を作成してから予約書を作成できます。仲介委任契約の有効期間は契約日から1年です',
         nowBrokerCta: '仲介委任契約を作成',

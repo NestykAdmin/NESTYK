@@ -114,8 +114,9 @@ export function TenantDetailHub({
     }
     if (next.kind === "sign") {
       return {
-        title: d.nowSignTitle,
-        body: d.nowSignBody.replace("{contract}", next.contract.agreementTypeName || next.contract.contractNo),
+        title: next.late ? d.nowSignLateTitle : d.nowSignTitle,
+        body: (next.late ? d.nowSignLateBody.replace("{date}", next.contract.signDueDate ? fmt.date(next.contract.signDueDate) : "") : d.nowSignBody)
+          .replace("{contract}", next.contract.agreementTypeName || next.contract.contractNo),
         cta: d.nowSignCta,
       };
     }

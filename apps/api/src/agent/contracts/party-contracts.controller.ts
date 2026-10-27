@@ -26,6 +26,7 @@ import { AgreementAttachmentsService } from "./agreement-attachments.service";
 import { MAX_CONTRACT_DOCUMENT_BYTES } from "./contract-document-storage.service";
 import { HandoverService } from "./handover.service";
 import { DealOffersService } from "./deal-offers.service";
+import { ContractRemindersService } from "../reminders/contract-reminders.service";
 
 @Controller("contracts")
 @UseGuards(AuthGuard, RolesGuard)
@@ -36,6 +37,7 @@ export class PartyContractsController {
     private readonly attachments: AgreementAttachmentsService,
     @Optional() private readonly handover?: HandoverService,
     @Optional() private readonly offers?: DealOffersService,
+    @Optional() private readonly reminders?: ContractRemindersService,
   ) {}
   private handovers() {
     if (!this.handover) throw new ServiceUnavailableException("ยังไม่เปิดใช้การส่งมอบห้อง");
@@ -82,6 +84,14 @@ export class PartyContractsController {
     @Body() body: unknown,
   ) {
     return this.dealOffers().confirmAsLandlord(user.id, id, body);
+  }
+
+  /** D4 (AC-7.5): the landlord is told when rent on their rooms is 15 days late. */
+  @Get("mine/reminders")
+  @Roles("landlord")
+  landlordReminders(@CurrentUser() user: AuthRequestUser) {
+    if (!this.reminders) throw new ServiceUnavailableException("ยังไม่เปิดใช้การแจ้งเตือน");
+    return this.reminders.forLandlord(user.id);
   }
 
   @Get("mine")

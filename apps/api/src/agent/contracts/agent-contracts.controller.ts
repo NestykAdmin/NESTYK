@@ -15,10 +15,11 @@ import {
   Put,
   Query,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
+import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import { AuthGuard } from "../../auth/guards/auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import { Roles } from "../../auth/decorators/roles.decorator";
@@ -28,6 +29,7 @@ import {
 } from "../../auth/decorators/current-user.decorator";
 import { AgentContractsService } from "./agent-contracts.service";
 import { MAX_CONTRACT_DOCUMENT_BYTES } from "./contract-document-storage.service";
+import { MAX_EVIDENCE_FILES } from "./deal-cancellation";
 import { HandoverService } from "./handover.service";
 
 function receiptPayload(body: unknown): unknown {
@@ -93,6 +95,16 @@ export class AgentContractsController {
     @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.contracts.issueDepositInvoice(user.id, id);
+  }
+  /** D4 (AC-5.5): move the handover day of a lease waiting for its deposit or handover (body: { date, reason }). */
+  @Post(":id/handover-due")
+  @HttpCode(HttpStatus.OK)
+  moveHandoverDue(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.moveHandoverDue(user.id, id, body);
   }
   /** D11 (AC-3.4): return the tenant's booking slip with a reason (body: { reason }). */
   @Post(":id/reservation-payment/return")
@@ -266,6 +278,37 @@ export class AgentContractsController {
   @HttpCode(HttpStatus.OK)
   updateDraft(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number, @Body() body: unknown) {
     return this.contracts.updateDraft(user.id, id, body);
+  }
+  /** D5 (AC-C.4): what cancelling the deal would close and the money received with a receipt. */
+  @Get(":id/cancellation-preview")
+  dealCancellationPreview(@CurrentUser() user: AuthRequestUser, @Param("id", DatabaseIdPipe) id: number) {
+    return this.contracts.dealCancellationPreview(user.id, id);
+  }
+  /** D5: cancel the deal before the handover (multipart: payload = CancelDeal as JSON, evidence = 1 to 5 files). */
+  @Post(":id/cancel-deal")
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FilesInterceptor("evidence", MAX_EVIDENCE_FILES, {
+    limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: MAX_EVIDENCE_FILES },
+  }))
+  cancelDeal(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @UploadedFiles() files: Array<{ buffer: Buffer; size: number; originalname?: string }> | undefined,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.cancelDeal(user.id, id, receiptPayload(body), files);
+  }
+  /** D5 (AC-C.2, C.3): record the refund (multipart: payload = { refundedOn }, file = the proof). */
+  @Post(":id/cancellation/refund")
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1 } }))
+  recordDealRefund(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.recordDealRefund(user.id, id, receiptPayload(body), file);
   }
   @Post(":id/cancel-draft")
   @HttpCode(HttpStatus.OK)

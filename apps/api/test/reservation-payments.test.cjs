@@ -410,3 +410,59 @@ test('D2 round 2: a slip returned after the offer\'s rent changed makes the invo
       [5000, '5000.00', '7/11/invoice/a.pdf', '5000'], label);
   }
 });
+
+// D3 (AC-3.6) and D13 (AC-3.7): the letter's signing due day (end of the 3rd day after it was made, Bangkok time) and
+// its commission confirmation, which only the agent and the landlord get.
+test('D3 + D13: the letter shows its signing due day and its commission; the tenant gets no commission', async () => {
+  const f = fixture({ patch: { created_at: new Date('2026-10-09T18:00:00Z') } }); // 10 Oct 01:00 in Bangkok (TC-3.07)
+  Object.assign(f.row.data, { reservationLetter: { landlordName: 'Owner A', agentName: 'Agent B', tenantName: 'Tenant', monthlyRent: '5000',
+    termMonths: '12', termFrom: '2026-11-01', termTo: '2027-10-31' } });
+  const view = await f.service.view(7, 11);
+  assert.equal(view.signDueDate, '2026-10-13', 'made 10 Oct (Bangkok), due by the end of 13 Oct');
+  assert.deepEqual([view.commission.documentNo, view.commission.amount, view.commission.url], ['CCM-RS202600011', '5000', null]);
+  const byParty = async (userId) => (await f.service.listForUser(userId))[0];
+  assert.equal((await byParty(8)).commission, null, 'the tenant');
+  assert.equal((await byParty(9)).commission.amount, '5000', 'the landlord');
+  await assert.rejects(() => f.service.financialDocumentForParty(9, 11, 'commission-confirmation'), (e) => e.getStatus() === 404, 'not generated yet');
+  f.row.data.commissionConfirmationPath = '7/commission-confirmations/c.pdf';
+  assert.equal((await f.service.financialDocumentForParty(9, 11, 'commission-confirmation')).url, 'https://signed.example/7/commission-confirmations/c.pdf');
+  await assert.rejects(() => f.service.financialDocumentForParty(8, 11, 'commission-confirmation'), (e) => e.getStatus() === 404, 'never the tenant');
+  assert.equal((await f.service.view(7, 11)).commission.url, 'https://signed.example/7/commission-confirmations/c.pdf');
+  for (const status of ['awaiting_agent_review', 'active', 'cancelled']) {
+    f.row.status = status;
+    assert.equal((await f.service.view(7, 11)).signDueDate, null, `${status}: signed by everyone or closed`);
+  }
+  f.row.status = 'awaiting_signatures';
+  assert.equal((await f.service.view(7, 11)).signDueDate, '2026-10-13');
+  const lease = fixture({ patch: { created_at: new Date('2026-10-09T18:00:00Z'), template: { form_kind: 'lease' }, agreement_type: { form_kind: 'lease' } } });
+  assert.deepEqual([(await lease.service.view(7, 11)).signDueDate, (await lease.service.view(7, 11)).commission], [undefined, undefined], 'not a letter');
+});
+
+// D4 (AC-5.5, TC-5.04): the agent moves the handover day of a lease waiting for its deposit, with a reason.
+test('D4: the handover day is the lease start until moved with a reason; each move is kept', async (t) => {
+  t.mock.method(require('../src/billing/rent-schedule.ts'), 'bangkokToday', () => '2026-10-26');
+  const leasePatch = { template: { form_kind: 'lease' }, agreement_type: { form_kind: 'lease' }, status: 'awaiting_deposit', start_date: '2026-11-01' };
+  const f = fixture({ patch: leasePatch });
+  assert.deepEqual((await f.service.view(7, 11)).handoverDue, { date: '2026-11-01', history: [] });
+  for (const [body, pattern] of [
+    [{ date: '2026-11-05' }, /เหตุผล/], [{ date: '2026-11-05', reason: '  ' }, /เหตุผล/], [{ date: '2026-11-05', reason: 'x'.repeat(501) }, /เหตุผล/],
+    [{ date: '2026-02-30', reason: 'ok' }, /วันส่งมอบไม่ถูกต้อง/], [{ date: '2026-10-25', reason: 'ok' }, /ก่อนวันนี้/],
+    [{ date: '2026-11-01', reason: 'ok' }, /ต่างจากวันเดิม/],
+  ]) await assert.rejects(() => f.service.moveHandoverDue(7, 11, body), (e) => e.getStatus() === 400 && pattern.test(e.message), JSON.stringify(body));
+  assert.deepEqual(f.updates, [], 'nothing written');
+  const moved = await f.service.moveHandoverDue(7, 11, { date: '2026-11-05', reason: '  ผู้เช่าขอเลื่อน  ' });
+  assert.equal(moved.handoverDue.date, '2026-11-05');
+  assert.deepEqual(moved.handoverDue.history.map((h) => [h.from, h.to, h.reason]), [['2026-11-01', '2026-11-05', 'ผู้เช่าขอเลื่อน']]);
+  assert.equal(f.row.data.untouched, true, 'the rest of the data is kept');
+  await f.service.moveHandoverDue(7, 11, { date: '2026-11-10', reason: 'อีกครั้ง' });
+  assert.deepEqual(f.row.data.handoverDue.history.map((h) => [h.from, h.to]), [['2026-11-01', '2026-11-05'], ['2026-11-05', '2026-11-10']]);
+  f.row.status = 'awaiting_handover';
+  assert.equal((await f.service.view(7, 11)).handoverDue.date, '2026-11-10', 'still shown until the handover');
+  for (const status of ['active', 'draft']) {
+    f.row.status = status;
+    await assert.rejects(() => f.service.moveHandoverDue(7, 11, { date: '2026-11-20', reason: 'x' }), (e) => e.getStatus() === 400, status);
+    assert.equal((await f.service.view(7, 11)).handoverDue, null, status);
+  }
+  const letter = fixture();
+  await assert.rejects(() => letter.service.moveHandoverDue(7, 11, { date: '2026-11-20', reason: 'x' }), (e) => e.getStatus() === 400 && /สัญญาเช่า/.test(e.message));
+});

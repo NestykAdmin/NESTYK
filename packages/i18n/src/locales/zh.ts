@@ -121,7 +121,7 @@ export const zh: TranslationSchema = {
       signed: '签名已保存',
       signFailed: '签署失败',
       drawSignatureFirst: '请先手写签名再确认',
-      bookingPaymentBeforeSigning: '租客需先支付定金，并等待经纪人核对付款、开具收据后才能签署',
+      bookingPaymentBeforeSigning: '租客支付定金且经纪人开具收据后，各方才能签署预订书',
     },
     profile: {
       hubSubtitle: 'PropTech Living Hub',
@@ -490,6 +490,8 @@ export const zh: TranslationSchema = {
         nowSignTitle: '合同待签署',
         nowSignBody: '{contract} · 跟进各方完成签署',
         nowSignCta: '查看合同',
+        nowSignLateTitle: '预订书已过签署期限',
+        nowSignLateBody: '{contract} · 截止 {date}，请跟进各方完成签署',
         nowBrokerTitle: '先办理委托经纪合同',
         nowBrokerBody: '此房间和租客尚无生效的委托经纪合同。请先由房东和经纪人签署委托经纪合同并生成文件，才能制作预订书。委托经纪合同自签订日起有效1年',
         nowBrokerCta: '制作委托经纪合同',

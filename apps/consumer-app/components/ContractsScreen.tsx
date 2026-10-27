@@ -96,12 +96,16 @@ import {
   createAgentContract,
   updateAgentContractDraft,
   cancelAgentContractDraft,
+  getDealCancellationPreview,
+  cancelDeal,
+  recordDealRefund,
   getAgentContractDraftTemplate,
   uploadAgentContractDocument,
   signAgentContract,
   signAgentContractWitness,
   issueAgentDepositInvoice,
   returnDepositSlip,
+  moveHandoverDue,
   returnReservationSlip,
   deliverAgentContract,
   previewAgentReservation,
@@ -115,8 +119,12 @@ import {
   generateFinancialDocument,
 } from "../lib/agent-contracts-api";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
+import { ReservationTerms } from "./ReservationTerms";
 import { DealOfferSection } from "./DealOfferSection";
 import { DepositPaymentCard } from "./DepositPaymentCard";
+import { HandoverDueControl } from "./HandoverDueControl";
+import { DealCancellationCard, type PickedFile } from "./DealCancellationCard";
+import { canCancelDeal } from "../lib/deal-cancellation";
 import { HandoverCard } from "./HandoverCard";
 import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
@@ -723,6 +731,28 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   ) {
     setError("");
     setPreviewDoc({ name, url, kind });
+  }
+  /** D5: cancel the deal or record its refund; the other agreements of the deal are reloaded (they changed too). */
+  async function saveDealChange(run: () => Promise<AgentContract>, done: string) {
+    if (busy || saving.current) return false;
+    saving.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await run();
+      setSelected(updated);
+      setContracts((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
+      setNotice(done);
+      onChanged?.();
+      setRetry((n) => n + 1);
+      return true;
+    } catch (e) {
+      setError(message(e));
+      return false;
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
   }
   /** D10: issue the deposit invoice again when issuing it with the generated lease failed. */
   async function issueDepositInvoice() {
@@ -2574,7 +2604,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         {selected.status === "draft" && !selected.ownerSignedAt && !selected.tenantSignedAt && !selected.agentSignedAt && !documentLocked && !selected.receiptUrl && selected.reservationPayment?.status !== "submitted" && (
           <View style={[s.card, card]}>
             {button(sc.editDraft, () => { void editDraft(selected); })}
-            {button(sc.cancelDraft, () => { setCancellingDraft(true); setCancelReason(""); setError(""); })}
+            {/* D5: a booking letter is cancelled with its deal (who caused it, evidence), below. */}
+            {selected.formKind !== "reservation" && button(sc.cancelDraft, () => { setCancellingDraft(true); setCancelReason(""); setError(""); })}
             {cancellingDraft && <>
               <Text style={[s.body, title]}>{fillTemplate(sc.confirmCancel, { no: selected.contractNo })}</Text>
               <Text style={[s.small, muted]}>{sc.cancelHint}</Text>
@@ -2587,6 +2618,21 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         )}
         {selected.status === "cancelled" && !!selected.data.draftCancellation && (
           <Text style={[s.body, muted]}>{fillTemplate(sc.cancelledReason, { reason: String((selected.data.draftCancellation as { reason?: string }).reason ?? "") })}</Text>
+        )}
+        {(!!selected.cancellation || canCancelDeal(selected)) && (
+          // D5 (AC-C.1 to C.4): cancel the deal before the handover; once cancelled, the money and the refund.
+          <View style={[s.card, card]}>
+            <DealCancellationCard
+              key={selected.id}
+              contract={selected}
+              busy={busy}
+              today={bangkokToday()}
+              loadPreview={() => getDealCancellationPreview(selected.id)}
+              onOpen={(url, label) => openDocumentPreview(label, url, "payment_slip")}
+              onCancel={(input, evidence) => saveDealChange(() => cancelDeal(selected.id, input, evidence), tc.dealCancel.done)}
+              onRecordRefund={(refundedOn, proof: PickedFile) => saveDealChange(() => recordDealRefund(selected.id, refundedOn, proof), tc.dealCancel.refundDone)}
+            />
+          </View>
         )}
         {(!!selected.previousAgreementId ||
           (selected.formKind === "lease" &&
@@ -2877,6 +2923,12 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             }}
           />
         )}
+        {/* D13 + D3: the commission confirmation signed with the letter, and the 3-day signing due day. */}
+        <ReservationTerms
+          contract={selected}
+          today={bangkokToday()}
+          onOpenCommission={(url) => openDocumentPreview(tc.reservationTerms.openCommission, url, "commission_confirmation")}
+        />
         {selected.formKind === "reservation" && (
           <ReservationPaymentCard
             contract={selected}
@@ -2902,6 +2954,31 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             onIssueReceipt={() => { setError(""); setPayingDeposit(true); }}
             onIssueInvoice={() => void issueDepositInvoice()}
             onReturnSlip={(reason) => returnSlip("deposit", reason)}
+          />
+        )}
+        {selected.formKind === "lease" && (
+          // D4 (AC-5.5): the handover day (the agent is reminded if the deposit is not paid by then), moved with a reason.
+          <HandoverDueControl
+            contract={selected}
+            busy={busy}
+            onMove={async (date, reason) => {
+              if (busy) return false;
+              setBusy(true);
+              setError("");
+              try {
+                const updated = await moveHandoverDue(selected.id, date, reason);
+                setSelected(updated);
+                setContracts((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
+                setNotice(tc.handoverDue.done);
+                onChanged?.();
+                return true;
+              } catch (e) {
+                setError(message(e));
+                return false;
+              } finally {
+                setBusy(false);
+              }
+            }}
           />
         )}
         {selected.formKind === "lease" && (

@@ -33,6 +33,9 @@ import {
 } from "./ContractSignaturePad";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { ReservationPaymentCard } from "./ReservationPaymentCard";
+import { ReservationTerms } from "./ReservationTerms";
+import { DealCancellationSummary } from "./DealCancellationCard";
+import { dateKey } from "../lib/tenant-detail";
 import { DepositPaymentCard } from "./DepositPaymentCard";
 import { HandoverCard } from "./HandoverCard";
 import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
@@ -235,12 +238,13 @@ export function PartyContractDetail({
     }
   }
 
-  async function openPaymentDocument(kind: "invoice" | "receipt" | "payment-slip" | DepositFinancialDocumentKind) {
+  async function openPaymentDocument(kind: "invoice" | "receipt" | "payment-slip" | "commission-confirmation" | DepositFinancialDocumentKind) {
     setPreviewBusy(true);
     setError("");
     try {
       const doc = await openMyFinancialDocument(contract.id, kind);
-      setPreviewTitle(kind.endsWith("invoice") ? tc.common.paymentDocuments.invoice : kind.endsWith("receipt") ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip);
+      setPreviewTitle(kind === "commission-confirmation" ? tc.reservationTerms.openCommission
+        : kind.endsWith("invoice") ? tc.common.paymentDocuments.invoice : kind.endsWith("receipt") ? tc.common.paymentDocuments.receipt : tc.common.paymentDocuments.paymentSlip);
       setPreviewUrl(doc.url);
     } catch (e) {
       setError(localizedError(e, pc.openDocumentFailed, locale));
@@ -378,6 +382,21 @@ export function PartyContractDetail({
           {tc.party.viewContractDocument}
         </MobileButton>
       </View>
+
+      {/* D5: a cancelled deal: who caused it, why, and what is forfeited or refunded (by when, and when refunded). */}
+      {contract.cancellation ? (
+        <View style={[styles.card, card]}>
+          <DealCancellationSummary cancellation={contract.cancellation} today={dateKey(new Date())} />
+        </View>
+      ) : null}
+
+      {/* D13: the landlord sees the commission confirmation they sign with the letter (the tenant's has none). */}
+      <ReservationTerms
+        contract={contract}
+        today={dateKey(new Date())}
+        showDue={false}
+        onOpenCommission={() => void openPaymentDocument("commission-confirmation")}
+      />
 
       {contract.formKind === "reservation" && (
         <ReservationPaymentCard

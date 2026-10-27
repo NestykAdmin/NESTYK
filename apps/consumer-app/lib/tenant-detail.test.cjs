@@ -160,6 +160,18 @@ test('a fully signed document asks the agent to confirm it before any document s
   assert.equal(tenantNextAction(tenant({ contracts: [signed] }), billing).kind, 'review_slip');
 });
 
+test('D3 (TC-3.07): a reservation letter past its signing due day comes first among letters to sign, as late', () => {
+  const late = contract({ id: 8, formKind: 'reservation', status: 'draft', signDueDate: '2026-10-13' });
+  const signing = contract({ id: 9, formKind: 'lease', status: 'awaiting_signatures' });
+  const on13 = new Date('2026-10-13T16:59:00Z'); // 23:59 on 13 Oct in Bangkok
+  const on14 = new Date('2026-10-13T17:00:00Z'); // 00:00 on 14 Oct in Bangkok
+  assert.deepEqual(tenantNextAction(tenant({ contracts: [late, signing] }), null, on13), { kind: 'sign', contract: signing }, 'not late yet');
+  assert.deepEqual(tenantNextAction(tenant({ contracts: [late, signing] }), null, on14), { kind: 'sign', contract: late, late: true });
+  const signed = contract({ id: 10, formKind: 'reservation', status: 'awaiting_agent_review' });
+  assert.equal(tenantNextAction(tenant({ contracts: [late, signed] }), null, on14).kind, 'confirm', 'a letter to confirm still comes first');
+  assert.equal(tenantNextAction(tenant({ contracts: [contract({ ...late, formKind: 'lease' })] }), null, on14), null, 'only letters have the 3-day due day');
+});
+
 test('a tenant whose only documents were cancelled is offered a new reservation', () => {
   const cancelled = contract({ id: 8, formKind: 'reservation', status: 'cancelled' });
   assert.equal(tenantNextAction(tenant({ contracts: [cancelled] }), null).kind, 'reservation');
