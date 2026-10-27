@@ -39,6 +39,7 @@ type AuthContextValue = {
   displayName: string;
   initials: string;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, forTesting?: boolean) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   /** The login ran out (or was ended elsewhere): the sign-in screen shows a notice until the next sign-in. */
@@ -155,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [applySession]);
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, supabaseOnly = false) => {
       const normalizedEmail = email.trim().toLowerCase();
       const supabase = getSupabaseClient();
 
@@ -169,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Fall through to local dev credentials when enabled
           if (
             !(
-              DEV_AUTH_CONFIG.enabled &&
+              !supabaseOnly && DEV_AUTH_CONFIG.enabled &&
               normalizedEmail === DEV_AUTH_CONFIG.email.toLowerCase() &&
               password === DEV_AUTH_CONFIG.password
             )
@@ -197,7 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Dev email/password (local Docker + ALLOW_DEV_AUTH)
       if (
-        DEV_AUTH_CONFIG.enabled &&
+        !supabaseOnly && DEV_AUTH_CONFIG.enabled &&
         normalizedEmail === DEV_AUTH_CONFIG.email.toLowerCase() &&
         password === DEV_AUTH_CONFIG.password
       ) {
@@ -243,6 +244,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [session?.mode]);
 
+  const signUp = useCallback(async (email: string, password: string, firstName: string, lastName: string, forTesting = false) => {
+    if (forTesting && (typeof __DEV__ === 'undefined' || !__DEV__)) {
+      throw Object.assign(new Error(), { code: 'TEST_REGISTRATION_UNAVAILABLE' });
+    }
+    const supabase = getSupabaseClient();
+    if (!supabase || !isSupabaseConfigured()) {
+      throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    if (forTesting) {
+      await apiPost('/auth/dev/register', {
+        email: normalizedEmail, password, firstName: firstName.trim(), lastName: lastName.trim(),
+      });
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: { data: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          full_name: [firstName.trim(), lastName.trim()].join(' '),
+          registration_source: 'self_service',
+        } },
+      });
+      if (error) throw error;
+      if (!data.user) throw new Error();
+      if (!data.session) return { needsEmailConfirmation: true };
+    }
+
+    // Use the existing sign-in/session flow; registration never constructs a token or grants DEV roles.
+    try {
+      await signIn(normalizedEmail, password, true);
+    } catch (signInError) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      throw signInError;
+    }
+    return { needsEmailConfirmation: false };
+  }, [signIn]);
+
   const dismissSessionExpired = useCallback(() => setSessionExpired(false), []);
 
   const value = useMemo<AuthContextValue>(() => {
@@ -256,12 +296,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       displayName: session ? displayNameFrom(firstName, lastName, email) : '',
       initials: session ? initialsFromName(firstName, lastName, email) : '?',
       signIn,
+      signUp,
       signOut,
       refreshProfile,
       sessionExpired,
       dismissSessionExpired,
     };
-  }, [ready, session, signIn, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
+  }, [ready, session, signIn, signUp, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

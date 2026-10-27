@@ -12,10 +12,17 @@ import {
 import { AuthService } from './auth.service';
 import { AuthGuard, JwtIdentity } from './guards/auth.guard';
 import { CurrentUser, AuthRequestUser } from './decorators/current-user.decorator';
+import { DevRegistrationGuard } from './guards/dev-registration.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('dev/register')
+  @UseGuards(DevRegistrationGuard)
+  async registerForTesting(@Body() body: unknown) {
+    return this.authService.registerForTesting(body);
+  }
 
   @Post('sync')
   @UseGuards(AuthGuard)

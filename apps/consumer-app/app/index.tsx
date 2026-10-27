@@ -1326,6 +1326,7 @@ export default function AppHomeScreen() {
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
+      router.replace('/login');
     } catch {
       setPartyInbox(false);
       setSelectedPartyRoom(null);
@@ -1333,6 +1334,7 @@ export default function AppHomeScreen() {
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
+      router.replace('/login');
     }
   };
 
