@@ -8,7 +8,10 @@ export type AgentListingCard = {
   visibility: 'private' | 'published' | null;
   isScoutRoom: boolean;
   listingSourceCode?: 'co_agent' | 'owner' | null;
+  /** D8: in the agent's views, the status from the deals: available, booked, rented, soon_vacant, pending_verification, needs_edit. */
   roomStatusCode: string | null;
+  /** D8: a soon-vacant room is free from this day. */
+  vacantFrom?: string | null;
   property: {
     id: number;
     name: string;

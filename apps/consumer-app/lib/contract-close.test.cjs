@@ -28,12 +28,11 @@ const reasons = [
 const lease = (over = {}) => ({ id: 1, formKind: 'lease', status: 'active', templateId: 3, startDate: '2026-01-01', endDate: '2026-12-31', ...over });
 const codes = (rows) => rows.map((row) => row.reason.code);
 
-test('only an active lease or renewal, or a lease waiting for its deposit or handover, can be closed', () => {
+test('only an active lease or renewal can be closed; one waiting for its deposit or handover is cancelled with its deal', () => {
   assert.equal(canCloseContract(lease()), true);
-  // D7 (Aof, 22 Oct 2026): a lease waiting for its deposit or handover can be closed too.
-  for (const status of ['awaiting_deposit', 'awaiting_handover']) assert.equal(canCloseContract(lease({ status })), true, status);
   assert.equal(canCloseContract(lease({ formKind: 'renewal' })), true);
-  for (const status of ['draft', 'awaiting_signatures', 'awaiting_agent_review', 'expired', 'terminated', 'cancelled'])
+  // D5 + D8 (Aof, 27 Oct 2026): not handed over yet: "cancel the deal" (who caused it, evidence), not this card.
+  for (const status of ['awaiting_deposit', 'awaiting_handover', 'draft', 'awaiting_signatures', 'awaiting_agent_review', 'expired', 'terminated', 'cancelled'])
     assert.equal(canCloseContract(lease({ status })), false, status);
   for (const formKind of ['reservation', 'broker_appointment'])
     assert.equal(canCloseContract(lease({ formKind })), false, formKind);

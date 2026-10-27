@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { RentRoomEntity } from '../../entities/rent-room.entity';
+import { roomDealStatuses, type RoomStatusResult } from '../rooms/room-deal-status';
 
 export type ListingsSort = 'updated_desc' | 'updated_asc' | 'price_asc' | 'price_desc';
 
@@ -97,6 +98,8 @@ function toListingCard(room: RentRoomEntity) {
     isScoutRoom: room.is_scout_room,
     listingSourceCode: room.listing_source?.code ?? null,
     roomStatusCode: room.room_status?.code ?? null,
+    /** D8: a soon-vacant room is free from this day (the day after the current lease's last day). */
+    vacantFrom: null as string | null,
     property: room.property
       ? {
           id: room.property.id,
@@ -138,7 +141,19 @@ export class AgentListingsService {
   constructor(
     @InjectRepository(RentRoomEntity)
     private readonly roomsRepo: Repository<RentRoomEntity>,
+    /** D8: the room status from its deals (without it, the stored code, as the unit tests build it). */
+    @Optional() private readonly db?: DataSource,
   ) {}
+
+  /** D8: each room's status from its deals and today's date; empty without a database (stored codes are used). */
+  private dealStatuses(agentId: number, ids?: number[]): Promise<Map<number, RoomStatusResult>> {
+    return this.db ? roomDealStatuses(this.db, agentId, ids) : Promise.resolve(new Map());
+  }
+  /** The agent's views show the status from the deals in roomStatusCode (the public share link keeps the stored one). */
+  private withDealStatus<T extends { id: number; roomStatusCode: string | null; vacantFrom?: string | null }>(card: T, statuses: Map<number, RoomStatusResult>): T {
+    const found = statuses.get(card.id);
+    return found ? { ...card, roomStatusCode: found.status, vacantFrom: found.vacantFrom } : card;
+  }
 
   async listMine(agentId: number, query: ListingsQuery) {
     const page = Math.max(1, Math.floor(Number.isFinite(Number(query.page)) ? Number(query.page) || 1 : 1));
@@ -159,7 +174,12 @@ export class AgentListingsService {
     }
 
     const statusCode = query.roomStatus?.trim();
-    if (statusCode) {
+    if (statusCode && this.db) {
+      // D8: filter by the status from the deals, before counting and pagination.
+      const statusIds = [...(await this.dealStatuses(agentId))].filter(([, s]) => s.status === statusCode).map(([id]) => id);
+      if (statusIds.length) countQb.andWhere('room.id IN (:...statusIds)', { statusIds });
+      else countQb.andWhere('1 = 0');
+    } else if (statusCode) {
       countQb.andWhere('roomStatus.code = :roomStatus', { roomStatus: statusCode });
     }
 
@@ -264,10 +284,11 @@ export class AgentListingsService {
       },
     });
     const byId = new Map(found.map((room) => [room.id, room]));
+    const statuses = await this.dealStatuses(agentId, found.map((room) => room.id));
     return ids
       .map((id) => byId.get(id))
       .filter((room): room is RentRoomEntity => !!room)
-      .map(toListingCard);
+      .map((room) => this.withDealStatus(toListingCard(room), statuses));
   }
 
   /**
@@ -296,26 +317,38 @@ export class AgentListingsService {
       .innerJoin('room.room_status', 'roomStatus')
       .where('room.is_scout_room = TRUE')
       .andWhere('room.created_by_user_id = :agentId')
-      .andWhere("roomStatus.code = 'available'")
-      // A room one of the agent's leads has booked is taken, whatever its status code still says.
-      .andWhere("NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked' AND booked.booking_released_at IS NULL)")
+      // D8: with the deals, available and soon-vacant rooms (AC-2.5) not booked by a new tenant; else, as before,
+      // available rooms none of the agent's leads has booked.
+      .andWhere(this.db ? "roomStatus.code IN ('available', 'rented')" : "roomStatus.code = 'available'")
+      .andWhere(this.db ? 'TRUE' : "NOT EXISTS (SELECT 1 FROM leads booked WHERE booked.rent_room_id = room.id AND booked.status = 'booked' AND booked.booking_released_at IS NULL)")
       .andWhere(`(${MIN_PRICE_SUBQUERY} IS NULL OR ${MIN_PRICE_SUBQUERY} <= :maxPrice)`)
       .andWhere(`(${boxSql.join(' OR ')})`)
       .setParameters(params)
       .getRawMany<{ id: number }>();
-    const ids = idRows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id));
+    let ids = idRows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id));
+    const statuses = await this.dealStatuses(agentId, ids);
+    if (this.db)
+      ids = ids.filter((id) => {
+        const s = statuses.get(id);
+        return s?.status === 'available' || (s?.status === 'soon_vacant' && !s.nextBooked);
+      });
     if (!ids.length) return [];
     const rooms = await this.roomsRepo.find({
       where: { id: In(ids), created_by_user_id: agentId, is_scout_room: true },
       relations: { price_rows: { contract_type: true }, property: true, room_type: true },
     });
-    return rooms.map((room) => ({
-      id: room.id,
-      ...roomCoordinates(room),
-      prices: roomPrices(room).map((p) => ({ termMonths: p.termMonths, price: p.price })),
-      roomTypeCode: room.room_type?.code ?? null,
-      availableFromDate: room.available_from_date ?? null,
-    }));
+    return rooms.map((room) => {
+      // A soon-vacant room can be moved into from the day after the current lease (whichever is later).
+      const vacantFrom = statuses.get(room.id)?.vacantFrom ?? null;
+      const listed = room.available_from_date ? String(room.available_from_date).slice(0, 10) : null;
+      return {
+        id: room.id,
+        ...roomCoordinates(room),
+        prices: roomPrices(room).map((p) => ({ termMonths: p.termMonths, price: p.price })),
+        roomTypeCode: room.room_type?.code ?? null,
+        availableFromDate: vacantFrom && (!listed || vacantFrom > listed) ? vacantFrom : room.available_from_date ?? null,
+      };
+    });
   }
   async viewMine(agentId: number, id: number) {
     const room = await this.roomsRepo.findOne({
@@ -328,12 +361,16 @@ export class AgentListingsService {
       },
     });
     if (!room) throw new NotFoundException('Room not found');
+    const statuses = await this.dealStatuses(agentId, [room.id]);
     const p = room.property;
     return {
       id: room.id, listingTitle: room.listing_title, promoTitle: room.promo_title,
       description: room.listing_description,
       roomId: room.room_id, visibility: room.visibility,
-      roomStatusCode: room.room_status?.code ?? null,
+      ...(() => {
+        const s = statuses.get(room.id);
+        return { roomStatusCode: s?.status ?? room.room_status?.code ?? null, vacantFrom: s?.vacantFrom ?? null };
+      })(),
       roomTypeCode: room.room_type?.code ?? null, roomTypeId: room.room_type_id,
       listingSourceCode: room.listing_source?.code ?? null,
       availableFromDate: room.available_from_date,

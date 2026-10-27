@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import type { AgentDashboardData, AgentDashboardDeepLink, AgentWorkItemKind } from '@nestyk/types';
 import { RentRoomEntity } from '../../entities/rent-room.entity';
@@ -7,6 +7,7 @@ import { LeadViewingEntity } from '../../entities/lead-viewing.entity';
 import { TenantEntity } from '../../entities/tenant.entity';
 import { LeaseContractEntity } from '../../entities/lease-contract.entity';
 import { TenantBillEntity } from '../../entities/tenant-bill.entity';
+import { roomDealStatuses } from '../rooms/room-deal-status';
 
 const DAY_MS = 86_400_000;
 const SETTLED = new Set(['active', 'cancelled', 'expired', 'terminated']);
@@ -38,9 +39,20 @@ function tenantLease(contracts: LeaseContractEntity[], today: string) {
 
 @Injectable()
 export class AgentDashboardService {
+  private readonly logger = new Logger(AgentDashboardService.name);
   constructor(private readonly db: DataSource) {}
 
-  private rooms(agentId: number) {
+  /** D8: rooms with their status from the deals (the stored code if that lookup fails). */
+  private async rooms(agentId: number, today: string) {
+    const rooms = await this.roomRows(agentId);
+    const statuses = await roomDealStatuses(this.db, agentId, rooms.map((room) => room.id), today).catch((error: unknown) => {
+      this.logger.warn(`Room statuses failed: ${error instanceof Error ? error.message : String(error)}`);
+      return new Map<number, { status: string }>();
+    });
+    return rooms.map((room) => Object.assign(room, { dealStatus: statuses.get(room.id)?.status ?? room.room_status?.code ?? null }));
+  }
+
+  private roomRows(agentId: number) {
     return this.db.getRepository(RentRoomEntity).createQueryBuilder('room')
       .leftJoin('room.room_status', 'roomStatus')
       .leftJoin('room.property', 'property')
@@ -102,7 +114,7 @@ export class AgentDashboardService {
     const period = today.slice(0, 7);
     // Sources fail independently. A failed query must never masquerade as an available empty section.
     const [roomResult, leadResult, viewingResult, tenantResult, contractResult, billResult] = await Promise.allSettled([
-      this.rooms(agentId), this.leads(agentId), this.viewings(agentId), this.tenants(agentId), this.contracts(agentId), this.bills(agentId),
+      this.rooms(agentId, today), this.leads(agentId), this.viewings(agentId), this.tenants(agentId), this.contracts(agentId), this.bills(agentId),
     ]);
     const rooms = roomResult.status === 'fulfilled' ? roomResult.value : [];
     const leads = leadResult.status === 'fulfilled' ? leadResult.value : [];
@@ -117,7 +129,7 @@ export class AgentDashboardService {
     const openLeads = leads.filter(lead => lead.status === 'new' || lead.status === 'inprogress');
     const futureViewingLeads = new Set(viewings.filter(viewing => viewing.status === 'scheduled' && new Date(viewing.scheduled_at).getTime() > now.getTime()).map(viewing => viewing.lead_id));
     const followUps = openLeads.filter(lead => !futureViewingLeads.has(lead.id));
-    const available = rooms.filter(room => room.room_status?.code === 'available').length;
+    const available = rooms.filter(room => room.dealStatus === 'available').length;
     let draft = 0;
     let signing = 0;
     let active = 0;
@@ -186,7 +198,7 @@ export class AgentDashboardService {
           beds: Number(room.layout_values?.find(v => v.layout?.code === 'bedroom')?.value || 0),
           area: room.property?.district || '',
           price: room.price_rows?.length ? Math.min(...room.price_rows.map(price => Number(price.price))) : 0,
-          availability: room.room_status?.code === 'available' ? 'available' : 'unavailable',
+          availability: room.dealStatus === 'available' ? 'available' : 'unavailable',
           visibility: room.visibility === 'published' ? 'published' : 'private',
         })) },
       clients: { status: clientsStatus, draft, signing, tenants: active, renewal: renewals[0] ?? null },

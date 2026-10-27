@@ -8,6 +8,7 @@ import {
 } from "@nestyk/ui";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import type { AgentRoomDetail } from "../agent-room-detail";
+import { roomStatusLabel } from "../room-status-label";
 import type { RoomShareVisibility } from "../share-completeness";
 import type { NearbyMapProps } from "../nearby";
 import { DEFAULT_ROOM_SHARE_VISIBILITY } from "../share-completeness";
@@ -149,9 +150,8 @@ export function RoomDesktopBody({
         .filter((part) => part && part !== "-")
         .join(" ")
     : "";
-  const status = c[room.roomStatusCode as keyof typeof c];
-  const statusLabel =
-    typeof status === "string" ? status : room.roomStatusCode || c.notSpecified;
+  // D8: the status from the deals, with the day a soon-vacant room is free.
+  const statusLabel = roomStatusLabel(c, room.roomStatusCode, room.vacantFrom, locale);
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(
     room.availableFromDate || "",
   );

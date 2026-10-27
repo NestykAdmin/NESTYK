@@ -1799,6 +1799,9 @@ export interface TranslationSchema {
       months: string;
       available: string;
       rented: string;
+      booked: string;
+      soon_vacant: string;
+      soonVacantFrom: string;
       pending_verification: string;
       needs_edit: string;
       emptyCta: string;

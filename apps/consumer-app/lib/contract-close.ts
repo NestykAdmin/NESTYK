@@ -19,8 +19,8 @@ export type CloseDateProblem = "format" | "future" | "beforeStart" | "notBeforeE
  */
 export function canCloseContract(contract: AgentContract): boolean {
   return (
-    // D7 (Aof, 22 Oct 2026): a lease waiting for its deposit or handover can be closed too.
-    ["active", "awaiting_deposit", "awaiting_handover"].includes(contract.status) &&
+    // D5 + D8 (Aof, 27 Oct 2026): only an agreement in force; one not handed over yet is cancelled with its deal.
+    contract.status === "active" &&
     contract.templateId != null &&
     (contract.formKind === "lease" || contract.formKind === "renewal")
   );

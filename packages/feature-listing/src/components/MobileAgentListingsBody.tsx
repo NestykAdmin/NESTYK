@@ -14,6 +14,7 @@ import { useLocale } from '@nestyk/i18n';
 import { MobileBrandLoader, MobileButton, MobileIcon, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { listingSourceStyle } from '../listing-source';
 import { formatBedroomDisplay } from '../bedroom-label';
+import { roomStatusLabel } from '../room-status-label';
 import type { AppIconName } from '@nestyk/ui/native';
 
 export type AgentListingsViewMode = 'grid' | 'row';
@@ -23,7 +24,10 @@ export type AgentListingCard = {
   listingTitle: string | null;
   visibility: 'private' | 'published' | null;
   listingSourceCode?: 'co_agent' | 'owner' | null;
+  /** D8: in the agent's views, the status from the deals (available, booked, rented, soon_vacant, ...). */
   roomStatusCode: string | null;
+  /** D8: a soon-vacant room is free from this day. */
+  vacantFrom?: string | null;
   property: {
     id: number;
     name: string;
@@ -134,6 +138,15 @@ function statusTone(
       badgeText: tokens.colors.icon.secondary,
     };
   }
+  // D8: booked in the brand colour; soon_vacant, like the listing checks, in the warning colour (the default).
+  if (code === 'booked') {
+    return {
+      dot: tokens.colors.brand[500],
+      badgeBg: variant === 'soft' ? tokens.colors.brand[50] : tokens.colors.white,
+      badgeBorder: variant === 'soft' ? tokens.colors.brand[50] : tokens.colors.brand[500],
+      badgeText: tokens.colors.brand[500],
+    };
+  }
   if (code === 'needs_edit') {
     if (variant === 'soft') {
       return {
@@ -167,7 +180,7 @@ function statusTone(
 }
 
 function useListingLabels(item: AgentListingCard) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const copy = t.agent.listings;
   const cr = t.agent.createRoom;
 
@@ -179,8 +192,7 @@ function useListingLabels(item: AgentListingCard) {
   const pricePeriod = price != null ? copy.rentPeriod : null;
   const priceLabel =
     price != null ? interpolate(copy.rentPerMonthShort, { price: price.toLocaleString() }) : null;
-  const statusLabel =
-    copy[item.roomStatusCode as keyof typeof copy] || item.roomStatusCode || copy.notSpecified;
+  const statusLabel = roomStatusLabel(copy, item.roomStatusCode, item.vacantFrom, locale);
   const sourceStyle = listingSourceStyle(item.listingSourceCode);
   const sourceLabel =
     item.listingSourceCode === 'owner'
