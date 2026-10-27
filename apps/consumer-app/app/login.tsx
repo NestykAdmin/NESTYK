@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   View,
   Text,
+  ScrollView,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -80,7 +81,6 @@ export default function LoginScreen() {
   // A typed or sign-in error replaces the "session expired" notice.
   const shownError = error ?? (sessionExpired ? t.mobile.auth.sessionExpired : null);
   const compact = height < 780;
-  const keyboardOpen = focused !== null;
 
   React.useEffect(() => {
     setError(null);
@@ -125,8 +125,11 @@ export default function LoginScreen() {
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View
-          style={[
+        <ScrollView
+          style={styles.flex}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
             styles.screen,
             {
               paddingTop: insets.top + (compact ? 8 : 12),
@@ -152,29 +155,22 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            <View
-              style={[
-                styles.hero,
-                keyboardOpen && styles.heroCollapsed,
-              ]}
-            >
-              {!keyboardOpen ? (
-                <Text
-                  style={[
-                    styles.heroTitle,
-                    compact && styles.heroTitleCompact,
-                    {
-                      fontFamily:
-                        locale === "en"
-                          ? "Baloo2_700Bold"
-                          : tokens.typography.native.headingTh,
-                    },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {copy.heroHeadline}
-                </Text>
-              ) : null}
+            <View style={styles.hero}>
+              <Text
+                style={[
+                  styles.heroTitle,
+                  compact && styles.heroTitleCompact,
+                  {
+                    fontFamily:
+                      locale === "en"
+                        ? "Baloo2_700Bold"
+                        : tokens.typography.native.headingTh,
+                  },
+                ]}
+                numberOfLines={2}
+              >
+                {copy.heroHeadline}
+              </Text>
             </View>
 
             <View
@@ -420,7 +416,7 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 style={[styles.signUpButton, compact && styles.signUpButtonCompact, { borderTopColor: theme.border }]}
-                onPress={() => setNotice(copy.signupUnavailable)}
+                onPress={() => router.push('/register')}
                 accessibilityRole="button"
                 accessibilityLabel={copy.signUp}
                 activeOpacity={0.7}
@@ -454,7 +450,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
       <MobileBottomSheet
         visible={languageOpen}
@@ -477,11 +473,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(25,18,10,0.12)",
   },
   screen: {
-    flex: 1,
+    flexGrow: 1,
+    justifyContent: "center",
     paddingHorizontal: 20,
   },
   content: {
-    flex: 1,
+    flexShrink: 0,
     width: "100%",
     maxWidth: 460,
     alignSelf: "center",
@@ -513,17 +510,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   hero: {
-    flex: 1,
+    flexShrink: 0,
     justifyContent: "flex-end",
     paddingBottom: 14,
     paddingTop: 8,
     minHeight: 56,
-  },
-  heroCollapsed: {
-    flex: 0,
-    minHeight: 8,
-    paddingBottom: 8,
-    paddingTop: 0,
   },
   heroTitle: {
     fontSize: 28,

@@ -14,6 +14,8 @@ export type JwtIdentity = {
   firstName?: string;
   lastName?: string;
   avatarUrl?: string | null;
+  /** Selects the public self-registration policy; never supplies role names. */
+  selfRegistered?: boolean;
 };
 
 @Injectable()
@@ -89,14 +91,17 @@ export class AuthGuard implements CanActivate {
 
     const meta = data.user.user_metadata ?? {};
     const fullName = String(meta.full_name ?? meta.name ?? '');
-    const [firstName, ...rest] = fullName.split(' ').filter(Boolean);
+    const [legacyFirstName, ...rest] = fullName.split(' ').filter(Boolean);
+    const firstName = typeof meta.first_name === 'string' ? meta.first_name.trim() : '';
+    const lastName = typeof meta.last_name === 'string' ? meta.last_name.trim() : rest.join(' ');
 
     return {
       supabaseUserId: data.user.id,
       email: data.user.email ?? `${data.user.id}@users.local`,
-      firstName: firstName || 'User',
-      lastName: rest.join(' ') || '',
+      firstName: firstName || legacyFirstName || 'User',
+      lastName,
       avatarUrl: (meta.avatar_url as string | undefined) ?? null,
+      selfRegistered: meta.registration_source === 'self_service',
     };
   }
 }
