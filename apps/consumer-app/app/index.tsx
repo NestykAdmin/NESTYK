@@ -242,6 +242,7 @@ export default function AppHomeScreen() {
       setActiveTab('dashboard');
     } else if (hostOrPath.includes('landlord') || hostOrPath.includes('owner')) {
       // 'owner' kept for old links; the role is now landlord (docs/ROLE-CHANGE-PLAN.md)
+      
       setActiveRole('landlord');
       setActiveTab('dashboard');
     } else if (hostOrPath.includes('agent')) {
