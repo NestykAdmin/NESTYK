@@ -276,6 +276,8 @@ export const zh: TranslationSchema = {
       fullName: '姓名',
       confirmPassword: '确认密码',
       registerButton: '创建账户',
+      registerOr: '或',
+      registerWithGoogle: '使用 Google 注册',
       backToLogin: '返回登录',
       emailConfirmationTitle: '请查收邮件',
       emailConfirmationBody: '点击邮件中的链接确认邮箱，然后返回登录。如果已有账户，请使用原密码登录。',
@@ -322,6 +324,11 @@ export const zh: TranslationSchema = {
     billsAndPayments: '账单与支付',
     reportIssue: '报修申请',
     cleaningRequest: '保洁服务',
+    webWorkspace: {
+      brandTag: '租客工作区',
+      workspaceLabel: '租客工作区',
+      main: '工作空间',
+    },
     bills: {
       current: '待支付账单',
       history: '账单记录',
@@ -368,6 +375,11 @@ export const zh: TranslationSchema = {
     rentalIncome: '租金收益',
     coAgentSettings: '合作中介设置',
     requestMaintenance: '房屋检修申请',
+    webWorkspace: {
+      brandTag: '房东工作区',
+      workspaceLabel: '房东工作区',
+      main: '工作空间',
+    },
     bills: {
       current: '待收款',
       history: '已收款',

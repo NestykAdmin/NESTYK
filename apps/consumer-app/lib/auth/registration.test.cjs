@@ -29,6 +29,8 @@ function setup({ confirmation = false, signupError, syncError, testSignupError, 
     }, setSessionExpiredHandler() {} },
     './dev-auth': { DEV_AUTH_CONFIG: { enabled: false } },
     './session-expiry': {},
+    './google-oauth': { providerRedirectPending: () => false },
+    './google-sign-in': { signInWithGoogle: async () => null },
     './supabase': { getSupabaseClient: () => supabase, isSupabaseConfigured: () => true },
     './session-storage': { saveAuthSession: async next => calls.saved.push(next), displayNameFrom: () => '', initialsFromName: () => '' },
   };

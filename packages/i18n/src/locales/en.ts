@@ -277,6 +277,8 @@ export const en: TranslationSchema = {
       fullName: 'Full name',
       confirmPassword: 'Confirm password',
       registerButton: 'Create account',
+      registerOr: 'or',
+      registerWithGoogle: 'Sign up with Google',
       backToLogin: 'Back to login',
       emailConfirmationTitle: 'Check your email',
       emailConfirmationBody: 'Confirm your email using the link we sent, then return here to log in. If you already have an account, log in with your existing password.',
@@ -323,6 +325,11 @@ export const en: TranslationSchema = {
     billsAndPayments: 'Bills & Payments',
     reportIssue: 'Report Maintenance',
     cleaningRequest: 'Request Cleaning',
+    webWorkspace: {
+      brandTag: 'TENANT WORKSPACE',
+      workspaceLabel: 'Tenant workspace',
+      main: 'Workspace',
+    },
     bills: {
       current: 'Due now',
       history: 'Bill history',
@@ -369,6 +376,11 @@ export const en: TranslationSchema = {
     rentalIncome: 'Rental Income',
     coAgentSettings: 'Co-Agent Settings',
     requestMaintenance: 'Request Inspection',
+    webWorkspace: {
+      brandTag: 'LANDLORD WORKSPACE',
+      workspaceLabel: 'Landlord workspace',
+      main: 'Workspace',
+    },
     bills: {
       current: 'Awaiting payment',
       history: 'Received',

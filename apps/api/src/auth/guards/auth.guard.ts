@@ -94,6 +94,8 @@ export class AuthGuard implements CanActivate {
     const [legacyFirstName, ...rest] = fullName.split(' ').filter(Boolean);
     const firstName = typeof meta.first_name === 'string' ? meta.first_name.trim() : '';
     const lastName = typeof meta.last_name === 'string' ? meta.last_name.trim() : rest.join(' ');
+    // Supabase sets app_metadata.provider. A client cannot claim Google by writing user_metadata.
+    const signedUpWithGoogle = data.user.app_metadata?.provider === 'google';
 
     return {
       supabaseUserId: data.user.id,
@@ -101,7 +103,7 @@ export class AuthGuard implements CanActivate {
       firstName: firstName || legacyFirstName || 'User',
       lastName,
       avatarUrl: (meta.avatar_url as string | undefined) ?? null,
-      selfRegistered: meta.registration_source === 'self_service',
+      selfRegistered: meta.registration_source === 'self_service' || signedUpWithGoogle,
     };
   }
 }

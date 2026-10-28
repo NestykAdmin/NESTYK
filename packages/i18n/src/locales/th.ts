@@ -277,6 +277,8 @@ export const th: TranslationSchema = {
       fullName: 'ชื่อและนามสกุล',
       confirmPassword: 'ยืนยันรหัสผ่าน',
       registerButton: 'สร้างบัญชี',
+      registerOr: 'หรือ',
+      registerWithGoogle: 'สมัครด้วย Google',
       backToLogin: 'กลับไปเข้าสู่ระบบ',
       emailConfirmationTitle: 'ตรวจสอบอีเมลของคุณ',
       emailConfirmationBody: 'กดลิงก์ยืนยันในอีเมลที่ส่งให้ แล้วกลับมาเข้าสู่ระบบ หากมีบัญชีอยู่แล้ว ให้เข้าสู่ระบบด้วยรหัสผ่านเดิม',
@@ -323,6 +325,11 @@ export const th: TranslationSchema = {
     billsAndPayments: 'บิลและการชำระเงิน',
     reportIssue: 'แจ้งซ่อมบำรุง',
     cleaningRequest: 'สั่งทำความสะอาด',
+    webWorkspace: {
+      brandTag: 'พื้นที่ทำงานผู้เช่า',
+      workspaceLabel: 'พื้นที่ทำงานผู้เช่า',
+      main: 'พื้นที่ทำงาน',
+    },
     bills: {
       current: 'บิลที่ต้องชำระ',
       history: 'ประวัติบิล',
@@ -369,6 +376,11 @@ export const th: TranslationSchema = {
     rentalIncome: 'รายได้ค่าเช่า',
     coAgentSettings: 'ตั้งค่า Co-Agent',
     requestMaintenance: 'แจ้งตรวจเช็กห้อง',
+    webWorkspace: {
+      brandTag: 'พื้นที่ทำงานผู้ให้เช่า',
+      workspaceLabel: 'พื้นที่ทำงานผู้ให้เช่า',
+      main: 'พื้นที่ทำงาน',
+    },
     bills: {
       current: 'รอรับชำระ',
       history: 'รับชำระแล้ว',

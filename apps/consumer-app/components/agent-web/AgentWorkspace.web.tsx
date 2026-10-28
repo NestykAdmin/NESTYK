@@ -8,7 +8,7 @@ import {
 } from "@nestyk/ui/native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import type { UserRole } from "@nestyk/types";
-import type { AgentWorkspaceProps } from "./AgentWorkspace.types";
+import type { AgentWorkspaceProps, WorkspaceNavItem } from "./AgentWorkspace.types";
 import {
   AGENT_WEB_PRIMARY,
   AGENT_WEB_MORE,
@@ -71,8 +71,35 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   };
   const menuLabel = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
     item.labelKey ? t.agent.dashboard[item.labelKey] : t.mobile.tabs[item.tab];
+  const shellRole = props.activeRole ?? "agent";
+  const workspaceLabel = props.workspaceLabel ?? t.agent.dashboard.workspaceLabel;
+  const customCurrent = props.navSections
+    ?.flatMap((section) => section.items)
+    .find((item) => item.active);
   const currentMenu = [...AGENT_WEB_PRIMARY, ...AGENT_WEB_MORE].find(
     (item) => item.tab === props.activeTab,
+  );
+  const itemColor = (active: boolean) =>
+    active ? (isDark ? "#f4cd76" : "#795719") : theme.textSecondary;
+  const customItem = (item: WorkspaceNavItem) => (
+    <button
+      key={item.id}
+      type="button"
+      className={`aw-nav-item ${item.active ? "is-active" : ""}`}
+      aria-current={item.active ? "page" : undefined}
+      disabled={props.navigationDisabled || item.disabled}
+      title={item.title ?? item.label}
+      onClick={() => {
+        if (props.navigationDisabled || item.disabled) return;
+        accountRef.current?.removeAttribute("open");
+        item.onPress();
+      }}
+    >
+      <MobileIcon name={item.icon} size={20} color={itemColor(Boolean(item.active))} />
+      <span className="aw-nav-label">{item.label}</span>
+      {item.badge ? <span className="aw-soon aw-nav-label">{item.badge}</span> : null}
+      {item.active ? <span className="aw-active-dot" /> : null}
+    </button>
   );
   const navItem = (item: (typeof AGENT_WEB_PRIMARY)[number]) => (
     <button
@@ -87,13 +114,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       <MobileIcon
         name={item.icon}
         size={20}
-        color={
-          parent === item.tab
-            ? isDark
-              ? "#f4cd76"
-              : "#795719"
-            : theme.textSecondary
-        }
+        color={itemColor(parent === item.tab)}
       />
       <span className="aw-nav-label">{menuLabel(item)}</span>
       {parent === item.tab ? <span className="aw-active-dot" /> : null}
@@ -135,43 +156,57 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
             <div className="aw-logo-compact">
               <MobileNestykLogo variant="markSecondary" height={32} />
             </div>
-            <span className="aw-workspace-label">{copy.brandTag}</span>
+            <span className="aw-workspace-label">{props.brandTag ?? copy.brandTag}</span>
           </button>
           <div className="aw-sidebar-scroll">
-            <p className="aw-nav-caption">{copy.main}</p>
-            <nav className="aw-nav" aria-label={copy.main}>
-              {AGENT_WEB_PRIMARY.map(navItem)}
-            </nav>
-            <div className="aw-nav-divider" />
-            <p className="aw-nav-caption">{t.mobile.tabs.more}</p>
-            <nav className="aw-nav" aria-label={t.mobile.tabs.more}>
-              {AGENT_WEB_MORE.map(navItem)}
-            </nav>
-            <div className="aw-nav-divider" />
-            <p className="aw-nav-caption">{t.agent.dashboard.financeSection}</p>
-            <nav
-              className="aw-nav"
-              aria-label={t.agent.dashboard.financeSection}
-            >
-              <button
-                type="button"
-                className="aw-nav-item"
-                disabled
-                title={`${t.agent.dashboard.openCommission} · ${t.agent.dashboard.comingSoon}`}
-              >
-                <MobileIcon
-                  name="wallet"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-                <span className="aw-nav-label">
-                  {t.mobile.drawerMenu.commission}
-                </span>
-                <span className="aw-soon aw-nav-label">
-                  {t.agent.dashboard.comingSoon}
-                </span>
-              </button>
-            </nav>
+            {props.navSections ? (
+              props.navSections.map((section, index) => (
+                <React.Fragment key={section.id}>
+                  {index > 0 ? <div className="aw-nav-divider" /> : null}
+                  <p className="aw-nav-caption">{section.caption}</p>
+                  <nav className="aw-nav" aria-label={section.caption}>
+                    {section.items.map(customItem)}
+                  </nav>
+                </React.Fragment>
+              ))
+            ) : (
+              <>
+                <p className="aw-nav-caption">{copy.main}</p>
+                <nav className="aw-nav" aria-label={copy.main}>
+                  {AGENT_WEB_PRIMARY.map(navItem)}
+                </nav>
+                <div className="aw-nav-divider" />
+                <p className="aw-nav-caption">{t.mobile.tabs.more}</p>
+                <nav className="aw-nav" aria-label={t.mobile.tabs.more}>
+                  {AGENT_WEB_MORE.map(navItem)}
+                </nav>
+                <div className="aw-nav-divider" />
+                <p className="aw-nav-caption">{t.agent.dashboard.financeSection}</p>
+                <nav
+                  className="aw-nav"
+                  aria-label={t.agent.dashboard.financeSection}
+                >
+                  <button
+                    type="button"
+                    className="aw-nav-item"
+                    disabled
+                    title={`${t.agent.dashboard.openCommission} · ${t.agent.dashboard.comingSoon}`}
+                  >
+                    <MobileIcon
+                      name="wallet"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                    <span className="aw-nav-label">
+                      {t.mobile.drawerMenu.commission}
+                    </span>
+                    <span className="aw-soon aw-nav-label">
+                      {t.agent.dashboard.comingSoon}
+                    </span>
+                  </button>
+                </nav>
+              </>
+            )}
           </div>
           <button
             type="button"
@@ -192,16 +227,18 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         <div className="aw-workspace">
           <header className="aw-topbar">
             <div className="aw-breadcrumb">
-              <span>{t.agent.dashboard.workspaceLabel}</span>
+              <span>{workspaceLabel}</span>
               <MobileIcon
                 name="chevron-right"
                 size={14}
                 color={theme.textSecondary}
               />
               <strong>
-                {currentMenu
-                  ? menuLabel(currentMenu)
-                  : t.mobile.tabs[props.activeTab]}
+                {customCurrent
+                  ? customCurrent.label
+                  : currentMenu
+                    ? menuLabel(currentMenu)
+                    : t.mobile.tabs[props.activeTab]}
               </strong>
             </div>
             <div className="aw-topbar-actions">
@@ -233,7 +270,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   <span className="aw-avatar">{props.initials}</span>
                   <span className="aw-account-name">
                     {props.userName}
-                    <small>{t.roles.agent}</small>
+                    <small>{t.roles[shellRole]}</small>
                   </span>
                   <MobileIcon
                     name="chevron-down"
@@ -249,7 +286,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   <label>
                     {t.mobile.profile.switchRole}
                     <AgentSelect
-                      value="agent"
+                      value={shellRole}
                       disabled={props.navigationDisabled}
                       onChange={(e) => {
                         accountRef.current?.removeAttribute("open");

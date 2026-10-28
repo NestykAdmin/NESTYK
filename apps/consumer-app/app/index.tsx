@@ -19,6 +19,18 @@ import { TenantNextBillCard } from '../components/TenantNextBillCard';
 import { OwnerConfirmedRent } from '../components/OwnerConfirmedRent';
 import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
 import { AgentWorkspace, AgentWorkspacePage } from '../components/agent-web/AgentWorkspace';
+import {
+  LANDLORD_WEB_MENU,
+  landlordWebActiveId,
+  landlordWebLabel,
+  type LandlordWebItem,
+} from '../components/landlord-web/navigation';
+import {
+  TENANT_WEB_MENU,
+  tenantWebActiveId,
+  tenantWebLabel,
+  type TenantWebItem,
+} from '../components/tenant-web/navigation';
 import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import { AgentOverview } from '../components/agent-web/AgentOverview';
 import { useAgentDashboard } from '../lib/agent-dashboard';
@@ -283,6 +295,42 @@ export default function AppHomeScreen() {
     setMatchRoomId(null);
     setMatchRoomPreview(null);
     setActiveTab(tab);
+  };
+
+  const openPartyInbox = (history: boolean) => {
+    setDrawerOpen(false);
+    setOpenedPartyContract(null);
+    setSelectedPartyRoom(null);
+    setContractHistory(history);
+    setPartyInbox(true);
+  };
+
+  const openLandlordDestination = (item: LandlordWebItem) => {
+    if (item.target.type === 'tab') {
+      handleTabPress(item.target.tab);
+      return;
+    }
+    if (item.target.type === 'contracts') {
+      openPartyInbox(false);
+      return;
+    }
+    if (item.target.type === 'tenants') openPartyInbox(true);
+  };
+
+  const openTenantDestination = (item: TenantWebItem) => {
+    if (item.target.type === 'tab') {
+      if (item.target.tab === 'bills') {
+        setBillHistory(false);
+        setSelectedBillRoom(null);
+      }
+      handleTabPress(item.target.tab);
+      return;
+    }
+    if (item.target.type === 'contracts') {
+      setBillHistory(false);
+      setSelectedBillRoom(null);
+      openPartyInbox(false);
+    }
   };
 
   const openLeadDetail = useCallback((lead: AgentLead) => {
@@ -560,8 +608,12 @@ export default function AppHomeScreen() {
   const secondaryText = { color: theme.textSecondary };
 
   const isAgentWeb = Platform.OS === 'web' && activeRole === 'agent';
-  const Page = isAgentWeb ? AgentWorkspacePage : MobileModePage;
+  const isLandlordWeb = Platform.OS === 'web' && activeRole === 'landlord';
+  const isTenantWeb = Platform.OS === 'web' && activeRole === 'tenant';
+  const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb;
+  const Page = isDesktopWeb ? AgentWorkspacePage : MobileModePage;
   const AgentHeader = isAgentWeb ? AgentSectionHeader : MobileSectionHeader;
+  const SectionHeader = isDesktopWeb ? AgentSectionHeader : MobileSectionHeader;
 
   const isTenantWorkspace = activeRole === 'tenant' && (partyInbox || activeTab === 'bills');
   const screenTitle =
@@ -1355,14 +1407,59 @@ export default function AppHomeScreen() {
 
   const onPageRefresh =
     isTenantWorkspace || (partyInbox && activeRole !== 'agent') ||
+    (isLandlordWeb && (activeTab === 'dashboard' || activeTab === 'income')) ||
+    (isTenantWeb && (activeTab === 'dashboard' || activeTab === 'bills')) ||
     (!partyInbox && !isWizardTab && activeRole === 'agent' &&
       ['dashboard', 'listingLead', 'listingRoom', 'calendar'].includes(activeTab))
       ? handlePageRefresh : undefined;
 
+  const tenantActiveId = tenantWebActiveId({ partyInbox, activeTab });
+  const tenantNavSections = (['main', 'more'] as const).map((section) => ({
+    id: section,
+    caption: section === 'main' ? t.tenant.webWorkspace.main : t.mobile.tabs.more,
+    items: TENANT_WEB_MENU.filter((item) => item.section === section).map((item) => {
+      const label = tenantWebLabel(item.id, t.mobile);
+      const soon = item.target.type === 'soon';
+      return {
+        id: item.id,
+        icon: item.icon,
+        label,
+        active: tenantActiveId === item.id,
+        disabled: soon,
+        badge: soon ? t.agent.dashboard.comingSoon : undefined,
+        title: soon ? `${label} · ${t.agent.dashboard.comingSoon}` : label,
+        onPress: () => openTenantDestination(item),
+      };
+    }),
+  }));
+  const landlordActiveId = landlordWebActiveId({ partyInbox, contractHistory, activeTab });
+  const landlordNavSections = (['main', 'more'] as const).map((section) => ({
+    id: section,
+    caption: section === 'main' ? t.owner.webWorkspace.main : t.mobile.tabs.more,
+    items: LANDLORD_WEB_MENU.filter((item) => item.section === section).map((item) => {
+      const label = landlordWebLabel(item.id, t.mobile);
+      const soon = item.target.type === 'soon';
+      return {
+        id: item.id,
+        icon: item.icon,
+        label,
+        active: landlordActiveId === item.id,
+        disabled: soon,
+        badge: soon ? t.agent.dashboard.comingSoon : undefined,
+        title: soon ? `${label} · ${t.agent.dashboard.comingSoon}` : label,
+        onPress: () => openLandlordDestination(item),
+      };
+    }),
+  }));
+
   return (
     <>
       <AgentWorkspace
-        enabled={isAgentWeb}
+        enabled={isDesktopWeb}
+        activeRole={isLandlordWeb ? 'landlord' : isTenantWeb ? 'tenant' : 'agent'}
+        brandTag={isLandlordWeb ? t.owner.webWorkspace.brandTag : isTenantWeb ? t.tenant.webWorkspace.brandTag : undefined}
+        workspaceLabel={isLandlordWeb ? t.owner.webWorkspace.workspaceLabel : isTenantWeb ? t.tenant.webWorkspace.workspaceLabel : undefined}
+        navSections={isLandlordWeb ? landlordNavSections : isTenantWeb ? tenantNavSections : undefined}
         navigationDisabled={createLeadBusy || createTenantBusy || tenantDetail.saving}
         activeTab={activeTab}
         onRefresh={onPageRefresh}
@@ -1391,8 +1488,12 @@ export default function AppHomeScreen() {
         header={
           activeRole === 'agent' ? (
             renderAgentHeader()
+          ) : isLandlordWeb && !selectedPartyRoom ? (
+            null
+          ) : isTenantWeb && !partyInbox && activeTab !== 'bills' ? (
+            null
           ) : partyInbox ? (
-            <MobileSectionHeader
+            <SectionHeader
               title={
                 selectedPartyRoom?.tenant
                   ? selectedPartyRoom.tenant
@@ -1456,7 +1557,7 @@ export default function AppHomeScreen() {
               actionVariant="icon"
             />
           ) : isTenantWorkspace ? (
-            <MobileSectionHeader
+            <SectionHeader
               title={
                 selectedBillRoom
                   ? (selectedBillRoom.room
@@ -1530,7 +1631,7 @@ export default function AppHomeScreen() {
           ) : null
         }
         tabBar={
-          isAgentWeb || ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
+          isDesktopWeb || ['createListing', 'createLead', 'leadDetail', 'leadInfo', 'leadRoom'].includes(activeTab) ||
           (activeTab === 'clients' && creatingTenant) ||
           isTenantDetail ? null : (
             <MobileBottomTabBar
@@ -1570,7 +1671,7 @@ export default function AppHomeScreen() {
       </AgentWorkspace>
 
       <MobileProfileDrawer
-        visible={!isAgentWeb && drawerOpen}
+        visible={!isDesktopWeb && drawerOpen}
         onClose={() => setDrawerOpen(false)}
         userName={profileName}
         userEmail={profileEmail}
@@ -1591,19 +1692,11 @@ export default function AppHomeScreen() {
           }
           if (action.type === 'route') {
             if (action.path === '/landlord/tenants') {
-              setDrawerOpen(false);
-              setOpenedPartyContract(null);
-              setSelectedPartyRoom(null);
-              setContractHistory(true);
-              setPartyInbox(true);
+              openPartyInbox(true);
               return;
             }
             if (action.path === '/tenant/contract' || action.path === '/landlord/contracts') {
-              setDrawerOpen(false);
-              setOpenedPartyContract(null);
-              setSelectedPartyRoom(null);
-              setContractHistory(false);
-              setPartyInbox(true);
+              openPartyInbox(false);
               return;
             }
             Alert.alert(t.mobile.demoAlerts.comingSoon);
@@ -1614,7 +1707,7 @@ export default function AppHomeScreen() {
       />
 
       <MobileNotificationsPanel
-        visible={!isAgentWeb && notificationsOpen}
+        visible={!isDesktopWeb && notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       >
         <MobileNotificationsBody

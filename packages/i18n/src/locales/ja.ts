@@ -277,6 +277,8 @@ export const ja: TranslationSchema = {
       fullName: '氏名',
       confirmPassword: 'パスワードの確認',
       registerButton: 'アカウントを作成',
+      registerOr: 'または',
+      registerWithGoogle: 'Google で登録',
       backToLogin: 'ログインに戻る',
       emailConfirmationTitle: 'メールをご確認ください',
       emailConfirmationBody: '送信されたメールのリンクでメールアドレスを確認してから、ログインしてください。アカウントをお持ちの場合は、現在のパスワードでログインしてください。',
@@ -323,6 +325,11 @@ export const ja: TranslationSchema = {
     billsAndPayments: '請求書と支払い',
     reportIssue: '修理・修繕依頼',
     cleaningRequest: 'クリーニング依頼',
+    webWorkspace: {
+      brandTag: '入居者ワークスペース',
+      workspaceLabel: '入居者ワークスペース',
+      main: 'ワークスペース',
+    },
     bills: {
       current: 'お支払い待ち',
       history: '請求履歴',
@@ -369,6 +376,11 @@ export const ja: TranslationSchema = {
     rentalIncome: '賃料収入',
     coAgentSettings: '共同仲介設定',
     requestMaintenance: '点検リクエスト',
+    webWorkspace: {
+      brandTag: '貸主ワークスペース',
+      workspaceLabel: '貸主ワークスペース',
+      main: 'ワークスペース',
+    },
     bills: {
       current: '入金待ち',
       history: '入金済み',

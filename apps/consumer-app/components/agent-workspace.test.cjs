@@ -112,20 +112,70 @@ test('workspace labels exist in all four central locales', () => {
   locale = 'en';
 });
 
-test('desktop shell and headers are selected only for the Agent role on web', () => {
+test('a custom sidebar replaces the agent menu and ignores disabled items', () => {
+  locale = 'en';
+  state = [];
+  const calls = [];
+  const tree = render(props({
+    activeRole: 'landlord',
+    brandTag: 'LANDLORD WORKSPACE',
+    workspaceLabel: 'Landlord workspace',
+    navSections: [
+      {
+        id: 'main',
+        caption: 'Workspace',
+        items: [
+          { id: 'dashboard', icon: 'grid', label: 'Overview', active: true, onPress: () => calls.push('dashboard') },
+          { id: 'contracts', icon: 'clipboard', label: 'Contracts', onPress: () => calls.push('contracts') },
+        ],
+      },
+      {
+        id: 'more',
+        caption: 'More',
+        items: [
+          { id: 'occupancy', icon: 'home', label: 'Occupancy', disabled: true, badge: 'Soon', title: 'Occupancy · Soon', onPress: () => calls.push('occupancy') },
+        ],
+      },
+    ],
+  }));
+  assert.ok(tree.includes('LANDLORD WORKSPACE'));
+  assert.ok(tree.includes('Landlord workspace'));
+  assert.ok(tree.includes('Soon'));
+  assert.equal(tree.filter(node => node?.type === 'nav').length, 2);
+  assert.equal(byClass(tree, 'aw-nav-item').find(node => node.props['aria-current'] === 'page').props.title, 'Overview');
+  byClass(tree, 'aw-nav-item').forEach(node => node.props.onClick());
+  assert.deepEqual(calls, ['dashboard', 'contracts']);
+  assert.equal(tree.find(node => node?.type === 'select').props.value, 'landlord');
+  assert.ok(!tree.includes('Commission'));
+});
+
+test('desktop shell is used for the Agent, Landlord and Tenant roles on web', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const names = ['isAgentWeb', 'isLandlordWeb', 'isTenantWeb', 'isDesktopWeb', 'Page', 'AgentHeader'];
   const expressions = new Map();
   function visit(node) {
-    if (ts.isVariableDeclaration(node) && ['isAgentWeb', 'Page', 'AgentHeader'].includes(node.name.getText(ast))) expressions.set(node.name.getText(ast), node.initializer.getText(ast));
+    if (ts.isVariableDeclaration(node) && names.includes(node.name.getText(ast))) expressions.set(node.name.getText(ast), node.initializer.getText(ast));
     ts.forEachChild(node, visit);
   }
   visit(ast);
-  assert.equal(expressions.size, 3);
-  const select = new Function('Platform', 'activeRole', 'AgentWorkspacePage', 'MobileModePage', 'AgentSectionHeader', 'MobileSectionHeader', `${[...expressions].map(([name, expression]) => `const ${name} = ${expression};`).join('\n')} return [isAgentWeb, Page, AgentHeader];`);
+  assert.equal(expressions.size, names.length);
+  const select = new Function('Platform', 'activeRole', 'AgentWorkspacePage', 'MobileModePage', 'AgentSectionHeader', 'MobileSectionHeader', `${[...expressions].map(([name, expression]) => `const ${name} = ${expression};`).join('\n')} return [${names.join(', ')}];`);
   for (const platform of ['web', 'ios', 'android']) {
     for (const role of ['guest', 'tenant', 'landlord', 'agent', 'admin']) {
-      assert.deepEqual(select({ OS: platform }, role, 'WebPage', 'NativePage', 'WebHeader', 'NativeHeader'), platform === 'web' && role === 'agent' ? [true, 'WebPage', 'WebHeader'] : [false, 'NativePage', 'NativeHeader']);
+      const agent = platform === 'web' && role === 'agent';
+      const landlord = platform === 'web' && role === 'landlord';
+      const tenant = platform === 'web' && role === 'tenant';
+      const desktop = agent || landlord || tenant;
+      assert.deepEqual(
+        select({ OS: platform }, role, 'WebPage', 'NativePage', 'WebHeader', 'NativeHeader'),
+        [agent, landlord, tenant, desktop, desktop ? 'WebPage' : 'NativePage', agent ? 'WebHeader' : 'NativeHeader'],
+      );
     }
   }
+  assert.match(source, /enabled=\{isDesktopWeb\}/);
+  assert.match(source, /navSections=\{isLandlordWeb \? landlordNavSections : isTenantWeb \? tenantNavSections : undefined\}/);
+  assert.match(source, /visible=\{!isDesktopWeb && drawerOpen\}/);
+  assert.match(source, /visible=\{!isDesktopWeb && notificationsOpen\}/);
+  assert.match(source, /isDesktopWeb \|\| \['createListing'/);
 });

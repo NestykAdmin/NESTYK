@@ -67,7 +67,7 @@ export default function LoginScreen() {
   const { theme, isDark } = useMobileTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signIn, isAuthenticated, sessionExpired, dismissSessionExpired } = useAuth();
+  const { signIn, signInWithGoogle, isAuthenticated, sessionExpired, dismissSessionExpired } = useAuth();
 
   const [email, setEmail] = useState(
     DEV_AUTH_CONFIG.enabled ? DEV_AUTH_CONFIG.email : "",
@@ -376,7 +376,20 @@ export default function LoginScreen() {
                         backgroundColor: isDark ? "#F8FAFC" : theme.card,
                       },
                     ]}
-                    onPress={() => setNotice(copy.unavailable)}
+                    disabled={loading}
+                    onPress={() => {
+                      if (provider !== "Google") {
+                        setNotice(copy.unavailable);
+                        return;
+                      }
+                      if (loading) return;
+                      setError(null);
+                      setNotice(null);
+                      setLoading(true);
+                      void signInWithGoogle()
+                        .catch((e) => setError(localizedError(e, t.common.errorGeneric, locale)))
+                        .finally(() => setLoading(false));
+                    }}
                     activeOpacity={0.65}
                     accessibilityRole="button"
                     accessibilityLabel={copy.socialLogin.replace(

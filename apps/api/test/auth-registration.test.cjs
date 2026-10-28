@@ -15,8 +15,8 @@ const { UserEntity } = require('../src/entities/user.entity.ts');
 const { MasterRoleEntity } = require('../src/entities/master-role.entity.ts');
 const ALL = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
 
-function setup({ existing = false, missing } = {}) {
-  const identity = { supabaseUserId: randomUUID(), email: `${randomUUID()}@example.test`, selfRegistered: true };
+function setup({ existing = false, missing, identity: given } = {}) {
+  const identity = given ?? { supabaseUserId: randomUUID(), email: `${randomUUID()}@example.test`, selfRegistered: true };
   const roles = ALL.map((name, i) => ({ id: i + 1, name })).filter(r => r.name !== missing);
   let users = existing ? [{ id: 1, supabase_user_id: identity.supabaseUserId, email: identity.email, first_name: 'Member', last_name: '', profile_completed: false }] : [];
   let links = existing ? [{ user_id: 1, role_id: 1 }] : [];
@@ -40,7 +40,7 @@ function setup({ existing = false, missing } = {}) {
     const before = { users: [...users], links: [...links] };
     try { return await fn(manager); } catch (e) { users = before.users; links = before.links; throw e; }
   } };
-  return { service: new AuthService({}, {}, {}, db), identity, counts: () => [users.length, links.length] };
+  return { service: new AuthService({}, {}, {}, db), identity, counts: () => [users.length, links.length], users: () => users };
 }
 
 test('self-registration provisions all five roles once; a retry creates neither user nor role duplicates', async () => {
@@ -83,6 +83,36 @@ test('the guard derives registration policy from a verified Supabase user, not c
   assert.equal(identity.roles, undefined);
   user.user_metadata.registration_source = 'other';
   assert.equal((await guard.resolveIdentity(token)).selfRegistered, false);
+});
+
+test('Google sign-up receives the self-registration roles and stores no password', async () => {
+  const guard = new AuthGuard({});
+  const id = randomUUID();
+  const email = `${id}@example.test`;
+  const user = {
+    id,
+    email,
+    app_metadata: { provider: 'google', providers: ['google'] },
+    user_metadata: { full_name: 'Google Member', provider: 'email', registration_source: 'claimed' },
+  };
+  guard.supabase = { auth: { getUser: async () => ({ data: { user }, error: null }) } };
+  const identity = await guard.resolveIdentity(randomBytes(24).toString('hex'));
+  assert.equal(identity.selfRegistered, true);
+  assert.equal(identity.supabaseUserId, id);
+  assert.equal(identity.email, email);
+
+  const { service, counts, users } = setup({ identity });
+  const created = await service.sync(identity);
+  assert.deepEqual([...created.roles].sort(), [...ALL].sort());
+  assert.equal(created.provisioned, true);
+  assert.equal(users()[0].password ?? null, null);
+  assert.deepEqual(counts(), [1, 5]);
+
+  user.app_metadata = { provider: 'facebook' };
+  assert.equal((await guard.resolveIdentity(randomBytes(24).toString('hex'))).selfRegistered, false);
+  delete user.app_metadata;
+  user.user_metadata.provider = 'google';
+  assert.equal((await guard.resolveIdentity(randomBytes(24).toString('hex'))).selfRegistered, false);
 });
 
 test('the guard preserves separate multi-word names, supports legacy full_name, and keeps an explicit empty surname', async () => {

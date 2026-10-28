@@ -55,6 +55,22 @@ const apiError = (status, code) => Object.assign(new Error(`HTTP ${status}`), { 
 
 // --- restoreSession (app start-up) ---
 
+test('a Google redirect with no saved profile loads that session', async () => {
+  const { client, calls } = fakeClient(live('google-token'));
+  const { sync, tokens } = fakeSync(PROFILE);
+  const result = await restoreSession({ stored: null, client, sync, adoptProviderSession: true });
+  assert.deepEqual(result, { kind: 'synced', mode: 'supabase', accessToken: 'google-token', userId: 'user-1', profile: PROFILE });
+  assert.deepEqual(tokens, [undefined]);
+  assert.equal(calls.signOut.length, 0);
+});
+
+test('a Google redirect that fails to load the profile drops the provider session', async () => {
+  const { client, calls } = fakeClient(live('google-token'));
+  const { sync } = fakeSync(new Error('Profile unavailable'));
+  assert.deepEqual(await restoreSession({ stored: null, client, sync, adoptProviderSession: true }), { kind: 'none' });
+  assert.deepEqual(calls.signOut, [{ scope: 'local' }]);
+});
+
 test('nothing saved: signed out, no notice, nothing called', async () => {
   const { client, calls } = fakeClient(live('t'));
   const { sync, tokens } = fakeSync(PROFILE);

@@ -30,7 +30,7 @@ function nodes(element) {
   return [element, ...nodes(element.props.children)];
 }
 function screen({ result = { needsEmailConfirmation: true }, error, development = true } = {}) {
-  const state = [], calls = [], routes = [];
+  const state = [], calls = [], routes = [], google = [];
   let cursor = 0;
   const t = load(`${root}/packages/i18n/src/locales/en.ts`).en;
   const deps = {
@@ -39,7 +39,8 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
       if (!(index in state)) state[index] = initial;
       return [state[index], next => { state[index] = typeof next === 'function' ? next(state[index]) : next; }];
     } },
-    'react-native': { View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', TouchableOpacity: 'TouchableOpacity', Platform: { OS: 'web' }, StyleSheet: { create: x => x, absoluteFill: {}, absoluteFillObject: {} } },
+    'react-native': { View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', TouchableOpacity: 'TouchableOpacity', Platform: { OS: 'web' }, StyleSheet: { create: x => x, hairlineWidth: 1, absoluteFill: {}, absoluteFillObject: {} } },
+    'react-native-svg': { __esModule: true, default: 'Svg', Path: 'Path' },
     'expo-image': { Image: 'Image' },
     'expo-status-bar': { StatusBar: 'StatusBar' },
     'expo-router': { useRouter: () => ({ replace: route => routes.push(route) }) },
@@ -47,7 +48,7 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
     '@nestyk/i18n': { useLocale: () => ({ t, locale: 'en' }), localizedError: (e, fallback) => e?.message ?? fallback },
     '@nestyk/ui/native': { MobileInput: 'Input', MobileButton: 'Button', MobileIcon: 'Icon', MobileNestykLogo: 'Logo', SelectionCheck: 'SelectionCheck',
       useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { primary: '#211e1e', brand: { 500: '#f8b615' }, error: '#dc2626' } } },
-    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, signUp: async (...args) => { calls.push(args); if (error) throw error; return result; } }) },
+    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, signInWithGoogle: async () => { google.push('google'); }, signUp: async (...args) => { calls.push(args); if (error) throw error; return result; } }) },
     '../assets/login-apartment.jpg': 1,
   };
   const file = path.join(__dirname, '../app/register.tsx');
@@ -63,7 +64,7 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
     assert.ok(button, 'registration submit exists');
     return button.props.onPress();
   };
-  return { render, fill, submit, calls, routes, copy: t.mobile.auth, labels: t.mobile.account };
+  return { render, fill, submit, calls, routes, google, copy: t.mobile.auth, labels: t.mobile.account };
 }
 function fillValid(form) {
   const password = randomBytes(12).toString('hex');
@@ -73,6 +74,18 @@ function fillValid(form) {
   form.fill(form.copy.password, password);
   form.fill(form.copy.confirmPassword, password);
 }
+
+test('registration offers Google below an or divider', () => {
+  const form = screen();
+  const tree = form.render();
+  assert.ok(tree.includes(form.copy.registerOr));
+  const google = tree.find(n => n?.props?.accessibilityLabel === form.copy.registerWithGoogle);
+  assert.ok(google);
+  assert.ok(tree.includes(form.copy.registerWithGoogle));
+  google.props.onPress();
+  assert.deepEqual(form.google, ['google']);
+  assert.equal(form.calls.length, 0);
+});
 
 test('registration validates empty fields, invalid email and mismatched passwords before contacting auth', async () => {
   const form = screen();
@@ -96,6 +109,7 @@ test('registration explains email confirmation and does not enter the app before
   assert.equal(form.calls.length, 1);
   assert.deepEqual(form.calls[0].slice(2, 4), ['Mary Ann', 'Van Buren']);
   assert.ok(form.render().includes(form.copy.emailConfirmationBody));
+  assert.equal(form.render().includes(form.copy.registerOr), false);
   assert.deepEqual(form.routes, []);
 });
 

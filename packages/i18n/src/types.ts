@@ -271,6 +271,8 @@ export interface TranslationSchema {
       fullName: string;
       confirmPassword: string;
       registerButton: string;
+      registerOr: string;
+      registerWithGoogle: string;
       backToLogin: string;
       emailConfirmationTitle: string;
       emailConfirmationBody: string;
@@ -317,6 +319,11 @@ export interface TranslationSchema {
     billsAndPayments: string;
     reportIssue: string;
     cleaningRequest: string;
+    webWorkspace: {
+      brandTag: string;
+      workspaceLabel: string;
+      main: string;
+    };
     bills: {
       current: string;
       history: string;
@@ -363,6 +370,11 @@ export interface TranslationSchema {
     rentalIncome: string;
     coAgentSettings: string;
     requestMaintenance: string;
+    webWorkspace: {
+      brandTag: string;
+      workspaceLabel: string;
+      main: string;
+    };
     bills: {
       current: string;
       history: string;

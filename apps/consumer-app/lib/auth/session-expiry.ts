@@ -52,9 +52,32 @@ export async function restoreSession<P>(deps: {
   stored: StoredAuthSession | null;
   client: SupabaseAuthLike | null;
   sync: (accessToken?: string) => Promise<P>;
+  /** A Google redirect just returned, and this phone has no saved profile yet. */
+  adoptProviderSession?: boolean;
 }): Promise<RestoreResult<P>> {
   const { stored, client, sync } = deps;
-  if (!stored) return { kind: 'none' };
+  if (!stored) {
+    if (!deps.adoptProviderSession || !client) return { kind: 'none' };
+    let live: { access_token: string; user: { id: string } } | null = null;
+    try {
+      const { data } = await client.auth.getSession();
+      live = data.session;
+    } catch {
+      return { kind: 'none' };
+    }
+    if (!live) return { kind: 'none' };
+    try {
+      const profile = await sync();
+      return { kind: 'synced', mode: 'supabase', accessToken: live.access_token, userId: live.user.id, profile };
+    } catch (error) {
+      if (isSessionExpired(error)) {
+        await signOutHere(client);
+        return { kind: 'expired' };
+      }
+      await signOutHere(client);
+      return { kind: 'none' };
+    }
+  }
 
   // Dev login, or Supabase not set up: same as before (the saved token is the only one there is).
   if (stored.mode === 'dev' || !client) {
