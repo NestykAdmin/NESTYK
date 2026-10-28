@@ -9,6 +9,7 @@ import { PartyContractsController } from './contracts/party-contracts.controller
 import { AgentContractsService } from './contracts/agent-contracts.service';
 import { ContractDocumentStorageService } from './contracts/contract-document-storage.service';
 import { HandoverService } from './contracts/handover.service';
+import { DepositSettlementService } from './contracts/deposit-settlement';
 import { DealOffersService } from './contracts/deal-offers.service';
 import { DealOffersController } from './contracts/deal-offers.controller';
 import { ContractRemindersService } from './reminders/contract-reminders.service';
@@ -96,7 +97,7 @@ import { GeminiModule } from '../gemini/gemini.module';
     ]),
   ],
   controllers: [AgentDashboardController, AgreementAttachmentsController, AgentTenantsController, AgentContractsController, DealOffersController, AgentRemindersController, PartyContractsController, AgentLeadsController, LeadMatchingController, LeadViewingsController, AgentRoomsController, AgentRoomShareLinksController, PublicRoomShareController, AgentListingsController, AgentPlacesController],
-  providers: [AgentDashboardService, AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, HandoverService, DealOffersService, ContractRemindersService, ContractRemindersScheduler, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
+  providers: [AgentDashboardService, AgreementAttachmentsService, AgentTenantsService, AgentContractsService, ContractDocumentStorageService, HandoverService, DepositSettlementService, DealOffersService, ContractRemindersService, ContractRemindersScheduler, AgentLeadsService, LeadMatchingService, LeadViewingsService, RoomPhotoStorageService, ListingPromoService, AgentRoomsService, AgentListingsService, RoomShareLinksService, AgentPlacesService],
   exports: [AgentRoomsService, AgentListingsService, AgentPlacesService, RoomShareLinksService],
 })
 export class AgentModule {}

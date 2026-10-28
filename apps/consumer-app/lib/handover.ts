@@ -16,7 +16,7 @@ export const HANDOVER_CONDITIONS: readonly HandoverItemCondition[] = ["good", "d
 export const HANDOVER_SIGN_PARTIES: readonly HandoverSignParty[] = ["owner", "tenant"];
 
 /** Quantity is the text in the field, so a half-typed number is kept while typing. */
-export type HandoverItemDraft = { name: string; quantity: string; condition: HandoverItemCondition; note: string };
+export type HandoverItemDraft = { name: string; quantity: string; condition: HandoverItemCondition; note: string; moveInItemId?: number };
 export type HandoverDraft = { handoverDate: string; note: string; items: HandoverItemDraft[] };
 export type HandoverItemIssue = Partial<Record<"name" | "quantity" | "note", true>>;
 export type HandoverFormIssues = {
@@ -40,6 +40,7 @@ export function handoverDraft(record: HandoverRecord | null, defaultDate = ""): 
       quantity: String(item.quantity),
       condition: item.condition,
       note: item.note ?? "",
+      ...(item.moveInItemId ? { moveInItemId: item.moveInItemId } : {}),
     })),
   };
 }
@@ -75,6 +76,7 @@ export function handoverBody(draft: HandoverDraft, revision: number): SaveHandov
       quantity: Number(item.quantity.trim()),
       condition: item.condition,
       note: item.note.trim() || null,
+      ...(item.moveInItemId ? { moveInItemId: item.moveInItemId } : {}),
     })),
     revision,
   };

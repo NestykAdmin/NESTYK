@@ -57,7 +57,11 @@ export function tenantWorkItems(tenants: AgentTenant[], slips: TenantBill[], tod
     const hasSuccessor = lease && tenant.contracts.some(
       (row) => row.previousAgreementId === lease.id && row.status !== "cancelled",
     );
-    if (lease && !hasSuccessor && daysLeft != null && daysLeft >= 0 && daysLeft <= RENEWAL_WINDOW_DAYS) {
+    const noticeDays = lease?.renewalNoticeDays ?? RENEWAL_WINDOW_DAYS;
+    const decided = Boolean((lease?.data as { notRenewing?: unknown; endsOn?: unknown } | undefined)?.notRenewing
+      || (lease?.data as { endsOn?: unknown } | undefined)?.endsOn);
+    // Still open after the end date until the agent records a renewal or that it will not renew (AC-8.7).
+    if (lease && !hasSuccessor && !decided && daysLeft != null && (daysLeft < 0 || daysLeft <= noticeDays)) {
       items.push({ kind: "renewal", tenant, contract: lease, daysLeft });
     }
   }

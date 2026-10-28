@@ -17,6 +17,10 @@ import { bangkokDate } from "../contracts/reservation-letter";
  *   renewal yet.
  * - refund_late (D5, AC-C.2, C.3): a cancelled deal's refund not recorded after its due day (told 15 Oct, due 22 Oct,
  *   reminded from 23 Oct: TC-C.05, C.07).
+ * - early_end_refund_late (D16, AC-7.7): unused rent typed as a refund, with no proof, after its due day
+ *   (ending 15 Jan, due 22 Jan, reminded from 23 Jan: TC-7.10).
+ * - deposit_refund_late (D16, AC-8.5): an approved deposit refund not transferred after 30 days from the
+ *   stay's last day (ends 31 Oct, due 30 Nov, reminded from 1 Dec: TC-8.07). A linked renewal has none.
  */
 export const RENEWAL_NOTICE_DEFAULT_DAYS = 30;
 const OPEN_SIGNING = ["draft", "awaiting_signatures"];
@@ -48,6 +52,8 @@ export type ReminderRefund = Pick<ReminderContract, "contractNo" | "tenantId" | 
   amount: number;
 };
 export type ReminderBill = { id: number; leaseContractId: number; period: string; dueDate: string; graceUntil: string; amount: number; status: string };
+/** D16: an approved deposit settlement that may still need its refund recorded. */
+export type ReminderDeposit = { contractId: number; status: string; refundAmount: number; refunded: boolean };
 /** A reminder that is due, with who gets it. */
 export type DueReminder = ContractReminder & { recipients: number[] };
 
@@ -61,9 +67,10 @@ export function handoverDueDate(c: Pick<ReminderContract, "startDate" | "data">)
   return isIsoDate(moved) ? moved : asIsoDate(c.startDate);
 }
 
-export function dueReminders(today: string, contracts: ReminderContract[], bills: ReminderBill[], refunds: ReminderRefund[] = []): DueReminder[] {
+export function dueReminders(today: string, contracts: ReminderContract[], bills: ReminderBill[], refunds: ReminderRefund[] = [], deposits: ReminderDeposit[] = []): DueReminder[] {
   const out: DueReminder[] = [];
   const byId = new Map(contracts.map((c) => [c.id, c]));
+  const depositById = new Map(deposits.map((row) => [row.contractId, row]));
   const base = (kind: ContractReminderKind, c: ReminderContract, dueDate: string, recipients: Array<number | null>) => ({
     kind, contractId: c.id, tenantId: c.tenantId, billId: null as number | null, billPeriod: null as string | null, amount: null as number | null,
     dueDate, contractNo: c.contractNo, tenantName: c.tenantName, property: c.property, room: c.room,
@@ -87,6 +94,15 @@ export function dueReminders(today: string, contracts: ReminderContract[], bills
     if ((c.formKind === "lease" || c.formKind === "renewal") && c.status === "active" && end && !c.effectiveEndDate && !renewed) {
       const left = daysBetween(today, end);
       if (left >= 0 && left <= (c.noticeDays ?? RENEWAL_NOTICE_DEFAULT_DAYS)) out.push(base("renewal_notice", c, end, [c.agentId]));
+    }
+    const endsOn = c.data?.endsOn as { date?: string; money?: { kind?: string; dueOn?: string; proofPath?: string | null; amount?: number } } | undefined;
+    if ((c.formKind === "lease" || c.formKind === "renewal") && endsOn?.money?.kind === "refund" && !endsOn.money.proofPath && isIsoDate(endsOn.money.dueOn) && today > endsOn.money.dueOn)
+      out.push({ ...base("early_end_refund_late", c, endsOn.money.dueOn, [c.agentId]), amount: Number(endsOn.money.amount) || null });
+    const deposit = depositById.get(c.id);
+    const stayEnd = isIsoDate(endsOn?.date) ? endsOn.date : end;
+    if ((c.formKind === "lease" || c.formKind === "renewal") && deposit?.status === "approved" && deposit.refundAmount > 0 && !deposit.refunded && stayEnd && !renewed) {
+      const due = shiftIsoDate(stayEnd, 30);
+      if (today > due) out.push({ ...base("deposit_refund_late", c, due, [c.agentId]), amount: deposit.refundAmount });
     }
   }
   for (const bill of bills) {
@@ -115,6 +131,8 @@ const TITLE: Record<ContractReminderKind, { th: string; en: string }> = {
   rent_overdue_15: { th: "ค่าเช่าค้างชำระครบ 15 วัน", en: "Rent 15 days overdue" },
   renewal_notice: { th: "สัญญาเช่าใกล้สิ้นสุด ถามผู้ให้เช่าและผู้เช่าเรื่องต่อสัญญา", en: "Lease ending soon: ask the landlord and the tenant about renewing" },
   refund_late: { th: "เลยกำหนดคืนเงินให้ผู้เช่าแล้ว ยังไม่ได้บันทึกการคืน", en: "Refund to the tenant overdue and not recorded" },
+  early_end_refund_late: { th: "เลยกำหนดคืนค่าเช่าส่วนที่ไม่ได้ใช้ ยังไม่ได้แนบหลักฐาน", en: "Unused rent refund overdue and not recorded" },
+  deposit_refund_late: { th: "เลยกำหนดคืนเงินประกัน ยังไม่ได้บันทึกการโอน", en: "Deposit refund overdue and not recorded" },
 };
 const DUE_LABEL: Record<"end" | "handover" | "due", { th: string; en: string }> = {
   end: { th: "สัญญาสิ้นสุด", en: "Lease ends" },
@@ -134,7 +152,7 @@ export function reminderEmail(r: ContractReminder) {
     `ผู้เช่า: ${r.tenantName}`,
     `ห้อง: ${room.join(" ห้อง ")}`,
     r.billPeriod ? `บิลรอบ: ${r.billPeriod}${amount ? ` ยอด ${amount} บาท` : ""}` : null,
-    r.kind === "refund_late" && amount ? `ยอดที่ต้องคืน: ${amount} บาท` : null,
+    (r.kind === "refund_late" || r.kind === "early_end_refund_late" || r.kind === "deposit_refund_late") && amount ? `ยอดที่ต้องคืน: ${amount} บาท` : null,
     `${due.th}: ${thaiDate(r.dueDate)}`,
     "เปิดแอป NESTYK เพื่อดูรายละเอียด",
   ];
@@ -144,7 +162,7 @@ export function reminderEmail(r: ContractReminder) {
     `Tenant: ${r.tenantName}`,
     `Room: ${room.join(" room ")}`,
     r.billPeriod ? `Bill: ${r.billPeriod}${amount ? `, ${amount} THB` : ""}` : null,
-    r.kind === "refund_late" && amount ? `To refund: ${amount} THB` : null,
+    (r.kind === "refund_late" || r.kind === "early_end_refund_late" || r.kind === "deposit_refund_late") && amount ? `To refund: ${amount} THB` : null,
     `${due.en}: ${thaiDate(r.dueDate)}`,
     "Open the NESTYK app for the details.",
   ];

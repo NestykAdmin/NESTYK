@@ -7,6 +7,7 @@ import {
 import { createFinancialPdf } from "./financial-pdf";
 import { reservationInvoice } from "./reservation-invoice";
 import { depositInvoice, depositInvoiceNo, depositReceiptNo, leaseDepositAmount } from "./deposit-invoice";
+import { lateFeeReceiptNo } from "../../billing/late-fee-invoice";
 import { tenantDraftPatch } from "../tenants/tenant-draft-sync";
 import { validateCommissionConfirmation } from "./commission-confirmation";
 import { createCommissionConfirmationPdf, stampCommissionSignatures } from "./commission-confirmation-pdf";
@@ -79,7 +80,9 @@ import { CO_BROKE_REQUIRED, confirmedOffer, hasCoBrokeFile, offerLeaseFields, of
 import { hasSignature, refreshReservationDraft, type DraftFiles } from "./offer-drafts";
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
 import { closeLeaseContract, contractEndReasons } from "./contract-closure";
-import { bangkokToday } from "../../billing/rent-schedule";
+import { bangkokToday, renewalActiveOn } from "../../billing/rent-schedule";
+import { roomDealStatusesByRoomIds } from "../rooms/room-deal-status";
+import { earlyEndCollectInvoice, parseEarlyEndMoney } from "./early-end-money";
 import { handoverDueDate } from "../reminders/contract-reminders";
 import { cancelDeal, dealCancellationPreview, recordDealRefund, serializeDealCancellation } from "./deal-cancellation";
 import { DealCancellationEntity } from "../../entities/deal-cancellation.entity";
@@ -106,6 +109,7 @@ import { AgreementDocumentEntity } from "../../entities/agreement-document.entit
 import { AgentInvoiceEntity } from "../../entities/agent-invoice.entity";
 import { AgentCommissionConfirmationEntity } from "../../entities/agent-commission-confirmation.entity";
 import { LeadEntity } from "../../entities/lead.entity";
+import { DealOfferEntity } from "../../entities/deal-offer.entity";
 import { TenantEntity } from "../../entities/tenant.entity";
 import { RentRoomEntity } from "../../entities/rent-room.entity";
 import { RentRoomContactEntity } from "../../entities/rent-room-contact.entity";
@@ -787,6 +791,20 @@ export class AgentContractsService {
       throw new BadRequestException("สัญญานี้สิ้นสุดแล้ว ไม่สามารถสร้างหรือแก้ไขเอกสารใหม่ได้");
   }
 
+  /** A signed renewal reads as active once its effective day has arrived, before the stored status is updated. */
+  private effectiveStatus(c: LeaseContractEntity): AgentContract["status"] {
+    const signedOn = c.agreement_kind === "renewal" && typeof c.data?.renewalSignedOn === "string" ? c.data.renewalSignedOn : null;
+    const start = String(c.start_date ?? "").slice(0, 10);
+    if (signedOn && start && !["cancelled", "expired", "terminated", "active"].includes(c.status)
+      && bangkokToday() >= renewalActiveOn(start, signedOn))
+      return "active";
+    const formKind = c.template?.form_kind ?? c.agreement_type?.form_kind;
+    const endsOn = (c.data as { endsOn?: { date?: unknown } } | null)?.endsOn?.date;
+    const end = (typeof endsOn === "string" ? endsOn : null) || String(c.end_date ?? "").slice(0, 10);
+    if (c.status === "active" && (formKind === "lease" || formKind === "renewal") && end && bangkokToday() > end)
+      return typeof endsOn === "string" ? "terminated" : "expired";
+    return c.status as AgentContract["status"];
+  }
   private serialize(
     c: LeaseContractEntity,
     signed = new Map<string, string>(),
@@ -825,7 +843,7 @@ export class AgentContractsService {
         (c.template?.form_kind ?? c.agreement_type?.form_kind) || "lease",
       reservationFee:
         c.reservation_fee == null ? null : Number(c.reservation_fee),
-      status: c.status,
+      status: this.effectiveStatus(c),
       startDate: c.start_date,
       endDate:
         (c.template?.form_kind ?? c.agreement_type?.form_kind) === "reservation"
@@ -911,9 +929,13 @@ export class AgentContractsService {
   }
   /** What a landlord or tenant gets: the commission confirmation is between the landlord and the agent only. */
   private forParty<T extends AgentContract>(view: T, parties: readonly string[]): T {
-    const out = parties.includes("owner") || !("commission" in view) ? view : { ...view, commission: null };
+    let out = parties.includes("owner") || !("commission" in view) ? view : { ...view, commission: null };
     // D5: the parties see why and the money, not the agent's evidence or refund proof.
-    return out.cancellation ? { ...out, cancellation: { ...out.cancellation, evidenceUrls: [], refundProofUrl: null } } : out;
+    if (out.cancellation) out = { ...out, cancellation: { ...out.cancellation, evidenceUrls: [], refundProofUrl: null } };
+    const endsOn = (out.data as { endsOn?: { money?: { proofPath?: string | null } } } | undefined)?.endsOn;
+    if (endsOn?.money && "proofPath" in endsOn.money)
+      out = { ...out, data: { ...out.data, endsOn: { ...endsOn, money: { ...endsOn.money, proofPath: null } } } };
+    return out;
   }
   /** D10: a generated lease with a deposit above 0 has (or should have) one deposit invoice. */
   private depositEligible(c: LeaseContractEntity) {
@@ -1039,10 +1061,25 @@ export class AgentContractsService {
       .getMany();
     return rows.map((c) => this.serialize(c));
   }
+  /** Confirmed-offer renewal notice days, keyed by lead and room. Missing offers stay unset (the app uses 30). */
+  private async renewalNoticeByDeal(rows: LeaseContractEntity[]) {
+    const leadIds = [...new Set(rows.map((c) => c.lead_id).filter((id) => id != null))];
+    const out = new Map<string, number>();
+    const repo = this.db.getRepository(DealOfferEntity);
+    if (!leadIds.length || typeof repo.find !== "function") return out;
+    const offers = await repo.find({
+      where: { lead_id: In(leadIds), status: "confirmed" },
+    });
+    for (const offer of offers) out.set(`${offer.lead_id}:${offer.rent_room_id}`, offer.renewal_notice_days);
+    return out;
+  }
+  private withNotice<T extends { leadId: number; rentRoomId?: number | null }>(row: T, notice: Map<string, number>) {
+    return { ...row, renewalNoticeDays: notice.get(`${row.leadId}:${row.rentRoomId ?? ""}`) ?? null };
+  }
   async list(agentId: number) {
     const rows = await this.query(agentId).orderBy("c.id", "DESC").getMany();
-    const signed = await this.signedFor(rows);
-    return rows.map((c) => this.serialize(c, signed));
+    const [signed, notice] = await Promise.all([this.signedFor(rows), this.renewalNoticeByDeal(rows)]);
+    return rows.map((c) => this.withNotice(this.serialize(c, signed), notice));
   }
   async view(agentId: number, id: number) {
     const c = await this.query(agentId).andWhere("c.id = :id", { id }).getOne();
@@ -1327,10 +1364,10 @@ export class AgentContractsService {
         },
         {
           document_url: stored.path,
+          ...(generate ? { data: { ...(c.data ?? {}), renewalSignedOn: bangkokToday() } } : {}),
           ...(generate &&
-          ["draft", "awaiting_signatures", "awaiting_agent_review"].includes(
-            c.status,
-          )
+          ["draft", "awaiting_signatures", "awaiting_agent_review"].includes(c.status) &&
+          bangkokToday() >= renewalActiveOn(String(c.start_date).slice(0, 10), bangkokToday())
             ? { status: "active" as const }
             : {}),
         },
@@ -1877,7 +1914,9 @@ export class AgentContractsService {
       row.receipt_document_no ??
       (row.invoice_kind === "deposit"
         ? depositReceiptNo(row.document_no)
-        : await this.db.transaction((manager) => nextReceiptNo(manager)));
+        : row.invoice_kind === "late_fee"
+          ? lateFeeReceiptNo(row.document_no)
+          : await this.db.transaction((manager) => nextReceiptNo(manager)));
     return {
       ...row.data,
       documentNo,
@@ -1897,11 +1936,17 @@ export class AgentContractsService {
    */
   private assertDepositReceipt(row: AgentInvoiceEntity, lease: LeaseContractEntity | null, hasSlip: boolean) {
     if (!lease) throw new NotFoundException("ไม่พบสัญญา");
-    if (row.voided_at) throw new BadRequestException("ใบแจ้งหนี้เงินประกันถูกยกเลิกแล้ว ออกใบเสร็จไม่ได้");
-    if (["cancelled", "expired", "terminated"].includes(lease.status))
+    const lateFee = row.invoice_kind === "late_fee";
+    if (row.voided_at) throw new BadRequestException(lateFee ? "ใบแจ้งหนี้ค่าปรับถูกยกเลิกแล้ว ออกใบเสร็จไม่ได้" : "ใบแจ้งหนี้เงินประกันถูกยกเลิกแล้ว ออกใบเสร็จไม่ได้");
+    if (lateFee) {
+      if (lease.status === "cancelled") throw new BadRequestException("สัญญายกเลิกแล้ว ออกใบเสร็จค่าปรับไม่ได้");
+      if (row.receipt_pdf_path) throw new BadRequestException("ออกใบเสร็จแล้ว");
+    } else if (["cancelled", "expired", "terminated"].includes(lease.status))
       throw new BadRequestException("สัญญาเช่าปิดแล้ว ออกใบเสร็จเงินประกันไม่ได้");
     if (hasSlip && row.payment_slip_path && row.slip_submitted_at)
-      throw new BadRequestException("ผู้เช่าส่งสลิปแล้ว ใบเสร็จเงินประกันใช้สลิปของผู้เช่า ถ้าสลิปไม่ถูกต้อง ให้ผู้เช่าส่งใหม่");
+      throw new BadRequestException(lateFee
+        ? "ผู้เช่าส่งสลิปแล้ว ใบเสร็จค่าปรับใช้สลิปของผู้เช่า ถ้าสลิปไม่ถูกต้อง ให้ตีกลับแล้วให้ผู้เช่าส่งใหม่"
+        : "ผู้เช่าส่งสลิปแล้ว ใบเสร็จเงินประกันใช้สลิปของผู้เช่า ถ้าสลิปไม่ถูกต้อง ให้ผู้เช่าส่งใหม่");
   }
 
   async createReceiptForInvoice(
@@ -1919,13 +1964,14 @@ export class AgentContractsService {
     const method = String(body.paymentMethod ?? "").trim();
     const hasSlip = Boolean(file?.buffer?.length);
     // D10: a deposit receipt can rest on the slip the tenant already sent.
+    const landlordInvoice = (kind: string | undefined) => kind === "deposit" || kind === "late_fee";
     const slipOnFile = (row: AgentInvoiceEntity | null) =>
-      row?.invoice_kind === "deposit" && Boolean(row.payment_slip_path);
+      landlordInvoice(row?.invoice_kind) && Boolean(row?.payment_slip_path);
     const before = await this.db.getRepository(AgentInvoiceEntity).findOne({ where: { id: invoiceId, created_by_user_id: agentId } });
     if (!before) throw new NotFoundException("ไม่พบใบแจ้งหนี้");
     if (!method && !hasSlip && !slipOnFile(before))
       throw new BadRequestException("กรุณาแนบสลิปการชำระเงิน");
-    if (before.invoice_kind === "deposit")
+    if (landlordInvoice(before.invoice_kind))
       this.assertDepositReceipt(before, await this.db.getRepository(LeaseContractEntity).findOne({ where: { id: before.lease_contract_id ?? 0 } }), hasSlip);
     const documents = this.documents;
     let storedPath: string | null = null;
@@ -1939,7 +1985,7 @@ export class AgentContractsService {
       }
       const saved = await this.db.transaction(async (manager) => {
         // D10: for a deposit the lease is locked first, then the invoice (the order the tenant's slip upload uses).
-        const lease = before.invoice_kind === "deposit"
+        const lease = landlordInvoice(before.invoice_kind)
           ? await manager.findOne(LeaseContractEntity, { where: { id: before.lease_contract_id ?? 0 }, lock: { mode: "pessimistic_write" } })
           : null;
         const repo = manager.getRepository(AgentInvoiceEntity);
@@ -1950,7 +1996,7 @@ export class AgentContractsService {
         if (!row) throw new NotFoundException("ไม่พบใบแจ้งหนี้");
         if (!method && !hasSlip && !slipOnFile(row))
           throw new BadRequestException("กรุณาแนบสลิปการชำระเงิน");
-        if (row.invoice_kind === "deposit") this.assertDepositReceipt(row, lease, hasSlip);
+        if (landlordInvoice(row.invoice_kind)) this.assertDepositReceipt(row, lease, hasSlip);
         const today = new Intl.DateTimeFormat("en-CA", {
           timeZone: "Asia/Bangkok",
           year: "numeric",
@@ -1961,14 +2007,16 @@ export class AgentContractsService {
           row.receipt_document_no ??
           (row.invoice_kind === "deposit"
             ? depositReceiptNo(row.document_no)
-            : await nextReceiptNo(manager));
+            : row.invoice_kind === "late_fee"
+              ? lateFeeReceiptNo(row.document_no)
+              : await nextReceiptNo(manager));
         // D11 (AC-3.5): a deposit receipt is received by the landlord, or by the agent with a power of attorney
         // attached to the lease or its reservation. There is no withholding tax on a deposit.
         let receipt: { receiverName?: string; receivedBy?: "landlord" | "agent" } = {};
-        if (row.invoice_kind === "deposit") {
+        if (landlordInvoice(row.invoice_kind)) {
           const receivedBy = receiptReceiver((body as { receivedBy?: unknown }).receivedBy);
           if (withholdingTaxOf((body as { withholdingTax?: unknown }).withholdingTax, Number.MAX_SAFE_INTEGER) > 0)
-            throw new BadRequestException("ใบเสร็จเงินประกันไม่มีภาษีหัก ณ ที่จ่าย");
+            throw new BadRequestException(row.invoice_kind === "late_fee" ? "ใบเสร็จค่าปรับไม่มีภาษีหัก ณ ที่จ่าย" : "ใบเสร็จเงินประกันไม่มีภาษีหัก ณ ที่จ่าย");
           if (receivedBy === "agent" && !(await this.hasPowerOfAttorney(manager, await this.dealAgreementIds(manager, agentId, lease!))))
             throw new BadRequestException({ code: POWER_OF_ATTORNEY_REQUIRED, message: POWER_OF_ATTORNEY_MESSAGE });
           receipt = {
@@ -2119,6 +2167,201 @@ export class AgentContractsService {
    * D4 (AC-5.5, Aof 26 Oct 2026): the agent moves the handover day of a lease waiting for its deposit or its
    * handover, with a reason (body: { date, reason }). The reminder that the deposit is unpaid follows the new day.
    */
+  /**
+   * D15 (AC-8.3): record that this stay will not be renewed. The room becomes soon-vacant at once and the current
+   * lead's booking is released so the next tenant can book it. Undo only while nobody else has booked the room.
+   * A renewal that is still open has to be cancelled first.
+   */
+  /**
+   * D16 (AC-7.7): end the stay early on a day that is not before today and is before the original end.
+   * The room is soon-vacant at once. The contract reads as ended from the day after that date.
+   */
+  async setEarlyEnd(agentId: number, id: number, input: unknown) {
+    const body = input && typeof input === "object" && !Array.isArray(input) ? input as { date?: unknown; reason?: unknown } : {};
+    const date = typeof body.date === "string" ? body.date.trim() : "";
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (!isIsoDate(date)) throw new BadRequestException("วันที่เลิกมีผลต้องเป็น ค.ศ. ในรูปแบบ YYYY-MM-DD");
+    if (!reason || reason.length > 1000) throw new BadRequestException("กรุณาระบุเหตุผลที่เลิกสัญญา");
+    const today = bangkokToday();
+    if (date < today) throw new BadRequestException("วันที่เลิกมีผลต้องไม่ก่อนวันที่บันทึก");
+    await this.db.transaction(async (manager) => {
+      const lease = await manager.findOne(LeaseContractEntity, {
+        where: { id, created_by_user_id: agentId },
+        lock: { mode: "pessimistic_write" },
+        relations: { template: true, agreement_type: true },
+      });
+      if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+      const formKind = lease.template?.form_kind ?? lease.agreement_type?.form_kind;
+      if (!["lease", "renewal"].includes(formKind ?? "") || lease.status !== "active")
+        throw new BadRequestException("เลิกสัญญาก่อนกำหนดได้เฉพาะสัญญาเช่าที่มีผล");
+      const start = String(lease.start_date).slice(0, 10);
+      const end = lease.end_date ? String(lease.end_date).slice(0, 10) : null;
+      if (date < start || (end && date >= end))
+        throw new BadRequestException("วันที่เลิกมีผลต้องอยู่ในช่วงสัญญาและก่อนวันสิ้นสุดเดิม");
+      const successors = await manager.find(LeaseContractEntity, { where: { previous_agreement_id: lease.id } });
+      if (successors.some((row) => row.status !== "cancelled"))
+        throw new BadRequestException("มีหนังสือต่อสัญญาค้างอยู่ ยกเลิกฉบับนั้นก่อนจึงเลิกสัญญาได้");
+      await manager.update(LeaseContractEntity, { id: lease.id }, {
+        data: { ...(lease.data ?? {}), endsOn: { date, reason, recordedOn: today, recordedBy: agentId } },
+      } as QueryDeepPartialEntity<LeaseContractEntity>);
+      if (lease.lead_id != null) {
+        const lead = await manager.findOne(LeadEntity, { where: { id: lease.lead_id }, lock: { mode: "pessimistic_write" } });
+        if (lead && lead.status === "booked" && lead.rent_room_id === lease.rent_room_id && !lead.booking_released_at)
+          await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: new Date() });
+      }
+    });
+    return this.view(agentId, id);
+  }
+  /** D16 (AC-7.7, TC-7.06, TC-7.12): record the typed refund or the amount still to collect. Once only. */
+  async recordEarlyEndMoney(agentId: number, id: number, input: unknown) {
+    const preview = await this.db.getRepository(LeaseContractEntity).findOne({
+      where: { id, created_by_user_id: agentId },
+      relations: { tenant: true, rent_room: { property: true } },
+    });
+    if (!preview) throw new NotFoundException("ไม่พบสัญญา");
+    const previewEnds = (preview.data as { endsOn?: { date?: unknown; money?: unknown } } | null)?.endsOn;
+    const previewDate = typeof previewEnds?.date === "string" ? previewEnds.date : "";
+    if (!previewDate) throw new BadRequestException("บันทึกการเลิกสัญญาก่อน จึงกรอกยอดได้");
+    if (previewEnds?.money) throw new BadRequestException("บันทึกยอดนี้แล้ว");
+    const money = parseEarlyEndMoney(input, previewDate);
+    const today = bangkokToday();
+    let invoicePath: string | null = null;
+    if (money.kind === "collect") {
+      if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
+      const stored = await this.documents.uploadStandaloneInvoice(agentId, await createFinancialPdf("invoice", earlyEndCollectInvoice(preview, money.amount, money.dueOn, today)));
+      invoicePath = stored.path;
+    }
+    try {
+      await this.db.transaction(async (manager) => {
+        const lease = await manager.findOne(LeaseContractEntity, {
+          where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
+        });
+        if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+        const endsOn = (lease.data as { endsOn?: { date?: unknown; money?: unknown } } | null)?.endsOn;
+        const date = typeof endsOn?.date === "string" ? endsOn.date : "";
+        if (!date) throw new BadRequestException("บันทึกการเลิกสัญญาก่อน จึงกรอกยอดได้");
+        if (endsOn?.money) throw new BadRequestException("บันทึกยอดนี้แล้ว");
+        await manager.update(LeaseContractEntity, { id: lease.id }, {
+          data: { ...(lease.data ?? {}), endsOn: { ...endsOn, money: { ...money, recordedOn: today, recordedBy: agentId, invoicePath } } },
+        } as QueryDeepPartialEntity<LeaseContractEntity>);
+      });
+    } catch (error) {
+      if (invoicePath) await this.documents?.remove(invoicePath).catch(() => undefined);
+      throw error;
+    }
+    return this.view(agentId, id);
+  }
+  private earlyEndMoneyOf(c: LeaseContractEntity) {
+    return ((c.data as { endsOn?: { money?: { kind?: string; invoicePath?: string | null; slipPath?: string | null; proofPath?: string | null } } } | null)?.endsOn?.money) ?? null;
+  }
+  /** Opens the collection invoice, the tenant's slip, or the refund proof. */
+  async earlyEndFileUrl(userId: number, id: number, kind: string, asAgent: boolean) {
+    const lease = asAgent
+      ? await this.db.getRepository(LeaseContractEntity).findOneBy({ id, created_by_user_id: userId })
+      : (await this.contractForParty(userId, id)).contract;
+    if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+    const money = this.earlyEndMoneyOf(lease);
+    const path = kind === "invoice" ? money?.invoicePath : kind === "slip" ? money?.slipPath : kind === "proof" ? money?.proofPath : null;
+    if (kind === "proof" && !asAgent) throw new NotFoundException("ไม่พบเอกสาร");
+    if (!path) throw new NotFoundException("ไม่พบเอกสาร");
+    if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
+    const url = (await this.documents.signPaths([path])).get(path);
+    if (!url) throw new ServiceUnavailableException("เปิดเอกสารไม่สำเร็จ กรุณาลองอีกครั้ง");
+    return { url };
+  }
+  async uploadEarlyEndSlip(userId: number, id: number, file: { buffer: Buffer; size: number; originalname?: string } | undefined) {
+    const { contract: c, parties } = await this.contractForParty(userId, id);
+    if (!parties.includes("tenant")) throw new ForbiddenException("เฉพาะผู้เช่าเท่านั้นที่ส่งสลิปได้");
+    const money = this.earlyEndMoneyOf(c);
+    if (money?.kind !== "collect" || !money.invoicePath) throw new BadRequestException("ยังไม่มีใบแจ้งหนี้ยอดที่ต้องเก็บ");
+    if (money.slipPath) throw new BadRequestException("ส่งสลิปแล้ว");
+    if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
+    const stored = await this.documents.uploadPaymentSlip(c.created_by_user_id, file);
+    try {
+      await this.db.transaction(async (manager) => {
+        const lease = await manager.findOne(LeaseContractEntity, { where: { id: c.id }, lock: { mode: "pessimistic_write" } });
+        const current = lease ? this.earlyEndMoneyOf(lease) : null;
+        if (!lease || current?.kind !== "collect" || current.slipPath) throw new ConflictException("ส่งสลิปแล้ว");
+        const endsOn = (lease.data as { endsOn?: object }).endsOn;
+        await manager.update(LeaseContractEntity, { id: lease.id }, {
+          data: { ...(lease.data ?? {}), endsOn: { ...endsOn, money: { ...current, slipPath: stored.path, slipSubmittedAt: new Date().toISOString() } } },
+        } as QueryDeepPartialEntity<LeaseContractEntity>);
+      });
+    } catch (error) {
+      await this.documents.remove(stored.path).catch(() => undefined);
+      throw error;
+    }
+    const { contract: updated, parties: mine } = await this.contractForParty(userId, id);
+    return { ...this.forParty(this.serialize(updated, await this.signedFor([updated])), mine), myParties: mine };
+  }
+  async uploadEarlyEndProof(agentId: number, id: number, file: { buffer: Buffer; size: number; originalname?: string } | undefined) {
+    const lease = await this.db.getRepository(LeaseContractEntity).findOneBy({ id, created_by_user_id: agentId });
+    const money = lease ? this.earlyEndMoneyOf(lease) : null;
+    if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+    if (money?.kind !== "refund") throw new BadRequestException("แนบหลักฐานได้เฉพาะยอดคืน");
+    if (money.proofPath) throw new BadRequestException("แนบหลักฐานแล้ว");
+    if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
+    const stored = await this.documents.uploadPaymentSlip(agentId, file);
+    try {
+      await this.db.transaction(async (manager) => {
+        const currentLease = await manager.findOne(LeaseContractEntity, { where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" } });
+        const current = currentLease ? this.earlyEndMoneyOf(currentLease) : null;
+        if (!currentLease || current?.kind !== "refund" || current.proofPath) throw new ConflictException("แนบหลักฐานแล้ว");
+        const endsOn = (currentLease.data as { endsOn?: object }).endsOn;
+        await manager.update(LeaseContractEntity, { id }, {
+          data: { ...(currentLease.data ?? {}), endsOn: { ...endsOn, money: { ...current, proofPath: stored.path } } },
+        } as QueryDeepPartialEntity<LeaseContractEntity>);
+      });
+    } catch (error) {
+      await this.documents.remove(stored.path).catch(() => undefined);
+      throw error;
+    }
+    return this.view(agentId, id);
+  }
+  async setNotRenewing(agentId: number, id: number, notRenewing: boolean) {
+    await this.db.transaction(async (manager) => {
+      const lease = await manager.findOne(LeaseContractEntity, {
+        where: { id, created_by_user_id: agentId },
+        lock: { mode: "pessimistic_write" },
+        relations: { template: true, agreement_type: true },
+      });
+      if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+      const formKind = lease.template?.form_kind ?? lease.agreement_type?.form_kind;
+      if (!["lease", "renewal"].includes(formKind ?? "") || lease.status !== "active")
+        throw new BadRequestException("บันทึกไม่ต่อสัญญาได้เฉพาะสัญญาเช่าที่มีผล");
+      const recorded = Boolean((lease.data as { notRenewing?: unknown } | null)?.notRenewing);
+      if (recorded === notRenewing) return;
+      const successors = await manager.find(LeaseContractEntity, { where: { previous_agreement_id: lease.id } });
+      if (successors.some((row) => row.status !== "cancelled"))
+        throw new BadRequestException("มีหนังสือต่อสัญญาค้างอยู่ ยกเลิกฉบับนั้นก่อนจึงบันทึกไม่ต่อได้");
+      if (!notRenewing) {
+        const holders = lease.rent_room_id == null ? [] : await manager.find(LeadEntity, {
+          where: { rent_room_id: lease.rent_room_id, status: "booked", booking_released_at: IsNull() },
+        });
+        if (holders.some((lead) => lead.id !== lease.lead_id))
+          throw new BadRequestException("มีผู้เช่ารายใหม่จองห้องแล้ว ยกเลิกการบันทึกไม่ต่อไม่ได้");
+        const data = { ...(lease.data ?? {}) } as Record<string, unknown>;
+        delete data.notRenewing;
+        await manager.update(LeaseContractEntity, { id: lease.id }, { data } as QueryDeepPartialEntity<LeaseContractEntity>);
+        if (lease.lead_id != null) {
+          const own = await manager.findOne(LeadEntity, { where: { id: lease.lead_id } });
+          if (own?.status === "booked" && own.rent_room_id === lease.rent_room_id)
+            await manager.update(LeadEntity, { id: own.id }, { booking_released_at: null });
+        }
+        return;
+      }
+      const today = bangkokToday();
+      await manager.update(LeaseContractEntity, { id: lease.id }, {
+        data: { ...(lease.data ?? {}), notRenewing: { recordedOn: today, recordedBy: agentId } },
+      } as QueryDeepPartialEntity<LeaseContractEntity>);
+      if (lease.lead_id != null) {
+        const lead = await manager.findOne(LeadEntity, { where: { id: lease.lead_id }, lock: { mode: "pessimistic_write" } });
+        if (lead && lead.status === "booked" && lead.rent_room_id === lease.rent_room_id && !lead.booking_released_at)
+          await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: new Date() });
+      }
+    });
+    return this.view(agentId, id);
+  }
   async moveHandoverDue(agentId: number, id: number, input: unknown) {
     const b = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
     const reason = typeof b.reason === "string" ? b.reason.trim() : "";
@@ -2616,12 +2859,14 @@ export class AgentContractsService {
       relations: { property: true },
       order: { id: "ASC" },
     });
+    const statuses = await roomDealStatusesByRoomIds(this.db, rooms.map((room) => room.id)).catch(() => new Map());
     return rooms.map((room) => ({
       property:
         room.property?.name?.trim() ||
         room.listing_title?.trim() ||
         "ไม่ระบุโครงการ",
       room: room.room_id?.trim() || null,
+      dealStatus: statuses.get(room.id)?.status ?? null,
     }));
   }
   async listForUser(userId: number) {

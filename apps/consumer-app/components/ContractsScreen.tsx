@@ -126,6 +126,7 @@ import { HandoverDueControl } from "./HandoverDueControl";
 import { DealCancellationCard, type PickedFile } from "./DealCancellationCard";
 import { canCancelDeal } from "../lib/deal-cancellation";
 import { HandoverCard } from "./HandoverCard";
+import { DepositSettlementCard } from "./DepositSettlementCard";
 import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
 import { AgentContractLibrary } from "./AgentContractLibrary";
@@ -2990,6 +2991,19 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             defaultDate={selected.startDate}
             refreshKey={`${selected.status}:${selected.leaseAgreementStatus}:${selected.depositPayment?.status ?? ""}`}
           />
+        )}
+        {(selected.formKind === "lease" || selected.formKind === "renewal") && (
+          <HandoverCard
+            key={`move-out:${selected.id}`}
+            contractId={selected.id}
+            mode="agent"
+            kind="move_out"
+            defaultDate={selected.endDate ?? undefined}
+            refreshKey={`${selected.status}:${selected.endDate ?? ""}`}
+          />
+        )}
+        {(selected.formKind === "lease" || selected.formKind === "renewal") && (
+          <DepositSettlementCard key={`deposit:${selected.id}`} contractId={selected.id} mode="agent" />
         )}
         {(selected.formKind === "reservation" ||
           selected.formKind === "lease") && (

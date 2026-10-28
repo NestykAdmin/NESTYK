@@ -19,7 +19,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
+import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import { AuthGuard } from "../../auth/guards/auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import { Roles } from "../../auth/decorators/roles.decorator";
@@ -31,6 +31,7 @@ import { AgentContractsService } from "./agent-contracts.service";
 import { MAX_CONTRACT_DOCUMENT_BYTES } from "./contract-document-storage.service";
 import { MAX_EVIDENCE_FILES } from "./deal-cancellation";
 import { HandoverService } from "./handover.service";
+import { DepositSettlementService } from "./deposit-settlement";
 
 function receiptPayload(body: unknown): unknown {
   if (
@@ -55,10 +56,15 @@ export class AgentContractsController {
   constructor(
     private readonly contracts: AgentContractsService,
     @Optional() private readonly handover?: HandoverService,
+    @Optional() private readonly settlements?: DepositSettlementService,
   ) {}
   private handovers() {
     if (!this.handover) throw new ServiceUnavailableException("ยังไม่เปิดใช้การส่งมอบห้อง");
     return this.handover;
+  }
+  private settlement() {
+    if (!this.settlements) throw new ServiceUnavailableException("ยังไม่เปิดใช้การคืนเงินประกัน");
+    return this.settlements;
   }
   @Get("end-reasons")
   endReasons() {
@@ -105,6 +111,54 @@ export class AgentContractsController {
     @Body() body: unknown,
   ) {
     return this.contracts.moveHandoverDue(user.id, id, body);
+  }
+  /** D16 (AC-7.7): end an active lease early (body: { date, reason }). The date is not before today. */
+  @Post(":id/early-end")
+  @HttpCode(HttpStatus.OK)
+  setEarlyEnd(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.setEarlyEnd(user.id, id, body);
+  }
+  /** D16 (AC-7.7): the typed refund or the amount to collect after an early ending. Once only. */
+  @Post(":id/early-end/money")
+  @HttpCode(HttpStatus.OK)
+  recordEarlyEndMoney(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.recordEarlyEndMoney(user.id, id, body);
+  }
+  @Get(":id/early-end/:kind")
+  earlyEndFile(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("kind") kind: string,
+  ) {
+    return this.contracts.earlyEndFileUrl(user.id, id, kind, true);
+  }
+  @Post(":id/early-end/refund-proof")
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 0 } }))
+  earlyEndProof(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
+  ) {
+    return this.contracts.uploadEarlyEndProof(user.id, id, file);
+  }
+  /** D15 (AC-8.3): record that the stay will not be renewed, or undo that while nobody else has booked the room. */
+  @Post(":id/not-renewing")
+  @HttpCode(HttpStatus.OK)
+  setNotRenewing(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: { notRenewing?: unknown },
+  ) {
+    return this.contracts.setNotRenewing(user.id, id, body?.notRenewing !== false);
   }
   /** D11 (AC-3.4): return the tenant's booking slip with a reason (body: { reason }). */
   @Post(":id/reservation-payment/return")
@@ -159,6 +213,93 @@ export class AgentContractsController {
     @Param("photoId", DatabaseIdPipe) photoId: number,
   ) {
     return this.handovers().removePhoto(user.id, id, photoId);
+  }
+  /** D16 (AC-8.4): the move-out annexes. The parties sign themselves; this does not change the lease status. */
+  @Get(":id/handover/move-out") moveOutView(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.handovers().agentView(user.id, id, "move_out");
+  }
+  @Put(":id/handover/move-out") moveOutSave(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.handovers().save(user.id, id, body, "move_out");
+  }
+  @Post(":id/handover/move-out/photos")
+  @UseInterceptors(FileInterceptor("file", {
+    limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 1, fieldSize: 1024 },
+  }))
+  moveOutPhoto(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+    @UploadedFile() file: { buffer: Buffer; size: number } | undefined,
+  ) {
+    return this.handovers().addPhoto(user.id, id, file, body, "move_out");
+  }
+  @Delete(":id/handover/move-out/photos/:photoId") moveOutPhotoRemove(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("photoId", DatabaseIdPipe) photoId: number,
+  ) {
+    return this.handovers().removePhoto(user.id, id, photoId, "move_out");
+  }
+  /** D16 (AC-8.4 to 8.6): the deposit deductions and the one-time refund of one lease. */
+  @Get(":id/deposit-settlement") depositView(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.settlement().agentView(user.id, id);
+  }
+  @Post(":id/deposit-settlement")
+  @HttpCode(HttpStatus.OK)
+  depositOpen(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.settlement().open(user.id, id);
+  }
+  @Post(":id/deposit-settlement/items")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 3, fieldSize: 4096 } }))
+  depositItem(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+    @UploadedFile() file: { buffer: Buffer; size: number } | undefined,
+  ) {
+    return this.settlement().addItem(user.id, id, body, file);
+  }
+  @Delete(":id/deposit-settlement/items/:itemId") depositItemRemove(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("itemId", DatabaseIdPipe) itemId: number,
+  ) {
+    return this.settlement().removeItem(user.id, id, itemId);
+  }
+  @Post(":id/deposit-settlement/approve")
+  @HttpCode(HttpStatus.OK)
+  depositApprove(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.settlement().approve(user.id, id, body);
+  }
+  @Post(":id/deposit-settlement/refund")
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: "received", maxCount: 1 },
+    { name: "transfer", maxCount: 1 },
+  ], { limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 2 } }))
+  depositRefund(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @UploadedFiles() files: { received?: Array<{ buffer: Buffer; size: number }>; transfer?: Array<{ buffer: Buffer; size: number }> },
+  ) {
+    return this.settlement().complete(user.id, id, files?.received?.[0], files?.transfer?.[0]);
   }
   /** D6: the landlord or the tenant signs the handover on the agent's device. */
   @Post(":id/handover/sign")

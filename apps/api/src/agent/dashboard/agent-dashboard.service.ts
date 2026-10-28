@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import type { AgentDashboardData, AgentDashboardDeepLink, AgentWorkItemKind } from '@nestyk/types';
 import { RentRoomEntity } from '../../entities/rent-room.entity';
 import { LeadEntity } from '../../entities/lead.entity';
 import { LeadViewingEntity } from '../../entities/lead-viewing.entity';
 import { TenantEntity } from '../../entities/tenant.entity';
 import { LeaseContractEntity } from '../../entities/lease-contract.entity';
+import { DealOfferEntity } from '../../entities/deal-offer.entity';
 import { TenantBillEntity } from '../../entities/tenant-bill.entity';
 import { roomDealStatuses } from '../rooms/room-deal-status';
 
@@ -91,7 +92,7 @@ export class AgentDashboardService {
     return this.db.getRepository(LeaseContractEntity).createQueryBuilder('c')
       .leftJoin('c.template', 'template').leftJoin('c.agreement_type', 'agreementType')
       .leftJoin('c.rent_room', 'room').leftJoin('room.property', 'property')
-      .select(['c.id', 'c.tenant_id', 'c.status', 'c.start_date', 'c.end_date', 'c.previous_agreement_id',
+      .select(['c.id', 'c.tenant_id', 'c.lead_id', 'c.rent_room_id', 'c.status', 'c.start_date', 'c.end_date', 'c.previous_agreement_id',
         'c.owner_delivered_at', 'c.tenant_delivered_at', 'template.id', 'template.form_kind',
         'agreementType.id', 'agreementType.form_kind', 'room.id', 'room.listing_title', 'property.id', 'property.name'])
       .where('c.created_by_user_id = :agentId', { agentId }).getMany();
@@ -134,6 +135,14 @@ export class AgentDashboardService {
     let signing = 0;
     let active = 0;
     const renewals: NonNullable<AgentDashboardData['clients']['renewal']>[] = [];
+    const leadIds = [...new Set(contracts.map((c) => c.lead_id).filter((id) => id != null))];
+    const notice = new Map<string, number>();
+    if (leadIds.length) {
+      const offers = await this.db.getRepository(DealOfferEntity).find({
+        where: { lead_id: In(leadIds), status: 'confirmed' },
+      }).catch(() => [] as DealOfferEntity[]);
+      for (const offer of offers) notice.set(`${offer.lead_id}:${offer.rent_room_id}`, offer.renewal_notice_days);
+    }
     for (const tenant of tenants) {
       const documents = contracts.filter(contract => contract.tenant_id === tenant.id);
       const lease = tenantLease(documents, today);
@@ -142,7 +151,8 @@ export class AgentDashboardService {
         if (lease.end_date) {
           const daysLeft = dayNumber(lease.end_date) - dayNumber(today);
           const successor = documents.some(c => c.previous_agreement_id === lease.id && c.status !== 'cancelled');
-          if (daysLeft >= 0 && daysLeft <= 30 && !successor) renewals.push({
+          const window = notice.get(`${lease.lead_id}:${lease.rent_room_id}`) ?? 30;
+          if (daysLeft >= 0 && daysLeft <= window && !successor) renewals.push({
             id: String(lease.id), title: lease.rent_room?.property?.name || lease.rent_room?.listing_title || tenant.name,
             endsAt: lease.end_date, daysLeft,
           });

@@ -40,6 +40,36 @@ export async function returnReservationSlip(id: number, reason: string, submitte
 export function moveHandoverDue(id: number, date: string, reason: string): Promise<AgentContract> {
   return apiPost(`/agent/contracts/${id}/handover-due`, { date, reason });
 }
+/** D15 (AC-8.3): record that this stay will not be renewed, or undo that record. */
+export async function openAgentEarlyEndFile(id: number, kind: "invoice" | "slip" | "proof"): Promise<{ url: string }> {
+  await ensureAgentSession();
+  return apiGet(`/agent/contracts/${id}/early-end/${kind}`);
+}
+export async function uploadEarlyEndProof(id: number, file: { uri: string; name: string; mimeType: string; file?: File }): Promise<AgentContract> {
+  await ensureAgentSession();
+  const form = new FormData();
+  if (Platform.OS === "web") form.append("file", file.file ?? (await (await fetch(file.uri)).blob()), file.name);
+  else form.append("file", { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  try {
+    return await apiRequest(`/agent/contracts/${id}/early-end/refund-proof`, { method: "POST", body: form, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+export async function recordEarlyEndMoney(id: number, kind: "refund" | "collect", amount: number, note: string): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/early-end/money`, { kind, amount, note });
+}
+export async function setEarlyEnd(id: number, date: string, reason: string): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/early-end`, { date, reason });
+}
+export async function setNotRenewing(id: number, notRenewing: boolean): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/not-renewing`, { notRenewing });
+}
 
 export async function returnDepositSlip(id: number, reason: string, submittedAt: string | null): Promise<AgentContract> {
   await ensureAgentSession();
@@ -446,23 +476,28 @@ export async function getAgentContractDraftTemplate(id: number): Promise<import(
   return apiGet(`/agent/contracts/${id}/draft-template`);
 }
 
-/** D6: the handover record of a lease (annex 1 items, annex 2 photos, signatures). */
-export async function getHandover(id: number): Promise<import("@nestyk/types").HandoverRecord> {
+const handoverBase = (id: number, kind: "move_in" | "move_out" = "move_in") =>
+  kind === "move_out" ? `/agent/contracts/${id}/handover/move-out` : `/agent/contracts/${id}/handover`;
+
+/** D6: the handover record of a lease (annex 1 items, annex 2 photos, signatures). D16 uses kind move_out. */
+export async function getHandover(id: number, kind: "move_in" | "move_out" = "move_in"): Promise<import("@nestyk/types").HandoverRecord> {
   await ensureAgentSession();
-  return apiGet(`/agent/contracts/${id}/handover`);
+  return apiGet(handoverBase(id, kind));
 }
 
 export async function saveHandover(
   id: number,
   body: import("@nestyk/types").SaveHandover,
+  kind: "move_in" | "move_out" = "move_in",
 ): Promise<import("@nestyk/types").HandoverRecord> {
   await ensureAgentSession();
-  return apiRequest(`/agent/contracts/${id}/handover`, { method: "PUT", body: JSON.stringify(body) });
+  return apiRequest(handoverBase(id, kind), { method: "PUT", body: JSON.stringify(body) });
 }
 
 export async function uploadHandoverPhoto(
   id: number,
   file: { uri: string; name: string; mimeType: string; file?: File },
+  kind: "move_in" | "move_out" = "move_in",
 ): Promise<import("@nestyk/types").HandoverRecord> {
   await ensureAgentSession();
   const form = new FormData();
@@ -473,15 +508,15 @@ export async function uploadHandoverPhoto(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);
   try {
-    return await apiRequest(`/agent/contracts/${id}/handover/photos`, { method: "POST", body: form, signal: controller.signal });
+    return await apiRequest(`${handoverBase(id, kind)}/photos`, { method: "POST", body: form, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export async function removeHandoverPhoto(id: number, photoId: number): Promise<import("@nestyk/types").HandoverRecord> {
+export async function removeHandoverPhoto(id: number, photoId: number, kind: "move_in" | "move_out" = "move_in"): Promise<import("@nestyk/types").HandoverRecord> {
   await ensureAgentSession();
-  return apiRequest(`/agent/contracts/${id}/handover/photos/${photoId}`, { method: "DELETE" });
+  return apiRequest(`${handoverBase(id, kind)}/photos/${photoId}`, { method: "DELETE" });
 }
 
 /** D6: the landlord or the tenant signs the handover on the agent's device. */
@@ -491,4 +526,57 @@ export async function signHandoverOnSite(
 ): Promise<import("@nestyk/types").HandoverRecord> {
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/handover/sign`, body);
+}
+
+type SlipFile = { uri: string; name: string; mimeType: string; file?: File };
+async function appendSlip(form: FormData, field: string, file: SlipFile) {
+  if (Platform.OS === "web") form.append(field, file.file ?? (await (await fetch(file.uri)).blob()), file.name);
+  else form.append(field, { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
+}
+async function postSlip<T>(path: string, form: FormData): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  try {
+    return await apiRequest<T>(path, { method: "POST", body: form, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** D16: the deposit deductions and refund of one lease. */
+export async function getDepositSettlement(id: number): Promise<import("@nestyk/types").DepositSettlementView> {
+  await ensureAgentSession();
+  return apiGet(`/agent/contracts/${id}/deposit-settlement`);
+}
+export async function openDepositSettlement(id: number): Promise<import("@nestyk/types").DepositSettlementView> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/deposit-settlement`, {});
+}
+export async function addDepositDeduction(
+  id: number,
+  item: { type: string; description: string; amount: string },
+  file: SlipFile,
+): Promise<import("@nestyk/types").DepositSettlementView> {
+  await ensureAgentSession();
+  const form = new FormData();
+  form.append("deductionType", item.type);
+  form.append("description", item.description);
+  form.append("amount", item.amount);
+  await appendSlip(form, "file", file);
+  return postSlip(`/agent/contracts/${id}/deposit-settlement/items`, form);
+}
+export async function removeDepositDeduction(id: number, itemId: number): Promise<import("@nestyk/types").DepositSettlementView> {
+  await ensureAgentSession();
+  return apiRequest(`/agent/contracts/${id}/deposit-settlement/items/${itemId}`, { method: "DELETE" });
+}
+export async function approveDepositSettlement(id: number, refundAmount: string, note: string): Promise<import("@nestyk/types").DepositSettlementView> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/deposit-settlement/approve`, { refundAmount, note });
+}
+export async function completeDepositRefund(id: number, received: SlipFile, transfer: SlipFile): Promise<import("@nestyk/types").DepositSettlementView> {
+  await ensureAgentSession();
+  const form = new FormData();
+  await appendSlip(form, "received", received);
+  await appendSlip(form, "transfer", transfer);
+  return postSlip(`/agent/contracts/${id}/deposit-settlement/refund`, form);
 }

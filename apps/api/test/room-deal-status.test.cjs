@@ -53,9 +53,12 @@ test('soon vacant: ended early or not renewing, until 00:00 of the day after the
   assert.equal(st('2027-06-01', [c('lease', 'active', { endDate: '2027-10-31' })], [booked(1)]), 'rented', 'its own lead is no new booking');
 });
 
-test('a lease past its end with no renewal frees the room (AC-8.7); a renewal keeps it let; a room let outside stays rented', () => {
+test('a lease past its end with no decision stays rented (AC-8.7); a renewal keeps it let; a room let outside stays rented', () => {
   assert.equal(st('2027-10-31', [c('lease', 'active', { endDate: '2027-10-31' })], [booked()]), 'rented', 'its last day');
-  assert.equal(st('2027-11-01', [c('lease', 'active', { endDate: '2027-10-31' })], [booked()]), 'available', 'from the day after');
+  assert.equal(st('2027-11-01', [c('lease', 'active', { endDate: '2027-10-31' })], [booked()]), 'rented', 'TC-8.11: no renew or not-renew record yet');
+  assert.deepEqual(at('2027-11-05', [c('lease', 'active', { endDate: '2027-10-31', notRenewing: true, notRenewingOn: '2027-11-05' })], [booked()]),
+    { status: 'soon_vacant', vacantFrom: '2027-11-06', nextBooked: false }, 'TC-8.11 recorded on 5 Nov');
+  assert.equal(st('2027-11-06', [c('lease', 'active', { endDate: '2027-10-31', notRenewing: true, notRenewingOn: '2027-11-05' })], [booked()]), 'available');
   const renewed = [c('lease', 'expired', { endDate: '2027-10-31', effectiveEndDate: '2027-10-31' }), c('renewal', 'active', { endDate: '2028-10-31' })];
   assert.equal(st('2027-11-01', renewed, [booked()]), 'rented');
   assert.equal(st('2027-10-27', [], [], 'rented'), 'rented', 'set by hand, no deal in the system');

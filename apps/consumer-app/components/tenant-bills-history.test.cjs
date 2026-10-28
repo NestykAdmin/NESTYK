@@ -18,7 +18,7 @@ function mockRequire(name) {
   if (name === 'react') return React;
   if (name === 'react-native') return { View: Box, Text, StyleSheet: { create: value => value } };
   if (name === '@nestyk/i18n') return { useLocale: () => ({ locale: 'en', t: { agent: { tenants: { detail } } } }) };
-  if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme: {} }), tokens: { colors: { danger: 'red', brand: { 700: 'orange' } } }, MobileButton: Box, MobileIcon: () => null, MobileFilterChip: () => null, MobileStatusPill: ({ label }) => React.createElement(Text, {}, label) };
+  if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme: {} }), tokens: { colors: { danger: 'red', brand: { 700: 'orange' } } }, MobileButton: Box, MobileIcon: () => null, MobileFilterChip: () => null, MobileBottomSheet: Box, MobileInput: () => null, MobileStatusPill: ({ label }) => React.createElement(Text, {}, label) };
   if (name === './TenantDetailParts') return { DetailCard: Box, DemoNotice: ({ text }) => React.createElement(Text, {}, text), ps: {} };
   if (name.startsWith('../lib/')) return load(name + '.ts');
   throw new Error(name);

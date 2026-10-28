@@ -60,6 +60,7 @@ export function TenantContractList({
   const ink = { color: theme.textHeading };
   const muted = { color: theme.textSecondary };
   const surface = { backgroundColor: theme.surface, borderColor: theme.border };
+  const roomStatus = new Map(ownedRooms.map((room) => [`${room.property.trim()}\u0000${room.room ?? ""}`, room.dealStatus ?? null]));
   const grouped = new Map<
     string,
     { room: PartyContractRoom; contracts: PartyContract[] }
@@ -70,7 +71,7 @@ export function TenantContractList({
     if (group) group.contracts.push(row);
     else
       grouped.set(key, {
-        room: { key, property: row.property?.trim() || "—", room: row.room },
+        room: { key, property: row.property?.trim() || "—", room: row.room, dealStatus: roomStatus.get(key) ?? null },
         contracts: [row],
       });
   }
@@ -81,7 +82,7 @@ export function TenantContractList({
     )) {
       const key = `${owned.property}\u0000${owned.room ?? ""}`;
       grouped.set(key, {
-        room: { key, property: owned.property, room: owned.room },
+        room: { key, property: owned.property, room: owned.room, dealStatus: owned.dealStatus ?? null },
         contracts: [],
       });
     }
@@ -162,6 +163,9 @@ export function TenantContractList({
             <Text style={[s.caption, muted]}>
               {copy.room} {room.room}
             </Text>
+          ) : null}
+          {mode === "owner" && room.dealStatus ? (
+            <Text style={[s.caption, muted]}>{t.mobile.partyContracts.roomStatus[room.dealStatus]}</Text>
           ) : null}
           {mode === "owner" && (occupant(contracts) || selectedRoom?.tenant?.trim()) ? (
             <Text style={[s.caption, muted]}>

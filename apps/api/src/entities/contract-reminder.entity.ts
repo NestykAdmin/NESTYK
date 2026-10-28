@@ -13,6 +13,8 @@ export const CONTRACT_REMINDER_KINDS = [
   "rent_overdue_15", // rent 15 days late (the landlord is told too)
   "renewal_notice", // as many days left as the renewal notice days
   "refund_late", // D5 (AC-C.2, C.3): a cancelled deal's refund not recorded after its due day
+  "early_end_refund_late", // D16 (AC-7.7): unused rent not recorded after the 7th day
+  "deposit_refund_late", // D16 (AC-8.5): deposit refund not recorded after the 30th day
 ] as const;
 export type ContractReminderKind = (typeof CONTRACT_REMINDER_KINDS)[number];
 
@@ -21,7 +23,7 @@ export type ContractReminderKind = (typeof CONTRACT_REMINDER_KINDS)[number];
  * 20261026130000_contract_reminders.sql, refund_late added by 20261026140000_deal_cancellations.sql; unique on kind, contract, bill, due day and recipient).
  */
 @Index("idx_contract_reminders_unsent", ["created_at"], { where: "(emailed_at IS NULL)" })
-@Check("chk_contract_reminders_kind", "((kind)::text = ANY ((ARRAY['reservation_sign_late'::character varying, 'lease_sign_late'::character varying, 'deposit_unpaid'::character varying, 'rent_overdue'::character varying, 'rent_overdue_15'::character varying, 'renewal_notice'::character varying, 'refund_late'::character varying])::text[]))")
+@Check("chk_contract_reminders_kind", "((kind)::text = ANY ((ARRAY['reservation_sign_late'::character varying, 'lease_sign_late'::character varying, 'deposit_unpaid'::character varying, 'rent_overdue'::character varying, 'rent_overdue_15'::character varying, 'renewal_notice'::character varying, 'refund_late'::character varying, 'early_end_refund_late'::character varying, 'deposit_refund_late'::character varying])::text[]))")
 @Check("chk_contract_reminders_bill", "(((kind)::text ~~ 'rent_%'::text) = (tenant_bill_id IS NOT NULL))")
 @Entity({ name: "contract_reminders" })
 export class ContractReminderEntity extends SerialTimestampEntity {

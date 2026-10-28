@@ -48,4 +48,35 @@ export class AgentBillsController {
   ) {
     return this.billing.returnForAgent(user.id, id, body);
   }
+
+  /** D12: the agent opens the late fee invoice, receipt or slip of a bill on their deal. */
+  @Get("agent/:id/late-fee/:kind")
+  lateFeeUrl(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("kind") kind: string,
+  ) {
+    return this.billing.lateFeeUrlForAgent(user.id, id, kind);
+  }
+
+  /** D12 (AC-7.8): one late fee invoice for a rent bill. The agent types the amount. */
+  @Post("agent/:id/late-fee")
+  @HttpCode(HttpStatus.OK)
+  createLateFee(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.billing.createLateFee(user.id, id, body);
+  }
+
+  @Post("agent/:id/late-fee/return")
+  @HttpCode(HttpStatus.OK)
+  returnLateFee(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.billing.returnLateFeeSlip(user.id, id, body);
+  }
 }

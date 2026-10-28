@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
 import Animated, { FadeIn } from "react-native-reanimated";
 import {
   MobileBottomSheet,
@@ -17,7 +18,8 @@ import { getAgentTenant, listAgentTenants, updateAgentTenant } from "../lib/agen
 import { nextIdentityNumberDraft } from "../lib/identity-number";
 import { billFormatters } from "../lib/bill-format";
 import { formatPhoneDisplay } from "../lib/phone";
-import { confirmAgentRentSlip, getAgentTenantBilling, listAgentRentSlips, openAgentRentSlip, returnAgentRentSlip } from "../lib/tenant-bills-api";
+import { openAgentEarlyEndFile, recordEarlyEndMoney, setEarlyEnd, setNotRenewing, uploadEarlyEndProof } from "../lib/agent-contracts-api";
+import { confirmAgentRentSlip, createAgentLateFee, getAgentTenantBilling, listAgentRentSlips, openAgentLateFee, openAgentRentSlip, returnAgentLateFeeSlip, returnAgentRentSlip } from "../lib/tenant-bills-api";
 import {
   tenantLease,
   tenantNextAction,
@@ -39,6 +41,7 @@ import { ContractReminderList } from "./ContractReminderList";
 import { listAgentReminders } from "../lib/reminders-api";
 import { TenantDirectoryBody, type TenantDirectoryFilter } from "./TenantDirectoryBody";
 import { DetailCard, DetailField } from "./TenantDetailParts";
+import { FinancialDocumentForm } from "./FinancialDocumentForm";
 
 export type TenantListView = "work" | "all";
 type WorkFilter = "overdue_payment" | "awaiting_signature" | "renewal" | "lead_follow_up";
@@ -154,6 +157,7 @@ export function AgentTenantsScreen({
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingReload, setBillingReload] = useState(0);
   const [paymentNotice, setPaymentNotice] = useState("");
+  const [lateFeeReceipt, setLateFeeReceipt] = useState<{ invoiceId: number; slipOnFile: boolean } | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const [slipPreview, setSlipPreview] = useState<{ url: string; title: string } | null>(null);
   useEffect(() => {
@@ -534,15 +538,100 @@ export function AgentTenantsScreen({
               setSection(next);
             }}
             onAction={runAction}
+            onNotRenewing={(contractId, notRenewing) => {
+              setError("");
+              void setNotRenewing(contractId, notRenewing)
+                .then(() => refreshTenant(selected.id))
+                .catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
+            }}
+            onEarlyEnd={(contractId, date, reason) => {
+              setError("");
+              void setEarlyEnd(contractId, date, reason)
+                .then(() => refreshTenant(selected.id))
+                .catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
+            }}
+            onEarlyEndMoney={(contractId, kind, amount, note) => {
+              setError("");
+              void recordEarlyEndMoney(contractId, kind, amount, note)
+                .then(() => refreshTenant(selected.id))
+                .catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
+            }}
+            onOpenEarlyEndFile={(contractId, kind) => {
+              setError("");
+              const title = kind === "slip" ? d.earlyEndViewSlip : kind === "proof" ? d.earlyEndViewProof : d.earlyEndViewInvoice;
+              void openAgentEarlyEndFile(contractId, kind)
+                .then(({ url }) => setSlipPreview({ url, title }))
+                .catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
+            }}
+            onAttachEarlyEndProof={(contractId) => {
+              void (async () => {
+                const result = await DocumentPicker.getDocumentAsync({
+                  type: ["application/pdf", "image/jpeg", "image/png"],
+                  copyToCacheDirectory: true,
+                  multiple: false,
+                });
+                if (result.canceled) return;
+                const asset = result.assets[0];
+                setError("");
+                await uploadEarlyEndProof(contractId, {
+                  uri: asset.uri,
+                  name: asset.name,
+                  mimeType: asset.mimeType ?? "application/octet-stream",
+                  file: asset.file,
+                });
+                await refreshTenant(selected.id);
+              })().catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
+            }}
           />
         ) : section === "room" ? (
           <TenantRoomBody tenant={selected} />
+        )         : section === "bills" && lateFeeReceipt ? (
+          <FinancialDocumentForm
+            kind="receipt"
+            fixedInvoiceId={lateFeeReceipt.invoiceId}
+            slipOnFile={lateFeeReceipt.slipOnFile}
+            landlordReceipt="deposit"
+            onBack={() => setLateFeeReceipt(null)}
+            onCreated={() => undefined}
+            onStandaloneCreated={() => {
+              setLateFeeReceipt(null);
+              setBillingReload((current) => current + 1);
+            }}
+          />
         ) : section === "bills" ? (
           <TenantBillsBody
             billing={billing}
             leaseActive={tenantLease(selected)?.status === "active"}
             demo={false}
             onReview={() => setSection("payments")}
+            onCreateLateFee={async (bill, input) => {
+              try {
+                await createAgentLateFee(bill.id, input);
+                setBillingReload((current) => current + 1);
+              } catch (e) {
+                throw new Error(localizedError(e, d.lateFeeInvalidAmount, locale));
+              }
+            }}
+            onReturnLateFee={async (bill, reason) => {
+              if (!bill.lateFee?.slipSubmittedAt) return;
+              try {
+                await returnAgentLateFeeSlip(bill.id, reason, bill.lateFee.slipSubmittedAt);
+                setBillingReload((current) => current + 1);
+              } catch (e) {
+                throw new Error(localizedError(e, d.rejectFailed, locale));
+              }
+            }}
+            onOpenLateFee={(bill, kind) => {
+              setError("");
+              void openAgentLateFee(bill.id, kind).then(
+                ({ url }) => setSlipPreview({ url, title: bill.lateFee?.documentNo ?? bill.documentNo }),
+                (e) => setError(localizedError(e, c.list.slipsLoadError, locale)),
+              );
+            }}
+            onIssueReceipt={(bill) => {
+              if (!bill.lateFee) return;
+              setLateFeeReceipt({ invoiceId: bill.lateFee.invoiceId, slipOnFile: bill.lateFee.slipSubmitted });
+            }}
           />
         ) : section === "payments" ? (
           <TenantPaymentsBody

@@ -28,6 +28,8 @@ export type RoomStatusContract = {
   effectiveEndDate: string | null;
   /** D15 (AC-8.3): recorded as not renewing. */
   notRenewing?: boolean;
+  /** The day not-renewing was recorded. After the end date, the room stays soon-vacant until the day after this. */
+  notRenewingOn?: string | null;
   /** D16 (AC-7.7): ends early on this day (recorded ahead). */
   endsOn?: string | null;
 };
@@ -39,11 +41,18 @@ const HANDED_OVER = ["active", "terminated", "expired"];
 const ENDED = ["cancelled", "expired", "terminated"];
 
 const lastDay = (c: RoomStatusContract) => c.effectiveEndDate || c.endsOn || c.endDate || null;
+/** A not-renewing record made after the end keeps the room soon-vacant until the day after the record (TC-8.11). */
+const stayUntil = (c: RoomStatusContract) => {
+  const last = lastDay(c);
+  return c.notRenewing && c.notRenewingOn && last && c.notRenewingOn > last ? c.notRenewingOn : last;
+};
 
 export function roomDealStatus(today: string, roomCode: string | null, contracts: RoomStatusContract[], leads: RoomStatusLead[]): RoomStatusResult {
   if (roomCode === "pending_verification" || roomCode === "needs_edit") return { status: roomCode, vacantFrom: null };
   const lets = contracts.filter((c) => (c.formKind === "lease" || c.formKind === "renewal") && HANDED_OVER.includes(c.status));
-  const current = lets.filter((c) => { const last = lastDay(c); return !last || last >= today; });
+  // Past the end with no renewal and no "not renewing" record, the room stays let and the agent gets a task (AC-8.7).
+  const undecided = (c: RoomStatusContract) => c.status === "active" && !c.notRenewing && !c.endsOn && !!c.endDate && c.endDate < today;
+  const current = lets.filter((c) => undecided(c) || !stayUntil(c) || stayUntil(c)! >= today);
   // The leads of the tenancy itself (its lead keeps its booking while it lives in the room).
   const own = new Set(lets.map((c) => c.leadId).filter((id) => id != null));
   const deals = (exclude: Set<number | null>) =>
@@ -51,7 +60,7 @@ export function roomDealStatus(today: string, roomCode: string | null, contracts
     contracts.some((c) => c.agreementKind !== "renewal" && !ENDED.includes(c.status) && !exclude.has(c.leadId) &&
       (c.formKind === "reservation" || (c.formKind === "lease" && c.status !== "active")));
   if (current.length) {
-    const lasts = current.map(lastDay);
+    const lasts = current.map(stayUntil);
     const last = lasts.includes(null) ? null : (lasts as string[]).sort()[lasts.length - 1];
     const leaving = current.every((c) => c.status === "terminated" || c.notRenewing || !!c.endsOn);
     const nextBooked = deals(own);
@@ -65,20 +74,12 @@ export function roomDealStatus(today: string, roomCode: string | null, contracts
   return { status: "available", vacantFrom: null };
 }
 
-/** The status of each of these rooms (all of the agent's scout rooms when `roomIds` is not given), as of today. */
-export async function roomDealStatuses(
+async function statusesOf(
   db: DataSource | EntityManager,
-  agentId: number,
-  roomIds?: number[],
-  today = bangkokToday(),
+  rooms: Array<Pick<RentRoomEntity, "id"> & { room_status?: { code?: string | null } | null }>,
+  today: string,
 ): Promise<Map<number, RoomStatusResult>> {
-  if (roomIds && !roomIds.length) return new Map();
-  const rooms = await db.getRepository(RentRoomEntity).find({
-    where: { created_by_user_id: agentId, is_scout_room: true, ...(roomIds ? { id: In(roomIds) } : {}) },
-    relations: { room_status: true },
-    select: { id: true, room_status: { id: true, code: true } },
-  });
-  const ids = rooms.map((r) => r.id);
+  const ids = rooms.map((room) => room.id);
   if (!ids.length) return new Map();
   const [contracts, leads] = await Promise.all([
     db.getRepository(LeaseContractEntity).find({
@@ -96,10 +97,44 @@ export async function roomDealStatuses(
       agreementKind: c.agreement_kind ?? null,
       endDate: asIsoDate(c.end_date) || null,
       effectiveEndDate: asIsoDate(c.effective_end_date) || null,
+      notRenewing: Boolean((c.data as { notRenewing?: unknown } | null)?.notRenewing),
+      notRenewingOn: ((c.data as { notRenewing?: { recordedOn?: unknown } } | null)?.notRenewing?.recordedOn as string) || null,
+      endsOn: ((c.data as { endsOn?: { date?: unknown } } | null)?.endsOn?.date as string) || null,
     }));
     const roomLeads = leads.filter((l) => l.rent_room_id === room.id)
       .map((l) => ({ id: l.id, status: l.status, bookingReleasedAt: l.booking_released_at ?? null }));
     out.set(room.id, roomDealStatus(today, room.room_status?.code ?? null, rows, roomLeads));
   }
   return out;
+}
+
+/** The status of each of these rooms (all of the agent's scout rooms when `roomIds` is not given), as of today. */
+export async function roomDealStatuses(
+  db: DataSource | EntityManager,
+  agentId: number,
+  roomIds?: number[],
+  today = bangkokToday(),
+): Promise<Map<number, RoomStatusResult>> {
+  if (roomIds && !roomIds.length) return new Map();
+  const rooms = await db.getRepository(RentRoomEntity).find({
+    where: { created_by_user_id: agentId, is_scout_room: true, ...(roomIds ? { id: In(roomIds) } : {}) },
+    relations: { room_status: true },
+    select: { id: true, room_status: { id: true, code: true } },
+  });
+  return statusesOf(db, rooms, today);
+}
+
+/** Same deal status, for rooms a landlord owns even when another agent created them. */
+export async function roomDealStatusesByRoomIds(
+  db: DataSource | EntityManager,
+  roomIds: number[],
+  today = bangkokToday(),
+): Promise<Map<number, RoomStatusResult>> {
+  if (!roomIds.length) return new Map();
+  const rooms = await db.getRepository(RentRoomEntity).find({
+    where: { id: In(roomIds) },
+    relations: { room_status: true },
+    select: { id: true, room_status: { id: true, code: true } },
+  });
+  return statusesOf(db, rooms, today);
 }

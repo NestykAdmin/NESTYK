@@ -1,4 +1,5 @@
 import type { AgentContract } from "./agent-contracts";
+import type { BillLateFee, BillReservationCredit } from "./contracts";
 export interface AgentTenant {
   id: number;
   leadId: number;
@@ -30,6 +31,11 @@ export interface AgentTenantBill {
   issueDate: string;
   dueDate: string;
   amount: number;
+  /** Set on the first bill of a new lease when the reservation was taken off it; null otherwise. */
+  reservationCredit: BillReservationCredit | null;
+  lateDays: number;
+  lateFeePerDay: number | null;
+  lateFee: BillLateFee | null;
   status: AgentTenantBillStatus;
   slipSubmittedAt: string | null;
   paidAt: string | null;

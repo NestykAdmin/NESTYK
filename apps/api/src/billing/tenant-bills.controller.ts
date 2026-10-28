@@ -66,4 +66,27 @@ export class TenantBillsController {
   ) {
     return this.billing.submitForTenant(user.id, id);
   }
+
+  /** D12: the tenant opens their own late fee invoice, receipt or slip. */
+  @Get("mine/:id/late-fee/:kind")
+  lateFeeUrl(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("kind") kind: string,
+  ) {
+    return this.billing.lateFeeUrlForTenant(user.id, id, kind);
+  }
+
+  @Post("mine/:id/late-fee/payment-slip")
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor("file", {
+    limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 0 },
+  }))
+  uploadLateFeeSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
+  ) {
+    return this.billing.uploadLateFeeSlip(user.id, id, file);
+  }
 }

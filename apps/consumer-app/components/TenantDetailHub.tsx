@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useLocale } from "@nestyk/i18n";
-import { MobileButton, MobileIcon, MobileStatusPill, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { MobileBottomSheet, MobileButton, MobileIcon, MobileInput, MobileStatusPill, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentTenant, AgentTenantBilling } from "@nestyk/types";
 import { billFormatters } from "../lib/bill-format";
 import { formatPhoneDisplay } from "../lib/phone";
@@ -16,6 +16,8 @@ import {
   type TenantSection,
 } from "../lib/tenant-detail";
 import { CallButton, DemoNotice, DetailCard, DetailMenuRow, ps } from "./TenantDetailParts";
+import { HandoverCard } from "./HandoverCard";
+import { DepositSettlementCard } from "./DepositSettlementCard";
 
 export const initials = (name: string) =>
   name
@@ -34,6 +36,11 @@ export function TenantDetailHub({
   nextAction,
   onOpen,
   onAction,
+  onNotRenewing,
+  onEarlyEnd,
+  onEarlyEndMoney,
+  onOpenEarlyEndFile,
+  onAttachEarlyEndProof,
 }: {
   tenant: AgentTenant;
   billing: AgentTenantBilling | null;
@@ -41,11 +48,22 @@ export function TenantDetailHub({
   nextAction: TenantNextAction | null;
   onOpen: (section: TenantSection) => void;
   onAction: (action: TenantNextAction) => void;
+  onNotRenewing?: (contractId: number, notRenewing: boolean) => void;
+  onEarlyEnd?: (contractId: number, date: string, reason: string) => void;
+  onEarlyEndMoney?: (contractId: number, kind: "refund" | "collect", amount: number, note: string) => void;
+  onOpenEarlyEndFile?: (contractId: number, kind: "invoice" | "slip" | "proof") => void;
+  onAttachEarlyEndProof?: (contractId: number) => void;
 }) {
   const { t, locale } = useLocale();
   const c = t.agent.tenants;
   const d = c.detail;
   const { theme, isDark } = useMobileTheme();
+  const [ending, setEnding] = useState(false);
+  const [endDate, setEndDate] = useState("");
+  const [endReason, setEndReason] = useState("");
+  const [moneyKind, setMoneyKind] = useState<"refund" | "collect">("refund");
+  const [moneyAmount, setMoneyAmount] = useState("");
+  const [moneyNote, setMoneyNote] = useState("");
   const fmt = billFormatters(locale);
 
   const lease = tenantLease(tenant);
@@ -231,6 +249,65 @@ export function TenantDetailHub({
           }
           onPress={() => onOpen("contracts")}
         />
+        {lease?.status === "active" && onNotRenewing ? (
+          <MobileButton
+            variant="outline"
+            onPress={() => onNotRenewing(lease.id, !Boolean((lease.data as { notRenewing?: unknown }).notRenewing))}
+          >
+            {(lease.data as { notRenewing?: unknown }).notRenewing ? d.notRenewingUndo : d.notRenewing}
+          </MobileButton>
+        ) : null}
+        {lease?.status === "active" && onEarlyEnd && !(lease.data as { endsOn?: unknown }).endsOn ? (
+          <MobileButton variant="outline" onPress={() => { setEndDate(""); setEndReason(""); setEnding(true); }}>
+            {d.earlyEnd}
+          </MobileButton>
+        ) : null}
+        {lease && onEarlyEndMoney && (lease.data as { endsOn?: { date?: string; money?: { kind?: string; amount?: number; dueOn?: string } } }).endsOn && !(lease.data as { endsOn?: { money?: unknown } }).endsOn?.money ? (
+          <View style={s.sheet}>
+            <Text style={[ps.body, { color: theme.textHeading }]}>{d.earlyEndAmount}</Text>
+            <MobileButton variant={moneyKind === "refund" ? "primary" : "outline"} onPress={() => setMoneyKind("refund")}>{d.earlyEndRefund}</MobileButton>
+            <MobileButton variant={moneyKind === "collect" ? "primary" : "outline"} onPress={() => setMoneyKind("collect")}>{d.earlyEndCollect}</MobileButton>
+            <MobileInput label={d.earlyEndAmount} value={moneyAmount} onChangeText={setMoneyAmount} keyboardType="decimal-pad" maxLength={12} required />
+            <MobileInput label={d.earlyEndReason} value={moneyNote} onChangeText={setMoneyNote} maxLength={500} />
+            <MobileButton
+              disabled={!/^\d+(\.\d{1,2})?$/.test(moneyAmount.replace(/,/g, "")) || Number(moneyAmount.replace(/,/g, "")) <= 0}
+              onPress={() => onEarlyEndMoney(lease.id, moneyKind, Number(moneyAmount.replace(/,/g, "")), moneyNote.trim())}
+            >
+              {d.earlyEndMoneySave}
+            </MobileButton>
+          </View>
+        ) : null}
+        {(lease?.data as { endsOn?: { money?: { kind?: string; amount?: number; dueOn?: string; invoicePath?: string | null; proofPath?: string | null } } } | undefined)?.endsOn?.money ? (
+          <>
+            <Text style={[ps.body, { color: theme.textSecondary }]}>
+              {d.earlyEndMoneyDone
+                .replace("{amount}", fmt.amount(Number((lease!.data as { endsOn: { money: { amount: number } } }).endsOn.money.amount)))
+                .replace("{due}", fmt.date((lease!.data as { endsOn: { money: { dueOn: string } } }).endsOn.money.dueOn))}
+            </Text>
+            {(lease!.data as { endsOn: { money: { kind?: string; invoicePath?: string | null } } }).endsOn.money.kind === "collect"
+              && (lease!.data as { endsOn: { money: { invoicePath?: string | null } } }).endsOn.money.invoicePath ? (
+              <MobileButton variant="outline" onPress={() => onOpenEarlyEndFile?.(lease!.id, "invoice")}>{d.earlyEndViewInvoice}</MobileButton>
+            ) : null}
+            {(lease!.data as { endsOn: { money: { kind?: string; slipPath?: string | null } } }).endsOn.money.kind === "collect"
+              && (lease!.data as { endsOn: { money: { slipPath?: string | null } } }).endsOn.money.slipPath ? (
+              <MobileButton variant="outline" onPress={() => onOpenEarlyEndFile?.(lease!.id, "slip")}>{d.earlyEndViewSlip}</MobileButton>
+            ) : null}
+            {(lease!.data as { endsOn: { money: { kind?: string; proofPath?: string | null } } }).endsOn.money.kind === "refund"
+              && !(lease!.data as { endsOn: { money: { proofPath?: string | null } } }).endsOn.money.proofPath ? (
+              <MobileButton variant="outline" onPress={() => onAttachEarlyEndProof?.(lease!.id)}>{d.earlyEndAttachProof}</MobileButton>
+            ) : null}
+            {(lease!.data as { endsOn: { money: { kind?: string; proofPath?: string | null } } }).endsOn.money.kind === "refund"
+              && (lease!.data as { endsOn: { money: { proofPath?: string | null } } }).endsOn.money.proofPath ? (
+              <MobileButton variant="outline" onPress={() => onOpenEarlyEndFile?.(lease!.id, "proof")}>{d.earlyEndViewProof}</MobileButton>
+            ) : null}
+          </>
+        ) : null}
+        {lease && (lease.formKind === "lease" || lease.formKind === "renewal") ? (
+          <HandoverCard key={`move-out:${lease.id}`} contractId={lease.id} mode="agent" kind="move_out" defaultDate={lease.endDate ?? undefined} />
+        ) : null}
+        {lease && (lease.formKind === "lease" || lease.formKind === "renewal") ? (
+          <DepositSettlementCard key={`deposit:${lease.id}`} contractId={lease.id} mode="agent" />
+        ) : null}
         <DetailMenuRow
           icon="credit-card"
           title={d.sectionBills}
@@ -271,6 +348,19 @@ export function TenantDetailHub({
       </DetailCard>
 
       {demo ? <DemoNotice text={d.demoNotice} /> : null}
+      <MobileBottomSheet visible={ending} onClose={() => setEnding(false)} avoidKeyboard>
+        <View style={s.sheet}>
+          <Text style={[s.name, { color: theme.textHeading, fontSize: 18, lineHeight: 28 }]}>{d.earlyEnd}</Text>
+          <MobileInput label={d.earlyEndDate} value={endDate} onChangeText={setEndDate} maxLength={10} placeholder="2027-01-15" required />
+          <MobileInput label={d.earlyEndReason} value={endReason} onChangeText={setEndReason} multiline maxLength={1000} required />
+          <MobileButton
+            disabled={!lease || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || !endReason.trim()}
+            onPress={() => { if (lease) { onEarlyEnd?.(lease.id, endDate, endReason.trim()); setEnding(false); } }}
+          >
+            {d.earlyEndSave}
+          </MobileButton>
+        </View>
+      </MobileBottomSheet>
     </View>
   );
 }
@@ -306,4 +396,5 @@ const s = StyleSheet.create({
   actionLabel: { fontFamily: tokens.typography.native.bodyBold, fontSize: 12, lineHeight: 18 },
   actionButton: { marginTop: 8, alignSelf: "stretch" },
   menu: { padding: 0, gap: 0 },
+  sheet: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
 });

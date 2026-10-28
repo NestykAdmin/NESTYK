@@ -3,10 +3,11 @@ import { SerialTimestampEntity } from "./base.entity";
 import { UserEntity } from "./user.entity";
 import { TenantEntity } from "./tenant.entity";
 import { LeaseContractEntity } from "./lease-contract.entity";
+import { TenantBillEntity } from "./tenant-bill.entity";
 import type { FinancialDocumentInput } from "@nestyk/types";
 
-/** D10: general = issued by the agent from the invoice menu; deposit = the lease deposit, issued for the landlord. */
-export type AgentInvoiceKind = "general" | "deposit";
+/** general = issued by the agent; deposit = the lease deposit; late_fee = a rent bill's late fee (D12). Both landlord invoices are issued for the landlord. */
+export type AgentInvoiceKind = "general" | "deposit" | "late_fee";
 
 @Unique("uq_agent_invoices_document", ["created_by_user_id", "document_no"])
 @Index("idx_agent_invoices_agent", ["created_by_user_id", "id"])
@@ -15,9 +16,12 @@ export type AgentInvoiceKind = "general" | "deposit";
 @Index("uq_agent_invoices_receipt_document_no", ["receipt_document_no"], { unique: true, where: "(receipt_document_no IS NOT NULL)" })
 @Index("uq_agent_invoices_receipt_no", ["created_by_user_id", "receipt_document_no"], { unique: true, where: "(receipt_document_no IS NOT NULL)" })
 @Index("uq_agent_invoices_one_deposit", ["lease_contract_id"], { unique: true, where: "((invoice_kind)::text = 'deposit'::text)" })
-@Check("chk_agent_invoices_kind", "((invoice_kind)::text = ANY ((ARRAY['general'::character varying, 'deposit'::character varying])::text[]))")
+@Index("uq_agent_invoices_one_late_fee", ["tenant_bill_id"], { unique: true, where: "((invoice_kind)::text = 'late_fee'::text)" })
+@Check("chk_agent_invoices_kind", "((invoice_kind)::text = ANY ((ARRAY['general'::character varying, 'deposit'::character varying, 'late_fee'::character varying])::text[]))")
 @Check("chk_agent_invoices_issuer", "((issuer_party)::text = ANY ((ARRAY['landlord'::character varying, 'agent'::character varying])::text[]))")
 @Check("chk_agent_invoices_deposit", "(((invoice_kind)::text <> 'deposit'::text) OR ((lease_contract_id IS NOT NULL) AND ((issuer_party)::text = 'landlord'::text) AND (amount IS NOT NULL) AND (amount > (0)::numeric) AND (due_date IS NOT NULL)))")
+@Check("chk_agent_invoices_late_fee", "(((invoice_kind)::text <> 'late_fee'::text) OR ((lease_contract_id IS NOT NULL) AND (tenant_bill_id IS NOT NULL) AND ((issuer_party)::text = 'landlord'::text) AND (amount IS NOT NULL) AND (amount > (0)::numeric) AND (due_date IS NOT NULL)))")
+@Check("chk_agent_invoices_bill_link", "((tenant_bill_id IS NULL) OR ((invoice_kind)::text = 'late_fee'::text))")
 @Check("chk_agent_invoices_void", "((voided_at IS NULL) OR (((invoice_kind)::text = 'deposit'::text) AND (receipt_pdf_path IS NULL) AND (receipt_document_no IS NULL)))")
 @Check("chk_agent_invoices_slip_return", "((slip_return_note IS NULL) OR (char_length(btrim((slip_return_note)::text)) > 0))")
 @Entity({ name: "agent_invoices" })
@@ -76,6 +80,14 @@ export class AgentInvoiceEntity extends SerialTimestampEntity {
   @ManyToOne(() => LeaseContractEntity, { nullable: true, onDelete: "RESTRICT" })
   @JoinColumn({ name: "lease_contract_id", foreignKeyConstraintName: "agent_invoices_lease_contract_id_fkey" })
   lease_contract: LeaseContractEntity | null;
+
+  /** D12: the rent bill a late fee invoice is for. Set only when invoice_kind is late_fee. */
+  @Column({ type: "int", nullable: true })
+  tenant_bill_id: number | null;
+
+  @ManyToOne(() => TenantBillEntity, { nullable: true, onDelete: "RESTRICT" })
+  @JoinColumn({ name: "tenant_bill_id", foreignKeyConstraintName: "agent_invoices_tenant_bill_id_fkey" })
+  tenant_bill: TenantBillEntity | null;
 
   @Column({ type: "varchar", length: 16, default: "agent" })
   issuer_party: "landlord" | "agent";

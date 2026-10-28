@@ -57,12 +57,13 @@ test('work items come from slips, signatures and leases ending within 30 days, m
   assert.deepEqual(workCounts(items), { slip: 1, overdue: 0, signing: 1, renewal: 1 });
 });
 
-test('renewals sort by days left and ended leases are not renewals', () => {
+test('renewals sort by days left, and a lease past its end date stays until a decision is recorded', () => {
   const soon = tenant(1, { contracts: [contract({ endDate: '2026-10-10' })] });
   const later = tenant(2, { contracts: [contract({ endDate: '2026-11-01' })] });
-  const ended = tenant(3, { contracts: [contract({ endDate: '2026-10-01' })] });
-  const items = tenantWorkItems([later, ended, soon], [], today);
-  assert.deepEqual(items.map((i) => i.tenant.id), [1, 2]);
+  const undecided = tenant(3, { contracts: [contract({ endDate: '2026-10-01' })] });
+  const decided = tenant(4, { contracts: [contract({ endDate: '2026-10-01', data: { notRenewing: { recordedOn: '2026-10-02' } } })] });
+  const items = tenantWorkItems([later, undecided, soon, decided], [], today);
+  assert.deepEqual(items.map((i) => i.tenant.id), [3, 1, 2]);
 });
 
 test('directory status is the tenant own most urgent work, else lease state', () => {
@@ -116,6 +117,17 @@ test('renewal work disappears once there is a draft, signable, or signed success
     assert.equal(items.some(i => i.kind === 'renewal'), status === 'cancelled', status);
     assert.equal(items.some(i => i.kind === 'signing'), status.startsWith('awaiting_'), status);
   }
+});
+
+test('renewal work follows the offer notice days and otherwise stays at 30 (TC-7.05)', () => {
+  const end = '2027-10-31';
+  const items = (iso, renewalNoticeDays) => tenantWorkItems(
+    [tenant(1, { contracts: [contract({ endDate: end, renewalNoticeDays })] })], [], new Date(iso),
+  );
+  assert.equal(items('2027-08-31T12:00:00+07:00', 60).some((item) => item.kind === 'renewal'), false);
+  assert.equal(items('2027-09-01T12:00:00+07:00', 60).some((item) => item.kind === 'renewal'), true);
+  assert.equal(items('2027-09-01T12:00:00+07:00', null).some((item) => item.kind === 'renewal'), false);
+  assert.equal(items('2027-10-01T12:00:00+07:00', null).some((item) => item.kind === 'renewal'), true);
 });
 
 test('renewal days use Bangkok date even when the device is set to UTC', () => {

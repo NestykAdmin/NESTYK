@@ -6,6 +6,7 @@ import { TenantBillEntity } from "../../entities/tenant-bill.entity";
 import { DealOfferEntity } from "../../entities/deal-offer.entity";
 import { UserEntity } from "../../entities/user.entity";
 import { ContractReminderEntity } from "../../entities/contract-reminder.entity";
+import { ContractDepositSettlementEntity } from "../../entities/contract-deposit-settlement.entity";
 import { DealCancellationEntity } from "../../entities/deal-cancellation.entity";
 import { bangkokToday } from "../../billing/rent-schedule";
 import { asIsoDate } from "../contracts/lease-term";
@@ -41,11 +42,12 @@ export class ContractRemindersService {
     });
     if (!rows.length) return dueReminders(today, [], [], refunds);
     const ids = rows.map((c) => c.id);
-    const [bills, offers] = await Promise.all([
+    const [bills, offers, settlements] = await Promise.all([
       this.db.getRepository(TenantBillEntity).find({ where: { lease_contract_id: In(ids), status: "pending" } }),
       this.db.getRepository(DealOfferEntity).find({
         where: { lead_id: In([...new Set(rows.map((c) => c.lead_id).filter((id) => id != null))]), status: "confirmed" },
       }),
+      this.db.getRepository(ContractDepositSettlementEntity).find({ where: { lease_contract_id: In(ids) } }),
     ]);
     const notice = new Map(offers.map((o) => [`${o.lead_id}:${o.rent_room_id}`, o.renewal_notice_days]));
     const contracts: ReminderContract[] = rows.map((c) => ({
@@ -70,7 +72,9 @@ export class ContractRemindersService {
     return dueReminders(today, contracts, bills.map((b) => ({
       id: b.id, leaseContractId: b.lease_contract_id, period: b.period, dueDate: asIsoDate(b.due_date),
       graceUntil: asIsoDate(b.grace_until), amount: Number(b.amount), status: b.status,
-    })), refunds);
+    })), refunds, settlements.map((row) => ({
+      contractId: row.lease_contract_id, status: row.status, refundAmount: Number(row.refund_amount), refunded: row.refunded_at != null,
+    })));
   }
 
   /** D5: cancelled deals with a refund not recorded yet (the agent's, or all for the daily job). */

@@ -4,9 +4,9 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { localizedError, useLocale } from "@nestyk/i18n";
-import { MobileBottomSheet, MobileButton, MobileIcon, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { MobileBottomSheet, MobileButton, MobileIcon, MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { TenantBill, TenantBillStatus, TenantNextBill } from "@nestyk/types";
-import { listMyBills, listReceivedBills, openMyBillSlip, openReceivedBillSlip, submitMyBillSlip, uploadMyBillSlip } from "../lib/tenant-bills-api";
+import { createLandlordLateFee, listMyBills, listReceivedBills, openMyBillSlip, openMyLateFee, openReceivedBillSlip, openReceivedLateFee, submitMyBillSlip, uploadMyBillSlip, uploadMyLateFeeSlip } from "../lib/tenant-bills-api";
 import { listMyContracts } from "../lib/party-contracts-api";
 import { upcomingTenantBill } from "../lib/tenant-bill-upcoming";
 import { billFormatters } from "../lib/bill-format";
@@ -55,6 +55,8 @@ export function TenantBillsScreen({
   const [submittingId, setSubmittingId] = useState<number | null>(null);
   const [slipPreviews, setSlipPreviews] = useState<Record<number, SlipPreview>>({});
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  const [lateAmount, setLateAmount] = useState("");
+  const [creatingLate, setCreatingLate] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +85,7 @@ export function TenantBillsScreen({
     };
   }, [mode, reloadToken, retryKey]);
 
-  async function uploadSlip(bill: TenantBill, source: "documents" | "photos") {
+  async function uploadSlip(bill: TenantBill, source: "documents" | "photos", lateFee = false) {
     if (uploadingId != null) return;
     setError("");
     setNotice("");
@@ -105,7 +107,7 @@ export function TenantBillsScreen({
         file = { uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? "application/octet-stream", file: asset.file };
       }
       setUploadingId(bill.id);
-      const updated = await uploadMyBillSlip(bill.id, file);
+      const updated = await (lateFee ? uploadMyLateFeeSlip(bill.id, file) : uploadMyBillSlip(bill.id, file));
       setRows((current) => current.map((row) => (row.id === updated.id ? updated : row)));
       setSlipPreviews((current) => ({ ...current, [updated.id]: { uri: file.uri, mimeType: file.mimeType } }));
       setNotice(tenantCopy.slipReady);
@@ -113,6 +115,38 @@ export function TenantBillsScreen({
       setError(localizedError(e, copy.loadFailed, locale));
     } finally {
       setUploadingId(null);
+    }
+  }
+
+  async function issueLateFee(bill: TenantBill) {
+    const amount = Number(lateAmount.replace(/,/g, "").trim());
+    if (!(amount > 0)) {
+      setError(t.owner.bills.lateFeeInvalidAmount);
+      return;
+    }
+    const now = new Date();
+    const dueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    setCreatingLate(true);
+    setError("");
+    try {
+      const updated = await createLandlordLateFee(bill.id, { amount, dueDate });
+      setRows((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+      setLateAmount("");
+      setNotice(t.owner.bills.lateFeeIssued);
+    } catch (e) {
+      setError(localizedError(e, copy.loadFailed, locale));
+    } finally {
+      setCreatingLate(false);
+    }
+  }
+
+  async function openLateFee(bill: TenantBill, kind: "invoice" | "receipt" | "payment-slip") {
+    setError("");
+    try {
+      const { url } = await (mode === "owner" ? openReceivedLateFee(bill.id, kind) : openMyLateFee(bill.id, kind));
+      setPreview({ url, title: bill.lateFee?.documentNo ?? bill.documentNo });
+    } catch (e) {
+      setError(localizedError(e, copy.loadFailed, locale));
     }
   }
 
@@ -190,6 +224,8 @@ export function TenantBillsScreen({
         onUpload={(bill, source) => void uploadSlip(bill, source)}
         onViewSlip={(bill) => void viewSlip(bill)}
         onSubmit={(bill) => void submitSlip(bill)}
+        onOpenLateFee={(bill, kind) => void openLateFee(bill, kind)}
+        onPayLateFee={(bill, source) => void uploadSlip(bill, source, true)}
         roomHistory={roomHistory}
         selectedRoom={selectedRoom}
         onSelectRoom={onSelectRoom}
@@ -210,6 +246,29 @@ export function TenantBillsScreen({
           <Text style={[styles.amount, { color: bill.status === "overdue" ? tokens.colors.danger : theme.textHeading }]}>
             {formatAmount(bill.amount)}
           </Text>
+          {bill.reservationCredit ? (
+            <Text style={[styles.caption, body]}>
+              {copy.reservationDeduction
+                .replace("{rent}", formatAmount(bill.reservationCredit.rent))
+                .replace("{credit}", formatAmount(bill.reservationCredit.credit))}
+            </Text>
+          ) : null}
+          {mode === "owner" && !bill.lateFee && (bill.status === "overdue" || bill.lateDays > 0) ? (
+            <View style={styles.actions}>
+              <Text style={[styles.caption, body]}>{t.owner.bills.lateFeeHint}</Text>
+              <MobileInput label={t.owner.bills.lateFeeAmount} value={lateAmount} onChangeText={setLateAmount} keyboardType="decimal-pad" maxLength={12} />
+              <MobileButton disabled={creatingLate} onPress={() => void issueLateFee(bill)}>{t.owner.bills.lateFeeCreate}</MobileButton>
+            </View>
+          ) : null}
+          {bill.lateFee ? (
+            <View style={styles.actions}>
+              <Text style={[styles.caption, body]}>{copy.lateFeeTitle} · {formatAmount(bill.lateFee.amount)}</Text>
+              <MobileButton variant="outline" onPress={() => void openLateFee(bill, "invoice")}>{copy.lateFeeView}</MobileButton>
+              {bill.lateFee.receiptIssued ? (
+                <MobileButton variant="outline" onPress={() => void openLateFee(bill, "receipt")}>{copy.lateFeeReceipt}</MobileButton>
+              ) : null}
+            </View>
+          ) : null}
           <View style={styles.row}>
             <Text style={[styles.copy, body]}>{copy.dueDate}</Text>
             <Text style={[styles.copy, strong]}>{formatDate(bill.dueDate)}</Text>
@@ -233,6 +292,13 @@ export function TenantBillsScreen({
               <Text style={[styles.caption, body]}>
                 {bill.paidAt ? `${copy.paidAt} ${formatDate(bill.paidAt)}` : bill.documentNo}
               </Text>
+              {bill.reservationCredit ? (
+                <Text style={[styles.caption, body]}>
+                  {copy.reservationDeduction
+                    .replace("{rent}", formatAmount(bill.reservationCredit.rent))
+                    .replace("{credit}", formatAmount(bill.reservationCredit.credit))}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.historyRight}>
               <Text style={[styles.copy, strong]}>{formatAmount(bill.amount)}</Text>
@@ -243,6 +309,16 @@ export function TenantBillsScreen({
             {bill.status === "paid" && bill.hasPaymentSlip ? (
               <View style={styles.flex}>
                 <MobileButton variant="outline" onPress={() => void viewSlip(bill)}>{copy.viewSlip}</MobileButton>
+              </View>
+            ) : null}
+            {bill.lateFee ? (
+              <View style={styles.flex}>
+                <MobileButton variant="outline" onPress={() => void openLateFee(bill, "invoice")}>{copy.lateFeeView}</MobileButton>
+              </View>
+            ) : null}
+            {bill.lateFee?.receiptIssued ? (
+              <View style={styles.flex}>
+                <MobileButton variant="outline" onPress={() => void openLateFee(bill, "receipt")}>{copy.lateFeeReceipt}</MobileButton>
               </View>
             ) : null}
           </View>

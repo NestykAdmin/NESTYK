@@ -14,6 +14,7 @@ const { DealOfferEntity } = require('../src/entities/deal-offer.entity.ts');
 const { UserEntity } = require('../src/entities/user.entity.ts');
 const { ContractReminderEntity } = require('../src/entities/contract-reminder.entity.ts');
 const { DealCancellationEntity } = require('../src/entities/deal-cancellation.entity.ts');
+const { ContractDepositSettlementEntity } = require('../src/entities/contract-deposit-settlement.entity.ts');
 
 const contract = (patch = {}) => ({
   id: 11, status: 'draft', formKind: 'reservation', createdAt: new Date('2026-10-09T18:00:00Z'), contractNo: 'RS202600011', tenantId: 2,
@@ -135,6 +136,7 @@ function jobHarness({ mail = async () => {} } = {}) {
     [TenantBillEntity, { find: async () => [] }],
     [DealOfferEntity, { find: async () => [] }],
     [DealCancellationEntity, { createQueryBuilder: refundQuery }],
+    [ContractDepositSettlementEntity, { find: async () => [] }],
     [UserEntity, { find: async ({ where }) => [{ id: 7, email: 'agent@example.test' }].filter((u) => where.id._value.includes(u.id)) }],
     [ContractReminderEntity, {
       find: async () => reminders.filter((r) => r.emailed_at == null).map((r) => ({ ...r })),

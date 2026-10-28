@@ -17,6 +17,7 @@ export type PartyContractRoom = {
   property: string;
   room: string | null;
   tenant?: string | null;
+  dealStatus?: "available" | "booked" | "rented" | "soon_vacant" | "pending_verification" | "needs_edit" | null;
 };
 
 export function PartyContractsScreen({

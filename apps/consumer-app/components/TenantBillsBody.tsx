@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useLocale } from "@nestyk/i18n";
 import {
+  MobileBottomSheet,
   MobileButton,
   MobileFilterChip,
   MobileIcon,
+  MobileInput,
   MobileStatusPill,
   tokens,
   useMobileTheme,
@@ -14,6 +16,12 @@ import type { AgentTenantBill, AgentTenantBillStatus, AgentTenantBilling } from 
 import { billFormatters } from "../lib/bill-format";
 import { billingTotals } from "../lib/tenant-detail";
 import { DemoNotice, DetailCard, ps } from "./TenantDetailParts";
+
+function bangkokToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+type LateFeeDocument = "invoice" | "receipt" | "payment-slip";
 
 type BillFilter = "all" | "outstanding" | "awaiting" | "paid";
 
@@ -36,17 +44,32 @@ export function TenantBillsBody({
   leaseActive,
   demo,
   onReview,
+  onOpenLateFee,
+  onIssueReceipt,
+  onCreateLateFee,
+  onReturnLateFee,
 }: {
   billing: AgentTenantBilling | null;
   leaseActive: boolean;
   demo: boolean;
   onReview: (bill: AgentTenantBill) => void;
+  onOpenLateFee?: (bill: AgentTenantBill, kind: LateFeeDocument) => void;
+  onIssueReceipt?: (bill: AgentTenantBill) => void;
+  onCreateLateFee?: (bill: AgentTenantBill, input: { amount: number; dueDate: string }) => Promise<void>;
+  onReturnLateFee?: (bill: AgentTenantBill, reason: string) => Promise<void>;
 }) {
   const { t, locale } = useLocale();
   const d = t.agent.tenants.detail;
   const { theme } = useMobileTheme();
   const fmt = billFormatters(locale);
   const [filter, setFilter] = useState<BillFilter>("all");
+  const [creating, setCreating] = useState<AgentTenantBill | null>(null);
+  const [returning, setReturning] = useState<AgentTenantBill | null>(null);
+  const [amount, setAmount] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
   const totals = billingTotals(billing);
   const bills = billing?.bills ?? [];
 
@@ -72,6 +95,48 @@ export function TenantBillsBody({
     { key: "awaiting", label: d.filterAwaiting },
     { key: "paid", label: d.filterPaid },
   ];
+  function openCreate(bill: AgentTenantBill) {
+    setAmount("");
+    setDueDate(bangkokToday());
+    setFormError("");
+    setCreating(bill);
+  }
+  async function submitCreate() {
+    if (!creating || busy) return;
+    const raw = amount.replace(/,/g, "").trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(raw) || Number(raw) <= 0) {
+      setFormError(d.lateFeeInvalidAmount);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < bangkokToday()) {
+      setFormError(d.lateFeeInvalidDate);
+      return;
+    }
+    setBusy(true);
+    setFormError("");
+    try {
+      await onCreateLateFee?.(creating, { amount: Number(raw), dueDate });
+      setCreating(null);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : d.lateFeeInvalidAmount);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function submitReturn() {
+    const submittedAt = returning?.lateFee?.slipSubmittedAt;
+    if (!returning || !submittedAt || busy || !reason.trim()) return;
+    setBusy(true);
+    setFormError("");
+    try {
+      await onReturnLateFee?.(returning, reason.trim());
+      setReturning(null);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : d.lateFeeInvalidAmount);
+    } finally {
+      setBusy(false);
+    }
+  }
   const visible = bills.filter((b) => matches(b, filter));
   const summary = [
     {
@@ -148,6 +213,13 @@ export function TenantBillsBody({
               <Text style={[ps.small, { color: theme.textSecondary }]}>
                 {[bill.documentNo, d.billDue.replace("{date}", fmt.date(bill.dueDate))].join(" · ")}
               </Text>
+              {bill.reservationCredit ? (
+                <Text style={[ps.small, { color: theme.textSecondary }]}>
+                  {d.billReservationDeduction
+                    .replace("{rent}", fmt.amount(bill.reservationCredit.rent))
+                    .replace("{credit}", fmt.amount(bill.reservationCredit.credit))}
+                </Text>
+              ) : null}
               {bill.status === "awaiting_review" && bill.slipSubmittedAt ? (
                 <Text style={[ps.small, { color: theme.textSecondary }]}>
                   {d.billSlipAt.replace("{date}", fmt.date(bill.slipSubmittedAt))}
@@ -167,6 +239,38 @@ export function TenantBillsBody({
           {bill.status === "awaiting_review" ? (
             <MobileButton onPress={() => onReview(bill)}>{d.reviewSlip}</MobileButton>
           ) : null}
+          {bill.lateDays > 0 || bill.lateFee ? (
+            <View style={s.lateFee}>
+              <Text style={[ps.small, { color: theme.textSecondary }]}>
+                {d.lateFeeDays.replace("{days}", String(bill.lateDays))}
+                {bill.lateFeePerDay != null ? ` · ${d.lateFeeRate.replace("{amount}", fmt.amount(bill.lateFeePerDay))}` : ""}
+              </Text>
+              {bill.lateFee ? (
+                <>
+                  <Text style={[ps.rowTitle, { color: theme.textHeading }]}>
+                    {d.lateFeeTitle} · {fmt.amount(bill.lateFee.amount)}
+                  </Text>
+                  <Text style={[ps.small, { color: theme.textSecondary }]}>{bill.lateFee.documentNo}</Text>
+                  {bill.lateFee.slipReturnReason ? (
+                    <Text style={[ps.small, { color: tokens.colors.danger }]}>{bill.lateFee.slipReturnReason}</Text>
+                  ) : null}
+                  <MobileButton variant="outline" onPress={() => onOpenLateFee?.(bill, "invoice")}>{d.lateFeeView}</MobileButton>
+                  {bill.lateFee.receiptIssued ? (
+                    <MobileButton variant="outline" onPress={() => onOpenLateFee?.(bill, "receipt")}>{d.lateFeeReceiptView}</MobileButton>
+                  ) : null}
+                  {bill.lateFee.slipSubmitted && !bill.lateFee.receiptIssued ? (
+                    <>
+                      <MobileButton variant="outline" onPress={() => onOpenLateFee?.(bill, "payment-slip")}>{d.lateFeeSlip}</MobileButton>
+                      <MobileButton variant="outline" onPress={() => { setReason(""); setFormError(""); setReturning(bill); }}>{d.lateFeeReturn}</MobileButton>
+                      <MobileButton onPress={() => onIssueReceipt?.(bill)}>{d.lateFeeReceipt}</MobileButton>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <MobileButton onPress={() => openCreate(bill)}>{d.lateFeeCreate}</MobileButton>
+              )}
+            </View>
+          ) : null}
         </DetailCard>
       ))}
 
@@ -183,6 +287,30 @@ export function TenantBillsBody({
       ) : null}
 
       {demo ? <DemoNotice text={d.demoNotice} /> : null}
+      <MobileBottomSheet visible={creating != null} onClose={() => { if (!busy) setCreating(null); }} avoidKeyboard>
+        <View style={s.sheet}>
+          <Text style={[ps.rowTitle, { color: theme.textHeading }]}>{d.lateFeeCreate}</Text>
+          {creating ? (
+            <Text style={[ps.small, { color: theme.textSecondary }]}>
+              {d.lateFeeDays.replace("{days}", String(creating.lateDays))}
+              {creating.lateFeePerDay != null ? ` · ${d.lateFeeRate.replace("{amount}", fmt.amount(creating.lateFeePerDay))}` : ""}
+            </Text>
+          ) : null}
+          <Text style={[ps.small, { color: theme.textSecondary }]}>{d.lateFeeHint}</Text>
+          <MobileInput label={d.lateFeeAmount} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" maxLength={12} required />
+          <MobileInput label={d.lateFeeDue} value={dueDate} onChangeText={setDueDate} maxLength={10} required />
+          {formError ? <Text style={[ps.small, { color: tokens.colors.danger }]}>{formError}</Text> : null}
+          <MobileButton isLoading={busy} disabled={busy} onPress={() => void submitCreate()}>{d.lateFeeCreate}</MobileButton>
+        </View>
+      </MobileBottomSheet>
+      <MobileBottomSheet visible={returning != null} onClose={() => { if (!busy) setReturning(null); }} avoidKeyboard>
+        <View style={s.sheet}>
+          <Text style={[ps.rowTitle, { color: theme.textHeading }]}>{d.lateFeeReturn}</Text>
+          <MobileInput label={d.rejectReason} placeholder={d.rejectReasonPlaceholder} value={reason} onChangeText={setReason} multiline maxLength={500} required />
+          {formError ? <Text style={[ps.small, { color: tokens.colors.danger }]}>{formError}</Text> : null}
+          <MobileButton isLoading={busy} disabled={busy || !reason.trim()} onPress={() => void submitReturn()}>{d.lateFeeReturn}</MobileButton>
+        </View>
+      </MobileBottomSheet>
     </View>
   );
 }
@@ -194,6 +322,8 @@ const s = StyleSheet.create({
   filters: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   upcoming: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 16, padding: 14, gap: 6 },
   bill: { gap: 12 },
+  lateFee: { gap: 8 },
+  sheet: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   billHead: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   billSide: { alignItems: "flex-end", gap: 6 },
 });
