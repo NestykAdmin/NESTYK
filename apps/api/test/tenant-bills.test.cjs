@@ -301,6 +301,7 @@ test('H1: the daily close goes lease by lease; one that fails is logged and the 
   assert.deepEqual(calls, [[1, '2027-01-16'], [2, '2027-01-16'], ['error', 'Could not close ended lease 2: trigger refused'], [3, '2027-01-16']]);
   const dates = queries.find(([m, sql]) => m === 'andWhere' && /end_date/.test(sql));
   assert.match(dates[1], /CAST\(:today AS date\)/); assert.match(dates[1], /CAST\(:today AS text\)/);
+  assert.match(dates[1], /c\.status = 'expired' AND \(c\.data->'undecided'\) IS NOT NULL/, 'AC-8.7: the undecided ended leases too');
   assert.deepEqual(dates[2], { today: '2027-01-16' });
 });
 

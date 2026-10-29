@@ -115,7 +115,9 @@ export function dueReminders(today: string, contracts: ReminderContract[], bills
       if (today > due) out.push({ ...base("deposit_refund_late", c, due, [c.agentId]), amount: deposit.refundAmount });
     }
     // M2: a leaving stay with a deposit and no settlement approved yet is reminded too, 30 days after its last day.
-    const leaving = !!leavingData.notRenewing || !!leavingData.endsOn || c.status === "expired" || c.status === "terminated";
+    // AC-8.7: an ended lease with no decision yet is no move-out (the stay goes on).
+    const undecided = !!(c.data as { undecided?: unknown } | null)?.undecided && !leavingData.notRenewing;
+    const leaving = !undecided && (!!leavingData.notRenewing || !!leavingData.endsOn || c.status === "expired" || c.status === "terminated");
     if (stay && leaving && !renewed && stayEnd && (c.deposit ?? 0) > 0 && (!deposit || deposit.status === "draft")) {
       const due = shiftIsoDate(stayEnd, 30);
       if (today > due) out.push(base("deposit_refund_late", c, due, [c.agentId]));

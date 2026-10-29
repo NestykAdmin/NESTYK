@@ -391,6 +391,12 @@ export function PartyContractDetail({
               ? fillTemplate(tc.common.dated, { date: dateLabel(contract.startDate) })
               : `${dateLabel(contract.startDate)} – ${dateLabel(contract.endDate)}`}
         </Text>
+        {/* AC-8.1: the landlord sees the renewal commission (the API leaves it out for the tenant). */}
+        {contract.formKind === "renewal" && contract.data?.renewalCommission != null ? (
+          <Text style={[styles.copy, body]}>
+            {fillTemplate(tc.renewalForm.commissionShown, { amount: money(Number(contract.data.renewalCommission)) })}
+          </Text>
+        ) : null}
         <MobileButton
           variant="outline"
           disabled={previewBusy}

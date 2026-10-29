@@ -19,6 +19,7 @@ import { CallButton, DemoNotice, DetailCard, DetailMenuRow, ps } from "./TenantD
 import { HandoverCard } from "./HandoverCard";
 import { DepositSettlementCard } from "./DepositSettlementCard";
 import { earlyEndMoneyOf, earlyEndSlipState } from "../lib/early-end-slip";
+import { awaitingDecision } from "../lib/contract-renewal";
 
 export const initials = (name: string) =>
   name
@@ -256,7 +257,7 @@ export function TenantDetailHub({
           }
           onPress={() => onOpen("contracts")}
         />
-        {lease?.status === "active" && onNotRenewing ? (
+        {lease && (lease.status === "active" || awaitingDecision(lease)) && onNotRenewing ? (
           <MobileButton
             variant="outline"
             onPress={() => onNotRenewing(lease.id, !Boolean((lease.data as { notRenewing?: unknown }).notRenewing))}

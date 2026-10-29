@@ -44,7 +44,7 @@ function serviceFixture(extra = []) {
   service.view = async (agent, id) => saved.find(c => c.id === id);
   return service;
 }
-function createRenewal(service, changes = {}) { return service.create(7, { leadId: 1, agreementTypeCode: 'lease_renewal', previousAgreementId: prior.id, startDate: renewal.startDate, endDate: renewal.endDate, monthlyRent: 15000, deposit: 30000, data: { leaseRenewal: { ...renewal, ...changes } } }); }
+function createRenewal(service, changes = {}) { return service.create(7, { leadId: 1, agreementTypeCode: 'lease_renewal', previousAgreementId: prior.id, startDate: renewal.startDate, endDate: renewal.endDate, monthlyRent: 15000, deposit: 30000, data: { leaseRenewal: { ...renewal, ...changes }, renewalCommission: '5000' } }); }
 test('renewal gate rejects 31 days early and accepts exactly 30 days without moving the new term', async () => {
   now = '2026-09-30T05:00:00Z';
   try {

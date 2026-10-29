@@ -301,7 +301,7 @@ function renewalInput(patch = {}) {
   return { ...valid, agreementTypeCode: 'lease_renewal', previousAgreementId: 20, startDate: '2026-10-01', endDate: '2027-09-30', ...patch,
     data: { leaseRenewal: { ...emptyLeaseRenewal(), issueDate: '2026-09-15', landlordName: 'Owner', tenantName: 'Tenant', propertyLine: 'Room A',
       originalLeaseNo: 'LS202500020', originalLeaseDate: '2025-10-01', originalExpiryDate: '2026-09-30',
-      renewMonths: '12', startDate: '2026-10-01', endDate: '2027-09-30', monthlyRent: '15000', depositCarried: '30000' } } };
+      renewMonths: '12', startDate: '2026-10-01', endDate: '2027-09-30', monthlyRent: '15000', depositCarried: '30000' }, renewalCommission: '7500' } };
 }
 test('renewal is a fresh draft linked to predecessor and root, with independent terms and no signatures', async () => {
   const f = fixture({ previous: original });
@@ -807,4 +807,20 @@ test('H1/H2 (Aof 29 Oct 2026): the status shown is the stored one; past its end 
   assert.equal(service.serialize({ ...lease, status: 'terminated' }).status, 'terminated');
   const renewal = { ...lease, status: 'awaiting_agent_review', agreement_kind: 'renewal', template: { form_kind: 'renewal' }, start_date: '2020-01-01', end_date: '2020-12-31', data: { renewalSignedOn: '2019-12-01' } };
   assert.equal(service.serialize(renewal).status, 'active', 'a signed renewal from its first day');
+});
+
+test('AC-8.1 (Aof 29 Oct 2026): the renewal commission is typed with the renewal, kept for the agent and the landlord only', async () => {
+  const { parseRenewalCommission } = require('../src/agent/contracts/lease-renewal.ts');
+  assert.equal(parseRenewalCommission('7,500'), '7500.00'); assert.equal(parseRenewalCommission(0), '0.00'); assert.equal(parseRenewalCommission('12.5'), '12.50');
+  for (const bad of [undefined, '', '-1', 'abc', '1.234', '100000000']) assert.throws(() => parseRenewalCommission(bad), (e) => e.getStatus() === 400);
+  const f = fixture({ previous: original });
+  const c = await f.service.create(7, renewalInput());
+  assert.equal(c.data.renewalCommission, '7500.00');
+  assert.equal(c.data.leaseRenewal.renewalCommission, undefined, 'not in the PDF fields');
+  const missing = renewalInput(); delete missing.data.renewalCommission;
+  await assert.rejects(() => fixture({ previous: original }).service.create(7, missing), (e) => e.getStatus() === 400);
+  const service = new AgentContractsService({});
+  const view = { id: 1, formKind: 'renewal', data: { renewalCommission: '7500.00', leaseRenewal: {} } };
+  assert.equal(service['forParty'](view, ['owner']).data.renewalCommission, '7500.00');
+  assert.equal(service['forParty'](view, ['tenant']).data.renewalCommission, undefined, 'the tenant does not see it');
 });

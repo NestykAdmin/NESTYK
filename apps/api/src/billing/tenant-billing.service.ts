@@ -287,19 +287,20 @@ export class TenantBillingService {
   }
 
   /**
-   * H1/H2 (Aof 29 Oct 2026): writes the end of each lease whose stay is over, with its end reason, as closing by hand
-   * does (see closeEndedLease). A lease past its end with no decision stays active (AC-8.7). One lease at a time: one
-   * that fails is logged and the others still close.
+   * H1/H2, AC-8.7 (Aof 29 Oct 2026): writes the end of each lease past its last day, with its end reason, as closing
+   * by hand does, and releases the stay of an ended lease once it is over (see closeEndedLease). One lease at a time:
+   * one that fails is logged and the others still close.
    */
   async persistEndedLeases(today = bangkokToday()) {
     const rows = await this.db.getRepository(LeaseContractEntity).createQueryBuilder("c")
       .leftJoin("c.template", "template")
       .leftJoin("c.agreement_type", "agreementType")
       .select("c.id", "id")
-      .where("c.status = :active", { active: "active" })
-      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
+      .where("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
       // One parameter, two types: a date column and a JSON text value (left uncast, Postgres refuses text < date).
-      .andWhere("(c.end_date < CAST(:today AS date) OR (c.data->'endsOn'->>'date') < CAST(:today AS text))", { today })
+      // AC-8.7: also the ended leases still waiting for a decision (their stay may be over now).
+      .andWhere(`((c.status = 'active' AND (c.end_date < CAST(:today AS date) OR (c.data->'endsOn'->>'date') < CAST(:today AS text)))
+        OR (c.status = 'expired' AND (c.data->'undecided') IS NOT NULL))`, { today })
       .orderBy("c.id", "ASC")
       .getRawMany<{ id: number }>();
     let changed = 0;

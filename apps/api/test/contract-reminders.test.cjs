@@ -286,3 +286,10 @@ test('M2 (Aof 29 Oct 2026): refunds are reminded even before the agent starts th
   assert.deepEqual(at('2027-10-15', leaving), []);
   assert.deepEqual(at('2027-10-15', { ...lease, endDate: '2027-10-31', data: { endsOn: { date: '2027-10-20', reason: 'x' } } }), []);
 });
+
+test('AC-8.7: an ended lease with no decision yet is no move-out: no deposit refund reminder until "not renewing" is recorded', () => {
+  const lease = contract({ formKind: 'lease', status: 'expired', startDate: '2026-11-01', endDate: '2027-10-31', effectiveEndDate: '2027-10-31', deposit: 40000, data: { undecided: { since: '2027-11-01' } } });
+  const kinds = (c) => dueReminders('2027-12-15', [c], []).map((r) => r.kind);
+  assert.deepEqual(kinds(lease), []);
+  assert.deepEqual(kinds({ ...lease, data: { undecided: { since: '2027-11-01' }, notRenewing: { recordedOn: '2027-11-03' } } }), ['deposit_refund_late']);
+});

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { DataSource, EntityManager, IsNull } from "typeorm";
 import type { CloseAgentContract, ContractClosureBilling, ContractEndReason } from "@nestyk/types";
+import type { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
 import { LeaseContractEntity } from "../../entities/lease-contract.entity";
 import { LeadEntity } from "../../entities/lead.entity";
 import { RentRoomEntity } from "../../entities/rent-room.entity";
@@ -125,12 +126,14 @@ export async function closeLeaseContract(db: DataSource, agentId: number, id: nu
 
 type LeaseClosure = {
   status: string; reasonId: number; note: string | null; effectiveEndDate: string; recordedBy: number | null;
+  /** AC-8.7: the stay goes on (no decision yet): the lead keeps its booking and the tenancy stays. */
+  keepStay?: boolean;
 };
 
 /**
  * The closing writes shared by closing a lease by hand and the daily close of an ended lease: the end fields, the
- * open signing links revoked, the lead's booking released when no other lease of it in the room is open, and the
- * tenancy moved out when no other agreement of it is open. The caller holds the locks (lead, room, contract).
+ * open signing links revoked, and (unless the stay goes on) the stay released. The caller holds the locks (lead,
+ * room, contract).
  */
 export async function finishLeaseClosure(manager: EntityManager, c: LeaseContractEntity, lead: LeadEntity | null, end: LeaseClosure) {
   const id = c.id;
@@ -143,6 +146,15 @@ export async function finishLeaseClosure(manager: EntityManager, c: LeaseContrac
   });
   await manager.update(AgreementSignInviteEntity,
     { agreement_id: id, used_at: IsNull(), revoked_at: IsNull() }, { revoked_at: recorded });
+  if (!end.keepStay) await releaseStay(manager, c, lead, end.effectiveEndDate, recorded);
+}
+
+/**
+ * The stay is over: the lead's booking is released when no other lease of it in the room is open, and the tenancy
+ * moves out (from `moveOutDate`) when no other agreement of it is open.
+ */
+async function releaseStay(manager: EntityManager, c: LeaseContractEntity, lead: LeadEntity | null, moveOutDate: string, recorded = new Date()) {
+  const id = c.id;
   const remaining = manager.getRepository(LeaseContractEntity).createQueryBuilder("other")
     .leftJoin("other.template", "template")
     .where("other.lead_id = :leadId AND other.rent_room_id = :roomId AND other.id <> :id",
@@ -157,7 +169,7 @@ export async function finishLeaseClosure(manager: EntityManager, c: LeaseContrac
   if (!sameOccupancy) {
     const moved = await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, tenant_id: c.tenant_id, rent_room_id: c.rent_room_id,
       created_by_user_id: c.created_by_user_id }, { status: "moved_out",
-        move_out_date: () => `GREATEST(move_out_date, '${end.effectiveEndDate}'::date)` });
+        move_out_date: () => `GREATEST(move_out_date, '${moveOutDate}'::date)` });
     if (moved.affected !== 1)
       throw new ConflictException("ข้อมูลการเข้าพักไม่ตรงกับสัญญา กรุณาตรวจสอบก่อนปิดสัญญา");
   }
@@ -172,16 +184,22 @@ export type EndedLeaseInput = {
   renewed: boolean;
   today: string;
 };
-export type EndedLeaseClosure = { status: "expired" | "terminated"; reasonCode: string; note: string | null; effectiveEndDate: string; recordedBy: number | null };
+export type EndedLeaseClosure = {
+  status: "expired" | "terminated"; reasonCode: string; note: string | null; effectiveEndDate: string; recordedBy: number | null;
+  /** AC-8.7: ended with no decision yet: the room stays let, the lead and the tenancy stay, the agent decides. */
+  undecided: boolean;
+};
 
 const userId = (value: unknown) => (Number.isSafeInteger(value) && (value as number) > 0 ? (value as number) : null);
 
 /**
- * H1/H2 (Aof 29 Oct 2026): which handed-over lease the daily close ends, and how. Only a stay that is really over:
+ * H1/H2, AC-8.7 (Aof 29 Oct 2026): how the daily close ends a handed-over lease. Every lease ends at 00:00 of the day
+ * after its last day:
  * - ended early (D16), from the day after that date: terminated, "other termination" with the reason typed then;
- * - recorded as not renewing (D15), from the day after its end (or after the record when made later, TC-8.11): expired;
- * - renewed (the renewal in force), from the day after its end: expired.
- * A lease past its end with none of these stays active: the room stays let and the agent decides (AC-8.7).
+ * - otherwise from the day after its end: expired. Recorded as not renewing (D15, its record day passed) or renewed
+ *   (the renewal in force): the stay is over. With no decision yet (or a renewal not signed by everyone yet), it is
+ *   `undecided`: the room stays let and the agent records renewing or not; the stay is released later
+ *   (endedStayRelease).
  * An early end is not applied over a renewal in force (the agent closes it by hand).
  */
 export function endedLeaseClosure(input: EndedLeaseInput): EndedLeaseClosure | null {
@@ -191,35 +209,60 @@ export function endedLeaseClosure(input: EndedLeaseInput): EndedLeaseClosure | n
   if (early && !input.renewed && early < today && early >= start && (!end || early < end)) {
     const reason = typeof endsOn?.reason === "string" ? endsOn.reason.trim() : "";
     return { status: "terminated", reasonCode: "other_termination", note: reason || "เลิกสัญญาก่อนกำหนด",
-      effectiveEndDate: early, recordedBy: userId(endsOn?.recordedBy) };
+      effectiveEndDate: early, recordedBy: userId(endsOn?.recordedBy), undecided: false };
   }
   if (!end || end >= today) return null;
+  const expired = { status: "expired" as const, reasonCode: "term_completed", note: null, effectiveEndDate: end };
+  if (input.renewed) return { ...expired, recordedBy: null, undecided: false };
   if (notRenewing) {
     const recordedOn = isIsoDate(notRenewing.recordedOn) ? (notRenewing.recordedOn as string) : end;
-    if ((recordedOn > end ? recordedOn : end) >= today) return null;
-    return { status: "expired", reasonCode: "term_completed", note: null, effectiveEndDate: end, recordedBy: userId(notRenewing.recordedBy) };
+    // Recorded after the end (TC-8.11): the stay lasts until that day.
+    return { ...expired, recordedBy: userId(notRenewing.recordedBy), undecided: recordedOn >= today };
   }
-  if (input.renewed) return { status: "expired", reasonCode: "term_completed", note: null, effectiveEndDate: end, recordedBy: null };
-  return null;
+  return { ...expired, recordedBy: null, undecided: true };
 }
 
-/** The daily close of one lease (see endedLeaseClosure). Returns the status written, or null when it stays as it is. */
+/**
+ * AC-8.7: an ended lease still `undecided` whose stay is now over: recorded as not renewing, from the day after the
+ * record (released then, moved out on the record day). A renewal in force takes the stay over (nothing to release).
+ */
+export function endedStayRelease(input: { end: string | null; notRenewing: EndedLeaseInput["notRenewing"]; renewed: boolean; today: string }):
+  { moveOutDate: string } | "renewed" | null {
+  if (input.renewed) return "renewed";
+  if (!input.notRenewing || !input.end) return null;
+  const recordedOn = isIsoDate(input.notRenewing.recordedOn) ? (input.notRenewing.recordedOn as string) : input.end;
+  const last = recordedOn > input.end ? recordedOn : input.end;
+  return last < input.today ? { moveOutDate: last } : null;
+}
+
+/** The daily close of one lease (see endedLeaseClosure, endedStayRelease). Returns what it did, or null. */
 export async function closeEndedLease(db: DataSource, id: number, today = bangkokToday()): Promise<string | null> {
-  const initial = await db.getRepository(LeaseContractEntity).findOneBy({ id, status: "active" });
-  if (!initial) return null;
+  const initial = await db.getRepository(LeaseContractEntity).findOneBy({ id });
+  if (!initial || !["active", "expired"].includes(initial.status)) return null;
   return db.transaction(async manager => {
     // Same lock order as closing by hand: lead, room, contract.
     const lead = initial.lead_id != null
       ? await manager.findOne(LeadEntity, { where: { id: initial.lead_id }, lock: { mode: "pessimistic_write" } }) : null;
     await manager.findOne(RentRoomEntity, { where: { id: initial.rent_room_id }, lock: { mode: "pessimistic_write" } });
-    const c = await manager.findOne(LeaseContractEntity, { where: { id, status: "active" }, lock: { mode: "pessimistic_write" } });
+    const c = await manager.findOne(LeaseContractEntity, { where: { id, status: initial.status }, lock: { mode: "pessimistic_write" } });
     if (!c || c.lead_id !== initial.lead_id || c.rent_room_id !== initial.rent_room_id) return null;
     const template = await manager.findOneBy(AgreementTemplateEntity, { id: c.template_id });
     if (!template || !["lease", "renewal"].includes(template.form_kind)) return null;
     const renewed = await manager.getRepository(LeaseContractEntity).createQueryBuilder("next")
       .where("next.previous_agreement_id = :id", { id })
       .andWhere("next.status = 'active'").getCount();
-    const data = (c.data ?? {}) as { endsOn?: EndedLeaseInput["endsOn"]; notRenewing?: EndedLeaseInput["notRenewing"] };
+    const data = (c.data ?? {}) as { endsOn?: EndedLeaseInput["endsOn"]; notRenewing?: EndedLeaseInput["notRenewing"]; undecided?: unknown };
+    if (c.status === "expired") {
+      if (!data.undecided) return null;
+      const release = endedStayRelease({ end: asIsoDate(c.end_date) || null, notRenewing: data.notRenewing ?? null, renewed: renewed > 0, today });
+      if (!release) return null;
+      const rest = { ...data } as Record<string, unknown>;
+      delete rest.undecided;
+      await manager.update(LeaseContractEntity, { id }, { data: rest } as QueryDeepPartialEntity<LeaseContractEntity>);
+      if (release === "renewed") return "renewed";
+      await releaseStay(manager, c, lead, release.moveOutDate);
+      return "released";
+    }
     const end = endedLeaseClosure({
       start: asIsoDate(c.start_date), end: asIsoDate(c.end_date) || null,
       endsOn: data.endsOn ?? null, notRenewing: data.notRenewing ?? null, renewed: renewed > 0, today,
@@ -229,7 +272,10 @@ export async function closeEndedLease(db: DataSource, id: number, today = bangko
     if (!reason) throw new Error(`end reason ${end.reasonCode} is missing`);
     await finishLeaseClosure(manager, c, lead, {
       status: end.status, reasonId: reason.id, note: end.note, effectiveEndDate: end.effectiveEndDate, recordedBy: end.recordedBy,
+      keepStay: end.undecided,
     });
+    if (end.undecided)
+      await manager.update(LeaseContractEntity, { id }, { data: { ...data, undecided: { since: today } } } as QueryDeepPartialEntity<LeaseContractEntity>);
     return end.status;
   });
 }
