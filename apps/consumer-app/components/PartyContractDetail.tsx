@@ -47,6 +47,7 @@ import { TenantContractAttachments } from "./TenantContractList";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
+import { earlyEndMoneyOf, earlyEndSlipState } from "../lib/early-end-slip";
 
 const CONTRACT_ICON: Record<PartyContract["formKind"], AppIconName> = {
   reservation: "calendar",
@@ -131,7 +132,7 @@ export function PartyContractDetail({
   const body = { color: theme.textSecondary, fontFamily: tokens.typography.native.body };
   const card = { backgroundColor: theme.card, borderColor: theme.border };
   const mine = contract.myParties;
-  const collectInvoice = (contract.data as { endsOn?: { money?: { kind?: string; invoicePath?: string | null; slipPath?: string | null } } } | undefined)?.endsOn?.money;
+  const collectInvoice = earlyEndMoneyOf(contract.data);
   const showCollect = collectInvoice?.kind === "collect" && !!collectInvoice.invoicePath;
   async function openEarlyFile(kind: "invoice" | "slip") {
     setError("");
@@ -428,9 +429,16 @@ export function PartyContractDetail({
         <View style={[styles.card, card]}>
           <Text style={[styles.copy, title]}>{t.tenant.bills.earlyEndInvoice}</Text>
           <MobileButton variant="outline" onPress={() => void openEarlyFile("invoice")}>{t.tenant.bills.earlyEndInvoice}</MobileButton>
-          {mine.includes("tenant") && !collectInvoice.slipPath ? (
+          {earlyEndSlipState(collectInvoice) === "returned" ? (
+            <Text style={[styles.copy, title]}>{t.tenant.bills.earlyEndReturned.replace("{reason}", collectInvoice.returnNote ?? "")}</Text>
+          ) : null}
+          {earlyEndSlipState(collectInvoice) === "paid" ? (
+            <Text style={[styles.copy, title]}>{t.tenant.bills.earlyEndPaid}</Text>
+          ) : null}
+          {/* M5: a new slip until the agent confirms the money. */}
+          {mine.includes("tenant") && earlyEndSlipState(collectInvoice) !== "paid" ? (
             <MobileButton disabled={busy} onPress={() => { slipTarget.current = "early"; setSlipSourceOpen(true); }}>
-              {t.tenant.bills.earlyEndPay}
+              {collectInvoice.slipPath ? t.tenant.bills.earlyEndPayAgain : t.tenant.bills.earlyEndPay}
             </MobileButton>
           ) : null}
           {collectInvoice.slipPath ? (

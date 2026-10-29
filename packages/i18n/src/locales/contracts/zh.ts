@@ -743,6 +743,7 @@ export const contractsZh: ContractCopy = {
     needsEndDate: '原合同须有结束日期才能续约',
     needsActive: '当前合同须已生效或已结束，且还没有续约，才能再续',
     alreadyRenewed: '这份合同已有续约，请从最新一份继续续约',
+    leaving: '已记录不续约或提前终止，无法续约。如需续约，请先撤销不续约记录',
     tooEarly: '最多可提前 30 天续约，原合同于 {end} 到期，可从 {date} 起办理',
     startsOnExpiry: '新合同从原合同结束的次日开始。续约 12 个月时，结束日为开始日次年的前一天。例如原合同于 12 月 24 日结束，新合同从 12 月 25 日起至次年 12 月 24 日。',
     source: '续自合同 {no}',

@@ -12,6 +12,7 @@ import type { AgentTenantBilling, BillLateFee, BillReservationCredit, FinancialD
 import { TenantEntity } from '../entities/tenant.entity';
 import { RoomTenancyEntity } from '../entities/room-tenancy.entity';
 import { financialTotals } from '../agent/contracts/financial-document';
+import { closeEndedLease } from "../agent/contracts/contract-closure";
 import { LeaseContractEntity } from "../entities/lease-contract.entity";
 import { TenantBillEntity } from "../entities/tenant-bill.entity";
 import { AgentInvoiceEntity } from "../entities/agent-invoice.entity";
@@ -285,28 +286,37 @@ export class TenantBillingService {
     return created;
   }
 
-  /** Writes the ended status the day after the last day. An early ending becomes terminated; a natural end becomes expired. */
+  /**
+   * H1/H2 (Aof 29 Oct 2026): writes the end of each lease whose stay is over, with its end reason, as closing by hand
+   * does (see closeEndedLease). A lease past its end with no decision stays active (AC-8.7). One lease at a time: one
+   * that fails is logged and the others still close.
+   */
   async persistEndedLeases(today = bangkokToday()) {
     const rows = await this.db.getRepository(LeaseContractEntity).createQueryBuilder("c")
       .leftJoin("c.template", "template")
       .leftJoin("c.agreement_type", "agreementType")
+      .select("c.id", "id")
       .where("c.status = :active", { active: "active" })
       .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
-      .andWhere("(c.end_date < :today OR (c.data->'endsOn'->>'date') < :today)", { today })
-      .getMany();
+      // One parameter, two types: a date column and a JSON text value (left uncast, Postgres refuses text < date).
+      .andWhere("(c.end_date < CAST(:today AS date) OR (c.data->'endsOn'->>'date') < CAST(:today AS text))", { today })
+      .orderBy("c.id", "ASC")
+      .getRawMany<{ id: number }>();
     let changed = 0;
-    for (const lease of rows) {
-      const endsOn = (lease.data as { endsOn?: { date?: unknown } } | null)?.endsOn?.date;
-      const early = typeof endsOn === "string" ? endsOn.slice(0, 10) : null;
-      const end = lease.end_date ? String(lease.end_date).slice(0, 10) : null;
-      const last = early && end ? (early < end ? early : end) : early || end;
-      if (!last || last >= today) continue;
-      const status = early && early < today && (!end || early <= end) ? "terminated" : "expired";
-      const result = await this.db.getRepository(LeaseContractEntity).update({ id: lease.id, status: "active" }, { status });
-      changed += result.affected ?? 0;
+    for (const { id } of rows) {
+      try {
+        if (await this.closeEnded(Number(id), today)) changed++;
+      } catch (error) {
+        this.logger.error(`Could not close ended lease ${id}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
     if (changed) this.logger.log(`Closed ${changed} ended lease(s) on ${today}`);
     return changed;
+  }
+
+  /** One lease of the daily close (a seam for tests). */
+  closeEnded(id: number, today: string) {
+    return closeEndedLease(this.db, id, today);
   }
 
   async ensureForUser(userId: number, today = bangkokToday()) {
@@ -709,18 +719,6 @@ export class TenantBillingService {
       throw error;
     }
     return this.view(await this.forAgent(agentId, id));
-  }
-
-  /** AC-7.8: the landlord of the lease can issue the same late fee. It is still filed under the deal agent. */
-  async createLateFeeForLandlord(landlordId: number, id: number, input: unknown) {
-    const bill = await this.db.getRepository(TenantBillEntity).findOne({
-      where: { id },
-      relations: { lease_contract: { rent_room: true } },
-    });
-    const lease = bill?.lease_contract;
-    const owns = lease?.owner_user_id === landlordId || (lease?.owner_user_id == null && lease?.rent_room?.owner_id === landlordId);
-    if (!bill || !lease || !owns) throw new ForbiddenException("เฉพาะผู้ให้เช่าของห้องนี้");
-    return this.createLateFee(lease.created_by_user_id, id, input);
   }
 
   /** D12: the agent returns the tenant's late fee slip with a reason. */

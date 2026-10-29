@@ -58,7 +58,10 @@ test('TC-7.02, 7.03: rent after its grace day reminds the agent; from the 16th d
   assert.deepEqual(kinds('2026-12-17', [lease], [bill()]), [['rent_overdue_15', '2026-12-01', [7, 9]]]);
   assert.deepEqual(kinds('2026-12-17', [{ ...lease, landlordUserId: null }], [bill()]), [['rent_overdue_15', '2026-12-01', [7]]], 'no landlord account');
   assert.deepEqual(kinds('2026-12-20', [lease], [bill({ status: 'paid' })]), []);
-  assert.deepEqual(kinds('2026-12-20', [{ ...lease, status: 'terminated' }], [bill()]), [], 'not for a closed lease');
+  // H2 (Aof 29 Oct 2026): rent left unpaid is still chased after the lease ended; not after it was cancelled.
+  assert.deepEqual(kinds('2026-12-10', [{ ...lease, status: 'terminated' }], [bill()]), [['rent_overdue', '2026-12-05', [7]]], 'ended early');
+  assert.deepEqual(kinds('2026-12-20', [{ ...lease, status: 'expired' }], [bill()]), [['rent_overdue_15', '2026-12-01', [7, 9]]], 'ended');
+  assert.deepEqual(kinds('2026-12-20', [{ ...lease, status: 'cancelled' }], [bill()]), [], 'not for a cancelled lease');
   const [r] = dueReminders('2026-12-17', [lease], [bill()]);
   assert.deepEqual([r.billId, r.billPeriod, r.amount], [50, '2026-12', 20000]);
 });
@@ -247,4 +250,39 @@ test('reminder routes: the agent\'s needs the agent role, the landlord\'s the la
   assert.equal((await fetch(`${base}/contracts/mine/reminders`, as(9))).status, 403, 'a tenant');
   assert.equal((await fetch(`${base}/contracts/mine/reminders`, as(50))).status, 200);
   assert.deepEqual(calls, [['agent', 7], ['landlord', 50]]);
+});
+
+test('H2: the job reads ended leases too (their refunds and unpaid rent are still due), only cancelled ones are left out', async () => {
+  let where;
+  const db = { getRepository: (entity) => { assert.equal(entity, LeaseContractEntity); return { find: async (options) => { where = options.where; return []; } }; } };
+  assert.deepEqual(await new ContractRemindersService(db).due('2027-12-01', { landlordUserId: 9 }), []);
+  assert.equal(where.status.type, 'not');
+  assert.equal(where.status.child.type, 'in');
+  assert.deepEqual(where.status.child.value, ['cancelled']);
+});
+
+test('M2 (Aof 29 Oct 2026): refunds are reminded even before the agent starts them; L3: no renewal reminder for a leaving stay', () => {
+  const lease = contract({ formKind: 'lease', status: 'active', startDate: '2026-11-01', endDate: '2027-10-31', deposit: 40000 });
+  const at = (today, c, deposits = []) => dueReminders(today, [c], [], [], deposits).map((r) => [r.kind, r.dueDate, r.amount]);
+  // Ends early on 15 Jan, no amount typed: from 23 Jan (7 days after).
+  const early = { ...lease, data: { endsOn: { date: '2027-01-15', reason: 'x' } } };
+  assert.deepEqual(at('2027-01-22', early), []);
+  assert.deepEqual(at('2027-01-23', early).filter((r) => r[0] === 'early_end_refund_late'), [['early_end_refund_late', '2027-01-22', null]]);
+  assert.deepEqual(at('2027-01-23', { ...early, data: { endsOn: { date: '2027-01-15', money: { kind: 'collect', amount: 5000, dueOn: '2027-01-15' } } } })
+    .filter((r) => r[0] === 'early_end_refund_late'), [], 'an amount to collect is not a refund');
+  // Not renewing, ends 31 Oct, no settlement approved: from 1 Dec; also after the daily close.
+  const leaving = { ...lease, data: { notRenewing: { recordedOn: '2027-09-01' } } };
+  assert.deepEqual(at('2027-11-30', leaving), []);
+  assert.deepEqual(at('2027-12-01', leaving), [['deposit_refund_late', '2027-11-30', null]]);
+  assert.deepEqual(at('2027-12-01', { ...lease, status: 'expired', effectiveEndDate: '2027-10-31' }), [['deposit_refund_late', '2027-11-30', null]], 'closed by hand or by the job');
+  assert.deepEqual(at('2027-12-01', leaving, [{ contractId: 11, status: 'draft', refundAmount: 0, refunded: false }]), [['deposit_refund_late', '2027-11-30', null]], 'a draft is not approved');
+  assert.deepEqual(at('2027-12-01', leaving, [{ contractId: 11, status: 'completed', refundAmount: 0, refunded: false }]), [], 'settled');
+  assert.deepEqual(at('2027-12-01', leaving, [{ contractId: 11, status: 'approved', refundAmount: 35000, refunded: false }]), [['deposit_refund_late', '2027-11-30', 35000]], 'once only, with the amount');
+  assert.deepEqual(at('2027-12-01', { ...leaving, deposit: 0 }), [], 'no deposit');
+  assert.deepEqual(at('2027-12-01', lease), [], 'past its end, undecided: the stay goes on (AC-8.7)');
+  assert.deepEqual(dueReminders('2027-12-01', [{ ...lease, status: 'expired' }, contract({ id: 12, formKind: 'renewal', status: 'active', previousAgreementId: 11, endDate: '2028-10-31' })], []).filter((r) => r.contractId === 11), [], 'renewed');
+  // L3: the renewal reminder stops once the stay is recorded as leaving.
+  assert.deepEqual(at('2027-10-15', lease).map((r) => r[0]), ['renewal_notice']);
+  assert.deepEqual(at('2027-10-15', leaving), []);
+  assert.deepEqual(at('2027-10-15', { ...lease, endDate: '2027-10-31', data: { endsOn: { date: '2027-10-20', reason: 'x' } } }), []);
 });

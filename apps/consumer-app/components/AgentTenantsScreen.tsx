@@ -18,7 +18,7 @@ import { getAgentTenant, listAgentTenants, updateAgentTenant } from "../lib/agen
 import { nextIdentityNumberDraft } from "../lib/identity-number";
 import { billFormatters } from "../lib/bill-format";
 import { formatPhoneDisplay } from "../lib/phone";
-import { openAgentEarlyEndFile, recordEarlyEndMoney, setEarlyEnd, setNotRenewing, uploadEarlyEndProof } from "../lib/agent-contracts-api";
+import { confirmEarlyEndSlip, openAgentEarlyEndFile, recordEarlyEndMoney, returnEarlyEndSlip, setEarlyEnd, setNotRenewing, uploadEarlyEndProof } from "../lib/agent-contracts-api";
 import { confirmAgentRentSlip, createAgentLateFee, getAgentTenantBilling, listAgentRentSlips, openAgentLateFee, openAgentRentSlip, returnAgentLateFeeSlip, returnAgentRentSlip } from "../lib/tenant-bills-api";
 import {
   tenantLease,
@@ -561,6 +561,18 @@ export function AgentTenantsScreen({
               const title = kind === "slip" ? d.earlyEndViewSlip : kind === "proof" ? d.earlyEndViewProof : d.earlyEndViewInvoice;
               void openAgentEarlyEndFile(contractId, kind)
                 .then(({ url }) => setSlipPreview({ url, title }))
+                .catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
+            }}
+            onConfirmEarlyEndSlip={(contractId, submittedAt) => {
+              setError("");
+              void confirmEarlyEndSlip(contractId, submittedAt)
+                .then(() => refreshTenant(selected.id))
+                .catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
+            }}
+            onReturnEarlyEndSlip={(contractId, reason, submittedAt) => {
+              setError("");
+              void returnEarlyEndSlip(contractId, reason, submittedAt)
+                .then(() => refreshTenant(selected.id))
                 .catch((e) => setError(localizedError(e, c.list.saveFailed, locale)));
             }}
             onAttachEarlyEndProof={(contractId) => {

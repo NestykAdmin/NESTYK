@@ -55,6 +55,7 @@ function harness(contract, checklist = { requirements: [], documents: [], docume
     };
     if (name === '../lib/contract-signing') return load('../lib/contract-signing.ts');
     if (name === '../lib/attachment-review') return load('../lib/attachment-review.ts');
+    if (name === '../lib/early-end-slip') return load('../lib/early-end-slip.ts');
     if (name === './RejectedAttachmentsNotice') return { RejectedAttachmentsNotice: ({ items }) => { notices.push(items); return null; } };
     if (name === '@nestyk/i18n') return i18nMock;
     if (name === '../lib/lead-format') return leadFormat;

@@ -284,22 +284,24 @@ const newLease = (patch = {}) => lease({
 });
 const firstBill = (c, today, credit) => openRentBills(c, today, credit).find((row) => row.period === '2026-11');
 
-test('the daily close writes terminated after an early end and expired after a natural end', async () => {
-  const rows = [
-    { id: 1, end_date: '2027-07-31', data: { endsOn: { date: '2027-01-15' } } },
-    { id: 2, end_date: '2026-10-31', data: {} },
-    { id: 3, end_date: '2027-12-31', data: { endsOn: { date: '2027-11-01' } } },
-  ];
-  const updates = [];
-  const qb = { leftJoin() { return this; }, where() { return this; }, andWhere() { return this; }, getMany: async () => rows };
-  const service = new TenantBillingService({
-    getRepository: () => ({ createQueryBuilder: () => qb, update: async (where, patch) => { updates.push({ where, patch }); return { affected: 1 }; } }),
-  });
-  assert.equal(await service.persistEndedLeases('2027-01-16'), 2);
-  assert.deepEqual(updates, [
-    { where: { id: 1, status: 'active' }, patch: { status: 'terminated' } },
-    { where: { id: 2, status: 'active' }, patch: { status: 'expired' } },
-  ]);
+test('H1: the daily close goes lease by lease; one that fails is logged and the others still close', async () => {
+  const queries = [];
+  const qb = {};
+  for (const m of ['leftJoin', 'select', 'where', 'andWhere', 'orderBy']) qb[m] = (...args) => { queries.push([m, ...args]); return qb; };
+  qb.getRawMany = async () => [{ id: 1 }, { id: 2 }, { id: 3 }];
+  const service = new TenantBillingService({ getRepository: () => ({ createQueryBuilder: () => qb }) });
+  const calls = [];
+  service.closeEnded = async (id, today) => {
+    calls.push([id, today]);
+    if (id === 2) throw new Error('trigger refused');
+    return id === 1 ? 'terminated' : null;
+  };
+  service.logger = { log() {}, error: (message) => calls.push(['error', message]) };
+  assert.equal(await service.persistEndedLeases('2027-01-16'), 1);
+  assert.deepEqual(calls, [[1, '2027-01-16'], [2, '2027-01-16'], ['error', 'Could not close ended lease 2: trigger refused'], [3, '2027-01-16']]);
+  const dates = queries.find(([m, sql]) => m === 'andWhere' && /end_date/.test(sql));
+  assert.match(dates[1], /CAST\(:today AS date\)/); assert.match(dates[1], /CAST\(:today AS text\)/);
+  assert.deepEqual(dates[2], { today: '2027-01-16' });
 });
 
 test('first month counts the days from move-in through the day before the due date (AC-7.1)', () => {
@@ -330,7 +332,7 @@ test('first bill of a new lease is the rent less the reservation, closed at once
   assert.equal('paid_at' in dec[1], false);
 });
 
-test('first bill amounts: rent above, below or without a reservation receipt (AC-2.4, TC-7.13)', () => {
+test('first bill amounts: rent above, below or without a reservation receipt (AC-2.4)', () => {
   const above = firstBill(newLease({ monthly_rent: '21000.00' }), '2026-11-01', 20000);
   assert.equal(above.amount, '1000.00'); assert.equal(above.status, 'pending'); assert.equal('paid_at' in above, false);
   const below = firstBill(newLease({ monthly_rent: '19000.00' }), '2026-11-01', 20000);

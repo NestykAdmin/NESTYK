@@ -61,6 +61,25 @@ export function assertDeductionsEvidenced(items: Array<{ evidence_reference?: st
 }
 
 /** The transfer back to the tenant is stored once. */
+/**
+ * L3: the database guard of the settlement (validate_deposit_settlement, code 23514) answers 400 with a message the
+ * agent can act on, not a server error.
+ */
+export function settlementCheckError(error: unknown): never {
+  const e = error as { code?: string; message?: string; driverError?: { code?: string; message?: string } };
+  const code = e?.code ?? e?.driverError?.code;
+  if (code !== "23514") throw error;
+  const text = `${e?.message ?? ""} ${e?.driverError?.message ?? ""}`;
+  throw new BadRequestException(
+    /lease that is ending/.test(text) ? "อนุมัติเงินประกันได้เมื่อสัญญากำลังสิ้นสุด (ไม่ต่อสัญญา เลิกก่อนกำหนด หรือถึงวันสิ้นสุดแล้ว)"
+      : /cancelled lease/.test(text) ? "สัญญานี้ยกเลิกแล้ว"
+      : /requires evidence/.test(text) ? "ยังไม่มีหลักฐานการรับเงินประกัน"
+      : /reconcile/.test(text) ? "ยอดเงินประกันไม่ตรงกับรายการหัก กรุณาเปิดใหม่"
+      : /transfers/.test(text) ? "ต้องจัดการเงินประกันที่ยกยอดให้เสร็จก่อน"
+      : "ข้อมูลเงินประกันไม่ถูกต้อง กรุณาเปิดใหม่",
+  );
+}
+
 export function assertRefundOnce(status: string, refunded: boolean) {
   if (status === "completed" || refunded) throw new ConflictException("บันทึกคืนเงินแล้ว");
 }
@@ -203,7 +222,7 @@ export class DepositSettlementService {
         approved_at: new Date(),
         status: money.refund === "0.00" ? "completed" : "approved",
       });
-    });
+    }).catch(settlementCheckError);
     return this.present(c);
   }
 
@@ -238,7 +257,7 @@ export class DepositSettlementService {
     } catch (error) {
       await storage.remove(receivedFile.path).catch(() => undefined);
       await storage.remove(transferFile.path).catch(() => undefined);
-      throw error;
+      settlementCheckError(error);
     }
     return this.present(c);
   }
@@ -267,19 +286,26 @@ export class DepositSettlementService {
       today: bangkokToday(),
     });
     if (leaving && leaving !== "lease_not_issued" && leaving !== "deposit_unpaid") return leaving;
-    const invoice = await this.db.getRepository(AgentInvoiceEntity).findOne({
-      where: { lease_contract_id: c.id, invoice_kind: "deposit" },
-    });
+    const invoice = await this.depositInvoice(c);
     if (!invoice?.receipt_pdf_path || !invoice.data?.items?.length) return "no_deposit";
     const total = financialTotals(invoice.data).total;
     if (!Number.isFinite(total) || total <= 0) return "no_deposit";
     return null;
   }
 
+  /**
+   * The deposit invoice of this lease. H3 (Aof 29 Oct 2026): a renewal with none of its own refunds the deposit
+   * received with the first lease of the chain (its root). A deposit topped up at renewal is not counted yet.
+   */
+  private async depositInvoice(c: LeaseContractEntity) {
+    const repo = this.db.getRepository(AgentInvoiceEntity);
+    const own = await repo.findOne({ where: { lease_contract_id: c.id, invoice_kind: "deposit" } });
+    if (own || c.agreement_kind !== "renewal" || c.root_agreement_id == null) return own;
+    return repo.findOne({ where: { lease_contract_id: c.root_agreement_id, invoice_kind: "deposit" } });
+  }
+
   private async depositReceipt(c: LeaseContractEntity) {
-    const invoice = await this.db.getRepository(AgentInvoiceEntity).findOne({
-      where: { lease_contract_id: c.id, invoice_kind: "deposit" },
-    });
+    const invoice = await this.depositInvoice(c);
     if (!invoice?.receipt_pdf_path || !invoice.data?.items?.length)
       throw new BadRequestException("ยังไม่มีใบเสร็จเงินประกัน");
     const total = financialTotals(invoice.data).total;

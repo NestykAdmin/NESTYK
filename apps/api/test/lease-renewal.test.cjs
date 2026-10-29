@@ -55,14 +55,9 @@ test('renewal gate rejects 31 days early and accepts exactly 30 days without mov
     assert.equal(c.end_date, '2027-10-31');
   } finally { now = '2026-10-12T05:00:00Z'; }
 });
-test('legacy full-lease renewal also enforces the 30-day advance window', async () => {
+test('Aof 29 Oct 2026: the full-lease renewal route is closed; renewals go by the renewal addendum', async () => {
   const input = { leadId: 1, previousAgreementId: prior.id, startDate: '2026-11-01', endDate: '2027-10-31', monthlyRent: 15000, deposit: 30000 };
-  now = '2026-09-30T05:00:00Z';
-  try {
-    await assert.rejects(() => serviceFixture().create(7,input), e => e.getStatus() === 400 && /30/.test(e.message));
-    now = '2026-10-01T05:00:00Z';
-    assert.equal((await serviceFixture().create(7,input)).start_date,'2026-11-01');
-  } finally { now = '2026-10-12T05:00:00Z'; }
+  await assert.rejects(() => serviceFixture().create(7, input), e => e.getStatus() === 400 && e.getResponse().code === 'RENEW_WITH_ADDENDUM');
 });
 test('rejects overlapping leases and renewals, including drafts, before saving a renewal', async () => {
   for (const formKind of ['lease', 'renewal']) {
@@ -133,4 +128,12 @@ test('renewal rejects corrupt money and day-of-month values instead of persistin
   }
   const c = await createRenewal(serviceFixture(), { monthlyRent: '15,500.50', depositCarried: '0', dueDay: '31' });
   assert.equal(c.monthly_rent, '15500.50'); assert.equal(c.deposit, '0.00');
+});
+
+test('AC-8.2 (Aof 29 Oct 2026): a renewal is signed on the Bangkok day of its last signature', () => {
+  const { renewalSignedOn } = requireRepo('./apps/api/src/agent/contracts/agent-contracts.service.ts');
+  // Tenant signs 30 Oct 23:30 Bangkok (16:30 UTC), the landlord on 1 Nov: signed on 1 Nov, whenever the PDF is made.
+  assert.equal(renewalSignedOn({ owner_signed_at: new Date('2026-11-01T02:00:00Z'), tenant_signed_at: new Date('2026-10-30T16:30:00Z'), agent_signed_at: null }, '2026-11-05'), '2026-11-01');
+  assert.equal(renewalSignedOn({ owner_signed_at: null, tenant_signed_at: new Date('2026-10-30T17:30:00Z'), agent_signed_at: null }, '2026-11-05'), '2026-10-31', 'Bangkok, not UTC');
+  assert.equal(renewalSignedOn({ owner_signed_at: null, tenant_signed_at: null, agent_signed_at: null }, '2026-11-05'), '2026-11-05', 'no time stored: today');
 });

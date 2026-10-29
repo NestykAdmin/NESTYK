@@ -322,6 +322,9 @@ export interface TranslationSchema {
       earlyEndInvoice: string;
       earlyEndPay: string;
       earlyEndSlip: string;
+      earlyEndPaid: string;
+      earlyEndReturned: string;
+      earlyEndPayAgain: string;
       dueDate: string;
       graceUntil: string;
       paidAt: string;
@@ -610,6 +613,11 @@ export interface TranslationSchema {
         earlyEndViewSlip: string;
         earlyEndAttachProof: string;
         earlyEndViewProof: string;
+        earlyEndSlipConfirm: string;
+        earlyEndSlipReturn: string;
+        earlyEndSlipReturnReason: string;
+        earlyEndSlipPaid: string;
+        earlyEndSlipReturned: string;
         billDue: string;
         billSlipAt: string;
         billPaidAt: string;

@@ -743,6 +743,7 @@ export const contractsEn: ContractCopy = {
     needsEndDate: 'The current lease needs an end date before it can be renewed',
     needsActive: 'You can renew once the current contract is active or ended and has no renewal yet',
     alreadyRenewed: 'This contract already has a renewal. Renew the latest one instead',
+    leaving: 'This stay is recorded as not renewing or ending early, so it cannot be renewed. To renew, undo the not-renewing record first',
     tooEarly: 'A renewal can be started at most 30 days before the current lease ends ({end}). You can start from {date}.',
     startsOnExpiry: 'The new lease starts the day after the current one ends. A 12-month renewal ends the day before that start date next year. If the current lease ends on 24 Dec, the new one runs from 25 Dec to 24 Dec the following year.',
     source: 'Renews contract {no}',

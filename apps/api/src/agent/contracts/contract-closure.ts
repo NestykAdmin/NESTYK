@@ -116,33 +116,120 @@ export async function closeLeaseContract(db: DataSource, agentId: number, id: nu
       .andWhere("settlement.status <> 'draft'").getCount();
     if (status !== "expired" && allocated)
       throw new ConflictException("ต้องจัดการเงินประกันที่อนุมัติยกยอดมาก่อนปิดสัญญานี้");
-    const recorded = new Date();
-    await manager.update(LeaseContractEntity, { id }, {
-      status, end_reason_id: reason.id, end_reason_note: b.note || null,
-      effective_end_date: b.effectiveEndDate, end_recorded_at: recorded,
-      end_recorded_by_user_id: agentId,
-      ...(status === "terminated" ? { terminated_at: recorded } : {}),
+    await finishLeaseClosure(manager, c, lead, {
+      status, reasonId: reason.id, note: b.note || null, effectiveEndDate: b.effectiveEndDate, recordedBy: agentId,
     });
-    await manager.update(AgreementSignInviteEntity,
-      { agreement_id: id, used_at: IsNull(), revoked_at: IsNull() }, { revoked_at: recorded });
-    const remaining = manager.getRepository(LeaseContractEntity).createQueryBuilder("other")
-      .leftJoin("other.template", "template")
-      .where("other.lead_id = :leadId AND other.rent_room_id = :roomId AND other.id <> :id",
-        { leadId: c.lead_id, roomId: c.rent_room_id, id })
-      .andWhere("other.status NOT IN (:...ended)", { ended: ENDED })
-      .andWhere("template.form_kind IN ('lease', 'renewal')");
-    if (!await remaining.getCount() && lead.rent_room_id === c.rent_room_id)
-      await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: recorded });
-    const sameOccupancy = await manager.getRepository(LeaseContractEntity).createQueryBuilder("other")
-      .where("other.room_tenancy_id = :tenancyId AND other.id <> :id", { tenancyId: c.room_tenancy_id, id })
-      .andWhere("other.status NOT IN (:...ended)", { ended: ENDED }).getCount();
-    if (!sameOccupancy) {
-      const moved = await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, tenant_id: c.tenant_id, rent_room_id: c.rent_room_id,
-        created_by_user_id: agentId }, { status: "moved_out",
-          move_out_date: () => `GREATEST(move_out_date, '${b.effectiveEndDate}'::date)` });
-      if (moved.affected !== 1)
-        throw new ConflictException("ข้อมูลการเข้าพักไม่ตรงกับสัญญา กรุณาตรวจสอบก่อนปิดสัญญา");
-    }
     return billingSummary(manager, id, b.effectiveEndDate);
+  });
+}
+
+type LeaseClosure = {
+  status: string; reasonId: number; note: string | null; effectiveEndDate: string; recordedBy: number | null;
+};
+
+/**
+ * The closing writes shared by closing a lease by hand and the daily close of an ended lease: the end fields, the
+ * open signing links revoked, the lead's booking released when no other lease of it in the room is open, and the
+ * tenancy moved out when no other agreement of it is open. The caller holds the locks (lead, room, contract).
+ */
+export async function finishLeaseClosure(manager: EntityManager, c: LeaseContractEntity, lead: LeadEntity | null, end: LeaseClosure) {
+  const id = c.id;
+  const recorded = new Date();
+  await manager.update(LeaseContractEntity, { id }, {
+    status: end.status as LeaseContractEntity["status"], end_reason_id: end.reasonId, end_reason_note: end.note,
+    effective_end_date: end.effectiveEndDate, end_recorded_at: recorded,
+    end_recorded_by_user_id: end.recordedBy,
+    ...(end.status === "terminated" ? { terminated_at: recorded } : {}),
+  });
+  await manager.update(AgreementSignInviteEntity,
+    { agreement_id: id, used_at: IsNull(), revoked_at: IsNull() }, { revoked_at: recorded });
+  const remaining = manager.getRepository(LeaseContractEntity).createQueryBuilder("other")
+    .leftJoin("other.template", "template")
+    .where("other.lead_id = :leadId AND other.rent_room_id = :roomId AND other.id <> :id",
+      { leadId: c.lead_id, roomId: c.rent_room_id, id })
+    .andWhere("other.status NOT IN (:...ended)", { ended: ENDED })
+    .andWhere("template.form_kind IN ('lease', 'renewal')");
+  if (lead && !await remaining.getCount() && lead.rent_room_id === c.rent_room_id)
+    await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: recorded });
+  const sameOccupancy = await manager.getRepository(LeaseContractEntity).createQueryBuilder("other")
+    .where("other.room_tenancy_id = :tenancyId AND other.id <> :id", { tenancyId: c.room_tenancy_id, id })
+    .andWhere("other.status NOT IN (:...ended)", { ended: ENDED }).getCount();
+  if (!sameOccupancy) {
+    const moved = await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, tenant_id: c.tenant_id, rent_room_id: c.rent_room_id,
+      created_by_user_id: c.created_by_user_id }, { status: "moved_out",
+        move_out_date: () => `GREATEST(move_out_date, '${end.effectiveEndDate}'::date)` });
+    if (moved.affected !== 1)
+      throw new ConflictException("ข้อมูลการเข้าพักไม่ตรงกับสัญญา กรุณาตรวจสอบก่อนปิดสัญญา");
+  }
+}
+
+export type EndedLeaseInput = {
+  start: string;
+  end: string | null;
+  endsOn: { date?: unknown; reason?: unknown; recordedBy?: unknown } | null;
+  notRenewing: { recordedOn?: unknown; recordedBy?: unknown } | null;
+  /** A renewal of this lease is in force. */
+  renewed: boolean;
+  today: string;
+};
+export type EndedLeaseClosure = { status: "expired" | "terminated"; reasonCode: string; note: string | null; effectiveEndDate: string; recordedBy: number | null };
+
+const userId = (value: unknown) => (Number.isSafeInteger(value) && (value as number) > 0 ? (value as number) : null);
+
+/**
+ * H1/H2 (Aof 29 Oct 2026): which handed-over lease the daily close ends, and how. Only a stay that is really over:
+ * - ended early (D16), from the day after that date: terminated, "other termination" with the reason typed then;
+ * - recorded as not renewing (D15), from the day after its end (or after the record when made later, TC-8.11): expired;
+ * - renewed (the renewal in force), from the day after its end: expired.
+ * A lease past its end with none of these stays active: the room stays let and the agent decides (AC-8.7).
+ * An early end is not applied over a renewal in force (the agent closes it by hand).
+ */
+export function endedLeaseClosure(input: EndedLeaseInput): EndedLeaseClosure | null {
+  const { start, end, endsOn, notRenewing, today } = input;
+  const early = isIsoDate(endsOn?.date) ? (endsOn!.date as string) : null;
+  // A renewal in force means the stay goes on: an early end recorded before it is not applied by the job.
+  if (early && !input.renewed && early < today && early >= start && (!end || early < end)) {
+    const reason = typeof endsOn?.reason === "string" ? endsOn.reason.trim() : "";
+    return { status: "terminated", reasonCode: "other_termination", note: reason || "เลิกสัญญาก่อนกำหนด",
+      effectiveEndDate: early, recordedBy: userId(endsOn?.recordedBy) };
+  }
+  if (!end || end >= today) return null;
+  if (notRenewing) {
+    const recordedOn = isIsoDate(notRenewing.recordedOn) ? (notRenewing.recordedOn as string) : end;
+    if ((recordedOn > end ? recordedOn : end) >= today) return null;
+    return { status: "expired", reasonCode: "term_completed", note: null, effectiveEndDate: end, recordedBy: userId(notRenewing.recordedBy) };
+  }
+  if (input.renewed) return { status: "expired", reasonCode: "term_completed", note: null, effectiveEndDate: end, recordedBy: null };
+  return null;
+}
+
+/** The daily close of one lease (see endedLeaseClosure). Returns the status written, or null when it stays as it is. */
+export async function closeEndedLease(db: DataSource, id: number, today = bangkokToday()): Promise<string | null> {
+  const initial = await db.getRepository(LeaseContractEntity).findOneBy({ id, status: "active" });
+  if (!initial) return null;
+  return db.transaction(async manager => {
+    // Same lock order as closing by hand: lead, room, contract.
+    const lead = initial.lead_id != null
+      ? await manager.findOne(LeadEntity, { where: { id: initial.lead_id }, lock: { mode: "pessimistic_write" } }) : null;
+    await manager.findOne(RentRoomEntity, { where: { id: initial.rent_room_id }, lock: { mode: "pessimistic_write" } });
+    const c = await manager.findOne(LeaseContractEntity, { where: { id, status: "active" }, lock: { mode: "pessimistic_write" } });
+    if (!c || c.lead_id !== initial.lead_id || c.rent_room_id !== initial.rent_room_id) return null;
+    const template = await manager.findOneBy(AgreementTemplateEntity, { id: c.template_id });
+    if (!template || !["lease", "renewal"].includes(template.form_kind)) return null;
+    const renewed = await manager.getRepository(LeaseContractEntity).createQueryBuilder("next")
+      .where("next.previous_agreement_id = :id", { id })
+      .andWhere("next.status = 'active'").getCount();
+    const data = (c.data ?? {}) as { endsOn?: EndedLeaseInput["endsOn"]; notRenewing?: EndedLeaseInput["notRenewing"] };
+    const end = endedLeaseClosure({
+      start: asIsoDate(c.start_date), end: asIsoDate(c.end_date) || null,
+      endsOn: data.endsOn ?? null, notRenewing: data.notRenewing ?? null, renewed: renewed > 0, today,
+    });
+    if (!end) return null;
+    const reason = await manager.findOneBy(MasterContractEndReasonEntity, { code: end.reasonCode });
+    if (!reason) throw new Error(`end reason ${end.reasonCode} is missing`);
+    await finishLeaseClosure(manager, c, lead, {
+      status: end.status, reasonId: reason.id, note: end.note, effectiveEndDate: end.effectiveEndDate, recordedBy: end.recordedBy,
+    });
+    return end.status;
   });
 }

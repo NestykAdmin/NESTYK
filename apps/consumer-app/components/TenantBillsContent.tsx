@@ -170,7 +170,8 @@ export function TenantBillsContent({
       a.property.localeCompare(b.property, locale)
     );
   });
-  const listed = selectedRoom ? scoped : rows.filter((bill) => bill.leaseActive);
+  // H2 (Aof 29 Oct 2026): a bill still unpaid stays in the list after its lease has ended.
+  const listed = selectedRoom ? scoped : rows.filter((bill) => bill.leaseActive || bill.status !== "paid");
   const open = listed
     .filter((bill) => bill.status !== "paid")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.id - b.id);

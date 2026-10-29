@@ -8,11 +8,17 @@ export function hasRenewalSuccessor(rows: AgentContract[], id: number) {
 }
 
 /** Each independent lease chain has its own tail, including in the agent's combined list. */
+/** D15/D16: a stay recorded as not renewing or ending early is not renewed (Aof 29 Oct 2026). */
+export function isLeaving(row: AgentContract) {
+  const data = (row.data ?? {}) as { notRenewing?: unknown; endsOn?: unknown };
+  return !!data.notRenewing || !!data.endsOn;
+}
+
 export function renewalCandidates(rows: AgentContract[]) {
   return rows.filter((row) =>
     (row.formKind === "lease" || row.formKind === "renewal") &&
     (row.status === "active" || row.status === "expired") &&
-    !!row.endDate && !hasRenewalSuccessor(rows, row.id),
+    !!row.endDate && !hasRenewalSuccessor(rows, row.id) && !isLeaving(row),
   ).sort((a, b) => (a.endDate ?? "").localeCompare(b.endDate ?? "") || a.id - b.id);
 }
 
@@ -22,7 +28,7 @@ export function renewalOpensOn(endDate: string) {
 
 type RenewalCopy = {
   disabled: string; needsEndDate: string; needsActive: string;
-  alreadyRenewed: string; tooEarly: string;
+  alreadyRenewed: string; tooEarly: string; leaving: string;
 };
 
 function displayDate(iso: string) {
@@ -45,6 +51,8 @@ export function renewalClosedMessage(
   const stays = scope.filter((row) => row.formKind === "lease" || row.formKind === "renewal");
   if (stays.some((row) => ["active", "expired"].includes(row.status) && hasRenewalSuccessor(rows, row.id)))
     return copy.alreadyRenewed;
+  if (stays.some((row) => ["active", "expired"].includes(row.status) && !hasRenewalSuccessor(rows, row.id) && isLeaving(row)))
+    return copy.leaving;
   const stay = stays.find((row) => row.status !== "cancelled");
   if (!stay) return copy.disabled;
   return stay.endDate ? copy.needsActive : copy.needsEndDate;
