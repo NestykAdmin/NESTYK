@@ -15,11 +15,17 @@ import type { AppLanguage } from '../config/env';
 export const AGENT_TABS = ['dashboard', 'listingRoom', 'listingLead', 'clients', 'more'] as const;
 export type AgentTab = (typeof AGENT_TABS)[number];
 
-/** แท็บที่โหลดรายการจาก API ตอนเปิด (ภาพรวมกับเพิ่มเติมไม่เรียก API: index.tsx บรรทัด 767 ถึง 783 และ AgentMoreToolsBody.tsx) */
+/**
+ * แท็บที่ชุดเทสตรวจว่าโหลดรายการจาก API สำเร็จตอนเปิด
+ * แท็บเพิ่มเติมไม่เรียก API (AgentMoreToolsBody.tsx) ส่วนแท็บภาพรวม ตั้งแต่ develop f845ac6 เรียก GET /agent/dashboard
+ * (useAgentDashboard ใน apps/consumer-app/app/index.tsx บรรทัด 811-818 ที่ 9644dd9 ; ก่อน f845ac6 หน้านี้ใช้ข้อมูลจำลอง) ชุด session ที่ล็อกอินเป็น agent จึงเรียกเส้นทางนี้จริง
+ * ซึ่งอ่านอย่างเดียว (agent-dashboard.service.ts ที่ 9644dd9 ไม่มีคำสั่งเขียน) แต่ยังไม่อยู่ในรายการนี้
+ * เพราะยังไม่ได้เก็บข้อความตัวโหลดและข้อความโหลดไม่สำเร็จของหน้าภาพรวม (agent.dashboard.webOverview.loadFailed) ไว้ใน labels
+ */
 export const DATA_TABS = ['listingRoom', 'listingLead', 'clients'] as const;
 export type DataTab = (typeof DATA_TABS)[number];
 
-/** แท็บที่มีปุ่มลองใหม่เมื่อโหลดไม่สำเร็จ (หน้าผู้เช่าไม่มีปุ่มนี้: AgentTenantsScreen.tsx บรรทัด 643 ถึง 646) */
+/** แท็บที่มีปุ่มลองใหม่เมื่อโหลดไม่สำเร็จ (หน้าผู้เช่าไม่มีปุ่มนี้: AgentTenantsScreen.tsx บรรทัด 780 ถึง 784) */
 export const RETRY_TABS = ['listingRoom', 'listingLead'] as const;
 export type RetryTab = (typeof RETRY_TABS)[number];
 
@@ -45,8 +51,8 @@ export interface SessionLabels {
    * ข้อความตั้งต้นเมื่อโหลดรายการของแท็บไม่สำเร็จ
    * แอปแสดงข้อความ error ที่ได้รับแทนข้อความเหล่านี้ ถ้าข้อความนั้นเป็นภาษาเดียวกับแอป (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 28)
    * หน้าลีดแสดงข้อความตั้งต้นเป็นหัวข้อทุกครั้งที่มี error (AgentLeadsScreen.tsx บรรทัด 343 ถึง 360)
-   * หน้าห้องแสดงเป็นหัวข้อเมื่อยังไม่มีรายการ (packages/feature-listing/src/components/MobileAgentListingsBody.tsx บรรทัด 541 ถึง 553)
-   * ส่วนหน้าผู้เช่าแสดงแค่ข้อความ error ข้อความเดียว (AgentTenantsScreen.tsx บรรทัด 643 ถึง 646) ผลต่อข้อ 3 ของชุด session ดู README หัวข้อ "ชุด session"
+   * หน้าห้องแสดงเป็นหัวข้อเมื่อยังไม่มีรายการ (packages/feature-listing/src/components/MobileAgentListingsBody.tsx บรรทัด 553 ถึง 565)
+   * ส่วนหน้าผู้เช่าแสดงแค่ข้อความ error ข้อความเดียว (AgentTenantsScreen.tsx บรรทัด 780 ถึง 784) ผลต่อข้อ 3 ของชุด session ดู README หัวข้อ "ชุด session"
    */
   loadErrors: Record<DataTab, readonly string[]>;
   /** ชื่อปุ่มลองใหม่ที่แสดงคู่กับข้อความ error ของหน้าห้องและหน้าลีด ชื่อนี้ไม่เปลี่ยนตามข้อความของ error */
@@ -72,7 +78,7 @@ const th: SessionLabels = {
     listingLead: ['โหลดข้อมูลไม่สำเร็จ'], // agent.leads.loadError บรรทัด 831
     clients: [
       'โหลดผู้เช่าไม่สำเร็จ', // agent.tenants.list.loadError บรรทัด 612
-      'โหลดสลิปรอตรวจไม่สำเร็จ', // agent.tenants.list.slipsLoadError บรรทัด 614 (แสดงเมื่อโหลดสลิปไม่สำเร็จ: AgentTenantsScreen.tsx บรรทัด 217 ถึง 222)
+      'โหลดสลิปรอตรวจไม่สำเร็จ', // agent.tenants.list.slipsLoadError บรรทัด 614 (แสดงเมื่อโหลดสลิปไม่สำเร็จ: AgentTenantsScreen.tsx บรรทัด 229 ถึง 236)
     ],
   },
   retryButtons: {
@@ -113,7 +119,7 @@ const ALL: Record<AppLanguage, SessionLabels> = { th, en };
 
 /**
  * ข้อความ error ภาษาไทยของ API ที่หน้าผู้เช่าแสดงตรง ๆ ในรอบภาษาไทย (เป็นข้อความของ API ไม่ใช่ของแอป จึงไม่อยู่ใน th.ts)
- * หน้าผู้เช่าไม่มีหัวข้อหรือปุ่มลองใหม่ให้จับแทน (AgentTenantsScreen.tsx บรรทัด 643 ถึง 646) ข้อ 3 จึงต้องรู้จักตัวข้อความ
+ * หน้าผู้เช่าไม่มีหัวข้อหรือปุ่มลองใหม่ให้จับแทน (AgentTenantsScreen.tsx บรรทัด 780 ถึง 784) ข้อ 3 จึงต้องรู้จักตัวข้อความ
  * ในรอบภาษาอังกฤษ แอปแสดงข้อความตั้งต้นของแอปแทนข้อความเหล่านี้ (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 28)
  * ที่มา (apps/api/src ที่ commit feefcf2): หน้าผู้เช่าเรียก GET /agent/tenants ซึ่งขอ URL ของเอกสารสัญญาด้วยเมื่อมีสัญญาที่มีเอกสาร
  *   (agent/tenants/agent-tenants.service.ts บรรทัด 176 ถึง 182, agent/contracts/agent-contracts.service.ts บรรทัด 648 ถึง 653 และ 695 ถึง 699)
