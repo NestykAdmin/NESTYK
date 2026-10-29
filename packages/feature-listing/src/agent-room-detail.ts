@@ -9,6 +9,8 @@ export type AgentRoomDetail = {
   roomId: string | null;
   visibility: 'private' | 'published' | null;
   roomStatusCode: string | null;
+  /** D8: a soon-vacant room is free from this day (null otherwise). */
+  vacantFrom?: string | null;
   roomTypeCode: string | null;
   roomTypeId: number | null;
   listingSourceCode: string | null;

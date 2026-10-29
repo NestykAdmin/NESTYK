@@ -25,6 +25,7 @@ import { AgentContractsService } from "./agent-contracts.service";
 import { AgreementAttachmentsService } from "./agreement-attachments.service";
 import { MAX_CONTRACT_DOCUMENT_BYTES } from "./contract-document-storage.service";
 import { HandoverService } from "./handover.service";
+import { DepositSettlementService } from "./deposit-settlement";
 import { DealOffersService } from "./deal-offers.service";
 import { ContractRemindersService } from "../reminders/contract-reminders.service";
 
@@ -38,6 +39,7 @@ export class PartyContractsController {
     @Optional() private readonly handover?: HandoverService,
     @Optional() private readonly offers?: DealOffersService,
     @Optional() private readonly reminders?: ContractRemindersService,
+    @Optional() private readonly settlements?: DepositSettlementService,
   ) {}
   private handovers() {
     if (!this.handover) throw new ServiceUnavailableException("ยังไม่เปิดใช้การส่งมอบห้อง");
@@ -51,6 +53,34 @@ export class PartyContractsController {
     @Param("id", DatabaseIdPipe) id: number,
   ) {
     return this.handovers().partyView(user.id, id);
+  }
+
+  /** D16: the landlord and the tenant can read the deposit settlement, not change it. */
+  @Get("mine/:id/deposit-settlement")
+  depositView(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    if (!this.settlements) throw new ServiceUnavailableException("ยังไม่เปิดใช้การคืนเงินประกัน");
+    return this.settlements.partyView(user.id, id);
+  }
+
+  /** D16: the landlord and the tenant review the move-out annexes and sign their own side. */
+  @Get("mine/:id/handover/move-out")
+  moveOutView(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+  ) {
+    return this.handovers().partyView(user.id, id, "move_out");
+  }
+  @Post("mine/:id/handover/move-out/sign")
+  @HttpCode(HttpStatus.OK)
+  moveOutSign(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.handovers().partySign(user.id, id, body, "move_out");
   }
 
   @Post("mine/:id/handover/sign")
@@ -197,6 +227,29 @@ export class PartyContractsController {
     @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
   ) {
     return this.contracts.uploadDepositPaymentSlip(user.id, id, file);
+  }
+
+  /** D16: the tenant or landlord opens the early-ending collection invoice or the tenant's slip. */
+  @Get("mine/:id/early-end/:kind")
+  earlyEndFile(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Param("kind") kind: string,
+  ) {
+    return this.contracts.earlyEndFileUrl(user.id, id, kind, false);
+  }
+
+  @Post("mine/:id/early-end/payment-slip")
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor("file", {
+    limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 0 },
+  }))
+  earlyEndSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined,
+  ) {
+    return this.contracts.uploadEarlyEndSlip(user.id, id, file);
   }
 
   @Post("mine/:id/sign")

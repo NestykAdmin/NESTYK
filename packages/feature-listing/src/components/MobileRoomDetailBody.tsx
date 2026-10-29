@@ -11,6 +11,7 @@ import {
 import { NearbyPlacesMap } from './NearbyPlacesMap';
 import { HeroPhotoPager } from './HeroPhotoPager';
 import type { AgentRoomDetail } from '../agent-room-detail';
+import { roomStatusLabel } from '../room-status-label';
 import type { RoomShareVisibility } from '../share-completeness';
 import { DEFAULT_ROOM_SHARE_VISIBILITY } from '../share-completeness';
 import { initialPhotoLoad, photoLoadReducer } from './room-photo-load';
@@ -100,6 +101,9 @@ function statusTone(code: string | null) {
       fg: tokens.colors.subtle.successFg,
       dot: tokens.colors.success,
     };
+  }
+  if (code === 'booked') {
+    return { bg: tokens.colors.brand[50], fg: tokens.colors.brand[500], dot: tokens.colors.brand[500] };
   }
   if (code === 'rented') {
     return {
@@ -250,8 +254,8 @@ export function MobileRoomDetailBody({
     return [room.property.district, room.property.province].filter((v) => v && v !== '-').join(', ');
   }, [room.property]);
 
-  const statusLabel =
-    copy[room.roomStatusCode as keyof typeof copy] || room.roomStatusCode || copy.notSpecified;
+  // D8: the status from the deals, with the day a soon-vacant room is free.
+  const statusLabel = roomStatusLabel(copy, room.roomStatusCode, room.vacantFrom, locale);
   const statusColors = statusTone(room.roomStatusCode);
   const availableLabel = formatDisplayDate(room.availableFromDate, locale) || copy.notSpecified;
   const displayTitle =

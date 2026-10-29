@@ -63,7 +63,8 @@ function harness(contract, checklist = { requirements: [], documents: [], docume
     if (name === '../lib/tenant-detail') return { dateKey: () => '2026-10-14' };
     if (name === './ReservationPaymentCard') return { ReservationPaymentCard: (props) => { cards.reservation = props; return null; } };
     if (name === './DepositPaymentCard') return { DepositPaymentCard: (props) => { cards.deposit = props; return null; } };
-    if (name === './HandoverCard') return { HandoverCard: (props) => { cards.handover = props; return null; } };
+    if (name === './HandoverCard') return { HandoverCard: (props) => { if (props.kind !== 'move_out') cards.handover = props; return null; } };
+    if (name === './DepositSettlementCard') return { DepositSettlementCard: () => null };
     // D5: a cancelled deal's summary (tested in deal-cancellation-card.test.cjs).
     if (name === './DealCancellationCard') return { DealCancellationSummary: () => null };
     if (name === './TenantContractList') return { TenantContractAttachments: () => null };

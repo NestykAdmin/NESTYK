@@ -11,7 +11,12 @@ export function listMyContracts(): Promise<PartyContract[]> {
   return apiGet("/contracts/mine");
 }
 
-export type OwnedRoom = { property: string; room: string | null };
+export type OwnedRoom = {
+  property: string;
+  room: string | null;
+  /** D8: the room's deal status, the same reading the agent sees. */
+  dealStatus?: "available" | "booked" | "rented" | "soon_vacant" | "pending_verification" | "needs_edit" | null;
+};
 
 export function listMyOwnedRooms(): Promise<OwnedRoom[]> {
   return apiGet("/contracts/mine/rooms");
@@ -27,6 +32,15 @@ export function openMyFinancialDocument(id: number, kind: "invoice" | "receipt" 
 }
 
 /** D10: the tenant sends the slip for the deposit invoice of a generated lease. */
+export function openMyEarlyEndFile(id: number, kind: "invoice" | "slip"): Promise<{ url: string }> {
+  return apiGet(`/contracts/mine/${id}/early-end/${kind}`);
+}
+export function uploadMyEarlyEndSlip(
+  id: number,
+  file: { uri: string; name: string; mimeType: string; file?: File },
+): Promise<PartyContract> {
+  return uploadMyReservationPaymentSlip(id, file, "early-end/payment-slip");
+}
 export function uploadMyDepositPaymentSlip(
   id: number,
   file: { uri: string; name: string; mimeType: string; file?: File },
@@ -37,7 +51,7 @@ export function uploadMyDepositPaymentSlip(
 export async function uploadMyReservationPaymentSlip(
   id: number,
   file: { uri: string; name: string; mimeType: string; file?: File },
-  route: "payment-slip" | "deposit-payment-slip" = "payment-slip",
+  route: "payment-slip" | "deposit-payment-slip" | "early-end/payment-slip" = "payment-slip",
 ): Promise<PartyContract> {
   const form = new FormData();
   if (Platform.OS === "web")
@@ -107,13 +121,17 @@ export function signMyContract(
 }
 
 /** D6: the handover record of the lease; the landlord and the tenant review it, then sign their own side. */
-export function getMyHandover(id: number): Promise<import("@nestyk/types").HandoverRecord> {
-  return apiGet(`/contracts/mine/${id}/handover`);
+export function getMyDepositSettlement(id: number): Promise<import("@nestyk/types").DepositSettlementView> {
+  return apiGet(`/contracts/mine/${id}/deposit-settlement`);
+}
+export function getMyHandover(id: number, kind: "move_in" | "move_out" = "move_in"): Promise<import("@nestyk/types").HandoverRecord> {
+  return apiGet(kind === "move_out" ? `/contracts/mine/${id}/handover/move-out` : `/contracts/mine/${id}/handover`);
 }
 
 export function signMyHandover(
   id: number,
   body: import("@nestyk/types").SignHandover,
+  kind: "move_in" | "move_out" = "move_in",
 ): Promise<import("@nestyk/types").HandoverRecord> {
-  return apiPost(`/contracts/mine/${id}/handover/sign`, body);
+  return apiPost(kind === "move_out" ? `/contracts/mine/${id}/handover/move-out/sign` : `/contracts/mine/${id}/handover/sign`, body);
 }

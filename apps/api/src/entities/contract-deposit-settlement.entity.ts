@@ -7,7 +7,7 @@ export type DepositSettlementStatus = "draft" | "approved" | "completed";
 
 @Unique("contract_deposit_settlements_lease_contract_id_key", ["lease_contract_id"])
 @Check("chk_deposit_completion", "(((status)::text <> 'completed'::text) OR (refund_amount = (0)::numeric) OR (refunded_at IS NOT NULL))")
-@Check("chk_deposit_refund_proof", "((refunded_at IS NULL) OR (((status)::text <> 'draft'::text) AND (refund_amount > (0)::numeric) AND (NULLIF(btrim(refund_reference), ''::text) IS NOT NULL)))")
+@Check("chk_deposit_refund_proof", "((refunded_at IS NULL) OR (((status)::text <> 'draft'::text) AND (refund_amount > (0)::numeric) AND (NULLIF(btrim(refund_reference), ''::text) IS NOT NULL) AND (NULLIF(btrim(return_received_reference), ''::text) IS NOT NULL)))")
 @Check("chk_deposit_settlement_approval", "(((status)::text = 'draft'::text) OR ((approved_by_user_id IS NOT NULL) AND (approved_at IS NOT NULL) AND (NULLIF(btrim(decision_note), ''::text) IS NOT NULL)))")
 @Check("chk_deposit_settlement_balance", "(((status)::text = 'draft'::text) OR (available_deposit_amount = ((deduction_total + carried_forward_total) + refund_amount)))")
 @Check("contract_deposit_settlements_available_deposit_amount_check", "((available_deposit_amount >= (0)::numeric) AND (available_deposit_amount <> 'NaN'::numeric))")
@@ -41,4 +41,6 @@ export class ContractDepositSettlementEntity extends SerialTimestampEntity {
   @Column({ type: "timestamptz", nullable: true }) approved_at: Date | null;
   @Column({ type: "timestamptz", nullable: true }) refunded_at: Date | null;
   @Column({ type: "text", nullable: true }) refund_reference: string | null;
+  /** D16: the proof that the agent received the balance back from the landlord, stored with the transfer slip. */
+  @Column({ type: "text", nullable: true }) return_received_reference: string | null;
 }

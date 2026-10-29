@@ -26,6 +26,8 @@ import {
   openMyFinancialDocument,
   uploadMyReservationPaymentSlip,
   uploadMyDepositPaymentSlip,
+  openMyEarlyEndFile,
+  uploadMyEarlyEndSlip,
 } from "../lib/party-contracts-api";
 import {
   ContractSignaturePad,
@@ -38,6 +40,7 @@ import { DealCancellationSummary } from "./DealCancellationCard";
 import { dateKey } from "../lib/tenant-detail";
 import { DepositPaymentCard } from "./DepositPaymentCard";
 import { HandoverCard } from "./HandoverCard";
+import { DepositSettlementCard } from "./DepositSettlementCard";
 import { RejectedAttachmentsNotice } from "./RejectedAttachmentsNotice";
 import { rejectedAttachments } from "../lib/attachment-review";
 import { TenantContractAttachments } from "./TenantContractList";
@@ -118,7 +121,7 @@ export function PartyContractDetail({
   const [previewTitle, setPreviewTitle] = useState("");
   const [slipSourceOpen, setSlipSourceOpen] = useState(false);
   // D10: which payment the picked slip is for (the reservation fee, or the lease deposit).
-  const slipTarget = useRef<"reservation" | "deposit">("reservation");
+  const slipTarget = useRef<"reservation" | "deposit" | "early">("reservation");
   const [previewBusy, setPreviewBusy] = useState(false);
   const [signing, setSigning] = useState<ContractParty | null>(null);
   const [signPadKey, setSignPadKey] = useState(0);
@@ -128,6 +131,18 @@ export function PartyContractDetail({
   const body = { color: theme.textSecondary, fontFamily: tokens.typography.native.body };
   const card = { backgroundColor: theme.card, borderColor: theme.border };
   const mine = contract.myParties;
+  const collectInvoice = (contract.data as { endsOn?: { money?: { kind?: string; invoicePath?: string | null; slipPath?: string | null } } } | undefined)?.endsOn?.money;
+  const showCollect = collectInvoice?.kind === "collect" && !!collectInvoice.invoicePath;
+  async function openEarlyFile(kind: "invoice" | "slip") {
+    setError("");
+    try {
+      const { url } = await openMyEarlyEndFile(contract.id, kind);
+      setPreviewTitle(kind === "slip" ? t.tenant.bills.earlyEndSlip : t.tenant.bills.earlyEndInvoice);
+      setPreviewUrl(url);
+    } catch (e) {
+      setError(localizedError(e, pc.openDocumentFailed, locale));
+    }
+  }
   const ownRequirements = (attachments?.requirements ?? []).filter((row) =>
     mine.includes(row.subject as ContractParty),
   );
@@ -283,7 +298,9 @@ export function PartyContractDetail({
       setBusy(true);
       const updated = slipTarget.current === "deposit"
         ? await uploadMyDepositPaymentSlip(contract.id, file)
-        : await uploadMyReservationPaymentSlip(contract.id, file);
+        : slipTarget.current === "early"
+          ? await uploadMyEarlyEndSlip(contract.id, file)
+          : await uploadMyReservationPaymentSlip(contract.id, file);
       onUpdated(updated);
       setNotice(pc.slipSent);
     } catch (e) {
@@ -407,6 +424,21 @@ export function PartyContractDetail({
         />
       )}
 
+      {(contract.formKind === "lease" || contract.formKind === "renewal") && showCollect && collectInvoice ? (
+        <View style={[styles.card, card]}>
+          <Text style={[styles.copy, title]}>{t.tenant.bills.earlyEndInvoice}</Text>
+          <MobileButton variant="outline" onPress={() => void openEarlyFile("invoice")}>{t.tenant.bills.earlyEndInvoice}</MobileButton>
+          {mine.includes("tenant") && !collectInvoice.slipPath ? (
+            <MobileButton disabled={busy} onPress={() => { slipTarget.current = "early"; setSlipSourceOpen(true); }}>
+              {t.tenant.bills.earlyEndPay}
+            </MobileButton>
+          ) : null}
+          {collectInvoice.slipPath ? (
+            <MobileButton variant="outline" onPress={() => void openEarlyFile("slip")}>{t.tenant.bills.earlyEndSlip}</MobileButton>
+          ) : null}
+        </View>
+      ) : null}
+
       {contract.formKind === "lease" && (
         <DepositPaymentCard
           contract={contract}
@@ -424,6 +456,18 @@ export function PartyContractDetail({
           mode="party"
           refreshKey={`${contract.status}:${contract.depositPayment?.status ?? ""}:${reloadToken}`}
         />
+      )}
+      {(contract.formKind === "lease" || contract.formKind === "renewal") && (
+        <HandoverCard
+          key={`move-out:${contract.id}`}
+          contractId={contract.id}
+          mode="party"
+          kind="move_out"
+          refreshKey={`${contract.status}:${reloadToken}`}
+        />
+      )}
+      {(contract.formKind === "lease" || contract.formKind === "renewal") && (
+        <DepositSettlementCard key={`deposit:${contract.id}`} contractId={contract.id} mode="party" />
       )}
 
       {mode === "tenant" && contract.formKind === "lease" ? <TenantContractAttachments

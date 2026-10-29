@@ -51,6 +51,8 @@ export interface AgentContract {
   status: AgentContractStatus;
   startDate: string;
   endDate: string | null;
+  /** Days before the end when renewal is due. Null means 30 (AC-2.3, AC-7.6). */
+  renewalNoticeDays?: number | null;
   bookingDate: string | null;
   moveInDate: string | null;
   monthlyRent: number | null;
@@ -210,7 +212,7 @@ export interface HandoverDue {
  */
 export type ContractReminderKind =
   | "reservation_sign_late" | "lease_sign_late" | "deposit_unpaid" | "rent_overdue" | "rent_overdue_15" | "renewal_notice"
-  | "refund_late";
+  | "refund_late" | "early_end_refund_late" | "deposit_refund_late";
 export interface ContractReminder {
   kind: ContractReminderKind;
   contractId: number;
@@ -298,7 +300,7 @@ export type HandoverKind = "move_in" | "move_out";
 export type HandoverItemCondition = "good" | "damaged" | "missing";
 export type HandoverSignParty = "owner" | "tenant";
 /** Why the handover of a lease cannot be filled in yet. */
-export type HandoverBlockedReason = "not_lease" | "contract_ended" | "lease_not_issued" | "deposit_unpaid";
+export type HandoverBlockedReason = "not_lease" | "contract_ended" | "lease_not_issued" | "deposit_unpaid" | "not_leaving" | "has_successor";
 /** blocked: not open yet (see blockedReason) · not_started: open, nothing saved · in_progress: saved, not signed by both · completed: signed by both, locked. */
 export type HandoverStatus = "blocked" | "not_started" | "in_progress" | "completed";
 export interface HandoverItemInput {
@@ -306,6 +308,8 @@ export interface HandoverItemInput {
   quantity: number;
   condition: HandoverItemCondition;
   note?: string | null;
+  /** move_out only: the move-in item this row is compared with. */
+  moveInItemId?: number | null;
 }
 export interface HandoverItem extends HandoverItemInput {
   id: number;
@@ -352,6 +356,34 @@ export interface SignHandover {
   signaturePng: string;
   revision: number;
 }
+/** D16 (AC-8.4 to 8.6): why a deposit settlement cannot be opened yet. */
+export type DepositSettlementBlocked = "not_lease" | "contract_ended" | "not_leaving" | "has_successor" | "no_deposit";
+export type DepositDeductionType = "rent" | "utilities" | "damage" | "other";
+export interface DepositDeductionItemView {
+  id: number;
+  type: DepositDeductionType;
+  description: string;
+  amount: string;
+  evidenceUrl: string | null;
+}
+/**
+ * One settlement per lease. `not_started` has no row yet. Approving does not change the lease or the room.
+ * A positive refund is completed only after both proofs are stored, and only once.
+ */
+export interface DepositSettlementView {
+  contractId: number;
+  status: "blocked" | "not_started" | DepositSettlementStatus;
+  blockedReason: DepositSettlementBlocked | null;
+  depositReceived: string | null;
+  deductionTotal: string | null;
+  refundAmount: string | null;
+  decisionNote: string | null;
+  items: DepositDeductionItemView[];
+  returnReceivedUrl: string | null;
+  refundProofUrl: string | null;
+  refundedAt: string | null;
+}
+export type DepositSettlementStatus = "draft" | "approved" | "completed";
 export interface ContractCandidate {
   leadId: number;
   tenant: string;

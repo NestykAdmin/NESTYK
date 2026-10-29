@@ -83,67 +83,24 @@ test('active future renewal may be cancelled before start; an occupied lease can
  const f=fixture({contract:{formKind:'renewal',start_date:'2026-11-01',end_date:'2027-10-31'}});await f.close(body);assert.equal(f.state.contracts[0].status,'cancelled');
  await assert.rejects(()=>fixture().close(body),e=>e.getStatus()===400);
 });
-// D7 (Aof, 22 Oct 2026): a lease waiting for its deposit or handover can be closed (e.g. the tenant withdraws).
-test('D7: a lease waiting for its deposit or handover can be cancelled before it starts or terminated within its term',async()=>{
- const cancel={endReasonCode:'before_start_cancelled',effectiveEndDate:'2026-10-12',note:'Tenant withdrew'};
+// D5 + D8 (Aof, 27 Oct 2026, replacing D7 of 22 Oct): a lease not handed over yet is cancelled with its deal (who caused
+// it, evidence, the money: deal-cancellation.ts), so closing it here is refused and changes nothing.
+test('a lease waiting for its deposit or handover cannot be closed here: it is cancelled with its deal',async()=>{
+ const invoices=()=>[{id:9,lease_contract_id:20,invoice_kind:'deposit',receipt_pdf_path:null,payment_slip_path:'7/payment-slips/sent.jpg',voided_at:null}];
  for(const status of ['awaiting_deposit','awaiting_handover']){
-  const f=fixture({contract:{status,start_date:'2026-11-01',end_date:'2027-10-31'}});await f.close(cancel);assert.equal(f.state.contracts[0].status,'cancelled',status);
-  const t=fixture({contract:{status}});await t.close();assert.equal(t.state.contracts[0].status,'terminated',status);
+  for(const body of [{endReasonCode:'before_start_cancelled',effectiveEndDate:'2026-10-12',note:'Tenant withdrew'},undefined]){
+   const f=fixture({contract:{status,start_date:'2026-11-01',end_date:'2027-10-31'},invoices:invoices()});
+   await assert.rejects(()=>f.close(body),e=>e.getStatus()===400&&e.getResponse().code==='USE_DEAL_CANCELLATION',status);
+   assert.equal(f.updates.length,0,status);
+   assert.equal(f.state.contracts[0].status,status);
+   assert.equal(f.state.invoices[0].voided_at,null,'the deposit invoice is left to the deal cancellation');
+  }
  }
- // Still refused before the lease is generated.
  for(const status of ['awaiting_signatures','awaiting_agent_review']){const f=fixture({contract:{status}});await assert.rejects(()=>f.close(),e=>e.getStatus()===400,status);assert.equal(f.updates.length,0);}
-});
-test('D7: closing a lease that waits for its deposit cancels its unpaid deposit invoice in the same transaction',async()=>{
- // Aof, 22 Oct 2026: the deposit is due by the move-in day; a lease closed before it is paid leaves the tenant owing nothing.
- const cancel={endReasonCode:'before_start_cancelled',effectiveEndDate:'2026-10-12',note:'Tenant did not pay the deposit'};
- const invoices=()=>[
-  {id:9,lease_contract_id:20,invoice_kind:'deposit',receipt_pdf_path:null,payment_slip_path:'7/payment-slips/sent.jpg',voided_at:null},
-  {id:10,lease_contract_id:21,invoice_kind:'deposit',receipt_pdf_path:null,payment_slip_path:null,voided_at:null},
-  {id:11,lease_contract_id:20,invoice_kind:'general',receipt_pdf_path:null,payment_slip_path:null,voided_at:null},
- ];
- const f=fixture({contract:{status:'awaiting_deposit',start_date:'2026-11-01',end_date:'2027-10-31'},invoices:invoices()});
- await f.close(cancel);
- const [own,other,general]=f.state.invoices;
- assert.ok(own.voided_at instanceof Date);
- assert.equal(own.voided_at.getTime(),f.state.contracts[0].end_recorded_at.getTime(),'cancelled at the closure time');
- assert.equal(own.payment_slip_path,'7/payment-slips/sent.jpg','the slip the tenant sent stays');
- assert.equal(other.voided_at,null,'another lease is not touched');
- assert.equal(general.voided_at,null,'only the deposit invoice');
- const invoiceUpdates=f.updates.filter(u=>u.entity===Invoice);
- assert.equal(invoiceUpdates.length,1);
- assert.equal(invoiceUpdates[0].where.receipt_pdf_path.type,'isNull','never an invoice with a receipt');
- assert.equal(invoiceUpdates[0].where.voided_at.type,'isNull','a cancelled invoice keeps its first time');
- assert.ok(f.updates.findIndex(u=>u.entity===Contract)<f.updates.indexOf(invoiceUpdates[0]),'after the lease is closed');
- assert.equal(invoiceUpdates[0].where.receipt_document_no.type,'isNull','the same rule as the CHECK: no receipt number either');
- assert.equal(f.transactions(),1,'one transaction');
- // Terminated within the term (the start date passed and the deposit is still unpaid): the invoice is cancelled too.
- const late=fixture({contract:{status:'awaiting_deposit'},invoices:invoices()});
- await late.close();
- assert.equal(late.state.contracts[0].status,'terminated');
- assert.ok(late.state.invoices[0].voided_at instanceof Date);
- assert.equal(late.state.invoices[1].voided_at,null);
- // A receipted invoice or one cancelled before is left as it was.
- const done=new Date('2026-10-01T00:00:00Z');
- const kept=fixture({contract:{status:'awaiting_deposit'},invoices:[{...invoices()[0],receipt_pdf_path:'r.pdf',receipt_document_no:'REC-DEP-1'},{...invoices()[0],id:12,voided_at:done},{...invoices()[0],id:13,receipt_document_no:'REC-DEP-2'}]});
- await kept.close();
- assert.equal(kept.state.invoices[0].voided_at,null);
- assert.equal(kept.state.invoices[1].voided_at.getTime(),done.getTime());
- assert.equal(kept.state.invoices[2].voided_at,null,'a receipt number without a file is left too');
- // The deposit is paid once the lease waits for the handover; an active lease's deposit is a real debt.
- for(const status of ['awaiting_handover','active']){
-  const g=fixture({contract:{status},invoices:invoices()});await g.close();
-  assert.equal(g.updates.filter(u=>u.entity===Invoice).length,0,status);
-  assert.equal(g.state.invoices[0].voided_at,null,status);
- }
- // A closure that fails keeps the invoice open; repeating a finished closure changes nothing.
- const failed=fixture({contract:{status:'awaiting_deposit'},invoices:invoices(),failTenancy:true});
- await assert.rejects(()=>failed.close(),/tenancy save/);
- assert.ok(failed.allUpdates.some(u=>u.entity===Invoice),'the invoice was cancelled before the failure');
- assert.equal(failed.state.invoices[0].voided_at,null,'and the rollback undid it');
- assert.equal(failed.state.contracts[0].status,'awaiting_deposit');
- const again=fixture({contract:{status:'terminated',end_reason_id:2,effective_end_date:'2026-10-12',end_reason_note:'Tenant moving out'},invoices:invoices()});
- await again.close();
- assert.equal(again.updates.length,0);
+ // An active lease is still closed, and its deposit invoice (a real debt) is not touched.
+ const g=fixture({contract:{status:'active'},invoices:invoices()});await g.close();
+ assert.equal(g.state.contracts[0].status,'terminated');
+ assert.equal(g.updates.filter(u=>u.entity===Invoice).length,0);
 });
 test('a live successor prevents early termination but preserves the booking and shared occupancy when predecessor expires',async()=>{
  const successor={...base,id:21,formKind:'renewal',previous_agreement_id:20,status:'draft',start_date:'2026-10-14',end_date:'2027-10-13'};

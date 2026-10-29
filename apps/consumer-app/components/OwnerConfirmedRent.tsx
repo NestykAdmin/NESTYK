@@ -4,7 +4,7 @@ import { localizedError, useLocale } from "@nestyk/i18n";
 import { MobileBottomSheet, MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { TenantBill } from "@nestyk/types";
 import { billFormatters } from "../lib/bill-format";
-import { listReceivedBills, openReceivedBillSlip } from "../lib/tenant-bills-api";
+import { listReceivedBills, openReceivedBillSlip, openReceivedLateFee } from "../lib/tenant-bills-api";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 
 export function OwnerConfirmedRent({
@@ -43,6 +43,16 @@ export function OwnerConfirmedRent({
     };
   }, [reloadToken]);
 
+  async function viewLateFee(bill: TenantBill, kind: "invoice" | "receipt") {
+    setError("");
+    try {
+      const { url } = await openReceivedLateFee(bill.id, kind);
+      setPreview({ url, title: bill.lateFee?.documentNo ?? bill.documentNo });
+    } catch (e) {
+      setError(localizedError(e, copy.loadFailed, locale));
+    }
+  }
+
   async function viewSlip(bill: TenantBill) {
     setError("");
     try {
@@ -71,10 +81,26 @@ export function OwnerConfirmedRent({
             <Text style={[styles.caption, body]} numberOfLines={1}>
               {[bill.tenantName, bill.paidAt ? `${copy.paidAt} ${date(bill.paidAt)}` : ""].filter(Boolean).join(" · ")}
             </Text>
+            {bill.reservationCredit ? (
+              <Text style={[styles.caption, body]}>
+                {copy.reservationDeduction
+                  .replace("{rent}", amount(bill.reservationCredit.rent))
+                  .replace("{credit}", amount(bill.reservationCredit.credit))}
+              </Text>
+            ) : null}
+            {bill.lateFee ? (
+              <Text style={[styles.caption, body]}>{copy.lateFeeTitle} · {amount(bill.lateFee.amount)}</Text>
+            ) : null}
           </View>
           <Text style={[styles.copy, title]}>{amount(bill.amount)}</Text>
           {bill.hasPaymentSlip ? (
             <MobileButton variant="outline" onPress={() => void viewSlip(bill)}>{copy.viewSlip}</MobileButton>
+          ) : null}
+          {bill.lateFee ? (
+            <MobileButton variant="outline" onPress={() => void viewLateFee(bill, "invoice")}>{copy.lateFeeView}</MobileButton>
+          ) : null}
+          {bill.lateFee?.receiptIssued ? (
+            <MobileButton variant="outline" onPress={() => void viewLateFee(bill, "receipt")}>{copy.lateFeeReceipt}</MobileButton>
           ) : null}
         </View>
       ))}

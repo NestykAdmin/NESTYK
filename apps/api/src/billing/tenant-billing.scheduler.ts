@@ -13,6 +13,7 @@ export class TenantBillingScheduler {
   async issueDueBills() {
     try {
       await this.billing.ensureAllActive();
+      await this.billing.persistEndedLeases();
     } catch (error) {
       this.logger.error("Failed to issue rent bills", error instanceof Error ? error.stack : String(error));
     }

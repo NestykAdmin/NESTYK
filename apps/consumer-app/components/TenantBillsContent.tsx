@@ -99,6 +99,8 @@ export function TenantBillsContent({
   onUpload,
   onViewSlip,
   onSubmit,
+  onOpenLateFee,
+  onPayLateFee,
   roomHistory = false,
   selectedRoom = null,
   onSelectRoom,
@@ -112,6 +114,8 @@ export function TenantBillsContent({
   onUpload: (bill: TenantBill, source: "documents" | "photos") => void;
   onViewSlip: (bill: TenantBill) => void;
   onSubmit: (bill: TenantBill) => void;
+  onOpenLateFee: (bill: TenantBill, kind: "invoice" | "receipt" | "payment-slip") => void;
+  onPayLateFee: (bill: TenantBill, source: "documents" | "photos") => void;
   roomHistory?: boolean;
   selectedRoom?: { property: string; room: string | null } | null;
   onSelectRoom?: (room: { property: string; room: string | null }) => void;
@@ -125,6 +129,7 @@ export function TenantBillsContent({
   const [selected, setSelected] = useState<{
     id: number;
     payment: boolean;
+    lateFee: boolean;
   } | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<{
     billId: number;
@@ -200,14 +205,51 @@ export function TenantBillsContent({
   const muted = { color: theme.textSecondary };
   const surface = { backgroundColor: theme.surface, borderColor: theme.border };
 
-  function select(bill: TenantBill, payment = false) {
-    setSelected({ id: bill.id, payment });
+  function select(bill: TenantBill, payment = false, lateFee = false) {
+    setSelected({ id: bill.id, payment, lateFee });
   }
   function upload(source: "documents" | "photos") {
     if (!selectedBill || uploadingId != null) return;
     const bill = selectedBill;
+    const lateFee = selected?.lateFee === true;
     setSelected(null);
-    setTimeout(() => onUpload(bill, source), 400);
+    setTimeout(() => (lateFee ? onPayLateFee(bill, source) : onUpload(bill, source)), 400);
+  }
+  function lateFeeBox(bill: TenantBill) {
+    const fee = bill.lateFee;
+    if (!fee) return null;
+    return (
+      <View style={s.lateFee}>
+        <Text style={[s.caption, muted]}>{copy.lateFeeTitle}</Text>
+        <Text style={[s.body, ink]}>{format.amount(fee.amount)}</Text>
+        <Text style={[s.caption, muted]}>{fee.documentNo}</Text>
+        {fee.slipReturnReason ? (
+          <Text style={[s.caption, s.returned]}>
+            {copy.slipReturnedReason.replace("{reason}", fee.slipReturnReason)}
+          </Text>
+        ) : null}
+        <MobileButton variant="outline" onPress={() => onOpenLateFee(bill, "invoice")}>
+          {copy.lateFeeView}
+        </MobileButton>
+        {fee.receiptIssued ? (
+          <MobileButton variant="outline" onPress={() => onOpenLateFee(bill, "receipt")}>
+            {copy.lateFeeReceipt}
+          </MobileButton>
+        ) : (
+          <MobileButton
+            disabled={uploadingId != null}
+            onPress={() => select(bill, true, true)}
+          >
+            {fee.hasPaymentSlip ? copy.replaceSlip : copy.lateFeePay}
+          </MobileButton>
+        )}
+        {fee.hasPaymentSlip ? (
+          <MobileButton variant="outline" onPress={() => onOpenLateFee(bill, "payment-slip")}>
+            {copy.lateFeeSlip}
+          </MobileButton>
+        ) : null}
+      </View>
+    );
   }
   function viewSlip(bill: TenantBill) {
     setSelected(null);
@@ -227,6 +269,16 @@ export function TenantBillsContent({
         <Text style={[s.body, ink, s.flex]}>{label}</Text>
         <MobileIcon name="chevron-right" size={18} color={tokens.colors.divider} />
       </Pressable>
+    );
+  }
+  function deduction(bill: TenantBill) {
+    if (!bill.reservationCredit) return null;
+    return (
+      <Text style={[s.caption, muted]}>
+        {copy.reservationDeduction
+          .replace("{rent}", format.amount(bill.reservationCredit.rent))
+          .replace("{credit}", format.amount(bill.reservationCredit.credit))}
+      </Text>
     );
   }
   function askConfirm(bill: TenantBill) {
@@ -450,6 +502,8 @@ export function TenantBillsContent({
             >
               {format.amount(bill.amount)}
             </Text>
+            {deduction(bill)}
+            {lateFeeBox(bill)}
             <View style={[s.facts, { borderBottomColor: theme.border }]}>
               <View style={s.factDates}>
                 <View style={s.fact}>
@@ -572,6 +626,7 @@ export function TenantBillsContent({
                 ? `${copy.paidAt} ${format.date(bill.paidAt)}`
                 : bill.documentNo}
             </Text>
+            {deduction(bill)}
           </View>
           <View style={s.historyRight}>
             <Text style={[s.body, ink]}>{format.amount(bill.amount)}</Text>
@@ -594,7 +649,7 @@ export function TenantBillsContent({
           <ScrollView style={s.sheetScroll} contentContainerStyle={s.sheet}>
             <View style={s.header}>
               <Text style={[s.sheetTitle, ink, s.flex]}>
-                {selected?.payment ? copy.slipSourceTitle : labels.billDetails}
+                {selected?.lateFee ? copy.lateFeePay : selected?.payment ? copy.slipSourceTitle : labels.billDetails}
               </Text>
               <MobileButton variant="ghost" onPress={() => setSelected(null)}>
                 {copy.close}
@@ -623,6 +678,8 @@ export function TenantBillsContent({
             <Text style={[s.amount, ink]}>
               {format.amount(selectedBill.amount)}
             </Text>
+            {deduction(selectedBill)}
+            {lateFeeBox(selectedBill)}
             {!selected?.payment && (
               <>
                 <View style={s.row}>
@@ -848,6 +905,7 @@ const s = StyleSheet.create({
     lineHeight: 18,
   },
   returned: { color: tokens.colors.danger },
+  lateFee: { gap: 8 },
   thumb: {
     width: 96,
     height: 96,

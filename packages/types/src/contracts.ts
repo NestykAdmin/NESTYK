@@ -19,6 +19,27 @@ export interface RentalContract {
 
 export type TenantBillStatus = 'pending' | 'paid' | 'overdue';
 
+/** D12 (AC-7.2): the first bill of a new lease is the rent less the reservation receipt (never below 0). */
+export interface BillReservationCredit {
+  rent: number;
+  credit: number;
+}
+
+/** D12 (AC-7.8): the late fee invoice of one rent bill. The rent bill's own amount never includes it. */
+export interface BillLateFee {
+  invoiceId: number;
+  documentNo: string;
+  amount: number;
+  dueDate: string;
+  status: 'pending' | 'awaiting_review' | 'paid';
+  slipReturnReason: string | null;
+  hasPaymentSlip: boolean;
+  slipSubmitted: boolean;
+  /** Set when the tenant sent the current slip, so the agent returns that exact slip. */
+  slipSubmittedAt: string | null;
+  receiptIssued: boolean;
+}
+
 /** Monthly rent bill generated from an active lease agreement (rent only). */
 export interface TenantBill {
   id: number;
@@ -34,6 +55,14 @@ export interface TenantBill {
   dueDate: string;
   graceUntil: string;
   amount: number;
+  /** Set on the first bill of a new lease when the reservation was taken off it; null otherwise. */
+  reservationCredit: BillReservationCredit | null;
+  /** Days after the grace day, through the confirmation day or today. 0 until the grace day has passed. */
+  lateDays: number;
+  /** The contract's late fee per day, for display. The agent types the invoice amount. */
+  lateFeePerDay: number | null;
+  /** The late fee invoice of this bill, once the agent has issued one. */
+  lateFee: BillLateFee | null;
   status: TenantBillStatus;
   /** The lease that issued this bill is still the tenant's current stay. */
   leaseActive: boolean;

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { MobileBottomSheet, MobileButton, MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
-import type { HandoverRecord, HandoverSignParty } from "@nestyk/types";
+import type { HandoverKind, HandoverRecord, HandoverSignParty } from "@nestyk/types";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
 import {
@@ -33,6 +33,7 @@ type Mode = "agent" | "party";
 export function HandoverSummary({
   record,
   mode,
+  kind = "move_in",
   busy,
   onEdit,
   onAddPhoto,
@@ -41,6 +42,7 @@ export function HandoverSummary({
 }: {
   record: HandoverRecord;
   mode: Mode;
+  kind?: HandoverKind;
   busy: boolean;
   onEdit?: () => void;
   onAddPhoto?: () => void;
@@ -62,19 +64,19 @@ export function HandoverSummary({
   const date = (value: string) =>
     new Date(value.length === 10 ? `${value}T00:00:00` : value).toLocaleDateString(localeTag(locale), { day: "numeric", month: "short", year: "numeric" });
   const editable = mode === "agent" && handoverEditable(record);
-  const mine = mode === "agent" ? HANDOVER_SIGN_PARTIES : record.myParties ?? [];
+  const mine = mode === "agent" && kind !== "move_out" ? HANDOVER_SIGN_PARTIES : mode === "party" ? record.myParties ?? [] : [];
   const started = record.id != null;
   return (
     <View style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <Text style={{ ...heading, fontSize: 18, lineHeight: 27 }}>{hc.title}</Text>
+        <Text style={{ ...heading, fontSize: 18, lineHeight: 27 }}>{kind === "move_out" ? hc.moveOutTitle : hc.title}</Text>
         <View style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: badge.background }}>
           <Text accessibilityLabel={fillTemplate(hc.statusA11y, { status: hc.status[record.status] })} style={{ ...text, color: badge.color, fontSize: 13 }}>
             {hc.status[record.status]}
           </Text>
         </View>
       </View>
-      <Text style={text}>{hc.subtitle}</Text>
+      <Text style={text}>{kind === "move_out" ? hc.moveOutSubtitle : hc.subtitle}</Text>
       {record.blockedReason ? <Text style={text}>{hc.blocked[record.blockedReason]}</Text> : null}
       {!started && !record.blockedReason ? <Text style={text}>{mode === "agent" ? hc.notStarted : hc.partyNotStarted}</Text> : null}
       {started ? (
@@ -176,11 +178,13 @@ export function HandoverSummary({
 export function HandoverCard({
   contractId,
   mode,
+  kind = "move_in",
   refreshKey,
   defaultDate,
 }: {
   contractId: number;
   mode: Mode;
+  kind?: HandoverKind;
   /** Changes when the lease or its deposit changes, so a handover that just opened shows up. */
   refreshKey?: string;
   /** The date the form starts with before anything is saved (the lease start date). */
@@ -206,14 +210,14 @@ export function HandoverCard({
   const load = useCallback(async (clearError = false) => {
     setLoading(true);
     try {
-      setRecord(mode === "agent" ? await getHandover(contractId) : await getMyHandover(contractId));
+      setRecord(mode === "agent" ? await getHandover(contractId, kind) : await getMyHandover(contractId, kind));
       if (clearError) setError("");
     } catch (e) {
       setError(localizedError(e, hc.loadFailed, locale));
     } finally {
       setLoading(false);
     }
-  }, [contractId, mode, hc.loadFailed, locale]);
+  }, [contractId, mode, kind, hc.loadFailed, locale]);
 
   useEffect(() => {
     void load(true);
@@ -249,7 +253,7 @@ export function HandoverCard({
     const found = handoverFormIssues(draft);
     setIssues(found);
     if (!handoverFormValid(found)) return;
-    if (await run(() => saveHandover(contractId, handoverBody(draft, record.revision)), hc.saveFailed, hc.saved)) setDraft(null);
+    if (await run(() => saveHandover(contractId, handoverBody(draft, record.revision), kind), hc.saveFailed, hc.saved)) setDraft(null);
   }
 
   async function addPhoto() {
@@ -266,7 +270,7 @@ export function HandoverCard({
       const asset = result.assets[0];
       if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) throw new Error(hc.photoTooLarge);
       const file = { uri: asset.uri, name: asset.fileName || "room.jpg", mimeType: asset.mimeType || "image/jpeg", file: asset.file };
-      await run(() => uploadHandoverPhoto(contractId, file), hc.photoFailed);
+      await run(() => uploadHandoverPhoto(contractId, file, kind), hc.photoFailed);
     } catch (e) {
       setError(localizedError(e, hc.photoFailed, locale));
     }
@@ -276,7 +280,7 @@ export function HandoverCard({
     if (!signing || !record) return;
     const body = { party: signing, signaturePng: image, revision: record.revision };
     await run(
-      () => (mode === "agent" ? signHandoverOnSite(contractId, body) : signMyHandover(contractId, body)),
+      () => (mode === "agent" ? signHandoverOnSite(contractId, body) : signMyHandover(contractId, body, kind)),
       hc.signFailed,
       hc.signedNotice,
     );
@@ -287,6 +291,7 @@ export function HandoverCard({
 
   if (loading && !record) return <ActivityIndicator color={tokens.colors.brand[500]} />;
   if (!record) return error ? <Text accessibilityRole="alert" style={{ ...text, color: tokens.colors.danger }}>{error}</Text> : null;
+  if (kind === "move_out" && record.blockedReason === "not_leaving" && record.id == null) return null;
   const setItem = (index: number, patch: Partial<HandoverDraft["items"][number]>) =>
     setDraft((current) => current && { ...current, items: current.items.map((item, i) => (i === index ? { ...item, ...patch } : item)) });
   const formErrors = tc.handover.form.errors;
@@ -296,9 +301,10 @@ export function HandoverCard({
         record={record}
         mode={mode}
         busy={busy}
-        onEdit={mode === "agent" ? () => { setIssues({ items: {} }); setDraft(handoverDraft(record.id ? record : null, defaultDate)); } : undefined}
+        kind={kind}
+        onEdit={mode === "agent" ? () => { setIssues({ items: {} }); setDraft(handoverDraft(record, defaultDate)); } : undefined}
         onAddPhoto={mode === "agent" ? () => void addPhoto() : undefined}
-        onRemovePhoto={mode === "agent" ? (photoId) => void run(() => removeHandoverPhoto(contractId, photoId), hc.saveFailed) : undefined}
+        onRemovePhoto={mode === "agent" ? (photoId) => void run(() => removeHandoverPhoto(contractId, photoId, kind), hc.saveFailed) : undefined}
         onSign={(party) => { setError(""); setPadKey((key) => key + 1); setSigning(party); }}
       />
       {error ? <Text accessibilityRole="alert" style={{ ...text, color: tokens.colors.danger }}>{error}</Text> : null}

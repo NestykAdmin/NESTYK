@@ -88,9 +88,11 @@ export function TenantWorkBody({
           ? l.pillConfirm
           : l.pillSigning.replace("{signed}", String(item.signed)).replace("{required}", String(item.required))
         : item.kind === "renewal"
-          ? item.daysLeft === 0
-            ? l.pillRenewalToday
-            : l.pillRenewal.replace("{days}", String(item.daysLeft))
+          ? item.daysLeft < 0
+            ? l.pillRenewalLate
+            : item.daysLeft === 0
+              ? l.pillRenewalToday
+              : l.pillRenewal.replace("{days}", String(item.daysLeft))
           : l.tileOverdue;
 
   const meta = (item: TenantWorkItem) => {

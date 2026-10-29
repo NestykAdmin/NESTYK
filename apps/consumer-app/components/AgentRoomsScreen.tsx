@@ -36,7 +36,8 @@ import { localizedError, useLocale } from '@nestyk/i18n';
 import { fetchMyAgentListings } from '../lib/agent-listings-api';
 
 type VisibilityFilter = '' | 'private' | 'published';
-type StatusFilter = '' | 'available' | 'rented' | 'pending_verification' | 'needs_edit';
+// D8: the status from the deals (the API filters on it).
+type StatusFilter = '' | 'available' | 'booked' | 'rented' | 'soon_vacant' | 'pending_verification' | 'needs_edit';
 type SourceFilter = '' | 'owner' | 'co_agent';
 
 type RoomFilters = {
@@ -570,7 +571,9 @@ export function AgentRoomsScreen({
   const statusOptions = [
     { value: '', label: copy.filterAny },
     { value: 'available', label: copy.available },
+    { value: 'booked', label: copy.booked },
     { value: 'rented', label: copy.rented },
+    { value: 'soon_vacant', label: copy.soon_vacant },
     { value: 'pending_verification', label: copy.pending_verification },
     { value: 'needs_edit', label: copy.needs_edit },
   ];

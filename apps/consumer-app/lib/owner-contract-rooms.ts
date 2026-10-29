@@ -115,7 +115,11 @@ export function ownerTenantStayDates(
   return { moveIn, moveOut };
 }
 
-export type OwnedRoomRef = { property: string; room: string | null };
+export type OwnedRoomRef = {
+  property: string;
+  room: string | null;
+  dealStatus?: "available" | "booked" | "rented" | "soon_vacant" | "pending_verification" | "needs_edit" | null;
+};
 
 /** Same key the contract list uses to group a property and room number. */
 export function contractRoomKey(property: string, room: string | null) {
@@ -134,7 +138,7 @@ export function ownedRoomsMissingFrom<T extends { property: string; room: string
     const key = contractRoomKey(property, room.room);
     if (!property || seen.has(key)) continue;
     seen.add(key);
-    missing.push({ property, room: room.room });
+    missing.push(room.dealStatus ? { property, room: room.room, dealStatus: room.dealStatus } : { property, room: room.room });
   }
   return missing;
 }

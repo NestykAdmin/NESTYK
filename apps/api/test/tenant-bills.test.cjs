@@ -4,8 +4,8 @@ const fs = require('node:fs');
 const ts = require('typescript');
 require('reflect-metadata');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
-const { rentPeriodsUntil, parseDueDay, parseAdvanceMonths } = require('../src/billing/rent-schedule.ts');
-const { TenantBillingService, openRentBills, billDocumentNo, upcomingRentPeriod } = require('../src/billing/tenant-billing.service.ts');
+const { rentPeriodsUntil, parseDueDay, parseAdvanceMonths, renewalActiveOn } = require('../src/billing/rent-schedule.ts');
+const { TenantBillingService, openRentBills, billDocumentNo, upcomingRentPeriod, reservationCredits } = require('../src/billing/tenant-billing.service.ts');
 
 const dues = (input, until) => rentPeriodsUntil(input, until).map((p) => p.dueDate);
 
@@ -34,8 +34,8 @@ test('month-end anchors clamp to the last day of short months', () => {
   );
 });
 
-test('no bills are issued on or after the lease end date', () => {
-  assert.deepEqual(dues({ anchorDate: '2026-10-15', endDate: '2026-12-15' }, '2027-06-01'), ['2026-10-15', '2026-11-15']);
+test('a bill due on the lease end date is issued, and one due after it is not (AC-8.7)', () => {
+  assert.deepEqual(dues({ anchorDate: '2026-10-15', endDate: '2026-12-15' }, '2027-06-01'), ['2026-10-15', '2026-11-15', '2026-12-15']);
 });
 
 test('due day and advance months parsing', () => {
@@ -74,7 +74,8 @@ test('upcoming round is the first period not issued yet, with its payable window
   });
   assert.equal(upcomingRentPeriod(lease(), '2026-10-10').dueDate, '2026-11-15');
   assert.equal(upcomingRentPeriod(lease({ start_date: '2027-03-01', end_date: '2028-03-01' }), '2026-10-06').dueDate, '2027-04-01');
-  assert.equal(upcomingRentPeriod(lease(), '2026-12-11'), null);
+  assert.equal(upcomingRentPeriod(lease(), '2026-12-11').dueDate, '2027-01-15');
+  assert.equal(upcomingRentPeriod(lease(), '2027-01-10'), null);
   assert.equal(upcomingRentPeriod(lease({ end_date: null }), '2026-12-11').dueDate, '2027-01-15');
 });
 
@@ -110,6 +111,7 @@ function fixture(row, options = {}) {
     return qb.params.userId === row.tenant.user_id ? structuredClone(row) : null;
   };
   const repo = {
+    find: async () => [],
     createQueryBuilder: () => { qb.params = {}; return qb; },
     update: async (where, patch) => {
       if (options.beforeUpdate) await options.beforeUpdate(where, patch);
@@ -134,7 +136,7 @@ function fixture(row, options = {}) {
 const file = { buffer: Buffer.from([0xff, 0xd8, 0xff]), size: 3, originalname: 'slip.jpg' };
 
 test('tenant can replace a slip until they confirm, then only the agent can finish it', async () => {
-  const row = bill({ payment_slip_path: '7/payment-slips/old.jpg' });
+  const row = bill({ payment_slip_path: '7/payment-slips/old.jpg', grace_until: '2999-12-31' });
   const f = fixture(row);
   const view = await f.service.uploadPaymentSlip(8, 5, file);
   assert.equal(view.status, 'pending');
@@ -158,7 +160,7 @@ test('tenant can replace a slip until they confirm, then only the agent can fini
 });
 
 test('agent can return a submitted slip so the tenant uploads again', async () => {
-  const row = bill({ payment_slip_path: '7/payment-slips/bad.jpg', slip_submitted_at: new Date() });
+  const row = bill({ payment_slip_path: '7/payment-slips/bad.jpg', slip_submitted_at: new Date(), grace_until: '2999-12-31' });
   const f = fixture(row);
   await assert.rejects(() => f.service.returnForAgent(7, 5, { reason: '   ' }), (e) => e.getStatus() === 400);
   assert.deepEqual(f.removed, []);
@@ -273,4 +275,182 @@ test('billing activates only signed stays that have started, and preserves close
 
 test('legacy advances beyond the supported calendar yield no due bills instead of a date error', () => {
   assert.deepEqual(rentPeriodsUntil({ anchorDate: '2026-10-01', endDate: null, advanceMonths: 1e12 }, '2026-10-14'), []);
+});
+
+// D12 (AC-7.2): the sample lease of the AC/TC document, 1 Nov 2026 to 31 Oct 2027, rent 20,000 due on the 1st.
+const newLease = (patch = {}) => lease({
+  agreement_kind: 'new', lead_id: 11, rent_room_id: 21, start_date: '2026-11-01', end_date: '2027-10-31',
+  monthly_rent: '20000.00', data: { leaseAgreement: { rentDueDay: '1', graceDay: '5', advanceMonths: '1' } }, ...patch,
+});
+const firstBill = (c, today, credit) => openRentBills(c, today, credit).find((row) => row.period === '2026-11');
+
+test('the daily close writes terminated after an early end and expired after a natural end', async () => {
+  const rows = [
+    { id: 1, end_date: '2027-07-31', data: { endsOn: { date: '2027-01-15' } } },
+    { id: 2, end_date: '2026-10-31', data: {} },
+    { id: 3, end_date: '2027-12-31', data: { endsOn: { date: '2027-11-01' } } },
+  ];
+  const updates = [];
+  const qb = { leftJoin() { return this; }, where() { return this; }, andWhere() { return this; }, getMany: async () => rows };
+  const service = new TenantBillingService({
+    getRepository: () => ({ createQueryBuilder: () => qb, update: async (where, patch) => { updates.push({ where, patch }); return { affected: 1 }; } }),
+  });
+  assert.equal(await service.persistEndedLeases('2027-01-16'), 2);
+  assert.deepEqual(updates, [
+    { where: { id: 1, status: 'active' }, patch: { status: 'terminated' } },
+    { where: { id: 2, status: 'active' }, patch: { status: 'expired' } },
+  ]);
+});
+
+test('first month counts the days from move-in through the day before the due date (AC-7.1)', () => {
+  const c = newLease({
+    start_date: '2026-11-15',
+    data: { leaseAgreement: { rentDueDay: '1', graceDay: '5', advanceMonths: '0' } },
+  });
+  const [first] = openRentBills(c, '2026-11-15');
+  assert.equal(first.due_date, '2026-12-01');
+  assert.equal(first.amount, '10667.00');
+  assert.equal(first.status, 'pending');
+  const covered = openRentBills(c, '2026-11-15', 20000)[0];
+  assert.equal(covered.amount, '0.00');
+  assert.equal(covered.status, 'paid');
+});
+
+test('first bill of a new lease is the rent less the reservation, closed at once when it comes to 0 (TC-7.01)', () => {
+  const rows = openRentBills(newLease(), '2026-11-01', 20000);
+  assert.deepEqual(rows.map((row) => row.period), ['2026-11']);
+  assert.equal(rows[0].amount, '0.00');
+  assert.equal(rows[0].status, 'paid');
+  assert.ok(rows[0].paid_at instanceof Date);
+  assert.equal(rows[0].document_no, billDocumentNo(42, '2026-11'));
+  assert.deepEqual(openRentBills(newLease(), '2026-11-25', 20000).map((row) => row.period), ['2026-11']);
+  const dec = openRentBills(newLease(), '2026-11-26', 20000);
+  assert.deepEqual(dec.map((row) => [row.period, row.amount, row.status, row.issue_date]),
+    [['2026-11', '0.00', 'paid', '2026-10-27'], ['2026-12', '20000.00', 'pending', '2026-11-26']]);
+  assert.equal('paid_at' in dec[1], false);
+});
+
+test('first bill amounts: rent above, below or without a reservation receipt (AC-2.4, TC-7.13)', () => {
+  const above = firstBill(newLease({ monthly_rent: '21000.00' }), '2026-11-01', 20000);
+  assert.equal(above.amount, '1000.00'); assert.equal(above.status, 'pending'); assert.equal('paid_at' in above, false);
+  const below = firstBill(newLease({ monthly_rent: '19000.00' }), '2026-11-01', 20000);
+  assert.equal(below.amount, '0.00'); assert.equal(below.status, 'paid');
+  const none = firstBill(newLease(), '2026-11-01', null);
+  assert.equal(none.amount, '20000.00'); assert.equal(none.status, 'pending');
+});
+
+test('the first bill is issued as soon as the lease is in effect, even after its grace day', () => {
+  assert.equal(firstBill(newLease(), '2026-10-20', 20000).issue_date, '2026-10-20');
+  const late = openRentBills(newLease(), '2026-11-20', 20000);
+  assert.deepEqual(late.map((row) => [row.period, row.amount, row.status]), [['2026-11', '0.00', 'paid']]);
+});
+
+test('a renewal is not a new lease: no reservation is taken off and its schedule is unchanged', () => {
+  const renewal = newLease({ agreement_kind: 'renewal', data: { leaseAgreement: { rentDueDay: '1', advanceMonths: '0' } } });
+  const rows = openRentBills(renewal, '2026-11-01', 20000);
+  assert.deepEqual(rows.map((row) => [row.period, row.amount, row.status]), [['2026-11', '20000.00', 'pending']]);
+  assert.deepEqual(openRentBills(renewal, '2026-10-20', 20000), []);
+});
+
+test('an advance above one month still skips the periods after the first one', () => {
+  const c = newLease({ data: { leaseAgreement: { rentDueDay: '1', graceDay: '5', advanceMonths: '2' } } });
+  assert.deepEqual(openRentBills(c, '2027-01-01', 20000).map((row) => row.period), ['2026-11', '2027-01']);
+  assert.equal(upcomingRentPeriod(c, '2026-11-02').dueDate, '2027-01-01');
+});
+
+test('the first period of a new lease is never shown as the upcoming bill', () => {
+  assert.equal(upcomingRentPeriod(newLease(), '2026-10-20').dueDate, '2026-12-01');
+  assert.equal(upcomingRentPeriod(newLease(), '2026-11-26').dueDate, '2027-01-01');
+});
+
+test('the late badge follows the grace day of the contract (TC-7.02, TC-7.08)', () => {
+  const service = new TenantBillingService({});
+  for (const [graceDay, lastDay, lateDay] of [['5', '2026-12-05', '2026-12-06'], ['3', '2026-12-03', '2026-12-04']]) {
+    const c = newLease({ data: { leaseAgreement: { rentDueDay: '1', graceDay, advanceMonths: '1' } } });
+    const dec = openRentBills(c, '2026-12-01', 20000).find((row) => row.period === '2026-12');
+    assert.equal(dec.grace_until, lastDay);
+    const row = bill({ ...dec, lease_contract: c });
+    assert.equal(service.serialize(row, lastDay).status, 'pending');
+    assert.equal(service.serialize(row, lateDay).status, 'overdue');
+    assert.equal(service.serialize(row, lateDay).amount, 20000);
+  }
+});
+
+test('a signed renewal is in force on its start day, or the day after a late signing', () => {
+  assert.equal(renewalActiveOn('2027-11-01', '2027-10-29'), '2027-11-01');
+  assert.equal(renewalActiveOn('2027-11-01', '2027-11-01'), '2027-11-02');
+  assert.equal(renewalActiveOn('2027-11-01', '2027-11-10'), '2027-11-11');
+});
+
+test('a renewal signed after the normal issue day bills that period immediately (TC-8.10)', () => {
+  const c = lease({
+    agreement_kind: 'renewal', start_date: '2027-11-01', move_in_date: null, end_date: '2028-10-31', monthly_rent: '21000.00',
+    data: { leaseAgreement: { rentDueDay: '1', graceDay: '5', advanceMonths: '0' }, renewalSignedOn: '2027-10-29' },
+  });
+  assert.deepEqual(openRentBills(c, '2027-10-26'), []);
+  const rows = openRentBills(c, '2027-10-29');
+  assert.deepEqual(rows.map((row) => [row.period, row.due_date, row.amount]), [['2027-11', '2027-11-01', '21000.00']]);
+});
+
+test('a late renewal backfills missed periods onto the next due day (TC-8.08)', () => {
+  const form = { leaseAgreement: { rentDueDay: '1', graceDay: '5', advanceMonths: '0' } };
+  const base = { agreement_kind: 'renewal', start_date: '2027-11-01', move_in_date: null, end_date: '2028-10-31', monthly_rent: '20000.00' };
+  const november = openRentBills(lease({ ...base, data: { ...form, renewalSignedOn: '2027-11-10' } }), '2027-11-10');
+  assert.deepEqual(november.map((row) => [row.period, row.due_date, row.grace_until]), [['2027-11', '2027-12-01', '2027-12-05']]);
+  const both = openRentBills(lease({ ...base, data: { ...form, renewalSignedOn: '2027-12-02' } }), '2027-12-02');
+  assert.deepEqual(both.map((row) => [row.period, row.due_date]), [['2027-11', '2028-01-01'], ['2027-12', '2028-01-01']]);
+  const service = new TenantBillingService({});
+  const row = bill({ ...november[0], lease_contract: lease({ ...base, data: { ...form, renewalSignedOn: '2027-11-10' } }) });
+  assert.equal(service.serialize(row, '2027-12-05').status, 'pending');
+  assert.equal(service.serialize(row, '2027-12-06').status, 'overdue');
+});
+
+test('a reservation receipt without line items leaves the first bill at the full rent', async () => {
+  const db = { getRepository: () => ({ find: async () => [{ id: 30, created_by_user_id: 7, lead_id: 11, rent_room_id: 21,
+    status: 'active', receipt_url: '7/receipt.pdf', template: { form_kind: 'reservation' },
+    data: { financialDocuments: { invoice: {} } } }] }) };
+  assert.equal((await reservationCredits(db, [newLease()])).has(42), false);
+  assert.equal(firstBill(newLease(), '2026-11-01', null).amount, '20000.00');
+});
+
+test('only the first bill of a new lease shows the rent less the reservation', () => {
+  const service = new TenantBillingService({});
+  const credits = new Map([[42, 20000]]);
+  const nov = bill({ period: '2026-11', amount: '0.00', status: 'paid', lease_contract: newLease() });
+  assert.deepEqual(service.serialize(nov, '2026-11-01', credits).reservationCredit, { rent: 20000, credit: 20000 });
+  const dec = bill({ period: '2026-12', amount: '20000.00', lease_contract: newLease() });
+  assert.equal(service.serialize(dec, '2026-12-01', credits).reservationCredit, null);
+  const full = bill({ period: '2026-11', amount: '20000.00', lease_contract: newLease() });
+  assert.equal(service.serialize(full, '2026-11-01', credits).reservationCredit, null);
+  assert.equal(service.serialize(nov, '2026-11-01').reservationCredit, null);
+});
+
+test('billing reads the deal reservation receipt for the first bill and inserts idempotently (TC-S.07)', async () => {
+  const c = newLease({ room_tenancy_id: null });
+  const invoice = { items: [{ description: 'ค่าจอง', quantity: 1, unitPrice: 20000 }], discount: 0, vatRate: 0 };
+  const reservation = (patch) => ({ id: 30, created_by_user_id: 7, lead_id: 11, rent_room_id: 21, status: 'active',
+    receipt_url: '7/receipt.pdf', template: { form_kind: 'reservation' }, data: { financialDocuments: { invoice } }, ...patch });
+  const found = [reservation({ id: 29, status: 'cancelled' }), reservation(), reservation({ id: 31, receipt_url: null }),
+    reservation({ id: 32, lead_id: 99 }), { ...c, id: 42, template: { form_kind: 'lease' } }];
+  const inserted = [], ignored = [];
+  const manager = {
+    findOne: async (_, options) => (options.where.id === c.id ? c : null),
+    update: async () => undefined,
+    getRepository: () => ({ find: async () => found }),
+    createQueryBuilder: () => {
+      const qb = { insert: () => qb, into: () => qb };
+      qb.values = (rows) => { inserted.push(rows); return qb; };
+      qb.orIgnore = () => { ignored.push(true); return qb; };
+      qb.execute = async () => ({ raw: [] });
+      return qb;
+    },
+  };
+  const service = new TenantBillingService({ transaction: (fn) => fn(manager) });
+  await service.insertBills([c], '2026-11-01');
+  await service.insertBills([c], '2026-11-01');
+  assert.equal(ignored.length, 2);
+  for (const rows of inserted) {
+    assert.deepEqual(rows.map((row) => [row.period, row.document_no, row.amount, row.status]),
+      [['2026-11', billDocumentNo(42, '2026-11'), '0.00', 'paid']]);
+  }
 });

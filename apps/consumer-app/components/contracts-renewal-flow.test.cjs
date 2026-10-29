@@ -65,6 +65,7 @@ function harness(rows, options = {}) {
     // D2 round 2: the deal's confirmed offer on the contract (tested in deal-offer-section.test.cjs).
     './DealOfferSection':{DealOfferSection:'deal-offer-section'},
     './HandoverCard':{HandoverCard:'handover-card'},
+    './DepositSettlementCard':{DepositSettlementCard:'deposit-settlement'},
     './RejectedAttachmentsNotice':{RejectedAttachmentsNotice:'rejected-notice'},
   };
   for (const name of ['FinancialDocumentForm','CommissionConfirmationForm','AgreementAttachments','ContractDocumentPreview','ContractSignaturePad']) dependencies[`./${name}`]={[name]:()=>null};
