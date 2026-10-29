@@ -139,6 +139,7 @@ npm run db:check -w @nestyk/api -- --check
 
 ## Inventory ทุก route
 
+
 ทุกแถวผ่านการตรวจ route dispatch/guards ด้วย service จำลองตาม roles ที่ประกาศ Column DB แสดง HTTP status จากการเรียก GET จริงใน read-only mode ด้วย identity สังเคราะห์; “ไม่ได้รัน” หมายถึงไม่มีการทดสอบ route นั้นกับ DB จริงในรอบนี้ Column ID แสดงผลเมื่อส่ง 2147483648 และ column Query แสดง 500 ที่เกิดกับ duplicate query ผ่าน controller
 
 | Method | Path | Roles | DB GET | ID เกินขอบเขต | Query ซ้ำ |
