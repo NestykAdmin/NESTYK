@@ -112,6 +112,31 @@ test('workspace labels exist in all four central locales', () => {
   locale = 'en';
 });
 
+test('the agent account menu saves a profile and other roles do not get that editor', async () => {
+  state = [];
+  const saved = [];
+  const editor = {
+    userName: 'Ann Agent',
+    userPhone: '0800000000',
+    onSaveProfile: async (input) => { saved.push(input); },
+    onUploadAvatar: async () => 'https://cdn.example/a.jpg',
+    onRemoveAvatar: async () => {},
+  };
+  const open = render(props(editor));
+  const edit = open.find((node) => node?.type === 'button' && node.props.children === 'Edit Profile');
+  assert.ok(edit);
+  edit.props.onClick();
+  const formTree = render(props(editor));
+  formTree.find((node) => node?.type === 'input' && node.props.autoComplete === 'given-name').props.onChange({ target: { value: 'Anne' } });
+  const submitted = render(props(editor));
+  await submitted.find((node) => node?.type === 'form').props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, [{ firstName: 'Anne', lastName: 'Agent', phone: '0800000000' }]);
+
+  state = [];
+  const landlord = render(props({ activeRole: 'landlord', onSaveProfile: async () => {} }));
+  assert.equal(landlord.some((node) => node?.props?.children === 'Edit Profile'), false);
+});
+
 test('a custom sidebar replaces the agent menu and ignores disabled items', () => {
   locale = 'en';
   state = [];

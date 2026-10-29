@@ -1,9 +1,10 @@
 export type GoogleSession = { access_token: string; user: { id: string } };
+export type OAuthProvider = 'google' | 'facebook';
 
 type GoogleAuthClient = {
   auth: {
     signInWithOAuth(args: {
-      provider: 'google';
+      provider: OAuthProvider;
       options: { redirectTo: string; skipBrowserRedirect: boolean };
     }): Promise<{ data: { url: string | null } | null; error: { message: string } | null }>;
     exchangeCodeForSession(code: string): Promise<{ data: { session: GoogleSession | null }; error: { message: string } | null }>;
@@ -31,7 +32,7 @@ export function redirectParams(url: string): Record<string, string> {
 }
 
 /**
- * Starts Google sign-in. Web leaves the page and returns null. Native returns the session,
+ * Starts Google or Facebook sign-in. Web leaves the page and returns null. Native returns the session,
  * or null when the person closes the browser. No password is created.
  */
 export async function startGoogleOAuth(
@@ -39,28 +40,31 @@ export async function startGoogleOAuth(
   options: {
     platform: 'web' | 'native';
     redirectTo: string;
+    provider?: OAuthProvider;
     openAuthSession: (url: string, redirectTo: string) => Promise<{ type: string; url?: string }>;
   },
 ): Promise<GoogleSession | null> {
+  const provider = options.provider ?? 'google';
+  const label = provider === 'facebook' ? 'Facebook' : 'Google';
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    provider,
     options: { redirectTo: options.redirectTo, skipBrowserRedirect: options.platform !== 'web' },
   });
   if (error) throw new Error(error.message);
   if (options.platform === 'web') return null;
-  if (!data?.url) throw new Error('Google sign-in did not start');
+  if (!data?.url) throw new Error(`${label} sign-in did not start`);
   const result = await options.openAuthSession(data.url, options.redirectTo);
   if (result.type === 'cancel' || result.type === 'dismiss') return null;
-  if (result.type !== 'success' || !result.url) throw new Error('Google sign-in did not finish');
-  return sessionFromCallback(supabase, result.url);
+  if (result.type !== 'success' || !result.url) throw new Error(`${label} sign-in did not finish`);
+  return sessionFromCallback(supabase, result.url, label);
 }
 
-async function sessionFromCallback(supabase: GoogleAuthClient, url: string): Promise<GoogleSession> {
+async function sessionFromCallback(supabase: GoogleAuthClient, url: string, label: string): Promise<GoogleSession> {
   const params = redirectParams(url);
   if (params.error || params.error_description) throw new Error(params.error_description || params.error);
   if (params.code) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(params.code);
-    if (error || !data.session) throw new Error(error?.message ?? 'Google sign-in did not finish');
+    if (error || !data.session) throw new Error(error?.message ?? `${label} sign-in did not finish`);
     return data.session;
   }
   if (params.access_token && params.refresh_token) {
@@ -68,8 +72,8 @@ async function sessionFromCallback(supabase: GoogleAuthClient, url: string): Pro
       access_token: params.access_token,
       refresh_token: params.refresh_token,
     });
-    if (error || !data.session) throw new Error(error?.message ?? 'Google sign-in did not finish');
+    if (error || !data.session) throw new Error(error?.message ?? `${label} sign-in did not finish`);
     return data.session;
   }
-  throw new Error('Google sign-in did not finish');
+  throw new Error(`${label} sign-in did not finish`);
 }

@@ -273,6 +273,7 @@ export interface TranslationSchema {
       registerButton: string;
       registerOr: string;
       registerWithGoogle: string;
+      registerWithFacebook: string;
       backToLogin: string;
       emailConfirmationTitle: string;
       emailConfirmationBody: string;

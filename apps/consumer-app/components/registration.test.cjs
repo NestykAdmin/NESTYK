@@ -30,7 +30,7 @@ function nodes(element) {
   return [element, ...nodes(element.props.children)];
 }
 function screen({ result = { needsEmailConfirmation: true }, error, development = true } = {}) {
-  const state = [], calls = [], routes = [], google = [];
+  const state = [], calls = [], routes = [], google = [], facebook = [];
   let cursor = 0;
   const t = load(`${root}/packages/i18n/src/locales/en.ts`).en;
   const deps = {
@@ -48,7 +48,7 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
     '@nestyk/i18n': { useLocale: () => ({ t, locale: 'en' }), localizedError: (e, fallback) => e?.message ?? fallback },
     '@nestyk/ui/native': { MobileInput: 'Input', MobileButton: 'Button', MobileIcon: 'Icon', MobileNestykLogo: 'Logo', SelectionCheck: 'SelectionCheck',
       useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { primary: '#211e1e', brand: { 500: '#f8b615' }, error: '#dc2626' } } },
-    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, signInWithGoogle: async () => { google.push('google'); }, signUp: async (...args) => { calls.push(args); if (error) throw error; return result; } }) },
+    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, signInWithGoogle: async () => { google.push('google'); }, signInWithFacebook: async () => { facebook.push('facebook'); }, signUp: async (...args) => { calls.push(args); if (error) throw error; return result; } }) },
     '../assets/login-apartment.jpg': 1,
   };
   const file = path.join(__dirname, '../app/register.tsx');
@@ -64,7 +64,7 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
     assert.ok(button, 'registration submit exists');
     return button.props.onPress();
   };
-  return { render, fill, submit, calls, routes, google, copy: t.mobile.auth, labels: t.mobile.account };
+  return { render, fill, submit, calls, routes, google, facebook, copy: t.mobile.auth, labels: t.mobile.account };
 }
 function fillValid(form) {
   const password = randomBytes(12).toString('hex');
@@ -84,6 +84,12 @@ test('registration offers Google below an or divider', () => {
   assert.ok(tree.includes(form.copy.registerWithGoogle));
   google.props.onPress();
   assert.deepEqual(form.google, ['google']);
+  assert.equal(form.calls.length, 0);
+  const facebook = tree.find(n => n?.props?.accessibilityLabel === form.copy.registerWithFacebook);
+  assert.ok(facebook);
+  assert.ok(tree.indexOf(form.copy.registerWithGoogle) < tree.indexOf(form.copy.registerWithFacebook));
+  facebook.props.onPress();
+  assert.deepEqual(form.facebook, ['facebook']);
   assert.equal(form.calls.length, 0);
 });
 

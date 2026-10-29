@@ -15,6 +15,7 @@ import { UserRoleEntity } from '../entities/user-role.entity';
 import { AuthRequestUser } from './decorators/current-user.decorator';
 import { JwtIdentity } from './guards/auth.guard';
 import { devRegistrationEnabled } from './guards/dev-registration.guard';
+import { ProfileAvatarStorage } from './profile-avatar-storage.service';
 
 export type AuthUserResponse = {
   id: number;
@@ -45,6 +46,7 @@ export class AuthService {
     private readonly userRolesRepo: Repository<UserRoleEntity>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly avatars?: ProfileAvatarStorage,
   ) {}
 
   async registerForTesting(body: unknown): Promise<{ created: true }> {
@@ -210,6 +212,20 @@ export class AuthService {
 
   async updateAvatar(userId: number, avatarUrl: string): Promise<AuthUserResponse> {
     if (typeof avatarUrl !== 'string' || !avatarUrl.trim() || avatarUrl.length > 512) throw new BadRequestException('avatarUrl must be text up to 512 characters');
+    return this.storeAvatar(userId, avatarUrl.trim());
+  }
+
+  async uploadAvatar(userId: number, file: { buffer: Buffer; size: number } | undefined): Promise<AuthUserResponse> {
+    if (!this.avatars) throw new ServiceUnavailableException('Profile photo storage is not configured');
+    const avatarUrl = await this.avatars.upload(userId, file);
+    return this.storeAvatar(userId, avatarUrl);
+  }
+
+  async clearAvatar(userId: number): Promise<AuthUserResponse> {
+    return this.storeAvatar(userId, null);
+  }
+
+  private async storeAvatar(userId: number, avatarUrl: string | null): Promise<AuthUserResponse> {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     user.avatar_url = avatarUrl;

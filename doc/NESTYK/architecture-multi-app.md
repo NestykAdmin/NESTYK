@@ -10,6 +10,8 @@
 ระบบออกแบบตามหลักการ **Modular Monolith (พร้อมแยก App ได้ตลอดเวลา)** รองรับการทำงานแบบ **Cross-Platform Marketplace (มีทั้ง Web และ Mobile App)** เพื่อตอบโจทย์ SEO ความเร็ว และ Native Experience สูงสุด โดยเชื่อมต่อกับ **Unified Backend API**:
 
 ```
+
+
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                              Unified Backend (apps/api)                                │
 │                         NestJS + PostgreSQL (Supabase) + TypeORM                       │

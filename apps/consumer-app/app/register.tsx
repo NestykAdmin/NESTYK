@@ -8,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
-import { MobileButton, MobileInput, MobileNestykLogo, SelectionCheck, tokens, useMobileTheme } from '@nestyk/ui/native';
+import { MobileButton, MobileIcon, MobileInput, MobileNestykLogo, SelectionCheck, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
 
 function GoogleMark() {
@@ -26,7 +26,7 @@ export default function RegisterScreen() {
   const { t, locale } = useLocale();
   const copy = t.mobile.auth;
   const { theme } = useMobileTheme();
-  const { signUp, signInWithGoogle, isAuthenticated } = useAuth();
+  const { signUp, signInWithGoogle, signInWithFacebook, isAuthenticated } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [firstName, setFirstName] = useState('');
@@ -186,6 +186,24 @@ export default function RegisterScreen() {
                   >
                     <GoogleMark />
                     <Text style={[styles.googleLabel, { color: theme.textHeading }]}>{copy.registerWithGoogle}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={copy.registerWithFacebook}
+                    disabled={loading}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (loading) return;
+                      setError(null);
+                      setLoading(true);
+                      void signInWithFacebook()
+                        .catch((e) => setError(localizedError(e, copy.registrationFailed, locale)))
+                        .finally(() => setLoading(false));
+                    }}
+                    style={[styles.googleButton, { borderColor: theme.border, backgroundColor: theme.background }]}
+                  >
+                    <MobileIcon name="facebook" size={22} color="#1877F2" weight="fill" />
+                    <Text style={[styles.googleLabel, { color: theme.textHeading }]}>{copy.registerWithFacebook}</Text>
                   </TouchableOpacity>
                 </>
               ) : null}

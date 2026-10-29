@@ -67,7 +67,7 @@ export default function LoginScreen() {
   const { theme, isDark } = useMobileTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signIn, signInWithGoogle, isAuthenticated, sessionExpired, dismissSessionExpired } = useAuth();
+  const { signIn, signInWithGoogle, signInWithFacebook, isAuthenticated, sessionExpired, dismissSessionExpired } = useAuth();
 
   const [email, setEmail] = useState(
     DEV_AUTH_CONFIG.enabled ? DEV_AUTH_CONFIG.email : "",
@@ -378,7 +378,8 @@ export default function LoginScreen() {
                     ]}
                     disabled={loading}
                     onPress={() => {
-                      if (provider !== "Google") {
+                      const start = provider === "Google" ? signInWithGoogle : provider === "Facebook" ? signInWithFacebook : null;
+                      if (!start) {
                         setNotice(copy.unavailable);
                         return;
                       }
@@ -386,7 +387,7 @@ export default function LoginScreen() {
                       setError(null);
                       setNotice(null);
                       setLoading(true);
-                      void signInWithGoogle()
+                      void start()
                         .catch((e) => setError(localizedError(e, t.common.errorGeneric, locale)))
                         .finally(() => setLoading(false));
                     }}

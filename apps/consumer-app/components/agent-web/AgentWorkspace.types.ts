@@ -36,6 +36,11 @@ export interface AgentWorkspaceProps {
   onSignOut: () => void;
   userName: string;
   userEmail: string;
+  userPhone?: string;
+  avatarUrl?: string | null;
+  onSaveProfile?: (input: { firstName: string; lastName: string; phone: string | null }) => Promise<void>;
+  onUploadAvatar?: (photo: { uri: string; name: string; mimeType: string; file?: Blob }) => Promise<string>;
+  onRemoveAvatar?: () => Promise<void>;
   initials: string;
   notificationCount: number;
   notificationsOpen: boolean;

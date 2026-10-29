@@ -78,6 +78,7 @@ import {
 } from '@nestyk/feature-listing';
 import { MobileServiceCatalogBody } from '@nestyk/feature-services';
 import { createAgentScoutRoom, fetchAgentContacts, fetchAgentPropertyTypes, fetchAgentContractTypes, fetchAgentRoomTypes, fetchAgentFacilities, generateListingPromo } from '../lib/agent-listings-api';
+import { clearProfileAvatar, updateMyProfile, uploadProfileAvatar } from '../lib/profile-api';
 import { pickRoomPhotos, uploadRoomPhoto, enhanceRoomPhoto } from '../lib/room-photos';
 import { searchPlaces, getPlaceDetails, searchNearbyPlaces, reverseMapLocation } from '../lib/places-api';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -152,7 +153,7 @@ export default function AppHomeScreen() {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const router = useRouter();
-  const { ready, isAuthenticated, session, displayName, initials, signOut } = useAuth();
+  const { ready, isAuthenticated, session, displayName, initials, signOut, refreshProfile } = useAuth();
   const [activeRole, setActiveRole] = useState<UserRole>(APP_CONFIG.defaultRole);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => calendarDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => calendarDateKey(new Date()).slice(0, 7) + '-01');
@@ -1364,6 +1365,19 @@ export default function AppHomeScreen() {
   const profileEmail = isAuthenticated ? session!.email : t.common.signIn;
   const profilePhone = isAuthenticated ? session?.phone ?? undefined : undefined;
   const profileInitials = isAuthenticated ? initials : '?';
+  const saveProfile = async (input: { firstName: string; lastName: string; phone: string | null }) => {
+    await updateMyProfile(input);
+    await refreshProfile();
+  };
+  const uploadAvatar = async (photo: Parameters<typeof uploadProfileAvatar>[0]) => {
+    const url = await uploadProfileAvatar(photo);
+    await refreshProfile();
+    return url;
+  };
+  const removeAvatar = async () => {
+    await clearProfileAvatar();
+    await refreshProfile();
+  };
 
   const handleAuthAction = async () => {
     setDrawerOpen(false);
@@ -1469,6 +1483,11 @@ export default function AppHomeScreen() {
         onSignOut={handleAuthAction}
         userName={profileName}
         userEmail={profileEmail}
+        userPhone={profilePhone}
+        avatarUrl={isAuthenticated ? session?.avatarUrl : null}
+        onSaveProfile={saveProfile}
+        onUploadAvatar={uploadAvatar}
+        onRemoveAvatar={removeAvatar}
         initials={profileInitials}
         notificationCount={unreadCount}
         notificationsOpen={notificationsOpen}
@@ -1676,6 +1695,10 @@ export default function AppHomeScreen() {
         userName={profileName}
         userEmail={profileEmail}
         userPhone={profilePhone}
+        avatarUri={isAuthenticated ? session?.avatarUrl : null}
+        onSaveProfile={saveProfile}
+        onUploadAvatar={uploadAvatar}
+        onRemoveAvatar={removeAvatar}
         initials={profileInitials}
         activeRole={activeRole}
         isAuthenticated={isAuthenticated}

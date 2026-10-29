@@ -11,7 +11,7 @@ import { apiPost, setSessionExpiredHandler } from '../api';
 import { DEV_AUTH_CONFIG, toDevAccessToken } from './dev-auth';
 import { createSessionExpiry, restoreSession } from './session-expiry';
 import { providerRedirectPending } from './google-oauth';
-import { signInWithGoogle as startGoogleSignIn } from './google-sign-in';
+import { signInWithFacebook as startFacebookSignIn, signInWithGoogle as startGoogleSignIn } from './google-sign-in';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 import {
   clearAuthSession,
@@ -42,6 +42,7 @@ type AuthContextValue = {
   initials: string;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
   signUp: (email: string, password: string, firstName: string, lastName: string, forTesting?: boolean) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -232,24 +233,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [applySession],
   );
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithOAuth = useCallback(async (start: typeof startGoogleSignIn) => {
     const supabase = getSupabaseClient();
     if (!supabase || !isSupabaseConfigured()) {
       throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
     }
-    const googleSession = await startGoogleSignIn(supabase);
-    if (!googleSession) return;
+    const oauthSession = await start(supabase);
+    if (!oauthSession) return;
     try {
-      let profile = await syncProfile(googleSession.access_token);
-      const granted = await ensureAdminRole(googleSession.access_token, profile.roles);
+      let profile = await syncProfile(oauthSession.access_token);
+      const granted = await ensureAdminRole(oauthSession.access_token, profile.roles);
       if (granted) profile = granted;
-      await applySession(sessionFromSync('supabase', googleSession.access_token, googleSession.user.id, profile));
+      await applySession(sessionFromSync('supabase', oauthSession.access_token, oauthSession.user.id, profile));
     } catch (syncError) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       throw syncError;
     }
     setSessionExpired(false);
   }, [applySession]);
+
+  const signInWithGoogle = useCallback(() => signInWithOAuth(startGoogleSignIn), [signInWithOAuth]);
+  const signInWithFacebook = useCallback(() => signInWithOAuth(startFacebookSignIn), [signInWithOAuth]);
 
   const signOut = useCallback(async () => {
     // A request failing while signing out must not show "session expired".
@@ -325,13 +329,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       initials: session ? initialsFromName(firstName, lastName, email) : '?',
       signIn,
       signInWithGoogle,
+      signInWithFacebook,
       signUp,
       signOut,
       refreshProfile,
       sessionExpired,
       dismissSessionExpired,
     };
-  }, [ready, session, signIn, signInWithGoogle, signUp, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
+  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

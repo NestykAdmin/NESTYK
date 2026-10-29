@@ -38,6 +38,24 @@ test('web Google sign-in redirects without opening a second browser or creating 
   assert.equal(calls[0].options.password, undefined);
 });
 
+test('Facebook sign-in asks Supabase for the facebook provider and stores no password', async () => {
+  const calls = [];
+  const supabase = { auth: {
+    signInWithOAuth: async (args) => { calls.push(args); return { data: { url: 'https://www.facebook.com' }, error: null }; },
+  } };
+  const session = await startGoogleOAuth(supabase, {
+    platform: 'web',
+    redirectTo: 'http://localhost:8081',
+    provider: 'facebook',
+    openAuthSession: async () => { throw new Error('web should not open a browser'); },
+  });
+  assert.equal(session, null);
+  assert.equal(calls[0].provider, 'facebook');
+  assert.equal(calls[0].options.redirectTo, 'http://localhost:8081');
+  assert.equal(calls[0].options.skipBrowserRedirect, false);
+  assert.equal(calls[0].options.password, undefined);
+});
+
 test('native Google sign-in exchanges the code and stores no password', async () => {
   const calls = [];
   const supabase = { auth: {

@@ -109,7 +109,7 @@ test('Google sign-up receives the self-registration roles and stores no password
   assert.deepEqual(counts(), [1, 5]);
 
   user.app_metadata = { provider: 'facebook' };
-  assert.equal((await guard.resolveIdentity(randomBytes(24).toString('hex'))).selfRegistered, false);
+  assert.equal((await guard.resolveIdentity(randomBytes(24).toString('hex'))).selfRegistered, true);
   delete user.app_metadata;
   user.user_metadata.provider = 'google';
   assert.equal((await guard.resolveIdentity(randomBytes(24).toString('hex'))).selfRegistered, false);

@@ -305,6 +305,128 @@
   font-size: 12px;
   font-family: "NotoSansThai_600SemiBold", sans-serif;
 }
+.aw-avatar-photo {
+  object-fit: cover;
+}
+.aw-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.aw-profile-form label {
+  line-height: 18px;
+}
+.aw-profile-form input:not(.aw-photo-file) {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--aw-border);
+  border-radius: 6px;
+  color: var(--aw-ink);
+  background: var(--aw-bg);
+  font-size: 13px;
+  line-height: 20px;
+}
+.aw-photo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+.aw-photo-hit {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.aw-photo-hit:focus-within {
+  outline: 2px solid #f8b615;
+  outline-offset: 3px;
+}
+.aw-photo-face {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: #fff0c4;
+  color: #211e1e;
+  border: 2px solid #f8b615;
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: 20px;
+  line-height: 30px;
+}
+.aw-photo-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f8b615;
+  border: 2px solid var(--aw-surface);
+  display: grid;
+  place-items: center;
+}
+.aw-photo-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+.aw-photo-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.aw-photo-title {
+  color: var(--aw-ink);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 600;
+}
+.aw-photo-hint {
+  color: var(--aw-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.aw-photo-remove {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+.aw-photo-remove:hover {
+  color: #dc2626;
+}
+.aw-photo-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+.aw-profile-error {
+  margin: 0;
+  color: #c13c35;
+  font-size: 12px;
+  line-height: 18px;
+}
 .aw-account-name {
   display: flex;
   flex-direction: column;
