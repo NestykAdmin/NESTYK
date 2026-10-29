@@ -143,9 +143,19 @@ export function offerTerms(o: DealOfferRow): DealOfferTerms {
 
 /**
  * AC-2.5: a room still let (its lease or renewal not ended, or ended later than the new start) takes an offer only
- * when the new lease starts after the current one ends: its end date, or the date it ended early. The deal's own
- * leases and drafts do not count.
+ * when the new lease starts after the current one ends: its end date, or the date it ended early (recorded ahead too,
+ * Aof 29 Oct 2026). Recorded as not renewing after its end, the new lease starts after the day of that record
+ * (AC-8.7, TC-8.11). The deal's own leases and drafts do not count.
  */
+export function roomLeaseLastDay(c: Pick<LeaseContractEntity, "effective_end_date" | "end_date" | "data">): string | null {
+  const data = (c.data ?? {}) as { endsOn?: { date?: unknown }; notRenewing?: { recordedOn?: unknown } };
+  const end = asIsoDate(c.end_date) || null;
+  const early = typeof data.endsOn?.date === "string" && asIsoDate(data.endsOn.date) ? asIsoDate(data.endsOn.date) : null;
+  const base = asIsoDate(c.effective_end_date) || (early && (!end || early < end) ? early : end);
+  const recordedOn = typeof data.notRenewing?.recordedOn === "string" ? asIsoDate(data.notRenewing.recordedOn) || null : null;
+  return !early && base && recordedOn && recordedOn > base ? recordedOn : base;
+}
+
 export async function assertStartAfterRoomLease(db: DataSource | EntityManager, roomId: number, leadId: number, startDate: string) {
   const rows = await db.getRepository(LeaseContractEntity).find({
     where: { rent_room_id: roomId }, relations: { template: true, agreement_type: true },
@@ -153,7 +163,7 @@ export async function assertStartAfterRoomLease(db: DataSource | EntityManager, 
   const ends = rows
     .filter((c) => c.lead_id !== leadId && !["cancelled", "draft"].includes(c.status) &&
       ["lease", "renewal"].includes(formKindOf(c) ?? ""))
-    .map((c) => asIsoDate(c.effective_end_date) || asIsoDate(c.end_date))
+    .map((c) => roomLeaseLastDay(c))
     .filter((end): end is string => Boolean(end))
     .sort();
   const last = ends[ends.length - 1];

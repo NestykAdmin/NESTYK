@@ -601,6 +601,21 @@ test('AC-2.5: a room still let takes an offer only for a lease starting after th
     if (ok) await attempt; else await assert.rejects(() => attempt, (e) => refused(e) || (e.getResponse().message.includes('2028-10-31')), label);
     assert.equal(h.state.offers.length, ok ? 1 : 0, label);
   }
+  // Aof 29 Oct 2026: an early end recorded ahead counts already; "not renewing" recorded after the end moves the day (TC-8.11).
+  const more = [
+    [[other({ data: { endsOn: { date: '2027-01-15', reason: 'x' } } })], '2027-01-15', false],
+    [[other({ data: { endsOn: { date: '2027-01-15', reason: 'x' } } })], '2027-01-16', true],
+    [[other({ status: 'expired', effective_end_date: '2027-10-31', data: { undecided: {}, notRenewing: { recordedOn: '2027-11-05' } } })], '2027-11-05', false],
+    [[other({ status: 'expired', effective_end_date: '2027-10-31', data: { undecided: {}, notRenewing: { recordedOn: '2027-11-05' } } })], '2027-11-06', true],
+    [[other({ data: { notRenewing: { recordedOn: '2027-09-01' } } })], '2027-11-01', true],
+  ];
+  for (const [rows, startDate, ok] of more) {
+    const h = harness();
+    h.state.contracts.push(...rows);
+    const attempt = create(h, { startDate, contractDate: '2026-10-25' });
+    if (ok) await attempt;
+    else await assert.rejects(() => attempt, (e) => e.getResponse().code === 'OFFER_START_BEFORE_LEASE_END' && /2027-01-15|2027-11-05/.test(e.getResponse().message), startDate);
+  }
   // Editing a draft and changing a confirmed offer check it too.
   const h = harness();
   const offer = await create(h, { startDate: '2027-12-01' });
