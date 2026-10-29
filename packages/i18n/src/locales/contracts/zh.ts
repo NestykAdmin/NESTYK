@@ -664,6 +664,7 @@ export const contractsZh: ContractCopy = {
       contract_ended: "该合同已结束",
       lease_not_issued: "租赁合同文件出具后才能交接",
       deposit_unpaid: "押金收据出具后才能交接",
+      room_occupied: "前任租客仍在房内，前一份合同结束后次日起才能交接",
       not_leaving: "不续租、提前解约或到达结束日后才能登记搬出",
       has_successor: "已有续约，无需搬出记录",
     },

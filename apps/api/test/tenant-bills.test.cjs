@@ -264,12 +264,52 @@ test('billing activates only signed stays that have started, and preserves close
     lease({ id: 43, room_tenancy_id: 10, start_date: '2026-11-01', move_in_date: '2026-11-01' }),
     lease({ id: 44, room_tenancy_id: 11, status: 'terminated' })];
   const manager = { findOne: async (_, options) => records.find(c => c.id === options.where.id && c.status === options.where.status),
+    count: async () => 0,
     update: async (_, where, patch) => { updates.push({ where, patch }); },
     createQueryBuilder: () => { const qb = {}; for (const name of ['insert', 'into', 'values', 'orIgnore']) qb[name] = () => qb; qb.execute = async () => ({ raw: [] }); return qb; } };
   const service = new TenantBillingService({ transaction: fn => fn(manager) });
   await service.insertBills(records, '2026-10-14');
   assert.equal(updates.length, 1); assert.equal(updates[0].where.id, 9);
   assert.equal(updates[0].where.status, 'prospect'); assert.equal(updates[0].patch.move_in_date, '2026-10-01');
+});
+
+test('B0b (step 28): a new stay waits while the room still has the previous active stay, and the bills still go out', async () => {
+  const updates = [], inserted = [];
+  const c = lease({ id: 42, room_tenancy_id: 9, rent_room_id: 21, start_date: '2026-10-01', move_in_date: '2026-10-01',
+    data: { leaseAgreement: { rentDueDay: '1', advanceMonths: '0' } } });
+  const counted = [];
+  const manager = { findOne: async (_, options) => (options.where.id === 42 ? c : null),
+    count: async (_, options) => { counted.push(options.where); return 1; },
+    update: async (_, where, patch) => { updates.push({ where, patch }); },
+    createQueryBuilder: () => { const qb = {}; for (const name of ['insert', 'into', 'orIgnore']) qb[name] = () => qb; qb.values = (rows) => { inserted.push(...rows); return qb; }; qb.execute = async () => ({ raw: [] }); return qb; } };
+  await new TenantBillingService({ transaction: fn => fn(manager) }).insertBills([c], '2026-10-03');
+  assert.equal(updates.length, 0, 'the stay is not activated');
+  assert.equal(counted[0].rent_room_id, 21); assert.equal(counted[0].status, 'active');
+  assert.deepEqual([counted[0].id.type, counted[0].id.value], ['not', 9], 'another stay than its own');
+  assert.deepEqual(inserted.map((row) => row.period), ['2026-10'], 'the rent bill is still issued');
+});
+
+test('B0b (step 28): the nightly job closes ended leases before billing, and one failing part does not stop the other', async () => {
+  const { TenantBillingScheduler } = require('../src/billing/tenant-billing.scheduler.ts');
+  const calls = [];
+  const billing = { persistEndedLeases: async () => { calls.push('close'); throw new Error('one lease failed'); }, ensureAllActive: async () => { calls.push('bill'); } };
+  const scheduler = new TenantBillingScheduler(billing);
+  const logged = [];
+  scheduler.logger = { error: (message) => logged.push(message) };
+  await scheduler.issueDueBills();
+  assert.deepEqual(calls, ['close', 'bill']);
+  assert.deepEqual(logged, ['Failed to close ended leases']);
+});
+
+test('B5 (step 28): renewal bills use the grace day and daily late fee kept from the first lease', () => {
+  const renewal = (data) => lease({ agreement_kind: 'renewal', data: { leaseRenewal: { dueDay: '1', bankAccount: 'KBank / Owner / 123' }, ...data } });
+  const service = new TenantBillingService({});
+  const kept = renewal({ renewalTerms: { graceDay: '3', latePenalty: '200' } });
+  const [oct] = openRentBills(kept, '2026-10-01');
+  assert.deepEqual([oct.due_date, oct.grace_until], ['2026-10-01', '2026-10-03']);
+  assert.equal(service.serialize(bill({ lease_contract: kept })).lateFeePerDay, 200);
+  const old = renewal({});
+  assert.equal(openRentBills(old, '2026-10-01')[0].grace_until, '2026-10-06', 'saved before step 28: the default 5 days');
 });
 
 

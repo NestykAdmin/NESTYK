@@ -77,7 +77,7 @@ import {
 import { asIsoDate, isIsoDate, leaseTermEnd, shiftIsoDate } from "./lease-term";
 import { validateReservationLetter, emptyReservationLetter, stampReservationDocumentHeader, bangkokDate, reservationTenantFields } from "./reservation-letter";
 import { ensurePartyLogin } from "./party-login";
-import { CO_BROKE_REQUIRED, confirmedOffer, hasCoBrokeFile, offerLeaseFields, offerReservationFields } from "./deal-offers.service";
+import { CO_BROKE_REQUIRED, confirmedOffer, hasCoBrokeFile, offerLeaseFields, offerReservationFields, roomLeaseLastDay } from "./deal-offers.service";
 import { hasSignature, refreshReservationDraft, type DraftFiles } from "./offer-drafts";
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
 import { closeEndedLease, closeLeaseContract, contractEndReasons } from "./contract-closure";
@@ -642,19 +642,38 @@ export class AgentContractsService {
       });
       if (!invoice?.receipt_pdf_path) return "deposit_unpaid";
     }
+    // Step 28 (B4, AC-6.1, TC-6.05): a room still let to the tenant before (an other deal's lease or renewal) is
+    // handed over from the day after that stay's last day (roomLeaseLastDay); one ended with no decision still holds it.
+    if (c.rent_room_id != null) {
+      const others = await (manager ?? this.db).getRepository(LeaseContractEntity).find({
+        where: { rent_room_id: c.rent_room_id, status: In(["active", "expired", "terminated"]) },
+        relations: { template: true, agreement_type: true },
+      });
+      const today = bangkokToday();
+      const occupied = others.some((o) => {
+        if (o.id === c.id || o.lead_id === c.lead_id) return false;
+        if (!["lease", "renewal"].includes(o.template?.form_kind ?? o.agreement_type?.form_kind ?? "")) return false;
+        const data = (o.data ?? {}) as { undecided?: unknown; notRenewing?: unknown; endsOn?: unknown };
+        if (o.status === "expired" && data.undecided && !data.notRenewing && !data.endsOn) return true;
+        const last = roomLeaseLastDay(o);
+        return !last || today <= last;
+      });
+      if (occupied) return "room_occupied";
+    }
     return null;
   }
 
-  private inboxQuery() {
-    return this.db
+  /** `withCancelled` only for the parties' list (B3): every action on one contract still refuses a cancelled one. */
+  private inboxQuery(withCancelled = false) {
+    const query = this.db
       .getRepository(LeaseContractEntity)
       .createQueryBuilder("c")
       .leftJoinAndSelect("c.rent_room", "room")
       .leftJoinAndSelect("room.property", "property")
       .leftJoinAndSelect("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.template", "template")
-      .leftJoinAndSelect("c.tenant", "tenant")
-      .where("c.status <> 'cancelled'");
+      .leftJoinAndSelect("c.tenant", "tenant");
+    return withCancelled ? query.where("TRUE") : query.where("c.status <> 'cancelled'");
   }
   private partiesFor(userId: number, c: LeaseContractEntity) {
     const parties: ContractParty[] = [];
@@ -2963,7 +2982,8 @@ export class AgentContractsService {
     }));
   }
   async listForUser(userId: number) {
-    const rows = await this.inboxQuery()
+    // Step 28 (B3, D5): a cancelled deal stays in the parties' list with who caused it and the money (forParty).
+    const rows = await this.inboxQuery(true)
       .andWhere(
         `((tenant.user_id = :userId AND c.tenant_delivered_at IS NOT NULL) OR (c.owner_user_id = :userId AND c.owner_delivered_at IS NOT NULL))`,
         { userId },
@@ -3693,7 +3713,7 @@ export class AgentContractsService {
       raw.data && typeof raw.data === "object" && !Array.isArray(raw.data)
         ? { ...(raw.data as Record<string, unknown>) }
         : {};
-    for (const key of ["financialDocuments", "reservationPayment", "documentFileNames", "draftRevision", "draftCancellation"])
+    for (const key of ["financialDocuments", "reservationPayment", "documentFileNames", "draftRevision", "draftCancellation", "renewalTerms"])
       if (key in rawData)
         throw new BadRequestException("ไม่สามารถกำหนดข้อมูลเอกสารการเงินหรือสถานะระบบเองได้");
     let reservationLetter: ReservationLetterInput | undefined;
@@ -3992,6 +4012,11 @@ export class AgentContractsService {
           leaseRenewal.originalLeaseDate = predecessor.firstLeaseDate;
           leaseRenewal.originalExpiryDate = previousEnd;
           data.leaseRenewal = leaseRenewalSnapshot(leaseRenewal);
+          // Step 28 (B5, AC-7.4, AC-8.8): rent bills of the renewal keep the grace day and the daily late fee of the first
+          // lease (the renewal form has neither field).
+          const first = (root.data as { leaseAgreement?: { graceDay?: unknown; latePenalty?: unknown } } | null)?.leaseAgreement;
+          if (first && (first.graceDay || first.latePenalty))
+            data.renewalTerms = { graceDay: first.graceDay ?? null, latePenalty: first.latePenalty ?? null };
         }
         const renewalAddendum =
           template.form_kind === "renewal" &&
@@ -4066,6 +4091,14 @@ export class AgentContractsService {
           closed: ["lease", "renewal"].includes(type.form_kind)
             ? ["cancelled"] : ["cancelled", "expired", "terminated"],
         })
+        // AC-S.2 (step 28): a reservation already made into a lease of its deal no longer holds the room, so the
+        // next tenant's reservation is not blocked by the one before (the room status skips it the same way).
+        .andWhere(type.form_kind === "reservation"
+          ? `NOT EXISTS (SELECT 1 FROM lease_contracts made LEFT JOIN agreement_templates madeTemplate ON madeTemplate.id = made.template_id
+              LEFT JOIN master_agreement_types madeType ON madeType.code = made.agreement_type_code
+              WHERE made.lead_id = c.lead_id AND made.rent_room_id = c.rent_room_id AND made.status <> 'cancelled'
+              AND COALESCE(madeTemplate.form_kind, madeType.form_kind) = 'lease')`
+          : "TRUE")
         .andWhere(
           "(CAST(:end AS date) IS NULL OR (CASE WHEN COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' THEN COALESCE(c.move_in_date, c.start_date) ELSE c.start_date END) <= :end) AND (COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' OR COALESCE(c.effective_end_date, c.end_date) IS NULL OR COALESCE(c.effective_end_date, c.end_date) >= :start)",
           {

@@ -664,6 +664,7 @@ export const contractsEn: ContractCopy = {
       contract_ended: "This contract has ended",
       lease_not_issued: "The handover opens after the lease document is issued",
       deposit_unpaid: "The handover opens after the deposit receipt is issued",
+      room_occupied: "The previous tenant still lives here: the handover opens the day after their lease ends",
       not_leaving: "Move-out opens after not renewing, an early ending, or the end date",
       has_successor: "A renewal is linked, so there is no move-out",
     },

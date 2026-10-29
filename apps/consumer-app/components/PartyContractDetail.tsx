@@ -132,6 +132,7 @@ export function PartyContractDetail({
   const body = { color: theme.textSecondary, fontFamily: tokens.typography.native.body };
   const card = { backgroundColor: theme.card, borderColor: theme.border };
   const mine = contract.myParties;
+  const cancelledDeal = contract.status === "cancelled";
   const collectInvoice = earlyEndMoneyOf(contract.data);
   const showCollect = collectInvoice?.kind === "collect" && !!collectInvoice.invoicePath;
   async function openEarlyFile(kind: "invoice" | "slip") {
@@ -150,8 +151,14 @@ export function PartyContractDetail({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setError("");
+    // Step 28 (B3): the API serves a cancelled deal only in the list, so its documents are not fetched.
+    if (cancelledDeal) {
+      setLoading(false);
+      onReloadSettled?.(reloadToken);
+      return;
+    }
+    setLoading(true);
     listMyAttachments(contract.id)
       .then((next) => {
         if (!cancelled) setAttachments(next);
@@ -169,7 +176,7 @@ export function PartyContractDetail({
     return () => {
       cancelled = true;
     };
-  }, [contract.id, reloadToken, onReloadSettled]);
+  }, [contract.id, cancelledDeal, reloadToken, onReloadSettled]);
 
   useEffect(() => {
     if (!signing) return;
@@ -397,14 +404,16 @@ export function PartyContractDetail({
             {fillTemplate(tc.renewalForm.commissionShown, { amount: money(Number(contract.data.renewalCommission)) })}
           </Text>
         ) : null}
-        <MobileButton
-          variant="outline"
-          disabled={previewBusy}
-          isLoading={previewBusy}
-          onPress={() => void openDocument()}
-        >
-          {tc.party.viewContractDocument}
-        </MobileButton>
+        {cancelledDeal ? null : (
+          <MobileButton
+            variant="outline"
+            disabled={previewBusy}
+            isLoading={previewBusy}
+            onPress={() => void openDocument()}
+          >
+            {tc.party.viewContractDocument}
+          </MobileButton>
+        )}
       </View>
 
       {/* D5: a cancelled deal: who caused it, why, and what is forfeited or refunded (by when, and when refunded). */}
@@ -414,6 +423,8 @@ export function PartyContractDetail({
         </View>
       ) : null}
 
+      {/* Step 28 (B3): a cancelled deal is history: its summary above, no payments, handover, documents or signing. */}
+      {cancelledDeal ? null : (<>
       {/* D13: the landlord sees the commission confirmation they sign with the letter (the tenant's has none). */}
       <ReservationTerms
         contract={contract}
@@ -604,6 +615,7 @@ export function PartyContractDetail({
           </>
         ) : null}
       </View>
+      </>)}
 
       <MobileBottomSheet visible={slipSourceOpen} onClose={() => setSlipSourceOpen(false)} maxHeight="50%">
         <View style={{ gap: 12, padding: 16 }}>

@@ -106,7 +106,7 @@ const finalizedReservation = {
   status: 'active',
   document_url: '7/1/generated/reservation_letter/letter-v1/booked.pdf',
 };
-function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, successor = 0, draft = null, occupancy = null, endReason = { id: 77 }, reservations = [finalizedReservation], appointments = [[3, 2]] } = {}) {
+function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, root = null, successor = 0, draft = null, occupancy = null, endReason = { id: 77 }, reservations = [finalizedReservation], appointments = [[3, 2]] } = {}) {
   const saved = []; const calls = []; const uploads = []; const removed = []; let rolledBack = false;
   const qb = {};
   for (const key of ['leftJoin', 'where', 'andWhere', 'select', 'addSelect', 'distinct']) qb[key] = (...args) => { calls.push([key, ...args]); return qb; };
@@ -119,7 +119,7 @@ function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, fo
       calls.push(['findOne', entity.name, options]);
       assert.equal(options.where.created_by_user_id, 7);
       assert.equal(options.lock.mode, 'pessimistic_write');
-      if (entity === LeaseContractEntity) return options.where.id === draft?.id ? draft : previous;
+      if (entity === LeaseContractEntity) return options.where.id === draft?.id ? draft : options.where.id === root?.id ? root : previous;
       if (entity === LeadEntity) return { id: 1, status, tenant_id: 2, rent_room_id: 3 };
       if (entity === RentRoomEntity) return foreignRoom ? null : { id: 3, property_owner_id: 4, owner_id: 5 };
       if (entity === RoomTenancyEntity) return occupancy;
@@ -311,6 +311,20 @@ test('renewal is a fresh draft linked to predecessor and root, with independent 
   assert.equal(c.template_id, 1); assert.equal(c.data.monthlyRent, 15000);
   assert.equal(c.party_snapshot.tenantName, 'Original tenant');
   assert.equal(original.status, 'active');
+});
+test('B5 (step 28): a renewal keeps the grace day and daily late fee of the first lease, and the client cannot set them', async () => {
+  const terms = { leaseAgreement: { graceDay: '3', latePenalty: '200' } };
+  const direct = fixture({ previous: { ...original, data: terms } });
+  assert.deepEqual((await direct.service.create(7, renewalInput())).data.renewalTerms, { graceDay: '3', latePenalty: '200' });
+  // A second renewal: the predecessor (a renewal) has no lease form, the first lease (root) has.
+  const second = fixture({ previous: { ...original, id: 21, root_agreement_id: 20, data: {} }, root: { ...original, data: terms } });
+  assert.deepEqual((await second.service.create(7, renewalInput({ previousAgreementId: 21 }))).data.renewalTerms, { graceDay: '3', latePenalty: '200' });
+  const none = fixture({ previous: original });
+  assert.equal((await none.service.create(7, renewalInput())).data.renewalTerms, undefined, 'nothing to keep');
+  const forged = renewalInput(); forged.data.renewalTerms = { graceDay: '28', latePenalty: '0' };
+  const refused = fixture({ previous: original });
+  await assert.rejects(() => refused.service.create(7, forged), (e) => e.getStatus() === 400);
+  assert.equal(refused.saved.length, 0);
 });
 test('second renewal retains original root', async () => {
   const f = fixture({ previous: {...original, id: 21} });

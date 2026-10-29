@@ -1,5 +1,6 @@
 import type { AgentContract, AgentTenant, TenantBill } from "@nestyk/types";
 import { dateKey, tenantLease, tenantSlips, tenantStage } from "./tenant-detail";
+import { awaitingDecision } from "./contract-renewal";
 
 /** Most urgent first; also the order of the summary tiles. */
 export const TENANT_WORK_KINDS = ["slip", "overdue", "signing", "renewal"] as const;
@@ -30,10 +31,13 @@ export function contractSignatures(contract: AgentContract): { signed: number; r
   return { signed: parties.filter(Boolean).length, required: parties.length };
 }
 
-/** Days until the active lease ends, or null when there is no active lease with an end date. */
+/**
+ * Days until the active lease ends (negative once past it), or null when there is no active lease with an end date.
+ * AC-8.7: a lease the nightly job ended with no renewal decision (`expired` + `data.undecided`) counts as well.
+ */
 export function leaseDaysLeft(tenant: AgentTenant, today = new Date()): number | null {
   const lease = tenantLease(tenant, today);
-  if (!lease || lease.status !== "active" || !lease.endDate) return null;
+  if (!lease || !(lease.status === "active" || awaitingDecision(lease)) || !lease.endDate) return null;
   return dayNumber(lease.endDate) - dayNumber(dateKey(today));
 }
 
@@ -70,7 +74,7 @@ export function tenantWorkItems(tenants: AgentTenant[], slips: TenantBill[], tod
     item.kind === "slip"
       ? item.bill.dueDate
       : item.kind === "renewal"
-        ? String(item.daysLeft).padStart(4, "0")
+        ? String(item.daysLeft + 100000).padStart(6, "0") // step 28: also orders days past the end (negative)
         : item.kind === "signing"
           ? item.contract.startDate
           : "";

@@ -664,6 +664,7 @@ export const contractsJa: ContractCopy = {
       contract_ended: "この契約は終了しています",
       lease_not_issued: "賃貸借契約書の発行後に引き渡しができます",
       deposit_unpaid: "敷金の領収書の発行後に引き渡しができます",
+      room_occupied: "前の入居者がまだ住んでいます。前の契約の終了日の翌日から引き渡しができます",
       not_leaving: "更新しない、中途解約、または終了日以降に退去を記録できます",
       has_successor: "更新契約があるため退去記録はありません",
     },
