@@ -1,4 +1,5 @@
 import { test as base, expect, type APIRequestContext } from '@playwright/test';
+import { AgentWorkApi } from '../api/agent-work.api';
 import { ApiClient } from '../api/api-client';
 import { AuthApi } from '../api/auth.api';
 import { BillsApi } from '../api/bills.api';
@@ -30,6 +31,8 @@ export interface ApiSession {
   bills: BillsApi;
   /** ค้นสถานที่ (เรียกด้วยบทบาทที่ไม่ใช่ agent เท่านั้น ดู places.api.ts) */
   places: PlacesApi;
+  /** ภาพรวมงานและแจ้งเตือนของนายหน้า */
+  agentWork: AgentWorkApi;
 }
 
 function createSession(request: APIRequestContext): ApiSession {
@@ -46,6 +49,7 @@ function createSession(request: APIRequestContext): ApiSession {
     retiredContractSign: new RetiredContractSignApi(client),
     bills: new BillsApi(client),
     places: new PlacesApi(client),
+    agentWork: new AgentWorkApi(client),
   };
 }
 

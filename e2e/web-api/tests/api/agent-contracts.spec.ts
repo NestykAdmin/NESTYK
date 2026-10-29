@@ -12,12 +12,18 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) ผู้เรียกคือ qa-agent (fixture agent)
  *     เทสการค้นบัญชีเจ้าของห้องใช้ qa-landlord เป็นบัญชีที่ถูกค้น (ข้ามถ้ายังไม่ได้ตั้ง uuid)
  *     ชื่อบทบาท owner เปลี่ยนเป็น landlord ตั้งแต่ develop 84087e2 (supabase/migrations/20261016100000_rename_owner_role_to_landlord.sql)
- *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบจาก migration ของ apps/api และ qa-agent มีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย
- *   - API รุ่น DEV/main f7d52ed ขึ้นไป และฐานข้อมูลรัน migration ถึง 20261014-contract-closure.sql แล้ว
- *     ถ้ายังไม่รันถึง 20261012-lease-renewal-agreement.sql เทส GET /agent/contracts/types และ templates of lease_renewal
- *     จะไม่ผ่าน เพราะยังไม่มีประเภท lease_renewal ส่วน 20261014 ต้องมีเพราะ API รุ่น f7d52ed อ่านคอลัมน์ leads.booking_released_at
+ *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบ (ข้อมูลตั้งต้นของทีมอยู่ที่ supabase/seed/masters.sql: master_agreement_types บรรทัด 33-37
+ *     และ agreement_templates บรรทัด 44-55 ที่ develop 9644dd9) และ qa-agent มีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย
+ *     ถ้าฐานข้อมูลยังไม่มีประเภท lease_renewal เทส GET /agent/contracts/types และ templates of lease_renewal จะไม่ผ่าน
+ *     ถ้าขาด ให้แจ้งทีม ห้ามรัน db:seed กับฐานข้อมูลของทีม (ดูข้อห้ามใน README)
+ *   - API รุ่น DEV/main f7d52ed ขึ้นไป และฐานข้อมูลขึ้น supabase/migrations/20261014120000_contract_closure.sql แล้ว
+ *     เพราะ API อ่านคอลัมน์ leads.booking_released_at ที่ไฟล์นี้เพิ่ม (บรรทัด 5 ; lead.entity.ts:35 ที่ 9644dd9)
+ *     migration ของระบบเก่าใน apps/api/migrations/ ห้ามรัน (ดู README)
  *   - เทสของเส้นทางใหม่ (GET :id/signatures, POST :id/deposit-invoice, POST :id/witness-sign) ต้องใช้ API ตั้งแต่ develop b228ee3
  *     และฐานข้อมูลขึ้น supabase/migrations/20261021120000 กับ 20261021130000 แล้ว กับ API รุ่นก่อน เทสเหล่านี้ได้ "Cannot ..." ของ NestJS
+ *   - เทสของเส้นทางที่เพิ่มใน develop 9644dd9 (early-end, not-renewing, handover/move-out, deposit-settlement) ต้องใช้ API ตั้งแต่ 9644dd9
+ *     กับ API รุ่นก่อนจะได้ "Cannot ..." ของ NestJS แทน "ไม่พบสัญญา" ไม่ต้องใช้ migration ของ 9644dd9 (20261027160000, 20261028100000)
+ *     เพราะทุกข้อหยุดที่การหาสัญญา ซึ่งไม่อ่านตารางที่ 2 migration นี้แก้ (จากโค้ด)
  *   - ถ้า qa-agent ยังไม่มีสัญญา ลีดที่จองแล้วและพร้อมทำสัญญา (candidates) ใบแจ้งหนี้ หรือหนังสือยืนยันค่าคอมมิชชั่น
  *     เทสของรายการนั้นตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
  *
@@ -25,6 +31,8 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  *   เรียกเส้นทางที่อ่านข้อมูล (GET) กับ POST /auth/sync ด้วยบัญชีที่มีอยู่แล้ว ซึ่งไม่เขียนข้อมูล (sync ใน apps/api/src/auth/auth.service.ts)
  *   POST deposit-invoice กับ witness-sign ถูกเรียกกับสัญญาที่ไม่มีอยู่จริงเท่านั้น ทั้ง 2 เส้นทางหาสัญญาก่อนบันทึก
  *   (issueDepositInvoice และ witnessSign ใน agent-contracts.service.ts)
+ *   เส้นทาง POST, PUT และ DELETE 12 เส้นทางของ develop 9644dd9 (ตาราง writes) ถูกเรียกกับสัญญาที่ไม่มีอยู่จริงเท่านั้น
+ *   ทุกเส้นทางหาสัญญาก่อนบันทึกและก่อนอ่านไฟล์ บางเส้นทางตรวจเนื้อคำขอก่อนหาสัญญา จึงส่งเนื้อคำขอที่ผ่านการตรวจ (EARLY_END_BODY ถึง APPROVE_BODY)
  *   เส้นทาง next-number ล็อกเลขชั่วคราวระหว่างอ่าน (advisory lock) แต่ไม่จองเลขและไม่เขียนข้อมูล
  */
 
@@ -39,8 +47,9 @@ const NO_SUCH_ID = INT32_MAX;
 
 /**
  * ประเภทสัญญาที่ต้องมี ตามลำดับที่แอปแสดง (sort_order 10, 15, 20, 25)
- * ที่มา: migration ของ apps/api ได้แก่ 20260911-agreement-types.sql, 20260914-reservation-letter-name.sql,
- *   20260918-broker-appointment-agreement.sql และ 20261012-lease-renewal-agreement.sql (lease_renewal มีใน DEV/main 793465c เพิ่มหลัง f9b9bea)
+ * ที่มา: supabase/seed/masters.sql บรรทัด 34-37 ที่ develop 9644dd9 (เดิมสร้างโดย migration ของระบบเก่าใน apps/api/migrations/:
+ *   20260911-agreement-types.sql, 20260914-reservation-letter-name.sql, 20260918-broker-appointment-agreement.sql
+ *   และ 20261012-lease-renewal-agreement.sql ซึ่ง lease_renewal มีใน DEV/main 793465c เพิ่มหลัง f9b9bea)
  */
 const AGREEMENT_TYPES: AgreementType[] = [
   { code: 'reservation', nameTh: 'หนังสือจองห้อง', nameEn: 'Room reservation agreement', icon: 'calendar', formKind: 'reservation' },
@@ -72,6 +81,35 @@ const MESSAGE = {
  */
 const SIGNATURE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
+/**
+ * เนื้อคำขอที่ผ่านการตรวจ ของเส้นทางที่ตรวจเนื้อคำขอก่อนหาสัญญา (develop 9644dd9) ใช้กับสัญญาที่ไม่มีอยู่จริงเท่านั้น
+ * ถ้าเนื้อคำขอไม่ผ่าน API ตอบ 400 ก่อน เทสจะไม่ได้ตรวจการหาสัญญา (ที่มาของแต่ละเส้นทางอยู่ที่ตัวเรียกใน contracts.api.ts)
+ * วันที่ใช้ 2099-12-31 ซึ่งไม่ก่อนวันนี้ และเป็นวันที่มีจริงในปฏิทิน (isIsoDate ใน apps/api/src/agent/contracts/lease-term.ts:4-9)
+ */
+/** setEarlyEnd: date ไม่ก่อนวันนี้ตามเวลากรุงเทพ และ reason ไม่ว่าง (agent-contracts.service.ts:2183-2186) */
+const EARLY_END_BODY = { date: '2099-12-31', reason: 'e2e' };
+/** save ของบันทึกย้ายออก: validateHandover กับ handoverRevision (handover.service.ts:309-310) รายการทรัพย์สินว่างได้ (บรรทัด 86-88) */
+const MOVE_OUT_BODY = { handoverDate: '2099-12-31', items: [], revision: 0 };
+/** addItem: parseDeduction (deposit-settlement.ts:144) ประเภทต้องเป็น rent, utilities, damage หรือ other (บรรทัด 21) */
+const DEDUCTION_BODY = { deductionType: 'other', description: 'e2e', amount: 1 };
+/**
+ * approve: หมายเหตุกับยอดคืน (deposit-settlement.ts:183-185) ใช้ยอดคืน 1 ไม่ใช้ 0
+ * เพราะยอดคืน 0 ทำให้รายการเป็นเสร็จสิ้นทันทีถ้าสัญญามีอยู่จริง (deposit-settlement.ts:204)
+ */
+const APPROVE_BODY = { note: 'e2e', refundAmount: 1 };
+
+/**
+ * บั๊กที่รู้แล้ว (พบที่ develop 9644dd9 ยังไม่ได้แจ้งทีมตอนเขียน): POST early-end กับ POST not-renewing ตอบ 500 แทน 404
+ *   ผลรันจริง 29 ต.ค. 2026 13:11 น.: ทั้ง 2 เส้นทางได้ {"statusCode":500,"message":"Internal server error"}
+ *   สาเหตุที่น่าจะเป็น (อนุมานจากโค้ดและผลห้องทดลอง ยังไม่ได้ยืนยันจาก log ของ API): setEarlyEnd กับ setNotRenewing หาสัญญาด้วย
+ *   findOne ที่ล็อกแถว (pessimistic_write) พร้อม relations (agent-contracts.service.ts:2188-2191 และ 2323-2326)
+ *   TypeORM จึงส่ง FOR UPDATE ที่มี LEFT JOIN ซึ่ง PostgreSQL ปฏิเสธ
+ *   ด้วย "FOR UPDATE cannot be applied to the nullable side of an outer join" ทดลองซ้ำได้ในห้องทดลองด้วย TypeORM 0.3.31
+ *   กับ PostgreSQL 16 (ไม่มี relations หรือระบุ lock.tables แล้วผ่าน) error เกิดที่คำสั่งแรกของ transaction จึงไม่มีอะไรถูกเขียน
+ *   เมื่อทีมแก้แล้ว เทส 404 ของ 2 เส้นทางนี้จะแดงเพื่อเตือนให้ลบ knownBug ออก
+ */
+const KNOWN_BUG_LOCKED_FIND = 'API ตอบ 500 สาเหตุที่น่าจะเป็น (อนุมาน): findOne ล็อกแถวพร้อม relations ทำให้ PostgreSQL ปฏิเสธ FOR UPDATE กับ LEFT JOIN (agent-contracts.service.ts:2191, 2326)';
+
 /** ปี ค.ศ. ตามเวลาประเทศไทย แบบเดียวกับ contractYear ใน agent-contracts.service.ts (ใช้เป็นปีในเลขที่เอกสาร) */
 function bangkokYear(date = new Date()): number {
   return Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric' }).format(date));
@@ -91,7 +129,7 @@ async function landlordAccount(landlord: ApiSession): Promise<AuthUser> {
 
 test.describe('agreement types and templates', () => {
   test('GET /agent/contracts/types lists the four agreement types in display order', { tag: '@smoke' }, async ({ agent }) => {
-    // ขั้นที่ 1: เรียกรายการประเภทสัญญา   ขั้นที่ 2: ต้องตรงกับประเภทที่ migration สร้างไว้ทุกช่อง และเรียงตามลำดับที่แอปแสดง
+    // ขั้นที่ 1: เรียกรายการประเภทสัญญา   ขั้นที่ 2: ต้องตรงกับข้อมูลตั้งต้นของทีม (AGREEMENT_TYPES) ทุกช่อง และเรียงตามลำดับที่แอปแสดง
     expect(await expectJson<AgreementType[]>(await agent.contracts.types(), 200)).toEqual(AGREEMENT_TYPES);
   });
 
@@ -103,8 +141,9 @@ test.describe('agreement types and templates', () => {
 
       // ขั้นที่ 2: ทุกแม่แบบต้องเป็นของประเภทนี้ และใช้แบบฟอร์มเดียวกับประเภท
       //   (saveDraft ใน agent-contracts.service.ts ไม่รับแม่แบบที่แบบฟอร์มไม่ตรงกับประเภท)
-      //   ไม่ตรวจจำนวนแม่แบบและเลขรุ่น เพราะ migration บางไฟล์เพิ่มรุ่นใหม่เฉพาะเมื่อข้อมูลที่มีอยู่เข้าเงื่อนไข
-      //   (เช่น 20260921-lease-annex-optional.sql) จำนวนในแต่ละเครื่องจึงต่างกันได้
+      //   ไม่ตรวจจำนวนแม่แบบและเลขรุ่น เพราะฐานข้อมูลแต่ละเครื่องอาจได้แม่แบบจากคนละทาง (supabase/seed/masters.sql บรรทัด 44-55
+      //   หรือ migration ของระบบเก่าใน apps/api/migrations/ ซึ่งบางไฟล์เพิ่มรุ่นใหม่เฉพาะเมื่อข้อมูลที่มีอยู่เข้าเงื่อนไข
+      //   เช่น 20260921-lease-annex-optional.sql) จำนวนในแต่ละเครื่องจึงต่างกันได้
       for (const template of templates) {
         const label = `แม่แบบ id ${template.id}`;
         expect(template.agreementTypeCode, label).toBe(type.code);
@@ -217,12 +256,83 @@ test.describe('a contract that does not exist', () => {
     // เส้นทางใหม่ใน develop b228ee3: หาสัญญาของนายหน้าก่อนอ่านตาราง agreement_signatures (signatureLog ใน agent-contracts.service.ts)
     { name: 'GET /agent/contracts/:id/signatures', call: (agent, id) => agent.contracts.signatures(id) },
     { name: 'GET /agent/contracts/:id/financial-documents/invoice', call: (agent, id) => agent.contracts.financialDocumentDefaults(id, 'invoice') },
+    // เส้นทางใหม่ใน develop 9644dd9 อ่านอย่างเดียว หาสัญญาก่อน (ที่มาอยู่ที่ตัวเรียกใน contracts.api.ts)
+    { name: 'GET /agent/contracts/:id/early-end/invoice', call: (agent, id) => agent.contracts.earlyEndFile(id, 'invoice') },
+    { name: 'GET /agent/contracts/:id/handover/move-out', call: (agent, id) => agent.contracts.moveOutHandover(id) },
+    { name: 'GET /agent/contracts/:id/deposit-settlement', call: (agent, id) => agent.contracts.depositSettlement(id) },
   ];
   for (const lookup of lookups) {
     test(`${lookup.name} answers 404 for a contract that does not exist`, async ({ agent }) => {
       // ขั้นที่ 1: ใช้ id ที่ไม่มีสัญญาไหนใช้   ขั้นที่ 2: ต้องได้ 404 พร้อมข้อความว่าไม่พบสัญญา
       expect(await expectError(await lookup.call(agent, NO_SUCH_ID), 404)).toBe(MESSAGE.contractNotFound);
     });
+  }
+
+  /**
+   * เส้นทางที่บันทึกข้อมูลของ develop 9644dd9: ทุกเส้นทางหาสัญญาของนายหน้าก่อนบันทึก จึงตอบ 404 กับสัญญาที่ไม่มีจริงโดยไม่บันทึกอะไร
+   * early-end, PUT handover/move-out, deposit-settlement/items และ deposit-settlement/approve ตรวจเนื้อคำขอก่อนหาสัญญา จึงส่งเนื้อคำขอที่ผ่าน
+   * handover/move-out/photos ตรวจแค่ความยาวคำอธิบายรูปก่อนหาสัญญา (handover.service.ts:345-347) เทสไม่ส่งคำอธิบาย
+   * เส้นทางที่รับไฟล์ส่งแบบไม่แนบไฟล์ เพราะทุกเส้นทางหาสัญญาก่อนอ่านไฟล์
+   */
+  const writes: { name: string; call: (agent: ApiSession, id: number) => Promise<APIResponse>; knownBug?: string }[] = [
+    {
+      name: 'POST /agent/contracts/:id/early-end',
+      call: (agent, id) => agent.contracts.earlyEnd(id, EARLY_END_BODY),
+      knownBug: KNOWN_BUG_LOCKED_FIND,
+    },
+    { name: 'POST /agent/contracts/:id/early-end/money', call: (agent, id) => agent.contracts.earlyEndMoney(id, {}) },
+    {
+      name: 'POST /agent/contracts/:id/early-end/refund-proof without a file',
+      call: (agent, id) => agent.contracts.uploadEarlyEndRefundProofWithoutFile(id),
+    },
+    // { notRenewing: false } = ยกเลิกการบันทึกไม่ต่อ ถ้าสัญญามีอยู่จริงและยังไม่ได้บันทึกไม่ต่อ ระบบไม่เปลี่ยนอะไร (agent-contracts.service.ts:2333)
+    {
+      name: 'POST /agent/contracts/:id/not-renewing',
+      call: (agent, id) => agent.contracts.notRenewing(id, { notRenewing: false }),
+      knownBug: KNOWN_BUG_LOCKED_FIND,
+    },
+    { name: 'PUT /agent/contracts/:id/handover/move-out', call: (agent, id) => agent.contracts.saveMoveOutHandover(id, MOVE_OUT_BODY) },
+    {
+      name: 'POST /agent/contracts/:id/handover/move-out/photos without a file',
+      call: (agent, id) => agent.contracts.uploadMoveOutPhotoWithoutFile(id),
+    },
+    {
+      name: 'DELETE /agent/contracts/:id/handover/move-out/photos/:photoId',
+      call: (agent, id) => agent.contracts.removeMoveOutPhoto(id, NO_SUCH_ID),
+    },
+    { name: 'POST /agent/contracts/:id/deposit-settlement', call: (agent, id) => agent.contracts.openDepositSettlement(id) },
+    {
+      name: 'POST /agent/contracts/:id/deposit-settlement/items without a file',
+      call: (agent, id) => agent.contracts.addDepositDeductionWithoutFile(id, DEDUCTION_BODY),
+    },
+    {
+      name: 'DELETE /agent/contracts/:id/deposit-settlement/items/:itemId',
+      call: (agent, id) => agent.contracts.removeDepositDeduction(id, NO_SUCH_ID),
+    },
+    { name: 'POST /agent/contracts/:id/deposit-settlement/approve', call: (agent, id) => agent.contracts.approveDepositSettlement(id, APPROVE_BODY) },
+    {
+      name: 'POST /agent/contracts/:id/deposit-settlement/refund without files',
+      call: (agent, id) => agent.contracts.completeDepositRefundWithoutFiles(id),
+    },
+  ];
+  for (const write of writes) {
+    const tag = write.knownBug ? ['@known-bug'] : [];
+    test(`${write.name} answers 404 for a contract that does not exist`, { tag }, async ({ agent }) => {
+      // แถวที่มี knownBug: เทสข้อนี้เขียนตามพฤติกรรมที่ถูกต้อง และคาดว่าล้มจนกว่าทีมจะแก้ (ข้อตกลงใน README)
+      test.fail(write.knownBug !== undefined, write.knownBug);
+      // ขั้นที่ 1: ส่งคำขอไปที่สัญญาที่ไม่มีจริง (เส้นทางที่ตรวจเนื้อคำขอก่อนหาสัญญา ส่งเนื้อคำขอที่ผ่านการตรวจ)
+      // ขั้นที่ 2: ต้องได้ 404 ว่าไม่พบสัญญา ระบบหาสัญญาไม่เจอก่อนบันทึก จึงไม่มีอะไรถูกบันทึก
+      expect(await expectError(await write.call(agent, NO_SUCH_ID), 404)).toBe(MESSAGE.contractNotFound);
+    });
+    if (write.knownBug) {
+      test(`${write.name} is refused for a contract that does not exist`, async ({ agent }) => {
+        // เทสคู่กับข้อ known-bug ด้านบน: test.fail นับความล้มทุกแบบว่าเป็นบั๊กที่รู้แล้ว ถ้า API เปลี่ยนไปตอบ 2xx
+        //   ข้อนั้นจะยังผ่าน ข้อนี้จึงตรวจขั้นต่ำที่ต้องจริงเสมอ: คำขอไปที่สัญญาที่ไม่มีจริงต้องถูกปฏิเสธ (ไม่ใช่ 2xx)
+        // ขั้นที่ 1: ส่งคำขอเดียวกันไปที่สัญญาที่ไม่มีจริง   ขั้นที่ 2: รหัสตอบกลับต้องตั้งแต่ 400 ขึ้นไป
+        const response = await write.call(agent, NO_SUCH_ID);
+        expect(response.status(), `${response.url()} ตอบว่า: ${(await response.text()).slice(0, 300)}`).toBeGreaterThanOrEqual(400);
+      });
+    }
   }
 
   test('POST /agent/contracts/:id/deposit-invoice answers 404 for a contract that does not exist', async ({ agent }) => {

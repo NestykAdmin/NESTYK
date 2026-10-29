@@ -5,22 +5,27 @@ import { expectError, expectJson } from '../../src/support/http';
 
 /**
  * บิลค่าเช่าและสลิป (กลุ่ม /bills) ชุดแรก: เคสที่ไม่ต้องมีบิลในฐานข้อมูล
- * ที่มา: apps/api/src/billing/ และ apps/api/src/common/database-id.pipe.ts ที่ DEV/main f7d52ed
+ * ที่มา: apps/api/src/billing/ และ apps/api/src/common/database-id.pipe.ts ตรวจซ้ำที่ develop 9644dd9
  *
  * สิ่งที่ต้องมีก่อน
  *   - API ที่รวม DEV/main ถึง f7d52ed แล้ว (มีตัวตรวจ id DatabaseIdPipe และเส้นทาง mine/:id/confirm, agent/:id/return)
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) แต่ละกลุ่มเรียกด้วยบัญชี QA ที่มีบทบาทของกลุ่มนั้น (ช่อง caller ของ idEndpoints)
  *     mine ใช้ qa-tenant (tenant-bills.controller.ts:26) received ใช้ qa-landlord (owner-bills.controller.ts:14) agent ใช้ qa-agent (agent-bills.controller.ts:11)
  *     (landlord คือชื่อใหม่ของ owner ตั้งแต่ develop 84087e2) ถ้ายังไม่ได้ตั้ง uuid ของ qa-tenant หรือ qa-landlord เทสของกลุ่มนั้นข้าม พร้อมเหตุผล
+ *   - เทสของเส้นทางค่าปรับ (late-fee) ที่เพิ่มใน develop 9644dd9 ต้องใช้ API ตั้งแต่ 9644dd9 กับ API รุ่นก่อน ทุกข้อของเส้นทางนี้ได้ 404 "Cannot ..." ของ NestJS
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   - ไม่เรียก GET mine, mine/next, received และ agent/tenants/:tenantId ด้วยบัญชีหรือ id ที่มีจริง เพราะ 4 เส้นทางนี้
- *     สร้างบิลและเปิดสถานะการเข้าพัก (room_tenancies) เองก่อนตอบ (ดู bills.api.ts)
+ *     สร้างบิล เปิดสถานะการเข้าพัก (room_tenancies) และตั้งแต่ 9644dd9 เปลี่ยนหนังสือต่อสัญญาที่ถึงวันมีผลเป็น active
+ *     เองก่อนตอบ (ดู bills.api.ts)
  *     ยกเว้นเทส 401 (ถูกปฏิเสธก่อนถึงฐานข้อมูล) และ agent/tenants/2147483647 (ตอบ 404 ก่อนขั้นสร้างบิล)
  *   - เส้นทาง POST ใช้เฉพาะ id ที่ไม่มีอยู่จริง หรือ id ที่ผิดรูปแบบ ระบบหาบิลไม่เจอหรือปฏิเสธก่อนบันทึก
  *     (mine, owned, forAgent ใน tenant-billing.service.ts ตอบ 404 ก่อนตรวจสถานะและก่อนบันทึก)
+ *   - POST bills/agent/:id/late-fee ตรวจเนื้อคำขอก่อนหาบิล (createLateFee ใน tenant-billing.service.ts:664-667 ที่ develop 9644dd9)
+ *     จึงส่งเนื้อคำขอที่ผ่าน (LATE_FEE_BODY) ส่วน POST bills/received/:id/late-fee อ่านบิลด้วย id แล้วตอบ 403 ก่อนตรวจเนื้อคำขอ
+ *     และก่อนบันทึก (createLateFeeForLandlord บรรทัด 715-724)
  *
- * ยังไม่มีเทส (ต้องมีบิลในฐานข้อมูลก่อน): ขั้นตอนอัป ส่ง ยืนยัน และตีกลับสลิป, ชนิดและขนาดไฟล์,
+ * ยังไม่มีเทส (ต้องมีบิลในฐานข้อมูลก่อน): ขั้นตอนอัป ส่ง ยืนยัน และตีกลับสลิป, การออกใบค่าปรับ ส่งและตีกลับสลิปค่าปรับ, ชนิดและขนาดไฟล์,
  *   และบิลของผู้ใช้อื่นต้องได้ 404 (403 ของบทบาทที่ไม่ตรงอยู่ใน roles.spec.ts ซึ่งใช้บัญชี QA แยกบทบาท)
  */
 
@@ -36,9 +41,17 @@ const MESSAGE = {
   tenantNotFound: 'ไม่พบผู้เช่า',
   idOutOfRange: 'ID must be an integer between 1 and 2147483647',
   noToken: 'Missing Bearer token',
+  /** POST bills/received/:id/late-fee เมื่อไม่พบบิล หรือผู้เรียกไม่ใช่ผู้ให้เช่าของห้อง (tenant-billing.service.ts:722 ที่ develop 9644dd9) */
+  notLandlordOfRoom: 'เฉพาะผู้ให้เช่าของห้องนี้',
 } as const;
 
-/** เส้นทางกลุ่ม /bills ทั้งหมด 12 เส้นทาง (ใช้กับเทสที่ไม่ต้องล็อกอิน) */
+/** เนื้อคำขอที่ผ่านการตรวจของการออกใบค่าปรับ: ยอดมากกว่า 0 ไม่ส่ง dueDate = วันนี้ (lateFeeInput ใน apps/api/src/billing/late-fee-invoice.ts:54-62) */
+const LATE_FEE_BODY = { amount: 1 };
+
+/** เนื้อคำขอของการตีกลับสลิปค่าปรับ ไม่ต้องผ่านการตรวจ เพราะ returnLateFeeSlip หาบิลก่อนตรวจ 2 ช่องนี้ (tenant-billing.service.ts:727-737) */
+const LATE_FEE_RETURN_BODY = { reason: 'e2e', submittedAt: '2026-01-01T00:00:00.000Z' };
+
+/** เส้นทางกลุ่ม /bills ทั้งหมด 19 เส้นทาง (ใช้กับเทสที่ไม่ต้องล็อกอิน) รวมค่าปรับ 7 เส้นทางของ develop 9644dd9 */
 const allEndpoints: { name: string; call: (session: ApiSession) => Promise<APIResponse> }[] = [
   { name: 'GET /bills/mine', call: (s) => s.bills.mine() },
   { name: 'GET /bills/mine/next', call: (s) => s.bills.mineNext() },
@@ -52,6 +65,13 @@ const allEndpoints: { name: string; call: (session: ApiSession) => Promise<APIRe
   { name: 'GET /bills/agent/:id/payment-slip', call: (s) => s.bills.agentPaymentSlip(NO_SUCH_ID) },
   { name: 'POST /bills/agent/:id/confirm', call: (s) => s.bills.agentConfirm(NO_SUCH_ID) },
   { name: 'POST /bills/agent/:id/return', call: (s) => s.bills.agentReturn(NO_SUCH_ID, { reason: 'e2e' }) },
+  { name: 'GET /bills/mine/:id/late-fee/:kind', call: (s) => s.bills.mineLateFeeDocument(NO_SUCH_ID, 'invoice') },
+  { name: 'POST /bills/mine/:id/late-fee/payment-slip', call: (s) => s.bills.uploadMineLateFeeSlipWithoutFile(NO_SUCH_ID) },
+  { name: 'POST /bills/received/:id/late-fee', call: (s) => s.bills.receivedCreateLateFee(NO_SUCH_ID, LATE_FEE_BODY) },
+  { name: 'GET /bills/received/:id/late-fee/:kind', call: (s) => s.bills.receivedLateFeeDocument(NO_SUCH_ID, 'invoice') },
+  { name: 'GET /bills/agent/:id/late-fee/:kind', call: (s) => s.bills.agentLateFeeDocument(NO_SUCH_ID, 'invoice') },
+  { name: 'POST /bills/agent/:id/late-fee', call: (s) => s.bills.agentCreateLateFee(NO_SUCH_ID, LATE_FEE_BODY) },
+  { name: 'POST /bills/agent/:id/late-fee/return', call: (s) => s.bills.agentReturnLateFeeSlip(NO_SUCH_ID, LATE_FEE_RETURN_BODY) },
 ];
 
 /** บัญชี QA ที่มีบทบาทของกลุ่มเส้นทาง ใช้เรียกผ่าน fixture qa (qa('agent') คือบัญชีเดียวกับ fixture agent) */
@@ -105,7 +125,55 @@ const idEndpoints: {
     notFound: MESSAGE.billNotFound,
     call: (s, id) => s.bills.agentReturn(id, { reason: 'e2e' }),
   },
+  // ค่าปรับของบิล (develop 9644dd9) ทุกเส้นทางหาบิลก่อน ยกเว้น POST bills/received/:id/late-fee ซึ่งตอบ 403 (ดู landlordLateFee ด้านล่าง)
+  {
+    name: 'GET /bills/mine/:id/late-fee/:kind',
+    caller: 'tenant',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.mineLateFeeDocument(id, 'invoice'),
+  },
+  {
+    name: 'POST /bills/mine/:id/late-fee/payment-slip',
+    caller: 'tenant',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.uploadMineLateFeeSlipWithoutFile(id),
+  },
+  {
+    name: 'GET /bills/received/:id/late-fee/:kind',
+    caller: 'landlord',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.receivedLateFeeDocument(id, 'invoice'),
+  },
+  {
+    name: 'GET /bills/agent/:id/late-fee/:kind',
+    caller: 'agent',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.agentLateFeeDocument(id, 'invoice'),
+  },
+  {
+    // ตรวจเนื้อคำขอก่อนหาบิล จึงต้องส่งเนื้อคำขอที่ผ่าน ไม่อย่างนั้นได้ 400 แทน 404
+    name: 'POST /bills/agent/:id/late-fee',
+    caller: 'agent',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.agentCreateLateFee(id, LATE_FEE_BODY),
+  },
+  {
+    name: 'POST /bills/agent/:id/late-fee/return',
+    caller: 'agent',
+    notFound: MESSAGE.billNotFound,
+    call: (s, id) => s.bills.agentReturnLateFeeSlip(id, LATE_FEE_RETURN_BODY),
+  },
 ];
+
+/**
+ * POST /bills/received/:id/late-fee (develop 9644dd9) ไม่อยู่ใน idEndpoints เพราะบิลที่ไม่มีจริงได้ 403 ไม่ใช่ 404 (ดูเทสแยกด้านล่าง)
+ * แต่รับ id ผ่าน DatabaseIdPipe เหมือนเส้นทางอื่น (owner-bills.controller.ts:32-40) จึงอยู่ในเทส 400 ของ id ผิดรูปแบบด้วย
+ */
+const landlordLateFee: { name: string; caller: BillCaller; call: (s: ApiSession, id: number | string) => Promise<APIResponse> } = {
+  name: 'POST /bills/received/:id/late-fee',
+  caller: 'landlord',
+  call: (s, id) => s.bills.receivedCreateLateFee(id, LATE_FEE_BODY),
+};
 
 /** id ที่เป็นจำนวนเต็มแต่อยู่นอกช่วง 1 ถึง 2147483647: DatabaseIdPipe ตอบ 400 พร้อมข้อความ idOutOfRange */
 const OUT_OF_RANGE_IDS = ['0', '-1', String(INT32_MAX + 1)];
@@ -133,14 +201,28 @@ test.describe('bills of an id that does not exist', () => {
       // ขั้นที่ 1: ล็อกอินด้วยบัญชีที่มีบทบาทของเส้นทางนี้ (ข้ามถ้ายังไม่ได้ตั้ง uuid) แล้วใช้ id ที่ไม่มีบิลหรือผู้เช่ารายไหนใช้
       const session = await qa(endpoint.caller);
       // ขั้นที่ 2: ต้องได้ 404 พร้อมข้อความว่าไม่พบ
-      //   (จากโค้ด: บิลของผู้ใช้อื่นก็ได้ข้อความเดียวกัน แต่เทสข้อนี้ไม่ได้ยืนยันกรณีนั้น เพราะยังไม่มีบิลของผู้ใช้อื่น)
+      //   (จากโค้ด: บิลของผู้ใช้อื่นก็ได้ข้อความเดียวกัน ยกเว้นเส้นทางค่าปรับของนายหน้าที่อาจได้ 403 "เฉพาะนายหน้าเจ้าของดีล"
+      //   เมื่อผู้เช่าเป็นของนายหน้าแต่สัญญาเป็นของนายหน้าอื่น: ownedDealBill ใน tenant-billing.service.ts:653-658
+      //   เทสข้อนี้ไม่ได้ยืนยันกรณีเหล่านั้น เพราะยังไม่มีบิลของผู้ใช้อื่น)
       expect(await expectError(await endpoint.call(session, NO_SUCH_ID), 404)).toBe(endpoint.notFound);
     });
   }
 });
 
+test.describe('late fee of the landlord for a bill that does not exist', () => {
+  test('POST /bills/received/:id/late-fee answers 403 (not 404) for a bill that does not exist', async ({ qa }) => {
+    // createLateFeeForLandlord (tenant-billing.service.ts:715-724 ที่ develop 9644dd9) อ่านบิลด้วย id อย่างเดียว แล้วตอบ 403 เดียวกัน
+    //   ทั้งตอนไม่พบบิลและตอนผู้เรียกไม่ใช่ผู้ให้เช่าของห้อง (บรรทัด 722) ก่อนตรวจเนื้อคำขอและก่อนบันทึก ต่างจากเส้นทางอื่นของกลุ่มนี้ที่ตอบ 404
+    //   ข้อความต่างจาก 403 ของ RolesGuard ("Required role: landlord") จึงตรวจข้อความด้วย
+    // ขั้นที่ 1: ล็อกอินด้วย qa-landlord (ข้ามถ้ายังไม่ได้ตั้ง uuid) แล้วขอออกใบค่าปรับของบิลที่ไม่มีจริง พร้อมเนื้อคำขอที่ผ่านการตรวจ
+    const session = await qa(landlordLateFee.caller);
+    // ขั้นที่ 2: ต้องได้ 403 ว่าเฉพาะผู้ให้เช่าของห้องนี้ (ไม่มีอะไรถูกบันทึก)
+    expect(await expectError(await landlordLateFee.call(session, NO_SUCH_ID), 403)).toBe(MESSAGE.notLandlordOfRoom);
+  });
+});
+
 test.describe('bills with an id that is not valid', () => {
-  for (const endpoint of idEndpoints) {
+  for (const endpoint of [...idEndpoints, landlordLateFee]) {
     test(`${endpoint.name} answers 400 for ids outside 1 to 2147483647`, async ({ qa }) => {
       // ขั้นที่ 1: ล็อกอินด้วยบัญชีที่มีบทบาทของเส้นทางนี้ แล้วส่ง id 0, -1 และค่าที่เกินช่วงของ integer อยู่ 1
       //   (ต้องเป็นบัญชีที่มีบทบาท ไม่อย่างนั้น RolesGuard ตอบ 403 ก่อนถึงตัวตรวจ id)
@@ -175,7 +257,7 @@ test.describe('GET /bills/agent', () => {
 
     // ถ้ายังไม่มีบิลในรายการ ข้ามเทสข้อนี้ (รายงานจะแสดงว่าข้าม ไม่ใช่ผ่าน)
     //   รายการนี้มีบิลได้เมื่อผู้เช่าอัปสลิปและกดยืนยันส่งแล้วเท่านั้น
-    //   (supabase/seed/demo.sql ที่ DEV/main f7d52ed ไม่มีแถวในตาราง tenant_bills ฐานข้อมูลที่สร้างจาก seed นี้จึงข้ามข้อนี้)
+    //   (supabase/seed/demo.sql ที่ develop 9644dd9 ไม่มีแถวในตาราง tenant_bills ฐานข้อมูลที่สร้างจาก seed นี้จึงข้ามข้อนี้)
     test.skip(bills.length === 0, 'ยังไม่มีบิลที่ผู้เช่าส่งสลิปให้นายหน้าบัญชีนี้ จึงตรวจกฎกรองและลำดับไม่ได้');
 
     // ขั้นที่ 2: ทุกรายการต้องยังไม่จ่าย มีสลิป และผู้เช่ากดยืนยันส่งแล้ว

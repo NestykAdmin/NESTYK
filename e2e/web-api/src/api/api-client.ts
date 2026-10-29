@@ -25,6 +25,14 @@ export class ApiClient {
   patch(path: string, body?: unknown): Promise<APIResponse> {
     return this.request.patch(relativePath(path), body === undefined ? {} : { data: body });
   }
+
+  put(path: string, body?: unknown): Promise<APIResponse> {
+    return this.request.put(relativePath(path), body === undefined ? {} : { data: body });
+  }
+
+  delete(path: string): Promise<APIResponse> {
+    return this.request.delete(relativePath(path));
+  }
 }
 
 /**

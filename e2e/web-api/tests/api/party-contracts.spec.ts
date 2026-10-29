@@ -10,14 +10,18 @@ import { isDescending } from '../../src/support/pagination';
  *
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) เทสกลุ่ม /contracts/mine เรียกด้วย qa-tenant (ข้ามถ้ายังไม่ได้ตั้ง uuid)
- *     เส้นทางกลุ่มนี้รับ tenant กับ landlord (party-contracts.controller.ts:28 ที่ develop 84087e2 landlord คือชื่อใหม่ของ owner)
+ *     เส้นทางกลุ่มนี้รับ tenant กับ landlord (@Roles ระดับ class ของ party-contracts.controller.ts ตั้งแต่ develop 84087e2 landlord คือชื่อใหม่ของ owner
+ *     ยกเว้น mine/deal-offers (ตั้งแต่ develop f845ac6) และ mine/reminders (ตั้งแต่ develop 8a62e39) ที่รับเฉพาะ landlord ดู roles.spec.ts)
  *     qa-agent ไม่มี 2 บทบาทนี้ จึงใช้ไม่ได้ (403 ของ qa-agent ตรวจใน roles.spec.ts)
  *   - ถ้า qa-tenant ยังไม่มีสัญญา รายการสัญญาตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
  *   - API ตั้งแต่ develop b228ee3: เทส deposit-payment-slip และเทสลิงก์ลงนามที่ถูกลบ เขียนตามรุ่นนี้ กับ API รุ่นก่อน 2 กลุ่มนี้จะไม่ผ่าน
+ *   - เทสของเส้นทางที่เพิ่มใน develop 9644dd9 (deposit-settlement, handover/move-out, early-end) ต้องใช้ API ตั้งแต่ 9644dd9
+ *     กับ API รุ่นก่อนจะได้ "Cannot ..." ของ NestJS แทน "ไม่พบสัญญา"
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   เส้นทาง POST ถูกเรียกกับสัญญาที่ไม่มีอยู่จริง ทุกเส้นทางหาสัญญาก่อนบันทึก
- *   (contractForParty, documentForParty, signAsParty และ uploadDepositPaymentSlip ใน apps/api/src/agent/contracts/agent-contracts.service.ts)
+ *   (contractForParty, documentForParty, signAsParty และ uploadDepositPaymentSlip ใน apps/api/src/agent/contracts/agent-contracts.service.ts
+ *   กับเส้นทางของ develop 9644dd9: partySign ใน handover.service.ts และ uploadEarlyEndSlip ใน agent-contracts.service.ts)
  *   เส้นทางลิงก์ลงนามที่ถูกลบไม่มีโค้ดรับคำขอแล้ว จึงไม่มีอะไรถูกบันทึก
  */
 
@@ -75,6 +79,15 @@ test.describe('party routes with a contract that does not exist', () => {
     {
       name: 'POST /contracts/mine/:id/deposit-payment-slip without a file',
       call: (party, id) => party.partyContracts.uploadDepositPaymentSlip(id),
+    },
+    // เส้นทางใหม่ใน develop 9644dd9: หาสัญญาด้วย contractForParty ก่อนอ่านหรือบันทึก (ที่มาอยู่ที่ตัวเรียกใน party-contracts.api.ts)
+    { name: 'GET /contracts/mine/:id/deposit-settlement', call: (party, id) => party.partyContracts.depositSettlement(id) },
+    { name: 'GET /contracts/mine/:id/handover/move-out', call: (party, id) => party.partyContracts.moveOutHandover(id) },
+    { name: 'POST /contracts/mine/:id/handover/move-out/sign', call: (party, id) => party.partyContracts.signMoveOutHandover(id, {}) },
+    { name: 'GET /contracts/mine/:id/early-end/invoice', call: (party, id) => party.partyContracts.earlyEndFile(id, 'invoice') },
+    {
+      name: 'POST /contracts/mine/:id/early-end/payment-slip without a file',
+      call: (party, id) => party.partyContracts.uploadEarlyEndPaymentSlipWithoutFile(id),
     },
   ];
   for (const lookup of lookups) {

@@ -39,4 +39,14 @@ export class LeadsApi {
   locations(): Promise<APIResponse> {
     return this.client.get('agent/leads/locations');
   }
+
+  /**
+   * GET /agent/leads/:leadId/deal-offers : ข้อเสนอราคาของลีด (deal-offers.controller.ts บรรทัด 16 ที่ develop 9644dd9)
+   * เส้นทางนี้อยู่คนละ controller กับ /agent/leads แต่ใช้ @Roles('agent') ระดับ class เหมือนกัน
+   * อ่านอย่างเดียว (เลขบรรทัดที่ 9644dd9): apps/api/src/agent/contracts/deal-offers.service.ts listForLead (บรรทัด 347-354)
+   * กับ view() (บรรทัด 320-344) ไม่มีคำสั่งเขียน
+   */
+  dealOffers(leadId: number | string): Promise<APIResponse> {
+    return this.client.get(`agent/leads/${leadId}/deal-offers`);
+  }
 }

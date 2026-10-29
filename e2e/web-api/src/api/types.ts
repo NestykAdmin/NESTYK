@@ -190,10 +190,35 @@ export interface OwnerUserOption {
   id: number;
 }
 
+/** ส่วนลดค่าจองบนบิลแรกของสัญญาเช่าใหม่ (develop 9644dd9: BillReservationCredit ใน packages/types/src/contracts.ts:23-26) */
+export interface BillReservationCredit {
+  rent: number;
+  credit: number;
+}
+
+/**
+ * ใบแจ้งหนี้ค่าปรับของบิล 1 ใบ (develop 9644dd9: BillLateFee ใน packages/types/src/contracts.ts:29-41
+ * สร้างโดย lateFeeSummary ใน apps/api/src/billing/tenant-billing.service.ts:202-217)
+ */
+export interface BillLateFee {
+  invoiceId: number;
+  documentNo: string;
+  amount: number;
+  dueDate: string;
+  status: 'pending' | 'awaiting_review' | 'paid';
+  slipReturnReason: string | null;
+  hasPaymentSlip: boolean;
+  slipSubmitted: boolean;
+  slipSubmittedAt: string | null;
+  receiptIssued: boolean;
+}
+
 /**
  * บิลค่าเช่า 1 รายการ ใน GET /bills/mine, /bills/received และ /bills/agent
- * ที่มา: TenantBill ใน packages/types/src/contracts.ts และ serialize ใน apps/api/src/billing/tenant-billing.service.ts (DEV/main f7d52ed)
- * ประกาศเฉพาะช่องที่เทสใช้
+ * ที่มา: TenantBill ใน packages/types/src/contracts.ts (บรรทัด 44-76) และ serialize ใน apps/api/src/billing/tenant-billing.service.ts
+ * (บรรทัด 361) ตรวจซ้ำที่ develop 9644dd9
+ * ประกาศเฉพาะช่องที่เทสใช้ กับ 4 ช่องที่ develop 9644dd9 เพิ่ม (packages/types/src/contracts.ts:59-65 ไม่ใช่ช่อง optional
+ * API ส่งทุกครั้งจาก serialize ใน tenant-billing.service.ts:385-388) ยังไม่มีเทสอ่าน 4 ช่องนี้
  */
 export interface TenantBill {
   id: number;
@@ -204,4 +229,12 @@ export interface TenantBill {
   hasPaymentSlip: boolean;
   /** ผู้เช่ากดยืนยันส่งสลิปให้นายหน้าแล้ว */
   slipSubmitted: boolean;
+  /** ส่วนลดค่าจองของบิลแรกของสัญญาเช่าใหม่ ไม่มีเป็น null */
+  reservationCredit: BillReservationCredit | null;
+  /** จำนวนวันหลังวันผ่อนผัน นับถึงวันยืนยันการชำระหรือวันนี้ เป็น 0 จนกว่าจะเลยวันผ่อนผัน */
+  lateDays: number;
+  /** ค่าปรับต่อวันตามสัญญา สำหรับแสดงผล ว่างหรืออ่านไม่ได้เป็น null (นายหน้าพิมพ์ยอดค่าปรับเอง) */
+  lateFeePerDay: number | null;
+  /** ใบแจ้งหนี้ค่าปรับของบิลนี้เมื่อออกแล้ว ยังไม่ออกเป็น null */
+  lateFee: BillLateFee | null;
 }
