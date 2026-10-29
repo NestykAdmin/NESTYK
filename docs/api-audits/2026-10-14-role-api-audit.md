@@ -117,6 +117,8 @@ controller ใช้ `ParseIntPipe` ซึ่งไม่ได้บังค�
 
 ## วิธีรันและหลักฐาน
 
+
+
 ```sh
 npm run build -w @nestyk/api
 node --test apps/api/test/*.test.cjs
@@ -130,6 +132,9 @@ npm run db:check -w @nestyk/api -- --check
 
 หลักฐานใน repository ไม่มี response body ของลูกค้า:
 
+
+
+
 - [routing/guard และ query results](evidence/2026-10-14/routes.json)
 - [55 GET กับ read-only database](evidence/2026-10-14/readonly.json)
 - [24 GET กับ ID เกินขอบเขต](evidence/2026-10-14/large-id.json)
@@ -139,8 +144,9 @@ npm run db:check -w @nestyk/api -- --check
 
 
 
-
 ## Inventory ทุก route
+
+
 
 
 ทุกแถวผ่านการตรวจ route dispatch/guards ด้วย service จำลองตาม roles ที่ประกาศ Column DB แสดง HTTP status จากการเรียก GET จริงใน read-only mode ด้วย identity สังเคราะห์; “ไม่ได้รัน” หมายถึงไม่มีการทดสอบ route นั้นกับ DB จริงในรอบนี้ Column ID แสดงผลเมื่อส่ง 2147483648 และ column Query แสดง 500 ที่เกิดกับ duplicate query ผ่าน controller
