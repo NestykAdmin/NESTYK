@@ -20,3 +20,16 @@ export async function expectError(response: APIResponse, status: number): Promis
   expect(body.statusCode).toBe(status);
   return Array.isArray(body.message) ? body.message.join('; ') : body.message;
 }
+
+/**
+ * ตรวจคำตอบ error ที่ API ส่งเป็น object ของตัวเอง { code, message, ... } เช่น 409 LEAD_CLOSED หรือ 422 LEAD_NOT_READY
+ * คำตอบแบบนี้ไม่มีช่อง statusCode (NestJS ส่ง object ที่ส่งเข้า exception เป็นเนื้อคำตอบตรง ๆ ;
+ * ยืนยันในห้องทดลองกับ API ที่ develop bc77a8b 30 ต.ค. 2026) จึงใช้ expectError ไม่ได้
+ * ตรวจรหัสตอบกลับกับ code แล้วคืน message
+ */
+export async function expectCodedError(response: APIResponse, status: number, code: string): Promise<string> {
+  const body = await expectJson<{ code?: unknown; message?: unknown }>(response, status);
+  expect(body.code).toBe(code);
+  expect(typeof body.message).toBe('string');
+  return body.message as string;
+}

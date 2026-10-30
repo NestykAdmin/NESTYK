@@ -38,9 +38,12 @@ import { expectError, expectJson } from '../../src/support/http';
  *     และส่งคำค้นยาว 1 ตัวอักษร ซึ่ง service คืนรายการว่างโดยไม่เรียก Google แม้ guard จะพัง (agent-places.service.ts:273-275)
  *   - POST /auth/sync ถูกเรียกด้วยบัญชี QA ที่ global-setup ยืนยันแล้วว่ามีอยู่ (sync ของบัญชีที่มีอยู่ไม่บันทึกอะไร)
  *
- * ยังไม่ครอบคลุม: เส้นทาง agent กลุ่มห้อง (/agent/rooms/*), ลิงก์แชร์ห้อง (/agent/listings/:id/share-links), การนัดดูห้อง
- *   และการจับคู่ห้องให้ลีด (ยังไม่มีตัวเรียกใน src/api/)
- *   และเส้นทาง POST/PUT/PATCH/DELETE (ถ้าบทบาทถูก คำขอจะบันทึกข้อมูลจริง) ยกเว้น POST mine/deal-offers/:id/confirm
+ * กลุ่มห้อง (/agent/rooms/*), ลิงก์แชร์ห้อง (/agent/listings/:id/share-links), การนัดดูห้อง และการจับคู่ห้องให้ลีด
+ *   ใช้ GET ตัวแทนของแต่ละ controller (ทั้ง 4 ตัวตั้ง @Roles('agent') ระดับ class ไม่มีระดับ method ตรวจที่ develop bc77a8b)
+ *   ถ้า guard พังจนคำขอไปถึง service: GET property-types อ่านข้อมูลกลาง ส่วนเส้นทางที่มี id ส่ง 2147483647 ซึ่งได้ 404 ก่อนอ่านข้อมูลอื่น
+ *   และ GET /agent/viewings ส่งช่วงเวลาที่ถูกต้องซึ่งอ่านอย่างเดียว (ที่มาเขียนไว้ที่ตัวเรียกใน src/api/)
+ *
+ * ยังไม่ครอบคลุม: เส้นทาง POST/PUT/PATCH/DELETE (ถ้าบทบาทถูก คำขอจะบันทึกข้อมูลจริง) ยกเว้น POST mine/deal-offers/:id/confirm
  *   ซึ่งตั้ง @Roles('landlord') ระดับ method แยกเป็นของตัวเอง (party-contracts.controller.ts:109) GET mine/deal-offers จึงเป็นตัวแทนไม่ได้
  *   เทสในกลุ่ม "landlord contract routes" จับได้ถ้า @Roles บรรทัด 109 หายไป (qa-tenant จะได้ 400 แทน 403)
  *
@@ -116,6 +119,13 @@ const groups: GatedGroup[] = [
       { name: 'GET /agent/contracts/:id/handover/move-out', call: (s) => s.contracts.moveOutHandover(NO_SUCH_ID) },
       { name: 'GET /agent/contracts/:id/deposit-settlement', call: (s) => s.contracts.depositSettlement(NO_SUCH_ID) },
       { name: 'GET /bills/agent/:id/late-fee/:kind', call: (s) => s.bills.agentLateFeeDocument(NO_SUCH_ID, 'invoice') },
+      // agent-rooms.controller.ts:27-29, room-share-links.controller.ts:18-20, lead-matching.controller.ts:9-11,
+      //   lead-viewings.controller.ts:10-12 (develop bc77a8b)
+      { name: 'GET /agent/rooms/property-types', call: (s) => s.rooms.propertyTypes() },
+      { name: 'GET /agent/listings/:id/share-links', call: (s) => s.shareLinks.list(NO_SUCH_ID) },
+      { name: 'GET /agent/leads/:id/match-settings', call: (s) => s.matching.settings(NO_SUCH_ID) },
+      { name: 'GET /agent/leads/:id/viewings', call: (s) => s.viewings.listForLead(NO_SUCH_ID) },
+      { name: 'GET /agent/viewings', call: (s) => s.viewings.range({ from: '2026-11-01T00:00:00.000Z', to: '2026-11-02T00:00:00.000Z' }) },
     ],
   },
   {

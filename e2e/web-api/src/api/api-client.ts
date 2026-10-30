@@ -33,6 +33,11 @@ export class ApiClient {
   delete(path: string): Promise<APIResponse> {
     return this.request.delete(relativePath(path));
   }
+
+  /** ส่งแบบ multipart/form-data (ฟอร์มที่มีไฟล์) ใช้กับเส้นทางอัปโหลด */
+  postMultipart(path: string, multipart: Record<string, string | { name: string; mimeType: string; buffer: Buffer }>): Promise<APIResponse> {
+    return this.request.post(relativePath(path), { multipart });
+  }
 }
 
 /**

@@ -106,6 +106,8 @@ export interface LeadDetail extends Lead {
   notes: string | null;
   /** เหตุผลที่ลีดหลุด มีค่าเฉพาะสถานะ lost (mark-inprogress ล้างเป็น null) */
   lostReason: string | null;
+  /** รัศมีรอบหมุด (กม.) ที่ใช้จับคู่ห้อง null = ยังไม่ได้ตั้ง */
+  radiusKm: number | null;
 }
 
 /** คำตอบของ GET /agent/leads : รายการแบบแบ่งหน้า พร้อมจำนวนลีดของแต่ละสถานะที่แอปแสดง */
@@ -249,4 +251,91 @@ export interface TenantBill {
   lateFeePerDay: number | null;
   /** ใบแจ้งหนี้ค่าปรับของบิลนี้เมื่อออกแล้ว ยังไม่ออกเป็น null */
   lateFee: BillLateFee | null;
+}
+
+// ---- ห้อง ลิงก์แชร์ จับคู่ห้อง และนัดดูห้อง (ที่มา: service ที่ develop bc77a8b ตามที่ระบุ) ----
+
+/** GET /agent/rooms/property-types (agent-rooms.service.ts:72-75) */
+export interface PropertyTypeOption {
+  id: number;
+  code: string;
+}
+
+/** GET /agent/rooms/contract-types เฉพาะที่เปิดใช้ (agent-rooms.service.ts:77-87) */
+export interface ContractTypeOption {
+  id: number;
+  code: string;
+  termMonths: number;
+}
+
+/** GET /agent/rooms/room-types เฉพาะที่เปิดใช้ (agent-rooms.service.ts:111-121) bedroomCount เป็น null ได้ (เช่น duplex) */
+export interface RoomTypeOption {
+  id: number;
+  code: string;
+  bedroomCount: number | null;
+}
+
+/** GET /agent/rooms/facilities (agent-rooms.service.ts:89-109) */
+export interface FacilityOption {
+  code: string;
+  groupCode: string;
+  isExtraCharge: boolean;
+}
+
+/** GET /agent/rooms/contacts และ property-owners: ข้อมูลส่วนตัว เทสตรวจแค่ id, roomCount และชนิดของช่อง (agent-rooms.service.ts:123-197) */
+export interface RoomPartyOption {
+  id: number;
+  name: string;
+  phone: string | null;
+  roomCount: number;
+}
+
+/** แถวของ GET /agent/rooms/properties (แถวตาราง properties: entities/property.entity.ts) */
+export interface PropertyRow {
+  id: number;
+  name: string | null;
+  district: string | null;
+  province: string | null;
+}
+
+/** ลิงก์แชร์ 1 รายการใน GET /agent/listings/:id/share-links (room-share-links.service.ts:170-178) ไม่มี token หรือ url */
+export interface ShareLinkSummary {
+  id: number;
+  expiresAt: string;
+  revokedAt: string | null;
+  createdAt: string;
+  status: 'active' | 'expired' | 'revoked';
+  contactId: number | null;
+  shareSections: Record<string, boolean>;
+}
+
+/** ค่าตั้งการจับคู่ห้อง (lead-matching.ts:14 ; packages/types/src/leads.ts:100-104) */
+export interface MatchSettings {
+  minScore: number;
+  maxScore: number;
+  maxResults: number;
+}
+
+/** GET /agent/leads/:id/match-settings (lead-matching.service.ts:233-236) */
+export interface MatchSettingsResponse {
+  saved: Partial<MatchSettings> | null;
+  effective: MatchSettings;
+  defaults: MatchSettings;
+}
+
+/** GET /agent/leads/:id/match-runs/latest (lead-matching.service.ts:194-213) run เป็น null เมื่อยังไม่เคยจับคู่ */
+export interface MatchLatestResponse {
+  run: { runId: number; resultCount: number; topScore: number | null; createdAt: string; stale: boolean } | null;
+  items: { room: { id: number }; score: number }[];
+}
+
+/** นัดดูห้อง 1 รายการ (lead-viewings.service.ts:90-103) */
+export interface LeadViewing {
+  id: number;
+  leadId: number;
+  rentRoomId: number;
+  scheduledAt: string;
+  status: 'scheduled' | 'done' | 'cancelled';
+  note: string | null;
+  createdAt: string;
 }

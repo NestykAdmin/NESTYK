@@ -5,11 +5,15 @@ import { AuthApi } from '../api/auth.api';
 import { BillsApi } from '../api/bills.api';
 import { ContractsApi } from '../api/contracts.api';
 import { HealthApi } from '../api/health.api';
+import { LeadMatchingApi } from '../api/lead-matching.api';
 import { LeadsApi } from '../api/leads.api';
 import { ListingsApi } from '../api/listings.api';
 import { PartyContractsApi, RetiredContractSignApi } from '../api/party-contracts.api';
 import { PlacesApi } from '../api/places.api';
+import { AgentRoomsApi } from '../api/rooms.api';
+import { RoomShareLinksApi } from '../api/share-links.api';
 import { TenantsApi } from '../api/tenants.api';
+import { LeadViewingsApi } from '../api/viewings.api';
 import { env } from '../config/env';
 import { qaAccounts, qaDevToken, qaSkipReason, type QaRole } from '../config/qa-accounts';
 
@@ -33,6 +37,14 @@ export interface ApiSession {
   places: PlacesApi;
   /** ภาพรวมงานและแจ้งเตือนของนายหน้า */
   agentWork: AgentWorkApi;
+  /** ข้อมูลประกอบฟอร์มห้อง และคำขอสร้างหรือแก้ห้องที่ต้องถูกปฏิเสธ */
+  rooms: AgentRoomsApi;
+  /** ลิงก์แชร์ห้อง และหน้าสาธารณะของลิงก์ */
+  shareLinks: RoomShareLinksApi;
+  /** จับคู่ห้องให้ลีด */
+  matching: LeadMatchingApi;
+  /** นัดดูห้อง */
+  viewings: LeadViewingsApi;
 }
 
 function createSession(request: APIRequestContext): ApiSession {
@@ -50,6 +62,10 @@ function createSession(request: APIRequestContext): ApiSession {
     bills: new BillsApi(client),
     places: new PlacesApi(client),
     agentWork: new AgentWorkApi(client),
+    rooms: new AgentRoomsApi(client),
+    shareLinks: new RoomShareLinksApi(client),
+    matching: new LeadMatchingApi(client),
+    viewings: new LeadViewingsApi(client),
   };
 }
 
