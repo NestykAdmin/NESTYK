@@ -96,6 +96,18 @@ export interface Lead {
   tenantId: number | null;
 }
 
+/**
+ * ลีด 1 ราย พร้อมช่องที่เทสเขียนข้อมูล (tests/write) ตรวจ
+ * ทุกเส้นทางของลีดตอบรูปแบบเดียวกัน (toLead ใน apps/api/src/agent/leads/agent-leads.service.ts บรรทัด 454-476 ที่ qa/e2e a7eb77c)
+ */
+export interface LeadDetail extends Lead {
+  firstName: string;
+  lastName: string;
+  notes: string | null;
+  /** เหตุผลที่ลีดหลุด มีค่าเฉพาะสถานะ lost (mark-inprogress ล้างเป็น null) */
+  lostReason: string | null;
+}
+
 /** คำตอบของ GET /agent/leads : รายการแบบแบ่งหน้า พร้อมจำนวนลีดของแต่ละสถานะที่แอปแสดง */
 export interface LeadList extends Paginated<Lead> {
   /** นับจากลีดที่ตรงคำค้นและตัวกรองทำเล ก่อนใช้ตัวกรอง status */

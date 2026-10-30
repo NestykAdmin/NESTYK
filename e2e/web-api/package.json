@@ -7,6 +7,7 @@
     "test": "playwright test",
     "test:api": "playwright test --project=api",
     "test:smoke": "playwright test --grep @smoke",
+    "test:write": "playwright test -c playwright.write.config.ts",
     "typecheck": "tsc --noEmit",
     "report": "playwright show-report"
   },
