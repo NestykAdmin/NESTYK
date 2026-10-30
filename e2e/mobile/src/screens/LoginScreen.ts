@@ -16,7 +16,7 @@ const TEXT_FIELD = 'XCUIElementTypeTextField';
 const SECURE_TEXT_FIELD = 'XCUIElementTypeSecureTextField';
 const BUTTON = 'XCUIElementTypeButton';
 
-/** ปุ่ม go บนแป้นพิมพ์ของช่องรหัสผ่าน (login.tsx บรรทัด 278 ถึง 279: returnKeyType="go" เรียก onSubmit) */
+/** ปุ่ม go บนแป้นพิมพ์ของช่องรหัสผ่าน (login.tsx บรรทัด 280 ถึง 281: returnKeyType="go" เรียก onSubmit) */
 const KEYBOARD_GO = '\n';
 
 /**
@@ -57,7 +57,7 @@ export class LoginScreen {
   private readonly passwordToggle: ElementSpec = {
     description: 'ปุ่มแสดงหรือซ่อนรหัสผ่าน',
     testId: 'login.togglePassword',
-    // ชื่อกำกับของปุ่มนี้เปลี่ยนตามสถานะ (login.tsx บรรทัด 307 ถึง 309)
+    // ชื่อกำกับของปุ่มนี้เปลี่ยนตามสถานะ (login.tsx บรรทัด 309 ถึง 311)
     labels: [
       ...inEveryLanguage((labels) => labels.auth.showPassword),
       ...inEveryLanguage((labels) => labels.auth.hidePassword),
@@ -155,7 +155,7 @@ export class LoginScreen {
   // ---------- การสั่งงาน ----------
 
   // ทุกคำสั่งในส่วนนี้รอให้ชิ้นส่วนหยุดเคลื่อนที่ก่อน (waitUntilSteady หรือ tap ใน locators.ts)
-  // เพราะฟอร์มขยับขึ้นลงเมื่อแป้นพิมพ์เปิดหรือปิด (login.tsx บรรทัด 81 กับ 153 ถึง 176)
+  // เพราะฟอร์มขยับขึ้นลงเมื่อแป้นพิมพ์เปิดหรือปิด (login.tsx บรรทัด 83 กับ 155 ถึง 178)
 
   /** ลบข้อความในช่องอีเมล (แป้นพิมพ์จะเปิดขึ้น เพราะตัวขับต้องแตะช่องก่อนลบ) */
   async clearEmail(): Promise<void> {
@@ -185,7 +185,7 @@ export class LoginScreen {
 
   /**
    * ส่งฟอร์มด้วยปุ่ม go บนแป้นพิมพ์ของช่องรหัสผ่าน
-   * แอปเรียกฟังก์ชันเดียวกับตอนกดปุ่มเข้าสู่ระบบ (login.tsx บรรทัด 279 กับ 344)
+   * แอปเรียกฟังก์ชันเดียวกับตอนกดปุ่มเข้าสู่ระบบ (login.tsx บรรทัด 281 กับ 346)
    */
   async submitFromKeyboard(): Promise<void> {
     await (await waitUntilSteady(this.passwordField)).addValue(KEYBOARD_GO);
@@ -193,7 +193,7 @@ export class LoginScreen {
 
   /**
    * แตะปุ่มเข้าสู่ระบบ
-   * ใช้ได้แม้แป้นพิมพ์เปิดอยู่: หน้านี้ย่อส่วนหัวเมื่อช่องกรอกถูกเลือก เพื่อให้ฟอร์มกับปุ่มนี้อยู่เหนือแป้นพิมพ์ (login.tsx บรรทัด 81 กับ 153 ถึง 176)
+   * ใช้ได้แม้แป้นพิมพ์เปิดอยู่: หน้านี้ย่อส่วนหัวเมื่อช่องกรอกถูกเลือก เพื่อให้ฟอร์มกับปุ่มนี้อยู่เหนือแป้นพิมพ์ (login.tsx บรรทัด 83 กับ 155 ถึง 178)
    */
   async tapLogin(): Promise<void> {
     await tap(this.loginButton);

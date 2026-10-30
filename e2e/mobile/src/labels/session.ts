@@ -1,7 +1,7 @@
 /**
  * ข้อความของหน้าหลังล็อกอินที่ชุดเทส session ใช้ (หน้าของนายหน้า ลิ้นชักเมนู แผงตั้งค่าแอป และหน้าของผู้เยี่ยมชม)
  *
- * ที่มา: packages/i18n/src/locales/th.ts และ en.ts ที่ commit feefcf2 (เลขบรรทัดของ 2 ไฟล์เท่ากัน) คอมเมนต์ท้ายบรรทัดคือ key กับเลขบรรทัด
+ * ที่มา: packages/i18n/src/locales/th.ts และ en.ts ที่ develop bc77a8b (qa/e2e f1bbdc9 ; เดิมอ้าง feefcf2 ; เลขบรรทัดของ 2 ไฟล์เท่ากัน) คอมเมนต์ท้ายบรรทัดคือ key กับเลขบรรทัด
  * แยกจาก th.ts กับ en.ts ของโฟลเดอร์นี้ เพราะชุดเทสหลัก 14 ข้อไม่ใช้ข้อความกลุ่มนี้ การเพิ่มที่นี่จึงไม่แตะชนิดข้อมูล Labels ของชุดหลัก
  * เหตุผลที่ชุดเทสเก็บข้อความเอง ไม่ดึงจากโค้ดของแอป: ดูหัวไฟล์ src/labels/index.ts
  *
@@ -25,7 +25,7 @@ export type AgentTab = (typeof AGENT_TABS)[number];
 export const DATA_TABS = ['listingRoom', 'listingLead', 'clients'] as const;
 export type DataTab = (typeof DATA_TABS)[number];
 
-/** แท็บที่มีปุ่มลองใหม่เมื่อโหลดไม่สำเร็จ (หน้าผู้เช่าไม่มีปุ่มนี้: AgentTenantsScreen.tsx บรรทัด 780 ถึง 784) */
+/** แท็บที่มีปุ่มลองใหม่เมื่อโหลดไม่สำเร็จ (หน้าผู้เช่าไม่มีปุ่มนี้: AgentTenantsScreen.tsx บรรทัด 792 ถึง 796 ที่ develop bc77a8b) */
 export const RETRY_TABS = ['listingRoom', 'listingLead'] as const;
 export type RetryTab = (typeof RETRY_TABS)[number];
 
@@ -36,7 +36,7 @@ export interface SessionLabels {
   guestHomeTab: string;
   /**
    * ป้ายใต้ชื่อหน้าบนส่วนหัว: แท็บภาพรวม ห้อง ลีด และเพิ่มเติม แสดงป้ายนี้ ส่วนแท็บผู้เช่าแสดงคำอธิบายรายการแทน
-   * (apps/consumer-app/app/index.tsx บรรทัด 571 ถึง 580 และ 609 ถึง 619 ขั้นที่ 34 เห็นป้ายนี้บนหน้าภาพรวม ห้อง และเพิ่มเติม ส่วนหน้าผู้เช่าเห็น "รายชื่อผู้เช่าทั้งหมด")
+   * (apps/consumer-app/app/index.tsx บรรทัด 590 ถึง 606 และ 636 ถึง 646 ที่ develop bc77a8b ขั้นที่ 34 เห็นป้ายนี้บนหน้าภาพรวม ห้อง และเพิ่มเติม ส่วนหน้าผู้เช่าเห็น "รายชื่อผู้เช่าทั้งหมด")
    */
   workspaceLabel: string;
   /** แถวในลิ้นชักที่เปิดแผงตั้งค่าแอป */
@@ -52,7 +52,7 @@ export interface SessionLabels {
    * แอปแสดงข้อความ error ที่ได้รับแทนข้อความเหล่านี้ ถ้าข้อความนั้นเป็นภาษาเดียวกับแอป (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 28)
    * หน้าลีดแสดงข้อความตั้งต้นเป็นหัวข้อทุกครั้งที่มี error (AgentLeadsScreen.tsx บรรทัด 343 ถึง 360)
    * หน้าห้องแสดงเป็นหัวข้อเมื่อยังไม่มีรายการ (packages/feature-listing/src/components/MobileAgentListingsBody.tsx บรรทัด 553 ถึง 565)
-   * ส่วนหน้าผู้เช่าแสดงแค่ข้อความ error ข้อความเดียว (AgentTenantsScreen.tsx บรรทัด 780 ถึง 784) ผลต่อข้อ 3 ของชุด session ดู README หัวข้อ "ชุด session"
+   * ส่วนหน้าผู้เช่าแสดงแค่ข้อความ error ข้อความเดียว (AgentTenantsScreen.tsx บรรทัด 792 ถึง 796) ผลต่อข้อ 3 ของชุด session ดู README หัวข้อ "ชุด session"
    */
   loadErrors: Record<DataTab, readonly string[]>;
   /** ชื่อปุ่มลองใหม่ที่แสดงคู่กับข้อความ error ของหน้าห้องและหน้าลีด ชื่อนี้ไม่เปลี่ยนตามข้อความของ error */
@@ -68,22 +68,22 @@ const th: SessionLabels = {
     more: 'เพิ่มเติม', // mobile.tabs.more บรรทัด 55
   },
   guestHomeTab: 'หน้าแรก', // mobile.tabs.home บรรทัด 41
-  workspaceLabel: 'พื้นที่ทำงานนายหน้า', // agent.dashboard.workspaceLabel บรรทัด 1736
-  appSettings: 'ตั้งค่าแอป', // mobile.profile.accountSettings บรรทัด 145
+  workspaceLabel: 'พื้นที่ทำงานนายหน้า', // agent.dashboard.workspaceLabel บรรทัด 1943
+  appSettings: 'ตั้งค่าแอป', // mobile.profile.accountSettings บรรทัด 153
   signOut: 'ออกจากระบบ', // common.signOut บรรทัด 19
-  signedOut: 'ออกจากระบบแล้ว', // mobile.auth.signedOut บรรทัด 289
+  signedOut: 'ออกจากระบบแล้ว', // mobile.auth.signedOut บรรทัด 298
   loading: 'กำลังโหลด…', // common.loading บรรทัด 13
   loadErrors: {
-    listingRoom: ['โหลดรายการห้องไม่สำเร็จ'], // agent.listings.loadError บรรทัด 1682
-    listingLead: ['โหลดข้อมูลไม่สำเร็จ'], // agent.leads.loadError บรรทัด 831
+    listingRoom: ['โหลดรายการห้องไม่สำเร็จ'], // agent.listings.loadError บรรทัด 1871
+    listingLead: ['โหลดข้อมูลไม่สำเร็จ'], // agent.leads.loadError บรรทัด 942
     clients: [
-      'โหลดผู้เช่าไม่สำเร็จ', // agent.tenants.list.loadError บรรทัด 612
-      'โหลดสลิปรอตรวจไม่สำเร็จ', // agent.tenants.list.slipsLoadError บรรทัด 614 (แสดงเมื่อโหลดสลิปไม่สำเร็จ: AgentTenantsScreen.tsx บรรทัด 229 ถึง 236)
+      'โหลดผู้เช่าไม่สำเร็จ', // agent.tenants.list.loadError บรรทัด 723
+      'โหลดสลิปรอตรวจไม่สำเร็จ', // agent.tenants.list.slipsLoadError บรรทัด 725 (แสดงเมื่อโหลดสลิปไม่สำเร็จ: AgentTenantsScreen.tsx บรรทัด 229 ถึง 236)
     ],
   },
   retryButtons: {
-    listingRoom: 'ลองใหม่', // agent.listings.retry บรรทัด 1683
-    listingLead: 'ลองใหม่', // agent.leads.retry บรรทัด 832
+    listingRoom: 'ลองใหม่', // agent.listings.retry บรรทัด 1872
+    listingLead: 'ลองใหม่', // agent.leads.retry บรรทัด 943
   },
 };
 
@@ -96,22 +96,22 @@ const en: SessionLabels = {
     more: 'More', // mobile.tabs.more บรรทัด 55
   },
   guestHomeTab: 'Home', // mobile.tabs.home บรรทัด 41
-  workspaceLabel: 'Agent workspace', // agent.dashboard.workspaceLabel บรรทัด 1736
-  appSettings: 'App Settings', // mobile.profile.accountSettings บรรทัด 145
+  workspaceLabel: 'Agent workspace', // agent.dashboard.workspaceLabel บรรทัด 1943
+  appSettings: 'App Settings', // mobile.profile.accountSettings บรรทัด 153
   signOut: 'Sign Out', // common.signOut บรรทัด 19
-  signedOut: 'You have been signed out.', // mobile.auth.signedOut บรรทัด 289
+  signedOut: 'You have been signed out.', // mobile.auth.signedOut บรรทัด 298
   loading: 'Loading…', // common.loading บรรทัด 13
   loadErrors: {
-    listingRoom: ['Could not load your rooms'], // agent.listings.loadError บรรทัด 1682
-    listingLead: ['Could not load data'], // agent.leads.loadError บรรทัด 831
+    listingRoom: ['Could not load your rooms'], // agent.listings.loadError บรรทัด 1871
+    listingLead: ['Could not load data'], // agent.leads.loadError บรรทัด 942
     clients: [
-      'Could not load tenants', // agent.tenants.list.loadError บรรทัด 612
-      'Could not load slips to review', // agent.tenants.list.slipsLoadError บรรทัด 614
+      'Could not load tenants', // agent.tenants.list.loadError บรรทัด 723
+      'Could not load slips to review', // agent.tenants.list.slipsLoadError บรรทัด 725
     ],
   },
   retryButtons: {
-    listingRoom: 'Retry', // agent.listings.retry บรรทัด 1683
-    listingLead: 'Retry', // agent.leads.retry บรรทัด 832
+    listingRoom: 'Retry', // agent.listings.retry บรรทัด 1872
+    listingLead: 'Retry', // agent.leads.retry บรรทัด 943
   },
 };
 
@@ -119,7 +119,7 @@ const ALL: Record<AppLanguage, SessionLabels> = { th, en };
 
 /**
  * ข้อความ error ภาษาไทยของ API ที่หน้าผู้เช่าแสดงตรง ๆ ในรอบภาษาไทย (เป็นข้อความของ API ไม่ใช่ของแอป จึงไม่อยู่ใน th.ts)
- * หน้าผู้เช่าไม่มีหัวข้อหรือปุ่มลองใหม่ให้จับแทน (AgentTenantsScreen.tsx บรรทัด 780 ถึง 784) ข้อ 3 จึงต้องรู้จักตัวข้อความ
+ * หน้าผู้เช่าไม่มีหัวข้อหรือปุ่มลองใหม่ให้จับแทน (AgentTenantsScreen.tsx บรรทัด 792 ถึง 796) ข้อ 3 จึงต้องรู้จักตัวข้อความ
  * ในรอบภาษาอังกฤษ แอปแสดงข้อความตั้งต้นของแอปแทนข้อความเหล่านี้ (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 28)
  * ที่มา (apps/api/src ที่ commit feefcf2): หน้าผู้เช่าเรียก GET /agent/tenants ซึ่งขอ URL ของเอกสารสัญญาด้วยเมื่อมีสัญญาที่มีเอกสาร
  *   (agent/tenants/agent-tenants.service.ts บรรทัด 176 ถึง 182, agent/contracts/agent-contracts.service.ts บรรทัด 648 ถึง 653 และ 695 ถึง 699)

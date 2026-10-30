@@ -5,7 +5,7 @@
  *   - iPhone จำลองเปิดอยู่ และมีแอป NESTYK ลงอยู่ (build ที่บทบาทตั้งต้นต้องล็อกอิน)
  *   - ไม่ใช้ API: ทุกเทสในไฟล์นี้จบที่การตรวจฝั่งแอป ไม่มีข้อไหนตั้งใจล็อกอินให้สำเร็จ ควรรันตอนที่ API ปิดอยู่ (ดูข้อควรระวังข้างล่าง)
  *   - แอปไม่ได้ต่อ Supabase จริง (ค่า EXPO_PUBLIC_SUPABASE_URL ยังเป็นค่าตัวอย่าง) แอปจึงตัดสินอีเมลกับรหัสผ่านเองโดยไม่เรียกเครือข่าย
- *     ที่มา: apps/consumer-app/lib/auth/AuthContext.tsx บรรทัด 121 ถึง 178 และ lib/auth/supabase.ts บรรทัด 7 ถึง 9
+ *     ที่มา: apps/consumer-app/lib/auth/AuthContext.tsx บรรทัด 157 ถึง 221 และ lib/auth/supabase.ts บรรทัด 8 ถึง 10 (ที่ develop bc77a8b)
  * ไฟล์นี้ไม่ตั้งใจสร้างหรือแก้ข้อมูลในระบบ เทสทุกข้อล้างข้อมูลที่แอปเก็บไว้ในเครื่องจำลองก่อนเปิดแอป
  *
  * ข้อควรระวังของไฟล์นี้: ใน build โหมดนักพัฒนา แอปเติมบัญชีนักพัฒนาไว้ใน 2 ช่องให้เอง
@@ -13,7 +13,7 @@
  *   - เทสที่แตะปุ่มอื่น (ลืมรหัสผ่าน สมัครสมาชิก บัญชีภายนอก) ไม่ได้ลบค่าใน 2 ช่องก่อน เพราะการลบเปิดแป้นพิมพ์
  *     และหน้านี้ปิดแป้นพิมพ์ได้ทางเดียวคือส่งฟอร์ม แป้นพิมพ์ที่ค้างอยู่จะบังปุ่มส่วนล่างของหน้า
  *     ถ้าการแตะพลาดไปโดนปุ่มเข้าสู่ระบบ และ API เปิดอยู่ แอปจะล็อกอินด้วยบัญชีนักพัฒนา (เรียก POST /auth/sync และอาจขอบทบาท admin
- *     ที่ /auth/dev/roles: AuthContext.tsx บรรทัด 46 ถึง 58 กับ 155 ถึง 172) เทสข้อนั้นจะแดงที่การตรวจว่ายังอยู่หน้า login
+ *     ที่ /auth/dev/roles: AuthContext.tsx บรรทัด 56 ถึง 64 กับ 198 ถึง 218 ที่ develop bc77a8b) เทสข้อนั้นจะแดงที่การตรวจว่ายังอยู่หน้า login
  *     ชุดเทสลดโอกาสนี้ด้วยการรอให้ปุ่มหยุดเคลื่อนที่ก่อนแตะ และถ้าปิด API ไว้ การล็อกอินนั้นจะไม่สำเร็จ
  */
 import { env } from '../src/config/env';
@@ -71,7 +71,7 @@ describe('Login form', () => {
       expect(passwordLength).toBe(0);
     }
 
-    // ขั้นที่ 4: ไม่ว่าโหมดไหน ช่องรหัสผ่านต้องเริ่มแบบซ่อนตัวอักษร (login.tsx บรรทัด 62 กับ 272)
+    // ขั้นที่ 4: ไม่ว่าโหมดไหน ช่องรหัสผ่านต้องเริ่มแบบซ่อนตัวอักษร (login.tsx บรรทัด 62 กับ 274)
     expect(await login.passwordDisplay()).toBe('hidden');
   });
 
@@ -89,14 +89,14 @@ describe('Login form', () => {
     // ขั้นที่ 3: แตะปุ่มเข้าสู่ระบบ
     await login.tapLogin();
 
-    // ขั้นที่ 4: แอปบอกให้กรอก และผู้ใช้ยังอยู่ที่หน้า login (กฎอยู่ที่ login.tsx บรรทัด 98 ถึง 101)
+    // ขั้นที่ 4: แอปบอกให้กรอก และผู้ใช้ยังอยู่ที่หน้า login (กฎอยู่ที่ login.tsx บรรทัด 100 ถึง 103)
     expect(await login.waitForError([labels.auth.requiredFields])).toBe(labels.auth.requiredFields);
     expect(await login.isShown()).toBe(true);
   });
 
   it('asks for email and password when only the password is empty', async () => {
     // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วพิมพ์อีเมลของเทส และลบรหัสผ่าน
-    //   กฎของแอปตรวจ 2 ช่องแยกกัน (login.tsx บรรทัด 98: !email.trim() || !password) ข้อนี้ตรวจฝั่งรหัสผ่าน
+    //   กฎของแอปตรวจ 2 ช่องแยกกัน (login.tsx บรรทัด 100: !email.trim() || !password) ข้อนี้ตรวจฝั่งรหัสผ่าน
     const login = await openLoginScreen();
     await login.typeEmail(UNKNOWN_EMAIL);
     await login.clearPassword();
@@ -113,7 +113,7 @@ describe('Login form', () => {
 
   it('treats an email made of a single space as empty', async () => {
     // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วใส่ช่องว่าง 1 ตัวในช่องอีเมล และใส่รหัสผ่านของเทส
-    //   แอปตัดช่องว่างหัวท้ายของอีเมลก่อนตรวจ (login.tsx บรรทัด 98: !email.trim())
+    //   แอปตัดช่องว่างหัวท้ายของอีเมลก่อนตรวจ (login.tsx บรรทัด 100: !email.trim())
     const login = await openLoginScreen();
     await login.typeEmail(' ');
     await replacePrefilledPassword(login);
@@ -142,14 +142,14 @@ describe('Login form', () => {
     await login.submitFromKeyboard();
 
     // ขั้นที่ 4: แอปต้องแจ้งว่าอีเมลหรือรหัสผ่านไม่ถูกต้องเป็นภาษาเดียวกับแอป (คำแปล mobile.auth.invalidCredentials) และผู้ใช้ยังอยู่ที่หน้า login
-    //   ข้อนี้เคยเป็นบั๊ก MOB-001: แอปแสดงข้อความอังกฤษ "Invalid email or password" จาก AuthContext.tsx บรรทัด 175 แม้แอปตั้งเป็นภาษาไทย
+    //   ข้อนี้เคยเป็นบั๊ก MOB-001: แอปแสดงข้อความอังกฤษ "Invalid email or password" จาก AuthContext.tsx บรรทัด 220 แม้แอปตั้งเป็นภาษาไทย
     //   ทีมแก้ใน commit f9b9bea: login.tsx บรรทัด 107 ใช้ localizedError (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 29)
     //   ซึ่งแสดงข้อความของข้อผิดพลาดเฉพาะเมื่อเขียนด้วยอักษรของภาษาที่แอปใช้ ไม่อย่างนั้นแสดงคำแปลนี้แทน 2 ภาษาที่ชุดเทสรันได้จึงตรวจคนละเรื่อง
     //   - ภาษาไทย (ค่าตั้งต้น): จับ MOB-001 ได้ แต่ข้อผิดพลาดทุกแบบที่ไม่มีตัวอักษรไทยจะออกมาเป็นคำแปลเดียวกัน จึงแยกไม่ออกว่าแอปปฏิเสธเพราะอะไร
     //   - ภาษาอังกฤษ: คำแปลตรงกับข้อความของบั๊ก จึงจับ MOB-001 ไม่ได้ แต่เห็นข้อความจริงของข้อผิดพลาด
     //   ถ้าขั้นนี้หมดเวลา ให้ดูในไฟล์ XML ของ test-results ว่าแอปแสดงข้อความอะไร
     //   - "Invalid email or password" ขณะรันภาษาไทย: บั๊ก MOB-001 กลับมา
-    //   - ข้อความของ Supabase ขณะรันภาษาอังกฤษ: build ต่อ Supabase จริง (AuthContext.tsx บรรทัด 127 ถึง 141) ซึ่งไม่ตรงกับสิ่งที่ต้องมีก่อนรัน ไม่ใช่แอปพัง
+    //   - ข้อความของ Supabase ขณะรันภาษาอังกฤษ: build ต่อ Supabase จริง (AuthContext.tsx บรรทัด 163 ถึง 196) ซึ่งไม่ตรงกับสิ่งที่ต้องมีก่อนรัน ไม่ใช่แอปพัง
     expect(await login.waitForError([labels.auth.invalidCredentials])).toBe(labels.auth.invalidCredentials);
     expect(await login.isShown()).toBe(true);
   });
@@ -165,7 +165,7 @@ describe('Login form', () => {
     expect(await login.passwordDisplay()).toBe('hidden');
     expect(await login.passwordToggleLabel()).toBe(labels.auth.showPassword);
 
-    // ขั้นที่ 3: แตะปุ่มตา แล้วช่องแสดงตัวอักษรที่พิมพ์ และปุ่มบอกว่ากดแล้วจะ "ซ่อน" (login.tsx บรรทัด 272 กับ 307 ถึง 309)
+    // ขั้นที่ 3: แตะปุ่มตา แล้วช่องแสดงตัวอักษรที่พิมพ์ และปุ่มบอกว่ากดแล้วจะ "ซ่อน" (login.tsx บรรทัด 274 กับ 309 ถึง 311)
     await login.togglePasswordVisibility();
     expect(await readUntil(() => login.passwordDisplay(), 'visible')).toBe('visible');
     expect(await login.visiblePasswordText()).toBe(TEST_PASSWORD);
@@ -182,7 +182,7 @@ describe('Login form', () => {
     const login = await openLoginScreen();
     await login.tapForgotPassword();
 
-    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 323)
+    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 325)
     expect(await login.waitForNotice([labels.auth.resetUnavailable])).toBe(labels.auth.resetUnavailable);
     expect(await login.isShown()).toBe(true);
   });
@@ -192,19 +192,19 @@ describe('Login form', () => {
     const login = await openLoginScreen();
     await login.tapSignUp();
 
-    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 421)
+    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 423)
     expect(await login.waitForNotice([labels.auth.signupUnavailable])).toBe(labels.auth.signupUnavailable);
     expect(await login.isShown()).toBe(true);
   });
 
-  // ปุ่มบัญชีภายนอกมี 3 ปุ่ม ใช้โค้ดเดียวกัน (login.tsx บรรทัด 370 ถึง 400) เทสแยกปุ่มละข้อ เพื่อให้รู้ว่าปุ่มไหนเสีย
+  // ปุ่มบัญชีภายนอกมี 3 ปุ่ม ใช้โค้ดเดียวกัน (login.tsx บรรทัด 371 ถึง 402) เทสแยกปุ่มละข้อ เพื่อให้รู้ว่าปุ่มไหนเสีย
   for (const provider of SOCIAL_PROVIDERS) {
     it(`tells the user that ${provider} sign-in is not available yet`, async () => {
       // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วแตะปุ่มของผู้ให้บริการ
       const login = await openLoginScreen();
       await login.tapSocial(provider);
 
-      // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 381)
+      // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 383)
       expect(await login.waitForNotice([labels.auth.unavailable])).toBe(labels.auth.unavailable);
       expect(await login.isShown()).toBe(true);
     });
