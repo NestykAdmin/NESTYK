@@ -24,6 +24,7 @@ import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
  *   - เทสของเส้นทางที่เพิ่มใน develop 9644dd9 (early-end, not-renewing, handover/move-out, deposit-settlement) ต้องใช้ API ตั้งแต่ 9644dd9
  *     กับ API รุ่นก่อนจะได้ "Cannot ..." ของ NestJS แทน "ไม่พบสัญญา" ไม่ต้องใช้ migration ของ 9644dd9 (20261027160000, 20261028100000)
  *     เพราะทุกข้อหยุดที่การหาสัญญา ซึ่งไม่อ่านตารางที่ 2 migration นี้แก้ (จากโค้ด)
+ *     ยกเว้นเทส 404 ของ POST early-end กับ POST not-renewing ที่ต้องใช้ API ตั้งแต่ develop 1b16d32 (รุ่นก่อนนั้นได้ 500 ดูคอมเมนต์ที่ EARLY_END_BODY)
  *   - ถ้า qa-agent ยังไม่มีสัญญา ลีดที่จองแล้วและพร้อมทำสัญญา (candidates) ใบแจ้งหนี้ หรือหนังสือยืนยันค่าคอมมิชชั่น
  *     เทสของรายการนั้นตรวจได้แค่ว่าตอบเป็นรายการ (มีป้าย "ไม่ได้ตรวจ" ในรายงาน)
  *
@@ -84,9 +85,12 @@ const SIGNATURE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42
 /**
  * เนื้อคำขอที่ผ่านการตรวจ ของเส้นทางที่ตรวจเนื้อคำขอก่อนหาสัญญา (develop 9644dd9) ใช้กับสัญญาที่ไม่มีอยู่จริงเท่านั้น
  * ถ้าเนื้อคำขอไม่ผ่าน API ตอบ 400 ก่อน เทสจะไม่ได้ตรวจการหาสัญญา (ที่มาของแต่ละเส้นทางอยู่ที่ตัวเรียกใน contracts.api.ts)
- * วันที่ใช้ 2099-12-31 ซึ่งไม่ก่อนวันนี้ และเป็นวันที่มีจริงในปฏิทิน (isIsoDate ใน apps/api/src/agent/contracts/lease-term.ts:4-9)
+ * วันที่ใช้ 2099-12-31 ซึ่งเป็นวันที่มีจริงในปฏิทิน (isIsoDate ใน apps/api/src/agent/contracts/lease-term.ts:4-9)
  */
-/** setEarlyEnd: date ไม่ก่อนวันนี้ตามเวลากรุงเทพ และ reason ไม่ว่าง (agent-contracts.service.ts:2183-2186) */
+/**
+ * setEarlyEnd: date เป็นวันที่ ค.ศ. ที่มีจริง และ reason ไม่ว่าง ยาวไม่เกิน 1000 ตัวอักษร (agent-contracts.service.ts:2223-2224 ที่ develop bc77a8b)
+ * ตั้งแต่ 1b16d32 วันในอดีตก็ผ่าน การเทียบวันที่กับช่วงสัญญาอยู่หลังการหาสัญญา (บรรทัด 2243)
+ */
 const EARLY_END_BODY = { date: '2099-12-31', reason: 'e2e' };
 /** save ของบันทึกย้ายออก: validateHandover กับ handoverRevision (handover.service.ts:309-310) รายการทรัพย์สินว่างได้ (บรรทัด 86-88) */
 const MOVE_OUT_BODY = { handoverDate: '2099-12-31', items: [], revision: 0 };
@@ -99,16 +103,14 @@ const DEDUCTION_BODY = { deductionType: 'other', description: 'e2e', amount: 1 }
 const APPROVE_BODY = { note: 'e2e', refundAmount: 1 };
 
 /**
- * บั๊กที่รู้แล้ว (พบที่ develop 9644dd9 ยังไม่ได้แจ้งทีมตอนเขียน): POST early-end กับ POST not-renewing ตอบ 500 แทน 404
- *   ผลรันจริง 29 ต.ค. 2026 13:11 น.: ทั้ง 2 เส้นทางได้ {"statusCode":500,"message":"Internal server error"}
- *   สาเหตุที่น่าจะเป็น (อนุมานจากโค้ดและผลห้องทดลอง ยังไม่ได้ยืนยันจาก log ของ API): setEarlyEnd กับ setNotRenewing หาสัญญาด้วย
- *   findOne ที่ล็อกแถว (pessimistic_write) พร้อม relations (agent-contracts.service.ts:2188-2191 และ 2323-2326)
- *   TypeORM จึงส่ง FOR UPDATE ที่มี LEFT JOIN ซึ่ง PostgreSQL ปฏิเสธ
- *   ด้วย "FOR UPDATE cannot be applied to the nullable side of an outer join" ทดลองซ้ำได้ในห้องทดลองด้วย TypeORM 0.3.31
- *   กับ PostgreSQL 16 (ไม่มี relations หรือระบุ lock.tables แล้วผ่าน) error เกิดที่คำสั่งแรกของ transaction จึงไม่มีอะไรถูกเขียน
- *   เมื่อทีมแก้แล้ว เทส 404 ของ 2 เส้นทางนี้จะแดงเพื่อเตือนให้ลบ knownBug ออก
+ * บั๊กที่ทีมแก้แล้ว: POST early-end กับ POST not-renewing เคยตอบ 500 แทน 404 ที่ develop 9644dd9
+ *   (findOne ล็อกแถวพร้อม relations ทำให้ PostgreSQL ปฏิเสธ FOR UPDATE กับ LEFT JOIN ที่มา: คอมเมนต์ของทีมในโค้ดที่แก้
+ *   "Postgres cannot lock the nullable side of a join" agent-contracts.service.ts:2228-2229 และ 2424-2425 ที่ develop bc77a8b)
+ *   ทีมแก้ใน develop 1b16d32 (29 ต.ค. 2026 ; git log -S ของคอมเมนต์นั้นได้ 1b16d32): ล็อกแถวก่อน แล้วอ่านพร้อม template แยกอีกครั้ง
+ *   และตอบ 404 เมื่อหาไม่เจอ (agent-contracts.service.ts บรรทัด 2228-2237 และ 2424-2433 ที่ develop bc77a8b)
+ *   ผลรันบนเครื่อง QA 30 ต.ค. 2026 กับ API ที่ develop bc77a8b: ทั้ง 2 เส้นทางได้ 404 (เทส known-bug เตือนว่า "Expected to fail, but passed")
+ *   จึงเอา knownBug ออก เทส 404 ของ 2 เส้นทางนี้ต้องใช้ API ตั้งแต่ 1b16d32 ขึ้นไป
  */
-const KNOWN_BUG_LOCKED_FIND = 'API ตอบ 500 สาเหตุที่น่าจะเป็น (อนุมาน): findOne ล็อกแถวพร้อม relations ทำให้ PostgreSQL ปฏิเสธ FOR UPDATE กับ LEFT JOIN (agent-contracts.service.ts:2191, 2326)';
 
 /** ปี ค.ศ. ตามเวลาประเทศไทย แบบเดียวกับ contractYear ใน agent-contracts.service.ts (ใช้เป็นปีในเลขที่เอกสาร) */
 function bangkokYear(date = new Date()): number {
@@ -274,22 +276,21 @@ test.describe('a contract that does not exist', () => {
    * handover/move-out/photos ตรวจแค่ความยาวคำอธิบายรูปก่อนหาสัญญา (handover.service.ts:345-347) เทสไม่ส่งคำอธิบาย
    * เส้นทางที่รับไฟล์ส่งแบบไม่แนบไฟล์ เพราะทุกเส้นทางหาสัญญาก่อนอ่านไฟล์
    */
+  // knownBug: ใส่กับแถวที่ API ยังผิดอยู่ (ข้อตกลง @known-bug ใน README) ตอนนี้ไม่มีแถวไหนใช้ เก็บโครงไว้ใช้ครั้งหน้า
   const writes: { name: string; call: (agent: ApiSession, id: number) => Promise<APIResponse>; knownBug?: string }[] = [
     {
       name: 'POST /agent/contracts/:id/early-end',
       call: (agent, id) => agent.contracts.earlyEnd(id, EARLY_END_BODY),
-      knownBug: KNOWN_BUG_LOCKED_FIND,
     },
     { name: 'POST /agent/contracts/:id/early-end/money', call: (agent, id) => agent.contracts.earlyEndMoney(id, {}) },
     {
       name: 'POST /agent/contracts/:id/early-end/refund-proof without a file',
       call: (agent, id) => agent.contracts.uploadEarlyEndRefundProofWithoutFile(id),
     },
-    // { notRenewing: false } = ยกเลิกการบันทึกไม่ต่อ ถ้าสัญญามีอยู่จริงและยังไม่ได้บันทึกไม่ต่อ ระบบไม่เปลี่ยนอะไร (agent-contracts.service.ts:2333)
+    // { notRenewing: false } = ยกเลิกการบันทึกไม่ต่อ ถ้าสัญญามีอยู่จริงและยังไม่ได้บันทึกไม่ต่อ ระบบไม่เปลี่ยนอะไร (agent-contracts.service.ts:2440 ที่ develop bc77a8b)
     {
       name: 'POST /agent/contracts/:id/not-renewing',
       call: (agent, id) => agent.contracts.notRenewing(id, { notRenewing: false }),
-      knownBug: KNOWN_BUG_LOCKED_FIND,
     },
     { name: 'PUT /agent/contracts/:id/handover/move-out', call: (agent, id) => agent.contracts.saveMoveOutHandover(id, MOVE_OUT_BODY) },
     {
