@@ -300,7 +300,7 @@ export type HandoverKind = "move_in" | "move_out";
 export type HandoverItemCondition = "good" | "damaged" | "missing";
 export type HandoverSignParty = "owner" | "tenant";
 /** Why the handover of a lease cannot be filled in yet. */
-export type HandoverBlockedReason = "not_lease" | "contract_ended" | "lease_not_issued" | "deposit_unpaid" | "not_leaving" | "has_successor";
+export type HandoverBlockedReason = "not_lease" | "contract_ended" | "lease_not_issued" | "deposit_unpaid" | "room_occupied" | "not_leaving" | "has_successor";
 /** blocked: not open yet (see blockedReason) · not_started: open, nothing saved · in_progress: saved, not signed by both · completed: signed by both, locked. */
 export type HandoverStatus = "blocked" | "not_started" | "in_progress" | "completed";
 export interface HandoverItemInput {

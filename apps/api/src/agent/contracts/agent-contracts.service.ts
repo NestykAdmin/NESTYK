@@ -72,14 +72,15 @@ import {
   leaseRenewalSnapshot,
   firstLeaseFields,
   RENEWAL_ADVANCE_DAYS,
+  parseRenewalCommission,
 } from "./lease-renewal";
 import { asIsoDate, isIsoDate, leaseTermEnd, shiftIsoDate } from "./lease-term";
 import { validateReservationLetter, emptyReservationLetter, stampReservationDocumentHeader, bangkokDate, reservationTenantFields } from "./reservation-letter";
 import { ensurePartyLogin } from "./party-login";
-import { CO_BROKE_REQUIRED, confirmedOffer, hasCoBrokeFile, offerLeaseFields, offerReservationFields } from "./deal-offers.service";
+import { CO_BROKE_REQUIRED, confirmedOffer, hasCoBrokeFile, offerLeaseFields, offerReservationFields, roomLeaseLastDay } from "./deal-offers.service";
 import { hasSignature, refreshReservationDraft, type DraftFiles } from "./offer-drafts";
 import { upcomingRentPeriod } from "../../billing/tenant-billing.service";
-import { closeLeaseContract, contractEndReasons } from "./contract-closure";
+import { closeEndedLease, closeLeaseContract, contractEndReasons } from "./contract-closure";
 import { bangkokToday, renewalActiveOn } from "../../billing/rent-schedule";
 import { roomDealStatusesByRoomIds } from "../rooms/room-deal-status";
 import { earlyEndCollectInvoice, parseEarlyEndMoney } from "./early-end-money";
@@ -114,6 +115,8 @@ import { TenantEntity } from "../../entities/tenant.entity";
 import { RentRoomEntity } from "../../entities/rent-room.entity";
 import { RentRoomContactEntity } from "../../entities/rent-room-contact.entity";
 import { RoomTenancyEntity } from "../../entities/room-tenancy.entity";
+import { TenantBillEntity } from "../../entities/tenant-bill.entity";
+import { ContractDepositSettlementEntity } from "../../entities/contract-deposit-settlement.entity";
 import {
   CONTRACT_DOCUMENT_KINDS,
   ContractDocumentStorageService,
@@ -193,6 +196,18 @@ export function formatInvoiceNo(year: number, seq: number) {
  * D11: the slip the agent looked at (its submittedAt) must still be the tenant's latest one: a slip sent meanwhile is
  * not returned (or removed) with a reason written for the earlier one.
  */
+/**
+ * AC-8.2 (Aof 29 Oct 2026): a renewal is signed on the Bangkok day of its last signature, not the day the agent
+ * generates the PDF (today when no signature time is stored).
+ */
+export function renewalSignedOn(c: Pick<LeaseContractEntity, "owner_signed_at" | "tenant_signed_at" | "agent_signed_at">, today = bangkokToday()) {
+  const days = [c.owner_signed_at, c.tenant_signed_at, c.agent_signed_at]
+    .filter((at): at is Date => at != null)
+    .map((at) => bangkokToday(new Date(at)))
+    .sort();
+  return days.length ? days[days.length - 1] : today;
+}
+
 export const SLIP_CHANGED = "SLIP_CHANGED";
 function assertSameSlip(input: unknown, current: string | null | undefined) {
   const seen = input && typeof input === "object" && !Array.isArray(input) ? (input as { submittedAt?: unknown }).submittedAt : undefined;
@@ -627,19 +642,38 @@ export class AgentContractsService {
       });
       if (!invoice?.receipt_pdf_path) return "deposit_unpaid";
     }
+    // Step 28 (B4, AC-6.1, TC-6.05): a room still let to the tenant before (an other deal's lease or renewal) is
+    // handed over from the day after that stay's last day (roomLeaseLastDay); one ended with no decision still holds it.
+    if (c.rent_room_id != null) {
+      const others = await (manager ?? this.db).getRepository(LeaseContractEntity).find({
+        where: { rent_room_id: c.rent_room_id, status: In(["active", "expired", "terminated"]) },
+        relations: { template: true, agreement_type: true },
+      });
+      const today = bangkokToday();
+      const occupied = others.some((o) => {
+        if (o.id === c.id || o.lead_id === c.lead_id) return false;
+        if (!["lease", "renewal"].includes(o.template?.form_kind ?? o.agreement_type?.form_kind ?? "")) return false;
+        const data = (o.data ?? {}) as { undecided?: unknown; notRenewing?: unknown; endsOn?: unknown };
+        if (o.status === "expired" && data.undecided && !data.notRenewing && !data.endsOn) return true;
+        const last = roomLeaseLastDay(o);
+        return !last || today <= last;
+      });
+      if (occupied) return "room_occupied";
+    }
     return null;
   }
 
-  private inboxQuery() {
-    return this.db
+  /** `withCancelled` only for the parties' list (B3): every action on one contract still refuses a cancelled one. */
+  private inboxQuery(withCancelled = false) {
+    const query = this.db
       .getRepository(LeaseContractEntity)
       .createQueryBuilder("c")
       .leftJoinAndSelect("c.rent_room", "room")
       .leftJoinAndSelect("room.property", "property")
       .leftJoinAndSelect("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.template", "template")
-      .leftJoinAndSelect("c.tenant", "tenant")
-      .where("c.status <> 'cancelled'");
+      .leftJoinAndSelect("c.tenant", "tenant");
+    return withCancelled ? query.where("TRUE") : query.where("c.status <> 'cancelled'");
   }
   private partiesFor(userId: number, c: LeaseContractEntity) {
     const parties: ContractParty[] = [];
@@ -791,18 +825,17 @@ export class AgentContractsService {
       throw new BadRequestException("สัญญานี้สิ้นสุดแล้ว ไม่สามารถสร้างหรือแก้ไขเอกสารใหม่ได้");
   }
 
-  /** A signed renewal reads as active once its effective day has arrived, before the stored status is updated. */
+  /**
+   * A signed renewal reads as active once its effective day has arrived, before the stored status is updated.
+   * H1/H2 (Aof 29 Oct 2026): the end of a lease is the stored status, written by the daily close; a lease past its
+   * end with no decision stays active so the agent can still record it (AC-8.7, TC-8.11).
+   */
   private effectiveStatus(c: LeaseContractEntity): AgentContract["status"] {
     const signedOn = c.agreement_kind === "renewal" && typeof c.data?.renewalSignedOn === "string" ? c.data.renewalSignedOn : null;
     const start = String(c.start_date ?? "").slice(0, 10);
     if (signedOn && start && !["cancelled", "expired", "terminated", "active"].includes(c.status)
       && bangkokToday() >= renewalActiveOn(start, signedOn))
       return "active";
-    const formKind = c.template?.form_kind ?? c.agreement_type?.form_kind;
-    const endsOn = (c.data as { endsOn?: { date?: unknown } } | null)?.endsOn?.date;
-    const end = (typeof endsOn === "string" ? endsOn : null) || String(c.end_date ?? "").slice(0, 10);
-    if (c.status === "active" && (formKind === "lease" || formKind === "renewal") && end && bangkokToday() > end)
-      return typeof endsOn === "string" ? "terminated" : "expired";
     return c.status as AgentContract["status"];
   }
   private serialize(
@@ -930,6 +963,12 @@ export class AgentContractsService {
   /** What a landlord or tenant gets: the commission confirmation is between the landlord and the agent only. */
   private forParty<T extends AgentContract>(view: T, parties: readonly string[]): T {
     let out = parties.includes("owner") || !("commission" in view) ? view : { ...view, commission: null };
+    // AC-8.1: the renewal commission is between the landlord and the agent.
+    if (!parties.includes("owner") && out.data && "renewalCommission" in out.data) {
+      const rest = { ...(out.data as Record<string, unknown>) };
+      delete rest.renewalCommission;
+      out = { ...out, data: rest };
+    }
     // D5: the parties see why and the money, not the agent's evidence or refund proof.
     if (out.cancellation) out = { ...out, cancellation: { ...out.cancellation, evidenceUrls: [], refundProofUrl: null } };
     const endsOn = (out.data as { endsOn?: { money?: { proofPath?: string | null } } } | undefined)?.endsOn;
@@ -1351,6 +1390,7 @@ export class AgentContractsService {
       pdf,
       generate,
     );
+    const signedOn = renewalSignedOn(c);
     try {
       const result = await this.db.getRepository(LeaseContractEntity).update(
         {
@@ -1364,10 +1404,10 @@ export class AgentContractsService {
         },
         {
           document_url: stored.path,
-          ...(generate ? { data: { ...(c.data ?? {}), renewalSignedOn: bangkokToday() } } : {}),
+          ...(generate ? { data: { ...(c.data ?? {}), renewalSignedOn: signedOn } } : {}),
           ...(generate &&
           ["draft", "awaiting_signatures", "awaiting_agent_review"].includes(c.status) &&
-          bangkokToday() >= renewalActiveOn(String(c.start_date).slice(0, 10), bangkokToday())
+          bangkokToday() >= renewalActiveOn(String(c.start_date).slice(0, 10), signedOn)
             ? { status: "active" as const }
             : {}),
         },
@@ -2173,7 +2213,7 @@ export class AgentContractsService {
    * A renewal that is still open has to be cancelled first.
    */
   /**
-   * D16 (AC-7.7): end the stay early on a day that is not before today and is before the original end.
+   * D16 (AC-7.7): end the stay early on a day before the original end (a past day too, closed at once).
    * The room is soon-vacant at once. The contract reads as ended from the day after that date.
    */
   async setEarlyEnd(agentId: number, id: number, input: unknown) {
@@ -2183,12 +2223,16 @@ export class AgentContractsService {
     if (!isIsoDate(date)) throw new BadRequestException("วันที่เลิกมีผลต้องเป็น ค.ศ. ในรูปแบบ YYYY-MM-DD");
     if (!reason || reason.length > 1000) throw new BadRequestException("กรุณาระบุเหตุผลที่เลิกสัญญา");
     const today = bangkokToday();
-    if (date < today) throw new BadRequestException("วันที่เลิกมีผลต้องไม่ก่อนวันที่บันทึก");
+    // Aof 29 Oct 2026: a day in the past may be recorded (the tenant has left already); the lease closes at once.
     await this.db.transaction(async (manager) => {
-      const lease = await manager.findOne(LeaseContractEntity, {
+      // Postgres cannot lock the nullable side of a join (FOR UPDATE with the template joins fails): lock the row,
+      // then read it with its template.
+      const locked = await manager.findOne(LeaseContractEntity, {
         where: { id, created_by_user_id: agentId },
         lock: { mode: "pessimistic_write" },
-        relations: { template: true, agreement_type: true },
+      });
+      const lease = locked && await manager.findOne(LeaseContractEntity, {
+        where: { id: locked.id }, relations: { template: true, agreement_type: true },
       });
       if (!lease) throw new NotFoundException("ไม่พบสัญญา");
       const formKind = lease.template?.form_kind ?? lease.agreement_type?.form_kind;
@@ -2198,18 +2242,30 @@ export class AgentContractsService {
       const end = lease.end_date ? String(lease.end_date).slice(0, 10) : null;
       if (date < start || (end && date >= end))
         throw new BadRequestException("วันที่เลิกมีผลต้องอยู่ในช่วงสัญญาและก่อนวันสิ้นสุดเดิม");
+      // M1: once recorded it stays (its money, invoice, slip and proof hang on it).
+      if ((lease.data as { endsOn?: unknown } | null)?.endsOn)
+        throw new ConflictException("บันทึกเลิกสัญญาก่อนกำหนดแล้ว แก้ไขไม่ได้");
       const successors = await manager.find(LeaseContractEntity, { where: { previous_agreement_id: lease.id } });
       if (successors.some((row) => row.status !== "cancelled"))
         throw new BadRequestException("มีหนังสือต่อสัญญาค้างอยู่ ยกเลิกฉบับนั้นก่อนจึงเลิกสัญญาได้");
       await manager.update(LeaseContractEntity, { id: lease.id }, {
         data: { ...(lease.data ?? {}), endsOn: { date, reason, recordedOn: today, recordedBy: agentId } },
       } as QueryDeepPartialEntity<LeaseContractEntity>);
+      // Aof 29 Oct 2026: no rent is billed for after the stay. Bills already issued that fall due after the last day,
+      // unpaid and with no slip sent, are removed; a paid one or one with a slip stays (the agent types the refund).
+      await manager.createQueryBuilder().delete().from(TenantBillEntity)
+        .where("lease_contract_id = :id AND status = 'pending' AND due_date > :date", { id: lease.id, date })
+        .andWhere("payment_slip_path IS NULL AND slip_submitted_at IS NULL")
+        .andWhere("NOT EXISTS (SELECT 1 FROM agent_invoices i WHERE i.tenant_bill_id = tenant_bills.id)")
+        .execute();
       if (lease.lead_id != null) {
         const lead = await manager.findOne(LeadEntity, { where: { id: lease.lead_id }, lock: { mode: "pessimistic_write" } });
         if (lead && lead.status === "booked" && lead.rent_room_id === lease.rent_room_id && !lead.booking_released_at)
           await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: new Date() });
       }
     });
+    // The record stands even if closing fails now: the daily close tries again at 00:05.
+    if (date < today) await closeEndedLease(this.db, id, today).catch(() => null);
     return this.view(agentId, id);
   }
   /** D16 (AC-7.7, TC-7.06, TC-7.12): record the typed refund or the amount still to collect. Once only. */
@@ -2252,7 +2308,8 @@ export class AgentContractsService {
     return this.view(agentId, id);
   }
   private earlyEndMoneyOf(c: LeaseContractEntity) {
-    return ((c.data as { endsOn?: { money?: { kind?: string; invoicePath?: string | null; slipPath?: string | null; proofPath?: string | null } } } | null)?.endsOn?.money) ?? null;
+    return ((c.data as { endsOn?: { money?: { kind?: string; invoicePath?: string | null; slipPath?: string | null; proofPath?: string | null;
+      slipSubmittedAt?: string | null; paidAt?: string | null; returnNote?: string | null } } } | null)?.endsOn?.money) ?? null;
   }
   /** Opens the collection invoice, the tenant's slip, or the refund proof. */
   async earlyEndFileUrl(userId: number, id: number, kind: string, asAgent: boolean) {
@@ -2274,25 +2331,69 @@ export class AgentContractsService {
     if (!parties.includes("tenant")) throw new ForbiddenException("เฉพาะผู้เช่าเท่านั้นที่ส่งสลิปได้");
     const money = this.earlyEndMoneyOf(c);
     if (money?.kind !== "collect" || !money.invoicePath) throw new BadRequestException("ยังไม่มีใบแจ้งหนี้ยอดที่ต้องเก็บ");
-    if (money.slipPath) throw new BadRequestException("ส่งสลิปแล้ว");
+    // M5 (Aof 29 Oct 2026): the tenant may send a new slip until the agent confirms the money.
+    if (money.paidAt) throw new BadRequestException("นายหน้ายืนยันรับเงินแล้ว");
     if (!this.documents) throw new ServiceUnavailableException("ยังไม่ได้ตั้งค่าที่เก็บเอกสาร");
     const stored = await this.documents.uploadPaymentSlip(c.created_by_user_id, file);
+    let replaced: string | null = null;
     try {
       await this.db.transaction(async (manager) => {
         const lease = await manager.findOne(LeaseContractEntity, { where: { id: c.id }, lock: { mode: "pessimistic_write" } });
         const current = lease ? this.earlyEndMoneyOf(lease) : null;
-        if (!lease || current?.kind !== "collect" || current.slipPath) throw new ConflictException("ส่งสลิปแล้ว");
+        if (!lease || current?.kind !== "collect" || current.paidAt) throw new ConflictException("นายหน้ายืนยันรับเงินแล้ว");
+        replaced = current.slipPath ?? null;
         const endsOn = (lease.data as { endsOn?: object }).endsOn;
         await manager.update(LeaseContractEntity, { id: lease.id }, {
-          data: { ...(lease.data ?? {}), endsOn: { ...endsOn, money: { ...current, slipPath: stored.path, slipSubmittedAt: new Date().toISOString() } } },
+          data: { ...(lease.data ?? {}), endsOn: { ...endsOn, money: { ...current, slipPath: stored.path, slipSubmittedAt: new Date().toISOString(), returnNote: null } } },
         } as QueryDeepPartialEntity<LeaseContractEntity>);
       });
     } catch (error) {
       await this.documents.remove(stored.path).catch(() => undefined);
       throw error;
     }
+    if (replaced) await this.documents.remove(replaced).catch(() => undefined);
     const { contract: updated, parties: mine } = await this.contractForParty(userId, id);
     return { ...this.forParty(this.serialize(updated, await this.signedFor([updated])), mine), myParties: mine };
+  }
+  /**
+   * M5 (Aof 29 Oct 2026): the agent confirms the money of the tenant's slip for the amount still to collect after an
+   * early end, or returns the slip with a reason (the tenant then sends a new one). No receipt this round.
+   */
+  async confirmEarlyEndSlip(agentId: number, id: number, input: unknown) {
+    await this.db.transaction(async (manager) => {
+      const lease = await manager.findOne(LeaseContractEntity, { where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" } });
+      if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+      const current = this.earlyEndMoneyOf(lease);
+      if (current?.kind !== "collect") throw new BadRequestException("ไม่มียอดที่ต้องเก็บ");
+      if (current.paidAt) throw new ConflictException("ยืนยันรับเงินแล้ว");
+      if (!current.slipPath || !current.slipSubmittedAt) throw new BadRequestException("ยังไม่มีสลิปที่ผู้เช่าส่งมา");
+      assertSameSlip(input, current.slipSubmittedAt);
+      const endsOn = (lease.data as { endsOn?: object }).endsOn;
+      await manager.update(LeaseContractEntity, { id: lease.id }, {
+        data: { ...(lease.data ?? {}), endsOn: { ...endsOn, money: { ...current, paidAt: new Date().toISOString(), paidBy: agentId } } },
+      } as QueryDeepPartialEntity<LeaseContractEntity>);
+    });
+    return this.view(agentId, id);
+  }
+  async returnEarlyEndSlip(agentId: number, id: number, input: unknown) {
+    const reason = slipReturnReason(input);
+    let oldPath: string | null = null;
+    await this.db.transaction(async (manager) => {
+      const lease = await manager.findOne(LeaseContractEntity, { where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" } });
+      if (!lease) throw new NotFoundException("ไม่พบสัญญา");
+      const current = this.earlyEndMoneyOf(lease);
+      if (current?.kind !== "collect") throw new BadRequestException("ไม่มียอดที่ต้องเก็บ");
+      if (current.paidAt) throw new BadRequestException("ยืนยันรับเงินแล้ว ตีกลับสลิปไม่ได้");
+      if (!current.slipPath || !current.slipSubmittedAt) throw new BadRequestException("ยังไม่มีสลิปที่ผู้เช่าส่งมาให้ตีกลับ");
+      assertSameSlip(input, current.slipSubmittedAt);
+      oldPath = current.slipPath;
+      const endsOn = (lease.data as { endsOn?: object }).endsOn;
+      await manager.update(LeaseContractEntity, { id: lease.id }, {
+        data: { ...(lease.data ?? {}), endsOn: { ...endsOn, money: { ...current, slipPath: null, slipSubmittedAt: null, returnNote: reason } } },
+      } as QueryDeepPartialEntity<LeaseContractEntity>);
+    });
+    if (oldPath) await this.documents?.remove(oldPath).catch(() => undefined);
+    return this.view(agentId, id);
   }
   async uploadEarlyEndProof(agentId: number, id: number, file: { buffer: Buffer; size: number; originalname?: string } | undefined) {
     const lease = await this.db.getRepository(LeaseContractEntity).findOneBy({ id, created_by_user_id: agentId });
@@ -2320,15 +2421,21 @@ export class AgentContractsService {
   }
   async setNotRenewing(agentId: number, id: number, notRenewing: boolean) {
     await this.db.transaction(async (manager) => {
-      const lease = await manager.findOne(LeaseContractEntity, {
+      // Postgres cannot lock the nullable side of a join (FOR UPDATE with the template joins fails): lock the row,
+      // then read it with its template.
+      const locked = await manager.findOne(LeaseContractEntity, {
         where: { id, created_by_user_id: agentId },
         lock: { mode: "pessimistic_write" },
-        relations: { template: true, agreement_type: true },
+      });
+      const lease = locked && await manager.findOne(LeaseContractEntity, {
+        where: { id: locked.id }, relations: { template: true, agreement_type: true },
       });
       if (!lease) throw new NotFoundException("ไม่พบสัญญา");
       const formKind = lease.template?.form_kind ?? lease.agreement_type?.form_kind;
-      if (!["lease", "renewal"].includes(formKind ?? "") || lease.status !== "active")
-        throw new BadRequestException("บันทึกไม่ต่อสัญญาได้เฉพาะสัญญาเช่าที่มีผล");
+      // AC-8.7: also a lease ended with no decision yet (the room is still let).
+      const awaiting = lease.status === "expired" && !!(lease.data as { undecided?: unknown } | null)?.undecided;
+      if (!["lease", "renewal"].includes(formKind ?? "") || (lease.status !== "active" && !awaiting))
+        throw new BadRequestException("บันทึกไม่ต่อสัญญาได้เฉพาะสัญญาเช่าที่มีผล หรือที่สิ้นสุดแล้วแต่ยังไม่ได้บันทึกต่อหรือไม่ต่อ");
       const recorded = Boolean((lease.data as { notRenewing?: unknown } | null)?.notRenewing);
       if (recorded === notRenewing) return;
       const successors = await manager.find(LeaseContractEntity, { where: { previous_agreement_id: lease.id } });
@@ -2340,10 +2447,15 @@ export class AgentContractsService {
         });
         if (holders.some((lead) => lead.id !== lease.lead_id))
           throw new BadRequestException("มีผู้เช่ารายใหม่จองห้องแล้ว ยกเลิกการบันทึกไม่ต่อไม่ได้");
+        // M4: not once the move-out money is approved.
+        const settlement = await manager.findOne(ContractDepositSettlementEntity, { where: { lease_contract_id: lease.id } });
+        if (settlement && settlement.status !== "draft")
+          throw new BadRequestException("อนุมัติรายการหักเงินประกันแล้ว ยกเลิกการบันทึกไม่ต่อไม่ได้");
         const data = { ...(lease.data ?? {}) } as Record<string, unknown>;
         delete data.notRenewing;
         await manager.update(LeaseContractEntity, { id: lease.id }, { data } as QueryDeepPartialEntity<LeaseContractEntity>);
-        if (lease.lead_id != null) {
+        // M4: an early end recorded too keeps the booking released (the stay still ends).
+        if (lease.lead_id != null && !(lease.data as { endsOn?: unknown } | null)?.endsOn) {
           const own = await manager.findOne(LeadEntity, { where: { id: lease.lead_id } });
           if (own?.status === "booked" && own.rent_room_id === lease.rent_room_id)
             await manager.update(LeadEntity, { id: own.id }, { booking_released_at: null });
@@ -2870,7 +2982,8 @@ export class AgentContractsService {
     }));
   }
   async listForUser(userId: number) {
-    const rows = await this.inboxQuery()
+    // Step 28 (B3, D5): a cancelled deal stays in the parties' list with who caused it and the money (forParty).
+    const rows = await this.inboxQuery(true)
       .andWhere(
         `((tenant.user_id = :userId AND c.tenant_delivered_at IS NOT NULL) OR (c.owner_user_id = :userId AND c.owner_delivered_at IS NOT NULL))`,
         { userId },
@@ -3339,6 +3452,12 @@ export class AgentContractsService {
     return offer ? { ...lease, ...offerLeaseFields(offer), issueDate: String(offer.contract_date).slice(0, 10) } : lease;
   }
 
+  /** AC-8.2: a renewal is cancelled until both parties have signed (and its PDF is not made). */
+  private assertRenewalCancellable(c: LeaseContractEntity) {
+    if (!["draft", "awaiting_signatures"].includes(c.status) || (c.owner_signed_at && c.tenant_signed_at))
+      throw new BadRequestException("ยกเลิกหนังสือต่อสัญญาได้จนกว่าผู้ให้เช่าและผู้เช่าจะลงนามครบ");
+    this.assertDocumentMutable(c);
+  }
   private assertDraft(c: LeaseContractEntity) {
     if (c.status !== "draft" || c.owner_signed_at || c.tenant_signed_at || c.agent_signed_at ||
         c.owner_signature_url || c.tenant_signature_url || c.agent_signature_url)
@@ -3470,7 +3589,13 @@ export class AgentContractsService {
       });
       if (!c || !lead || !room) throw new NotFoundException("ไม่พบสัญญา");
       if (c.lead_id !== initial.lead_id || c.rent_room_id !== initial.rent_room_id) throw new ConflictException('ข้อมูลสัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่');
-      this.assertDraft(c);
+      const template = c.template_id == null ? null : await manager.findOneBy(AgreementTemplateEntity, { id: c.template_id });
+      const formKind = template?.form_kind ?? (c.agreement_type_code
+        ? (await manager.findOneBy(MasterAgreementTypeEntity, { code: c.agreement_type_code }))?.form_kind : undefined);
+      // AC-8.2 (Aof 29 Oct 2026): a renewal can be cancelled (with a reason) until both parties have signed; the
+      // signatures made so far stay as its history.
+      if (formKind === "renewal") this.assertRenewalCancellable(c);
+      else this.assertDraft(c);
       const endReason = await manager.findOneBy(MasterContractEndReasonEntity, {
         code: "draft_cancelled", is_active: true,
       });
@@ -3486,9 +3611,6 @@ export class AgentContractsService {
         data: { ...c.data, draftCancellation: { reason: reason.trim(), at: cancelledAt.toISOString(), by: agentId } },
       });
       await this.revokeDraftInvites(manager, id);
-      const template = c.template_id == null ? null : await manager.findOneBy(AgreementTemplateEntity, { id: c.template_id });
-      const formKind = template?.form_kind ?? (c.agreement_type_code
-        ? (await manager.findOneBy(MasterAgreementTypeEntity, { code: c.agreement_type_code }))?.form_kind : undefined);
       const remaining = await manager.getRepository(LeaseContractEntity).createQueryBuilder('other')
         .leftJoin('other.template', 'template').leftJoin('other.agreement_type', 'agreementType')
         .where('other.lead_id = :leadId AND other.rent_room_id = :roomId', { leadId: c.lead_id, roomId: c.rent_room_id })
@@ -3499,7 +3621,12 @@ export class AgentContractsService {
           rentalForms: c.previous_agreement_id ? ['lease', 'renewal'] : ['reservation', 'lease', 'renewal'],
         })
         .andWhere("other.status NOT IN ('cancelled', 'expired', 'terminated')").getCount();
-      if (formKind && ['reservation', 'lease', 'renewal'].includes(formKind) && !remaining && lead.status === 'booked' && lead.rent_room_id === c.rent_room_id && lead.tenant_id === c.tenant_id) {
+      // AC-8.7: a predecessor ended with no decision yet still holds the room (its stay goes on).
+      const predecessor = c.previous_agreement_id == null ? null
+        : await manager.findOne(LeaseContractEntity, { where: { id: c.previous_agreement_id } });
+      const predecessorHolds = !!predecessor && predecessor.status === "expired"
+        && !!(predecessor.data as { undecided?: unknown } | null)?.undecided;
+      if (formKind && ['reservation', 'lease', 'renewal'].includes(formKind) && !remaining && !predecessorHolds && lead.status === 'booked' && lead.rent_room_id === c.rent_room_id && lead.tenant_id === c.tenant_id) {
         await manager.update(LeadEntity, { id: lead.id }, { booking_released_at: cancelledAt });
         if (c.room_tenancy_id) await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, created_by_user_id: agentId, status: 'prospect' }, { status: 'moved_out' });
       }
@@ -3586,7 +3713,7 @@ export class AgentContractsService {
       raw.data && typeof raw.data === "object" && !Array.isArray(raw.data)
         ? { ...(raw.data as Record<string, unknown>) }
         : {};
-    for (const key of ["financialDocuments", "reservationPayment", "documentFileNames", "draftRevision", "draftCancellation"])
+    for (const key of ["financialDocuments", "reservationPayment", "documentFileNames", "draftRevision", "draftCancellation", "renewalTerms"])
       if (key in rawData)
         throw new BadRequestException("ไม่สามารถกำหนดข้อมูลเอกสารการเงินหรือสถานะระบบเองได้");
     let reservationLetter: ReservationLetterInput | undefined;
@@ -3665,6 +3792,9 @@ export class AgentContractsService {
       leaseRenewal = validateLeaseRenewal(rawData.leaseRenewal);
       delete rawData.leaseRenewal;
     }
+    // AC-8.1: the renewal commission (required with the renewal form, kept outside its PDF fields).
+    const renewalCommission = type.form_kind === "renewal" ? parseRenewalCommission(rawData.renewalCommission) : null;
+    delete rawData.renewalCommission;
     // Prefer lease form dates/money when the overlay payload is present.
     let contractInput = b;
     if (reservationLetter) {
@@ -3730,6 +3860,7 @@ export class AgentContractsService {
     if (leaseAgreement)
       data.leaseAgreement = leaseAgreementSnapshot(leaseAgreement);
     if (leaseRenewal) data.leaseRenewal = leaseRenewalSnapshot(leaseRenewal);
+    if (renewalCommission != null) data.renewalCommission = renewalCommission;
     // D11: a returned booking slip keeps its reason for the tenant when the draft is edited before a new slip comes.
     const returned = existing?.data?.reservationPayment as { slipPath?: string; returnNote?: string } | undefined;
     if (template.form_kind === "reservation" && returned?.returnNote && !returned.slipPath) data.reservationPayment = returned;
@@ -3801,6 +3932,14 @@ export class AgentContractsService {
         });
         if (!previous)
           throw new NotFoundException("ไม่พบสัญญาที่ต้องการต่ออายุ");
+        // Aof 29 Oct 2026: renewals go by the renewal addendum only (the full-lease route is closed for now, its
+        // deposit could not be refunded), and a stay recorded as not renewing or ending early is not renewed.
+        if (template.form_kind !== "renewal")
+          throw new BadRequestException({ code: "RENEW_WITH_ADDENDUM", message: "ต่อสัญญาได้ด้วยหนังสือต่อสัญญาเท่านั้น" });
+        const leaving = (previous.data ?? {}) as { notRenewing?: unknown; endsOn?: unknown };
+        if (leaving.notRenewing || leaving.endsOn)
+          throw new BadRequestException({ code: "STAY_LEAVING",
+            message: "บันทึกไม่ต่อสัญญาหรือเลิกสัญญาก่อนกำหนดไว้แล้ว ต่อสัญญาไม่ได้ ถ้าจะต่อ ให้ยกเลิกบันทึกไม่ต่อก่อน" });
         const previousTemplate = await manager.findOneBy(
           AgreementTemplateEntity,
           { id: previous.template_id },
@@ -3873,6 +4012,11 @@ export class AgentContractsService {
           leaseRenewal.originalLeaseDate = predecessor.firstLeaseDate;
           leaseRenewal.originalExpiryDate = previousEnd;
           data.leaseRenewal = leaseRenewalSnapshot(leaseRenewal);
+          // Step 28 (B5, AC-7.4, AC-8.8): rent bills of the renewal keep the grace day and the daily late fee of the first
+          // lease (the renewal form has neither field).
+          const first = (root.data as { leaseAgreement?: { graceDay?: unknown; latePenalty?: unknown } } | null)?.leaseAgreement;
+          if (first && (first.graceDay || first.latePenalty))
+            data.renewalTerms = { graceDay: first.graceDay ?? null, latePenalty: first.latePenalty ?? null };
         }
         const renewalAddendum =
           template.form_kind === "renewal" &&
@@ -3881,20 +4025,10 @@ export class AgentContractsService {
           ["active", "expired"].includes(previous.status) &&
           !!previousEnd &&
           contractInput.startDate === shiftIsoDate(previousEnd, 1);
-        const fullLeaseRenewal =
-          template.form_kind === "lease" &&
-          previousKind === "lease" &&
-          sameParties &&
-          ["active", "expired"].includes(previous.status) &&
-          !!previousEnd &&
-          contractInput.startDate > previousEnd;
-        if (!renewalAddendum && !fullLeaseRenewal)
+        if (!renewalAddendum)
           throw new BadRequestException(
-            template.form_kind === "renewal"
-              ? "ต่อสัญญาได้จากสัญญาเช่าหรือหนังสือต่อสัญญาที่มีผลของผู้เช่าและห้องเดิม โดยฉบับใหม่เริ่มวันถัดจากวันสิ้นสุดของฉบับล่าสุด"
-              : "ต่ออายุได้เฉพาะสัญญาเช่าที่ใช้งานหรือหมดอายุ ผู้เช่าและห้องเดิม และเริ่มหลังวันสิ้นสุดเดิม",
+            "ต่อสัญญาได้จากสัญญาเช่าหรือหนังสือต่อสัญญาที่มีผลของผู้เช่าและห้องเดิม โดยฉบับใหม่เริ่มวันถัดจากวันสิ้นสุดของฉบับล่าสุด",
           );
-        // The legacy full-lease route must not bypass the renewal advance window.
         if (bangkokToday() < shiftIsoDate(previousEnd, -RENEWAL_ADVANCE_DAYS))
           throw new BadRequestException(
             "ต่อสัญญาล่วงหน้าได้ไม่เกิน 30 วันก่อนสัญญาเดิมหมดอายุ",
@@ -3957,6 +4091,14 @@ export class AgentContractsService {
           closed: ["lease", "renewal"].includes(type.form_kind)
             ? ["cancelled"] : ["cancelled", "expired", "terminated"],
         })
+        // AC-S.2 (step 28): a reservation already made into a lease of its deal no longer holds the room, so the
+        // next tenant's reservation is not blocked by the one before (the room status skips it the same way).
+        .andWhere(type.form_kind === "reservation"
+          ? `NOT EXISTS (SELECT 1 FROM lease_contracts made LEFT JOIN agreement_templates madeTemplate ON madeTemplate.id = made.template_id
+              LEFT JOIN master_agreement_types madeType ON madeType.code = made.agreement_type_code
+              WHERE made.lead_id = c.lead_id AND made.rent_room_id = c.rent_room_id AND made.status <> 'cancelled'
+              AND COALESCE(madeTemplate.form_kind, madeType.form_kind) = 'lease')`
+          : "TRUE")
         .andWhere(
           "(CAST(:end AS date) IS NULL OR (CASE WHEN COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' THEN COALESCE(c.move_in_date, c.start_date) ELSE c.start_date END) <= :end) AND (COALESCE(contractTemplate.form_kind, agreementType.form_kind) = 'reservation' OR COALESCE(c.effective_end_date, c.end_date) IS NULL OR COALESCE(c.effective_end_date, c.end_date) >= :start)",
           {

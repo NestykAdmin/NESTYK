@@ -148,3 +148,14 @@ export function leaseRenewalSnapshot(
   const { landlordSignaturePng: _l, tenantSignaturePng: _t, ...rest } = data;
   return rest;
 }
+
+/**
+ * AC-8.1 (Aof 29 Oct 2026): the renewal commission the agent agreed, typed in baht (0 allowed). Kept in the system
+ * for the agent and the landlord; not on the renewal PDF and not shown to the tenant.
+ */
+export function parseRenewalCommission(value: unknown): string {
+  const raw = typeof value === "number" ? String(value) : typeof value === "string" ? value.replace(/,/g, "").trim() : "";
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(raw) || Number(raw) > 99_999_999.99)
+    throw new BadRequestException("กรุณากรอกค่าคอมมิชชั่นการต่อสัญญาเป็นตัวเลข (0 ได้)");
+  return Number(raw).toFixed(2);
+}

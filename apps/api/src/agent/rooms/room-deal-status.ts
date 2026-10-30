@@ -32,6 +32,8 @@ export type RoomStatusContract = {
   notRenewingOn?: string | null;
   /** D16 (AC-7.7): ends early on this day (recorded ahead). */
   endsOn?: string | null;
+  /** AC-8.7: ended with no decision yet (the daily close marks it): the stay goes on. */
+  undecided?: boolean;
 };
 export type RoomStatusLead = { id: number; status: string; bookingReleasedAt: Date | string | null };
 /** `nextBooked`: a soon-vacant room a new tenant has already booked (not offered to other leads, AC-3.1). */
@@ -51,7 +53,8 @@ export function roomDealStatus(today: string, roomCode: string | null, contracts
   if (roomCode === "pending_verification" || roomCode === "needs_edit") return { status: roomCode, vacantFrom: null };
   const lets = contracts.filter((c) => (c.formKind === "lease" || c.formKind === "renewal") && HANDED_OVER.includes(c.status));
   // Past the end with no renewal and no "not renewing" record, the room stays let and the agent gets a task (AC-8.7).
-  const undecided = (c: RoomStatusContract) => c.status === "active" && !c.notRenewing && !c.endsOn && !!c.endDate && c.endDate < today;
+  const undecided = (c: RoomStatusContract) => (c.status === "active" || (c.status === "expired" && !!c.undecided))
+    && !c.notRenewing && !c.endsOn && !!c.endDate && c.endDate < today;
   const current = lets.filter((c) => undecided(c) || !stayUntil(c) || stayUntil(c)! >= today);
   // The leads of the tenancy itself (its lead keeps its booking while it lives in the room).
   const own = new Set(lets.map((c) => c.leadId).filter((id) => id != null));
@@ -100,6 +103,7 @@ async function statusesOf(
       notRenewing: Boolean((c.data as { notRenewing?: unknown } | null)?.notRenewing),
       notRenewingOn: ((c.data as { notRenewing?: { recordedOn?: unknown } } | null)?.notRenewing?.recordedOn as string) || null,
       endsOn: ((c.data as { endsOn?: { date?: unknown } } | null)?.endsOn?.date as string) || null,
+      undecided: Boolean((c.data as { undecided?: unknown } | null)?.undecided),
     }));
     const roomLeads = leads.filter((l) => l.rent_room_id === room.id)
       .map((l) => ({ id: l.id, status: l.status, bookingReleasedAt: l.booking_released_at ?? null }));

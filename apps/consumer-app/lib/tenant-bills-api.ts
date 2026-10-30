@@ -71,9 +71,6 @@ export function openReceivedLateFee(id: number, kind: "invoice" | "receipt" | "p
   return apiGet(`/bills/received/${id}/late-fee/${kind}`);
 }
 
-export function createLandlordLateFee(id: number, input: { amount: number; dueDate: string }): Promise<TenantBill> {
-  return apiPost(`/bills/received/${id}/late-fee`, input);
-}
 
 export function submitMyBillSlip(id: number): Promise<TenantBill> {
   return apiPost(`/bills/mine/${id}/confirm`, {});

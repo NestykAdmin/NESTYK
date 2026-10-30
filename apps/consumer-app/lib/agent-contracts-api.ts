@@ -66,6 +66,16 @@ export async function setEarlyEnd(id: number, date: string, reason: string): Pro
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/early-end`, { date, reason });
 }
+/** M5: confirm the money of the tenant's slip for the amount still to collect after an early end. */
+export async function confirmEarlyEndSlip(id: number, submittedAt: string | null): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/early-end/slip/confirm`, { submittedAt });
+}
+/** M5: return that slip with a reason; the tenant sends a new one. */
+export async function returnEarlyEndSlip(id: number, reason: string, submittedAt: string | null): Promise<AgentContract> {
+  await ensureAgentSession();
+  return apiPost(`/agent/contracts/${id}/early-end/slip/return`, { reason, submittedAt });
+}
 export async function setNotRenewing(id: number, notRenewing: boolean): Promise<AgentContract> {
   await ensureAgentSession();
   return apiPost(`/agent/contracts/${id}/not-renewing`, { notRenewing });

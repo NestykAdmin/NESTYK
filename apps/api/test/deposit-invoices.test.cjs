@@ -596,7 +596,7 @@ test('no deposit receipt once the lease is closed, also when it closes while the
 
 test('D7: a cancelled deposit invoice shows as cancelled, keeps the slip to view, and takes no new slip or receipt', async () => {
   // Aof, 22 Oct 2026: the deposit is due by the move-in day. The lease was terminated while it still waited for the
-  // deposit (contract-closure.ts sets voided_at). A lease closed as cancelled is not shown to the parties at all.
+  // deposit (contract-closure.ts sets voided_at). Step 28 (B3): a cancelled one stays in the parties' list as history.
   const h = harness();
   await h.service.issueDepositInvoice(7, 11);
   await h.service.uploadDepositPaymentSlip(8, 11, slip);
@@ -611,7 +611,12 @@ test('D7: a cancelled deposit invoice shows as cancelled, keeps the slip to view
     assert.equal(mine.depositPayment.receiptUrl, null);
   }
   h.row.status = 'cancelled';
-  for (const user of [8, 9]) assert.deepEqual(await h.service.listForUser(user), [], 'a cancelled lease is hidden from the parties');
+  for (const user of [8, 9]) {
+    const rows = await h.service.listForUser(user);
+    assert.deepEqual(rows.map((row) => [row.id, row.status, row.depositPayment.status]), [[11, 'cancelled', 'voided']], 'listed as history (B3)');
+  }
+  // Every action on the contract still refuses it: the slip upload finds no contract.
+  await assert.rejects(() => h.service.uploadDepositPaymentSlip(8, 11, slip), (e) => e.getStatus() === 404);
   assert.equal((await h.service.view(7, 11)).depositPayment.status, 'voided', 'the agent still sees it');
   // A cancelled invoice is checked before the lease, so the agent sees why.
   const files = h.objects.size;

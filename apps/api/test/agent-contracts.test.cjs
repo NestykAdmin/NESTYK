@@ -106,7 +106,7 @@ const finalizedReservation = {
   status: 'active',
   document_url: '7/1/generated/reservation_letter/letter-v1/booked.pdf',
 };
-function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, successor = 0, draft = null, occupancy = null, endReason = { id: 77 }, reservations = [finalizedReservation], appointments = [[3, 2]] } = {}) {
+function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, foreignRoom = false, failSave = false, previous = null, root = null, successor = 0, draft = null, occupancy = null, endReason = { id: 77 }, reservations = [finalizedReservation], appointments = [[3, 2]] } = {}) {
   const saved = []; const calls = []; const uploads = []; const removed = []; let rolledBack = false;
   const qb = {};
   for (const key of ['leftJoin', 'where', 'andWhere', 'select', 'addSelect', 'distinct']) qb[key] = (...args) => { calls.push([key, ...args]); return qb; };
@@ -119,7 +119,7 @@ function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, fo
       calls.push(['findOne', entity.name, options]);
       assert.equal(options.where.created_by_user_id, 7);
       assert.equal(options.lock.mode, 'pessimistic_write');
-      if (entity === LeaseContractEntity) return options.where.id === draft?.id ? draft : previous;
+      if (entity === LeaseContractEntity) return options.where.id === draft?.id ? draft : options.where.id === root?.id ? root : previous;
       if (entity === LeadEntity) return { id: 1, status, tenant_id: 2, rent_room_id: 3 };
       if (entity === RentRoomEntity) return foreignRoom ? null : { id: 3, property_owner_id: 4, owner_id: 5 };
       if (entity === RoomTenancyEntity) return occupancy;
@@ -141,7 +141,7 @@ function fixture({ failInvoiceUpdate = false, status = 'booked', overlap = 0, fo
   };
   // D2: no lead has a confirmed offer unless a test says so (withOffer).
   const { DealOfferEntity: Offer } = require('../src/entities/deal-offer.entity.ts');
-  const service = new AgentContractsService({ getRepository: (entity) => entity === Offer ? { findOne: async () => null } : ({ findOneBy: async ({code, id, created_by_user_id}) => entity === LeaseContractEntity ? (draft?.id === id && created_by_user_id === draft.created_by_user_id ? draft : null) : ({ code, form_kind: code === 'reservation' ? 'reservation' : code === 'broker' ? 'broker_appointment' : 'lease' }), findOne: async ({where}) => ({id: 1, version: 1, form_kind: where.agreement_type_code === 'reservation' ? 'reservation' : where.agreement_type_code === 'broker' ? 'broker_appointment' : 'lease', data_schema: {type:'object'}}) }), transaction: async fn => { try { return await fn(manager); } catch (e) { saved.length = 0; rolledBack = true; throw e; } } }, {
+  const service = new AgentContractsService({ getRepository: (entity) => entity === Offer ? { findOne: async () => null } : ({ findOneBy: async ({code, id, created_by_user_id}) => entity === LeaseContractEntity ? (draft?.id === id && created_by_user_id === draft.created_by_user_id ? draft : null) : ({ code, form_kind: code === 'reservation' ? 'reservation' : code === 'broker' ? 'broker_appointment' : code === 'lease_renewal' ? 'renewal' : 'lease' }), findOne: async ({where}) => ({id: 1, version: 1, form_kind: where.agreement_type_code === 'reservation' ? 'reservation' : where.agreement_type_code === 'broker' ? 'broker_appointment' : where.agreement_type_code === 'lease_renewal' ? 'renewal' : 'lease', data_schema: {type:'object'}}) }), transaction: async fn => { try { return await fn(manager); } catch (e) { saved.length = 0; rolledBack = true; throw e; } } }, {
     upload: async (agentId, contractId, kind, file) => {
       assert.equal(file.buffer.subarray(0, 4).toString(), '%PDF');
       const path = `${agentId}/${contractId}/${kind}/${uploads.length}.pdf`;
@@ -249,8 +249,18 @@ test('a new lease requires a generated reservation letter for the same lead and 
 });
 test('renewing a lease does not require another reservation letter', async () => {
   const f = fixture({ previous: original, reservations: [] });
-  const c = await f.service.create(7, { ...valid, previousAgreementId: 20 });
+  const c = await f.service.create(7, renewalInput());
   assert.equal(c.agreement_kind, 'renewal');
+});
+test('Aof 29 Oct 2026: a lease is renewed by the renewal addendum only, and not when the stay is recorded as leaving', async () => {
+  const full = fixture({ previous: original });
+  await assert.rejects(() => full.service.create(7, { ...valid, previousAgreementId: 20 }), e => e.getStatus() === 400 && e.getResponse().code === 'RENEW_WITH_ADDENDUM');
+  assert.equal(full.saved.length, 0);
+  for (const data of [{ notRenewing: { recordedOn: '2026-09-01', recordedBy: 7 } }, { endsOn: { date: '2026-09-20', reason: 'x' } }]) {
+    const f = fixture({ previous: { ...original, data } });
+    await assert.rejects(() => f.service.create(7, renewalInput()), e => e.getStatus() === 400 && e.getResponse().code === 'STAY_LEAVING');
+    assert.equal(f.saved.length, 0);
+  }
 });
 test('inactive or unknown master type is rejected before transaction', async () => {
   const service = new AgentContractsService({ getRepository: () => ({findOneBy: async () => null}), transaction: () => assert.fail('Must not write') });
@@ -285,26 +295,47 @@ test('reservation DTO never exposes an expiry date', () => {
 });
 
 const original = { id: 20, template_id: 1, tenant_id: 2, rent_room_id: 3, lead_id: 1, status: 'active', end_date: '2026-09-30', root_agreement_id: 20 };
+// The renewal addendum of `original` (ends 30 Sep 2026): starts the day after, for 12 months.
+function renewalInput(patch = {}) {
+  const { emptyLeaseRenewal } = require('../src/agent/contracts/lease-renewal.ts');
+  return { ...valid, agreementTypeCode: 'lease_renewal', previousAgreementId: 20, startDate: '2026-10-01', endDate: '2027-09-30', ...patch,
+    data: { leaseRenewal: { ...emptyLeaseRenewal(), issueDate: '2026-09-15', landlordName: 'Owner', tenantName: 'Tenant', propertyLine: 'Room A',
+      originalLeaseNo: 'LS202500020', originalLeaseDate: '2025-10-01', originalExpiryDate: '2026-09-30',
+      renewMonths: '12', startDate: '2026-10-01', endDate: '2027-09-30', monthlyRent: '15000', depositCarried: '30000' }, renewalCommission: '7500' } };
+}
 test('renewal is a fresh draft linked to predecessor and root, with independent terms and no signatures', async () => {
   const f = fixture({ previous: original });
-  const c = await f.service.create(7, {...valid, previousAgreementId: 20});
+  const c = await f.service.create(7, renewalInput({ previousAgreementId: 20 }));
   assert.equal(c.agreement_kind, 'renewal'); assert.equal(c.previous_agreement_id, 20); assert.equal(c.root_agreement_id, 20);
   assert.equal(c.status, 'draft'); assert.equal(c.owner_signed_at, undefined);
   assert.equal(c.template_id, 1); assert.equal(c.data.monthlyRent, 15000);
   assert.equal(c.party_snapshot.tenantName, 'Original tenant');
   assert.equal(original.status, 'active');
 });
+test('B5 (step 28): a renewal keeps the grace day and daily late fee of the first lease, and the client cannot set them', async () => {
+  const terms = { leaseAgreement: { graceDay: '3', latePenalty: '200' } };
+  const direct = fixture({ previous: { ...original, data: terms } });
+  assert.deepEqual((await direct.service.create(7, renewalInput())).data.renewalTerms, { graceDay: '3', latePenalty: '200' });
+  // A second renewal: the predecessor (a renewal) has no lease form, the first lease (root) has.
+  const second = fixture({ previous: { ...original, id: 21, root_agreement_id: 20, data: {} }, root: { ...original, data: terms } });
+  assert.deepEqual((await second.service.create(7, renewalInput({ previousAgreementId: 21 }))).data.renewalTerms, { graceDay: '3', latePenalty: '200' });
+  const none = fixture({ previous: original });
+  assert.equal((await none.service.create(7, renewalInput())).data.renewalTerms, undefined, 'nothing to keep');
+  const forged = renewalInput(); forged.data.renewalTerms = { graceDay: '28', latePenalty: '0' };
+  const refused = fixture({ previous: original });
+  await assert.rejects(() => refused.service.create(7, forged), (e) => e.getStatus() === 400);
+  assert.equal(refused.saved.length, 0);
+});
 test('second renewal retains original root', async () => {
   const f = fixture({ previous: {...original, id: 21} });
-  const c = await f.service.create(7, {...valid, previousAgreementId: 21});
+  const c = await f.service.create(7, renewalInput({ previousAgreementId: 21 }));
   assert.equal(c.previous_agreement_id, 21); assert.equal(c.root_agreement_id, 20);
 });
 test('continuous renewal reuses active occupancy, but a gap or moved-out occupancy creates a new tenancy', async () => {
-  for (const [startDate, status, reuse] of [
-    ['2026-10-01','active',true], ['2026-10-02','active',false], ['2026-10-01','moved_out',false],
-  ]) {
+  // A renewal addendum always starts the day after (a gap is refused), so only the occupancy decides.
+  for (const [status, reuse] of [['active',true], ['moved_out',false]]) {
     const f = fixture({ previous: {...original,room_tenancy_id:9}, occupancy:{id:9,status} });
-    const c = await f.service.create(7,{...valid,startDate,previousAgreementId:20});
+    const c = await f.service.create(7,renewalInput({previousAgreementId:20}));
     assert.equal(c.room_tenancy_id === 9,reuse);
     assert.equal(f.saved.some(row=>row.status==='prospect'),!reuse);
   }
@@ -312,10 +343,15 @@ test('continuous renewal reuses active occupancy, but a gap or moved-out occupan
 test('renewal rejects missing/foreign originals, mismatched parties, invalid dates, reservation and duplicate successors', async () => {
   for (const previous of [null, {...original, tenant_id: 99}, {...original, rent_room_id: 99}, {...original, lead_id: 99}, {...original, status:'draft'}, {...original, end_date:null}, {...original, end_date:valid.startDate}, {...original, form_kind:'reservation'}]) {
     const f = fixture({ previous });
-    await assert.rejects(() => f.service.create(7, {...valid, previousAgreementId:20})); assert.equal(f.saved.length, 0);
+    await assert.rejects(() => f.service.create(7, renewalInput({previousAgreementId:20}))); assert.equal(f.saved.length, 0);
   }
+  const gap = fixture({ previous: original });
+  const gapInput = renewalInput({ startDate: '2026-10-02', endDate: '2027-10-01' });
+  Object.assign(gapInput.data.leaseRenewal, { startDate: '2026-10-02', endDate: '2027-10-01' });
+  await assert.rejects(() => gap.service.create(7, gapInput), e => e.getStatus() === 400 && /วันถัดจาก/.test(e.message), 'a gap');
+  assert.equal(gap.saved.length, 0);
   const f = fixture({previous: original, successor: 1});
-  await assert.rejects(() => f.service.create(7, {...valid, previousAgreementId:20}), e => e.getStatus() === 409);
+  await assert.rejects(() => f.service.create(7, renewalInput({previousAgreementId:20})), e => e.getStatus() === 409);
 });
 test('template data validates required custom fields and prevents overriding operational terms', () => {
   const schema = {type:'object', required:['guarantor'], properties:{guarantor:{type:'string',minLength:1}, monthlyRent:{type:'number',minimum:1}}};
@@ -775,4 +811,30 @@ test('D2: the letter defaults carry the confirmed offer\'s numbers for the lead\
   offer = null;
   const room = await service.reservationDefaults(7, 1);
   assert.deepEqual([room.advanceMonths, room.depositMonths, room.reservationPayment], ['2', '1', ''], 'no offer: the room\'s months as before');
+});
+
+test('H1/H2 (Aof 29 Oct 2026): the status shown is the stored one; past its end a lease stays active until the daily close or the agent ends it', () => {
+  const service = new AgentContractsService({});
+  const lease = { id: 1, status: 'active', agreement_kind: 'new', template: { form_kind: 'lease' }, start_date: '2019-01-01', end_date: '2019-12-31', data: {} };
+  assert.equal(service.serialize(lease).status, 'active', 'past its end, no decision (AC-8.7)');
+  assert.equal(service.serialize({ ...lease, end_date: '2030-12-31', data: { endsOn: { date: '2020-06-30' } } }).status, 'active', 'an early end past, before the daily close');
+  assert.equal(service.serialize({ ...lease, status: 'terminated' }).status, 'terminated');
+  const renewal = { ...lease, status: 'awaiting_agent_review', agreement_kind: 'renewal', template: { form_kind: 'renewal' }, start_date: '2020-01-01', end_date: '2020-12-31', data: { renewalSignedOn: '2019-12-01' } };
+  assert.equal(service.serialize(renewal).status, 'active', 'a signed renewal from its first day');
+});
+
+test('AC-8.1 (Aof 29 Oct 2026): the renewal commission is typed with the renewal, kept for the agent and the landlord only', async () => {
+  const { parseRenewalCommission } = require('../src/agent/contracts/lease-renewal.ts');
+  assert.equal(parseRenewalCommission('7,500'), '7500.00'); assert.equal(parseRenewalCommission(0), '0.00'); assert.equal(parseRenewalCommission('12.5'), '12.50');
+  for (const bad of [undefined, '', '-1', 'abc', '1.234', '100000000']) assert.throws(() => parseRenewalCommission(bad), (e) => e.getStatus() === 400);
+  const f = fixture({ previous: original });
+  const c = await f.service.create(7, renewalInput());
+  assert.equal(c.data.renewalCommission, '7500.00');
+  assert.equal(c.data.leaseRenewal.renewalCommission, undefined, 'not in the PDF fields');
+  const missing = renewalInput(); delete missing.data.renewalCommission;
+  await assert.rejects(() => fixture({ previous: original }).service.create(7, missing), (e) => e.getStatus() === 400);
+  const service = new AgentContractsService({});
+  const view = { id: 1, formKind: 'renewal', data: { renewalCommission: '7500.00', leaseRenewal: {} } };
+  assert.equal(service['forParty'](view, ['owner']).data.renewalCommission, '7500.00');
+  assert.equal(service['forParty'](view, ['tenant']).data.renewalCommission, undefined, 'the tenant does not see it');
 });

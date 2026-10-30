@@ -13,8 +13,9 @@ function load(file, deps = {}) {
   return loaded.exports;
 }
 const detail = load('tenant-detail.ts');
+const renewal = load('contract-renewal.ts', { './lease-term': load('lease-term.ts') });
 const { tenantWorkItems, workCounts, contractSignatures, tenantListStatus, groupByProperty, matchesDirectoryFilter } = load('tenant-work.ts', {
-  './tenant-detail': detail,
+  './tenant-detail': detail, './contract-renewal': renewal,
 });
 
 const today = new Date(2026, 9, 8);
@@ -64,6 +65,22 @@ test('renewals sort by days left, and a lease past its end date stays until a de
   const decided = tenant(4, { contracts: [contract({ endDate: '2026-10-01', data: { notRenewing: { recordedOn: '2026-10-02' } } })] });
   const items = tenantWorkItems([later, undecided, soon, decided], [], today);
   assert.deepEqual(items.map((i) => i.tenant.id), [3, 1, 2]);
+});
+
+test('AC-8.7: after the nightly job ends an undecided lease, the renewal work stays until a decision is recorded', () => {
+  const ended = (data) => tenant(1, { contracts: [contract({ status: 'expired', endDate: '2026-10-01', data })] });
+  const work = (t) => tenantWorkItems([t], [], today).filter((i) => i.kind === 'renewal');
+  assert.deepEqual(work(ended({ undecided: { since: '2026-10-02' } })).map((i) => i.daysLeft), [-7]);
+  assert.equal(tenantListStatus(ended({ undecided: { since: '2026-10-02' } }), work(ended({ undecided: { since: '2026-10-02' } }))), 'renewal');
+  assert.equal(work(ended({ undecided: { since: '2026-10-02' }, notRenewing: { recordedOn: '2026-10-05' } })).length, 0, 'recorded not renewing');
+  assert.equal(work(ended({})).length, 0, 'an ended lease with no open decision is history');
+  const renewed = tenant(1, { contracts: [contract({ id: 1, status: 'expired', endDate: '2026-10-01', data: { undecided: { since: '2026-10-02' } } }),
+    contract({ id: 2, formKind: 'renewal', status: 'awaiting_signatures', previousAgreementId: 1, startDate: '2026-10-02', endDate: '2027-10-01' })] });
+  assert.equal(detail.tenantLease(renewed, today).id, 2, 'the tenant lease is the renewal, which has no days left');
+  assert.equal(work(renewed).length, 0, 'a renewal on the way');
+  // The longest past the end comes first.
+  const past = (id, endDate) => tenant(id, { contracts: [contract({ id, status: 'expired', endDate, data: { undecided: { since: endDate } } })] });
+  assert.deepEqual(tenantWorkItems([past(5, '2026-09-26'), past(6, '2026-09-23'), tenant(7, { contracts: [contract({ id: 7, endDate: '2026-10-20' })] })], [], today).map((i) => i.daysLeft), [-15, -12, 12]);
 });
 
 test('directory status is the tenant own most urgent work, else lease state', () => {

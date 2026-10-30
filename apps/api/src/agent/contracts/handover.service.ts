@@ -35,6 +35,7 @@ export const HANDOVER_BLOCKED_MESSAGES: Record<HandoverBlockedReason, string> = 
   contract_ended: "สัญญานี้สิ้นสุดแล้ว ส่งมอบห้องไม่ได้",
   lease_not_issued: "ต้องออกเอกสารสัญญาเช่าก่อน จึงจะส่งมอบห้องได้",
   deposit_unpaid: "ต้องออกใบเสร็จเงินประกันก่อน จึงจะส่งมอบห้องได้",
+  room_occupied: "ผู้เช่าเดิมยังอยู่ในห้อง ส่งมอบได้ตั้งแต่วันถัดจากวันสิ้นสุดสัญญาเดิม",
   not_leaving: "บันทึกย้ายออกได้เมื่อไม่ต่อสัญญา เลิกก่อนกำหนด หรือถึงวันสิ้นสุดแล้ว",
   has_successor: "มีหนังสือต่อสัญญาแล้ว ไม่มีรายการย้ายออก",
 };
@@ -56,7 +57,7 @@ export function moveOutBlockedReason(input: {
   endsOn: boolean;
   hasSuccessor: boolean;
   today: string;
-}): HandoverBlockedReason | null {
+}): Exclude<HandoverBlockedReason, "room_occupied"> | null {
   if (input.formKind !== "lease" && input.formKind !== "renewal") return "not_lease";
   if (input.status === "cancelled") return "contract_ended";
   if (input.hasSuccessor) return "has_successor";

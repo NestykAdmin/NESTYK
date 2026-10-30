@@ -137,7 +137,7 @@ import {
   type ContractSignaturePadHandle,
 } from "./ContractSignaturePad";
 import { bangkokDateKey, isIsoDate, leaseTermEnd, positiveMonths, shiftIsoDate } from "../lib/lease-term";
-import { renewalCandidates, renewalClosedMessage } from "../lib/contract-renewal";
+import { canCancelRenewal, renewalCandidates, renewalClosedMessage, renewalCommissionValue } from "../lib/contract-renewal";
 import { signatureChannelText } from "../lib/signature-log";
 import { canCloseContract } from "../lib/contract-close";
 import { ContractCloseCard, closeResultNotice } from "./ContractCloseCard";
@@ -621,6 +621,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const [renewalForm, setRenewalForm] = useState<LeaseRenewalInput>(
     emptyLeaseRenewalForm(),
   );
+  // AC-8.1: the renewal commission, typed by the agent (kept outside the renewal form's PDF fields).
+  const [renewalCommission, setRenewalCommission] = useState("");
   const [renewalErrors, setRenewalErrors] = useState<
     Partial<Record<string, string>>
   >({});
@@ -1348,6 +1350,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         ? renewalDraftFromLease(source, firstContractOf(contracts, source))
         : emptyLeaseRenewalForm(),
     );
+    setRenewalCommission("");
     setRenewalErrors({});
     try {
       const [available, people] = await Promise.all([
@@ -1509,6 +1512,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           (latest.data.leaseAgreement as Partial<LeaseAgreementInput>) ?? {},
         ),
       );
+      setRenewalCommission(latest.data.renewalCommission == null ? "" : String(latest.data.renewalCommission));
       setRenewalForm(() => {
         const saved = {
           ...emptyLeaseRenewalForm(),
@@ -1659,6 +1663,10 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         setError(cn.leaseRequired);
         return;
       }
+      if (renewalCommissionValue(renewalCommission) == null) {
+        setError(tc.renewalForm.commissionInvalid);
+        return;
+      }
       setRenewalErrors({});
     } else if (
       !leadId ||
@@ -1764,7 +1772,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           ...(reservation ? { reservationLetter } : {}),
           ...(broker ? { brokerAppointment: brokerForm } : {}),
           ...(lease ? { leaseAgreement: leaseForm } : {}),
-          ...(renewal ? { leaseRenewal: renewalForm } : {}),
+          ...(renewal ? { leaseRenewal: renewalForm, renewalCommission: renewalCommissionValue(renewalCommission) } : {}),
         },
         notes: form.notes,
       });
@@ -2318,6 +2326,16 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 disabled={busy}
                 errors={renewalErrors}
               />
+              <MobileInput
+                label={tc.renewalForm.commission}
+                value={renewalCommission}
+                onChangeText={setRenewalCommission}
+                keyboardType="decimal-pad"
+                maxLength={14}
+                editable={!busy}
+                required
+              />
+              <Text style={[s.small, muted]}>{tc.renewalForm.commissionHint}</Text>
             </>
           ) : lease ? (
             <>
@@ -2601,10 +2619,18 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           {!!selected.notes && (
             <Text style={[s.body, muted]}>{selected.notes}</Text>
           )}
+          {selected.formKind === "renewal" && selected.data.renewalCommission != null && (
+            <Text style={[s.body, muted]}>
+              {fillTemplate(tc.renewalForm.commissionShown, { amount: money(Number(selected.data.renewalCommission)) })}
+            </Text>
+          )}
         </View>
-        {selected.status === "draft" && !selected.ownerSignedAt && !selected.tenantSignedAt && !selected.agentSignedAt && !documentLocked && !selected.receiptUrl && selected.reservationPayment?.status !== "submitted" && (
+        {((selected.status === "draft" && !selected.ownerSignedAt && !selected.tenantSignedAt && !selected.agentSignedAt && !documentLocked && !selected.receiptUrl && selected.reservationPayment?.status !== "submitted")
+          // AC-8.2: a renewal partly signed can still be cancelled.
+          || (canCancelRenewal(selected) && !documentLocked)) && (
           <View style={[s.card, card]}>
-            {button(sc.editDraft, () => { void editDraft(selected); })}
+            {selected.status === "draft" && !selected.ownerSignedAt && !selected.tenantSignedAt && !selected.agentSignedAt
+              && button(sc.editDraft, () => { void editDraft(selected); })}
             {/* D5: a booking letter is cancelled with its deal (who caused it, evidence), below. */}
             {selected.formKind !== "reservation" && button(sc.cancelDraft, () => { setCancellingDraft(true); setCancelReason(""); setError(""); })}
             {cancellingDraft && <>

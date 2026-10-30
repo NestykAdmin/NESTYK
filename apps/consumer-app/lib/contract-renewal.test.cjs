@@ -11,8 +11,8 @@ function load(file, deps = {}) {
   return module.exports;
 }
 const term = load('lease-term.ts');
-const { renewalCandidates, renewalClosedMessage } = load('contract-renewal.ts', { './lease-term': term });
-const copy = { disabled: 'no lease', needsEndDate: 'no expiry', needsActive: 'not active', alreadyRenewed: 'already renewed', tooEarly: 'ends {end}, opens {date}' };
+const { renewalCandidates, renewalClosedMessage, renewalCommissionValue, awaitingDecision, canCancelRenewal } = load('contract-renewal.ts', { './lease-term': term });
+const copy = { disabled: 'no lease', needsEndDate: 'no expiry', needsActive: 'not active', alreadyRenewed: 'already renewed', tooEarly: 'ends {end}, opens {date}', leaving: 'leaving' };
 const row = (patch = {}) => ({ id: 1, tenantId: 1, rentRoomId: 3, formKind: 'lease', status: 'active', startDate: '2025-11-01', endDate: '2026-10-31', previousAgreementId: null, ...patch });
 const today = '2026-10-12';
 
@@ -51,4 +51,27 @@ test('default renewal gate uses Bangkok at the UTC midnight boundary', () => {
   global.Date = class extends RealDate { constructor(...args) { super(...(args.length ? args : ['2026-09-30T17:30:00Z'])); } };
   try { assert.equal(renewalClosedMessage([row()], copy, 1), ''); }
   finally { global.Date = RealDate; }
+});
+
+test('Aof 29 Oct 2026: a stay recorded as not renewing or ending early is not offered for renewal, and says why', () => {
+  for (const data of [{ notRenewing: { recordedOn: '2026-10-01' } }, { endsOn: { date: '2026-12-15' } }]) {
+    const a = row({ data });
+    assert.deepEqual(renewalCandidates([a]), []);
+    assert.equal(renewalClosedMessage([a], copy, 1, today), 'leaving');
+  }
+  const other = row({ id: 2, tenantId: 2, data: {} });
+  assert.deepEqual(renewalCandidates([row({ data: { notRenewing: {} } }), other]).map((r) => r.id), [2], 'another stay still renews');
+});
+
+test('Aof 29 Oct 2026: the renewal commission, a lease awaiting a decision, and cancelling a renewal until both have signed', () => {
+  assert.equal(renewalCommissionValue(' 7,500 '), '7500'); assert.equal(renewalCommissionValue('0'), '0'); assert.equal(renewalCommissionValue('12.50'), '12.50');
+  for (const bad of ['', 'abc', '-5', '1.234']) assert.equal(renewalCommissionValue(bad), null);
+  assert.equal(awaitingDecision(row({ status: 'expired', data: { undecided: { since: '2026-11-01' } } })), true);
+  assert.equal(awaitingDecision(row({ status: 'expired', data: {} })), false);
+  assert.equal(awaitingDecision(row({ status: 'active', data: { undecided: {} } })), false);
+  const r = (patch) => row({ formKind: 'renewal', status: 'awaiting_signatures', ownerSignedAt: null, tenantSignedAt: null, ...patch });
+  assert.equal(canCancelRenewal(r({ ownerSignedAt: '2026-10-20T03:00:00Z' })), true, 'one party signed');
+  assert.equal(canCancelRenewal(r({ ownerSignedAt: '2026-10-20T03:00:00Z', tenantSignedAt: '2026-10-21T03:00:00Z' })), false, 'both signed');
+  assert.equal(canCancelRenewal(r({ status: 'awaiting_agent_review' })), false);
+  assert.equal(canCancelRenewal(r({ formKind: 'lease' })), false, 'a lease uses the deal cancellation');
 });

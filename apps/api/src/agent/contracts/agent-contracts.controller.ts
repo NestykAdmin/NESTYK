@@ -140,6 +140,26 @@ export class AgentContractsController {
   ) {
     return this.contracts.earlyEndFileUrl(user.id, id, kind, true);
   }
+  /** M5: confirm the money of the tenant's slip (body: { submittedAt } of the slip the agent looked at). */
+  @Post(":id/early-end/slip/confirm")
+  @HttpCode(HttpStatus.OK)
+  confirmEarlyEndSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.confirmEarlyEndSlip(user.id, id, body);
+  }
+  /** M5: return the tenant's slip with a reason (body: { reason, submittedAt }). */
+  @Post(":id/early-end/slip/return")
+  @HttpCode(HttpStatus.OK)
+  returnEarlyEndSlip(
+    @CurrentUser() user: AuthRequestUser,
+    @Param("id", DatabaseIdPipe) id: number,
+    @Body() body: unknown,
+  ) {
+    return this.contracts.returnEarlyEndSlip(user.id, id, body);
+  }
   @Post(":id/early-end/refund-proof")
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_CONTRACT_DOCUMENT_BYTES, files: 1, fields: 0 } }))

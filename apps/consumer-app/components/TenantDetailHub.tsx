@@ -18,6 +18,8 @@ import {
 import { CallButton, DemoNotice, DetailCard, DetailMenuRow, ps } from "./TenantDetailParts";
 import { HandoverCard } from "./HandoverCard";
 import { DepositSettlementCard } from "./DepositSettlementCard";
+import { earlyEndMoneyOf, earlyEndSlipState } from "../lib/early-end-slip";
+import { awaitingDecision } from "../lib/contract-renewal";
 
 export const initials = (name: string) =>
   name
@@ -41,6 +43,8 @@ export function TenantDetailHub({
   onEarlyEndMoney,
   onOpenEarlyEndFile,
   onAttachEarlyEndProof,
+  onConfirmEarlyEndSlip,
+  onReturnEarlyEndSlip,
 }: {
   tenant: AgentTenant;
   billing: AgentTenantBilling | null;
@@ -53,6 +57,9 @@ export function TenantDetailHub({
   onEarlyEndMoney?: (contractId: number, kind: "refund" | "collect", amount: number, note: string) => void;
   onOpenEarlyEndFile?: (contractId: number, kind: "invoice" | "slip" | "proof") => void;
   onAttachEarlyEndProof?: (contractId: number) => void;
+  /** M5: the agent confirms or returns the tenant's slip (with the submittedAt of the slip shown). */
+  onConfirmEarlyEndSlip?: (contractId: number, submittedAt: string | null) => void;
+  onReturnEarlyEndSlip?: (contractId: number, reason: string, submittedAt: string | null) => void;
 }) {
   const { t, locale } = useLocale();
   const c = t.agent.tenants;
@@ -64,6 +71,7 @@ export function TenantDetailHub({
   const [moneyKind, setMoneyKind] = useState<"refund" | "collect">("refund");
   const [moneyAmount, setMoneyAmount] = useState("");
   const [moneyNote, setMoneyNote] = useState("");
+  const [slipReturnReason, setSlipReturnReason] = useState("");
   const fmt = billFormatters(locale);
 
   const lease = tenantLease(tenant);
@@ -249,7 +257,7 @@ export function TenantDetailHub({
           }
           onPress={() => onOpen("contracts")}
         />
-        {lease?.status === "active" && onNotRenewing ? (
+        {lease && (lease.status === "active" || awaitingDecision(lease)) && onNotRenewing ? (
           <MobileButton
             variant="outline"
             onPress={() => onNotRenewing(lease.id, !Boolean((lease.data as { notRenewing?: unknown }).notRenewing))}
@@ -292,6 +300,33 @@ export function TenantDetailHub({
               && (lease!.data as { endsOn: { money: { slipPath?: string | null } } }).endsOn.money.slipPath ? (
               <MobileButton variant="outline" onPress={() => onOpenEarlyEndFile?.(lease!.id, "slip")}>{d.earlyEndViewSlip}</MobileButton>
             ) : null}
+            {(() => {
+              const money = earlyEndMoneyOf(lease!.data);
+              const state = earlyEndSlipState(money);
+              if (state === "paid") return <Text style={[ps.body, { color: theme.textSecondary }]}>{d.earlyEndSlipPaid}</Text>;
+              if (state === "returned")
+                return <Text style={[ps.body, { color: theme.textSecondary }]}>{d.earlyEndSlipReturned.replace("{reason}", money?.returnNote ?? "")}</Text>;
+              if (state !== "awaiting") return null;
+              return (
+                <>
+                  {onConfirmEarlyEndSlip ? (
+                    <MobileButton onPress={() => onConfirmEarlyEndSlip(lease!.id, money?.slipSubmittedAt ?? null)}>{d.earlyEndSlipConfirm}</MobileButton>
+                  ) : null}
+                  {onReturnEarlyEndSlip ? (
+                    <>
+                      <MobileInput label={d.earlyEndSlipReturnReason} value={slipReturnReason} onChangeText={setSlipReturnReason} maxLength={500} />
+                      <MobileButton
+                        variant="outline"
+                        disabled={!slipReturnReason.trim()}
+                        onPress={() => { onReturnEarlyEndSlip(lease!.id, slipReturnReason.trim(), money?.slipSubmittedAt ?? null); setSlipReturnReason(""); }}
+                      >
+                        {d.earlyEndSlipReturn}
+                      </MobileButton>
+                    </>
+                  ) : null}
+                </>
+              );
+            })()}
             {(lease!.data as { endsOn: { money: { kind?: string; proofPath?: string | null } } }).endsOn.money.kind === "refund"
               && !(lease!.data as { endsOn: { money: { proofPath?: string | null } } }).endsOn.money.proofPath ? (
               <MobileButton variant="outline" onPress={() => onAttachEarlyEndProof?.(lease!.id)}>{d.earlyEndAttachProof}</MobileButton>

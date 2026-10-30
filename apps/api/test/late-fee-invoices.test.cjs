@@ -169,7 +169,7 @@ test('a second late fee receipt is rejected', async () => {
   await assert.rejects(() => service.createReceiptForInvoice(7, 9, { receivedBy: 'landlord' }), (error) => error.getStatus() === 400);
 });
 
-test('the deal agent and the landlord can issue a late fee, and the tenant only sends a slip', () => {
+test('M8 (Aof 29 Oct 2026): only the deal agent issues a late fee; the landlord opens it, the tenant only sends a slip', () => {
   assert.deepEqual(Reflect.getMetadata(ROLES_KEY, AgentBillsController), ['agent']);
   assert.deepEqual(Reflect.getMetadata(ROLES_KEY, TenantBillsController), ['tenant']);
   assert.deepEqual(Reflect.getMetadata(ROLES_KEY, OwnerBillsController), ['landlord']);
@@ -177,6 +177,7 @@ test('the deal agent and the landlord can issue a late fee, and the tenant only 
   assert.equal(Reflect.getMetadata('method', AgentBillsController.prototype.createLateFee), 1);
   assert.equal(Reflect.getMetadata('path', TenantBillsController.prototype.uploadLateFeeSlip), 'mine/:id/late-fee/payment-slip');
   assert.equal(Reflect.getMetadata('path', OwnerBillsController.prototype.lateFeeUrl), 'received/:id/late-fee/:kind');
-  assert.equal(Reflect.getMetadata('path', OwnerBillsController.prototype.createLateFee), 'received/:id/late-fee');
-  assert.equal(Reflect.getMetadata('method', OwnerBillsController.prototype.createLateFee), 1);
+  assert.equal(OwnerBillsController.prototype.createLateFee, undefined, 'no landlord route to issue one');
+  for (const name of Object.getOwnPropertyNames(OwnerBillsController.prototype))
+    assert.notEqual(Reflect.getMetadata('method', OwnerBillsController.prototype[name]), 1, `${name}: the landlord has no POST route`);
 });

@@ -13,7 +13,8 @@ import { asIsoDate } from "../contracts/lease-term";
 import { dueReminders, reminderEmail, type DueReminder, type ReminderContract, type ReminderRefund } from "./contract-reminders";
 import { resendMailer, type ReminderMailer } from "./reminder-email";
 
-const CLOSED = ["cancelled", "expired", "terminated"];
+// H2 (Aof 29 Oct 2026): an ended lease still owes its refunds and unpaid rent, so only a cancelled one is left out.
+const CLOSED = ["cancelled"];
 /** Reminders not e-mailed within this many days (no key set yet, or failing) are not sent any more. */
 const EMAIL_WINDOW_DAYS = 3;
 const strip = ({ recipients: _recipients, ...reminder }: DueReminder): ContractReminder => reminder;
@@ -68,6 +69,7 @@ export class ContractRemindersService {
       landlordUserId: c.owner_user_id ?? null,
       data: c.data ?? null,
       noticeDays: notice.get(`${c.lead_id}:${c.rent_room_id}`) ?? null,
+      deposit: c.deposit == null ? null : Number(c.deposit),
     }));
     return dueReminders(today, contracts, bills.map((b) => ({
       id: b.id, leaseContractId: b.lease_contract_id, period: b.period, dueDate: asIsoDate(b.due_date),

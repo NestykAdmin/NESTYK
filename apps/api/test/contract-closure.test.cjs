@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const ts=require('typescript');
 require('reflect-metadata');
 require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,experimentalDecorators:true,emitDecoratorMetadata:true,esModuleInterop:true}}).outputText,filename);
-const {closeLeaseContract,contractEndReasons,validateContractClosure}=require('../src/agent/contracts/contract-closure.ts');
+const {closeLeaseContract,contractEndReasons,validateContractClosure,endedLeaseClosure,endedStayRelease,closeEndedLease}=require('../src/agent/contracts/contract-closure.ts');
 const {LeaseContractEntity:Contract}=require('../src/entities/lease-contract.entity.ts');
 const {LeadEntity:Lead}=require('../src/entities/lead.entity.ts');
 const {RentRoomEntity:Room}=require('../src/entities/rent-room.entity.ts');
@@ -24,6 +24,7 @@ const reasons=[
  {id:2,code:'tenant_requested',applicable_status:'terminated',requires_note:true,is_active:true},
  {id:3,code:'before_start_cancelled',applicable_status:'cancelled',requires_note:true,is_active:true},
  {id:4,code:'draft_cancelled',applicable_status:'cancelled',requires_note:true,is_active:true},
+ {id:6,code:'other_termination',applicable_status:'terminated',requires_note:true,is_active:true},
 ];
 function fixture(options={}){
  const state={contracts:[{...base,...options.contract},...(options.others??[])],lead:{id:1,created_by_user_id:7,rent_room_id:3,status:'booked',tenant_id:2,booking_released_at:null},tenancy:{id:4,status:'active',move_out_date:null,...options.tenancy},invoices:structuredClone(options.invoices??[]),bills:[{id:1,status:'pending',due_date:'2026-10-15',amount:'15000.00',payment_slip_path:'pending.jpg'},{id:2,status:'paid',due_date:'2026-09-15',amount:'15000.00',payment_slip_path:'paid.jpg'}]};
@@ -39,7 +40,8 @@ function fixture(options={}){
  function qb(entity){const params={},clauses=[];const q={};for(const name of ['select','addSelect','leftJoin','innerJoin','orderBy'])q[name]=()=>q;q.where=q.andWhere=(sql,args)=>{clauses.push(sql);Object.assign(params,args);return q;};
  q.getCount=async()=>{
   if(entity===Transfer)return options.allocated??0;
-  if(clauses.some(c=>c.includes('previous_agreement_id')))return state.contracts.filter(c=>c.previous_agreement_id===params.id&&!['expired','terminated','cancelled'].includes(c.status)).length;
+  // The daily close counts only a renewal in force (next.status = 'active').
+  if(clauses.some(c=>c.includes('previous_agreement_id')))return state.contracts.filter(c=>c.previous_agreement_id===params.id&&(clauses.some(c=>c.includes("next.status = 'active'"))?c.status==='active':!['expired','terminated','cancelled'].includes(c.status))).length;
   return state.contracts.filter(c=>c.id!==params.id&&!['expired','terminated','cancelled'].includes(c.status)&&(params.tenancyId!=null?c.room_tenancy_id===params.tenancyId:c.lead_id===params.leadId&&c.rent_room_id===params.roomId&&['lease','renewal'].includes(c.formKind))).length;
  };
  q.getRawOne=async()=>({unpaidCount:String(state.bills.filter(b=>b.status==='pending').length),unpaidAmount:state.bills.filter(b=>b.status==='pending').reduce((a,b)=>a+Number(b.amount),0).toFixed(2),paidCount:String(state.bills.filter(b=>b.status==='paid').length),billsDueAfterEndCount:String(state.bills.filter(b=>b.due_date>params.end).length)});return q;}
@@ -47,7 +49,7 @@ function fixture(options={}){
   findOne:async(entity,{where,lock})=>{assert.equal(lock.mode,'pessimistic_write');locks.push(entity.name);const row=entity===Contract?state.contracts.find(c=>matches(c,where)):entity===Lead?state.lead:options.foreignRoom?null:{id:3,created_by_user_id:7};return row?structuredClone(row):null;},
   findOneBy:async(entity,where)=>entity===Template?{form_kind:state.contracts[0].formKind}:reasonRows.find(r=>matches(r,where)),
   getRepository:entity=>({createQueryBuilder:()=>qb(entity)}),
-  update:async(entity,where,patch)=>{updates.push({entity,where,patch});allUpdates.push({entity,where,patch});if(options.failTenancy&&entity===Tenancy)throw Error('tenancy save failed');if(entity===Invoice){let affected=0;for(const row of state.invoices)if(matches(row,where)){Object.assign(row,patch);affected++;}return {affected};}const row=entity===Contract?state.contracts.find(c=>c.id===where.id):entity===Lead?state.lead:entity===Tenancy?state.tenancy:null;if(row){const clean={...patch};if(typeof clean.move_out_date==='function'){const date=clean.move_out_date().match(/'(\d{4}-\d{2}-\d{2})'/)[1];clean.move_out_date=[row.move_out_date??'',date].sort().at(-1);}Object.assign(row,clean);}return {affected:1};},
+  update:async(entity,where,patch)=>{updates.push({entity,where,patch});allUpdates.push({entity,where,patch});if(options.failTenancy&&entity===Tenancy)throw Error('tenancy save failed');if(entity===Invoice){let affected=0;for(const row of state.invoices)if(matches(row,where)){Object.assign(row,patch);affected++;}return {affected};}if(entity===Tenancy&&options.strictTenancy){const t={tenant_id:2,rent_room_id:3,created_by_user_id:7,...state.tenancy};if(!Object.entries(where).every(([k,v])=>t[k]===v))return {affected:0};}const row=entity===Contract?state.contracts.find(c=>c.id===where.id):entity===Lead?state.lead:entity===Tenancy?state.tenancy:null;if(row){const clean={...patch};if(typeof clean.move_out_date==='function'){const date=clean.move_out_date().match(/'(\d{4}-\d{2}-\d{2})'/)[1];clean.move_out_date=[row.move_out_date??'',date].sort().at(-1);}Object.assign(row,clean);}return {affected:1};},
  };
  const db={getRepository:entity=>({findOneBy:async where=>entity===Contract?structuredClone(state.contracts.find(c=>matches(c,where))??null):null,find:async()=>reasonRows}),transaction:async fn=>{
   // One transaction per closure: a nested one would commit on its own connection in Postgres.
@@ -129,4 +131,100 @@ test('HTTP closure and reason catalog require an agent; literal catalog route is
  const send=auth=>fetch(`${baseUrl}/agent/contracts/20/close`,{method:'POST',headers:{'Content-Type':'application/json',...(auth?{Authorization:`Bearer ${auth}`}:{})},body:JSON.stringify(request)});
  assert.equal((await send()).status,401);assert.equal((await send('dev|8|test@example.invalid')).status,403);assert.equal((await send('dev|7|test@example.invalid')).status,200);assert.deepEqual(calls,[{agent:7,id:20,body:request}]);
  assert.equal((await fetch(`${baseUrl}/agent/contracts/end-reasons`)).status,401);const catalog=await fetch(`${baseUrl}/agent/contracts/end-reasons`,{headers:{Authorization:'Bearer dev|7|test@example.invalid'}});assert.deepEqual(await catalog.json(),[{code:'term_completed'}]);
+});
+
+// H1/H2 (Aof 29 Oct 2026): the daily close ends only a stay that is really over, with the fields the end-reason trigger needs.
+test('H1: which ended lease the daily close ends, and how', () => {
+  const at = (today, patch = {}) => endedLeaseClosure({ start: '2026-01-01', end: '2026-10-31', endsOn: null, notRenewing: null, renewed: false, today, ...patch });
+  const early = { endsOn: { date: '2026-10-12', reason: ' ย้ายงาน ', recordedBy: 7 } };
+  assert.equal(at('2026-10-12', early), null, 'its last day');
+  assert.deepEqual(at('2026-10-13', early), { status: 'terminated', reasonCode: 'other_termination', note: 'ย้ายงาน', effectiveEndDate: '2026-10-12', recordedBy: 7, undecided: false });
+  assert.equal(at('2026-10-13', { endsOn: { date: '2026-10-12', reason: '' } }).note, 'เลิกสัญญาก่อนกำหนด', 'the trigger needs a note');
+  assert.equal(at('2026-10-13', { endsOn: { date: '2025-12-31', reason: 'x' } }), null, 'before the start: left to the agent');
+  const leaving = { notRenewing: { recordedOn: '2026-09-01', recordedBy: 7 } };
+  assert.equal(at('2026-10-31', leaving), null);
+  assert.deepEqual(at('2026-11-01', leaving), { status: 'expired', reasonCode: 'term_completed', note: null, effectiveEndDate: '2026-10-31', recordedBy: 7, undecided: false });
+  const late = { notRenewing: { recordedOn: '2026-11-05', recordedBy: 7 } };
+  assert.deepEqual([at('2026-11-05', late).status, at('2026-11-05', late).undecided], ['expired', true], 'TC-8.11: recorded after the end, the stay lasts until the day after the record');
+  assert.equal(at('2026-11-06', late).undecided, false);
+  assert.deepEqual(at('2026-11-01', { renewed: true }), { status: 'expired', reasonCode: 'term_completed', note: null, effectiveEndDate: '2026-10-31', recordedBy: null, undecided: false });
+  // AC-8.7 (Aof 29 Oct 2026): every lease ends the day after its end; with no decision the stay goes on.
+  assert.equal(at('2026-10-31'), null, 'its last day');
+  assert.deepEqual(at('2026-11-01'), { status: 'expired', reasonCode: 'term_completed', note: null, effectiveEndDate: '2026-10-31', recordedBy: null, undecided: true });
+  assert.equal(at('2026-10-13', { ...early, renewed: true }), null, 'no early end over a renewal in force');
+  assert.equal(at('2026-11-01', { notRenewing: { recordedOn: 'soon', recordedBy: 7 } }).effectiveEndDate, '2026-10-31', 'a bad record date counts as the end');
+  assert.equal(at('2027-06-01', { end: null }), null, 'no end date');
+  assert.equal(at('2026-11-01', { notRenewing: { recordedOn: '2026-09-01', recordedBy: 'x' } }).recordedBy, null);
+});
+
+test('H1: the daily close writes the end as closing by hand does, and leaves an undecided lease alone', async () => {
+  // Recorded by user 8 (another agent account); the tenancy belongs to the lease's agent 7.
+  const f = fixture({ strictTenancy: true, contract: { data: { endsOn: { date: '2026-10-12', reason: 'ย้ายงาน', recordedBy: 8 } } } });
+  assert.equal(await closeEndedLease(f.db, 20, '2026-10-13'), 'terminated');
+  const c = f.state.contracts[0];
+  assert.deepEqual([c.status, c.end_reason_id, c.end_reason_note, c.effective_end_date, c.end_recorded_by_user_id], ['terminated', 6, 'ย้ายงาน', '2026-10-12', 8]);
+  const moved = f.updates.find((u) => u.entity === Tenancy);
+  assert.deepEqual(moved.where, { id: 4, tenant_id: 2, rent_room_id: 3, created_by_user_id: 7 }, "the lease's own tenancy");
+  assert.ok(c.end_recorded_at && c.terminated_at);
+  assert.ok(f.state.lead.booking_released_at); assert.equal(f.state.tenancy.status, 'moved_out'); assert.equal(f.state.tenancy.move_out_date, '2026-10-12');
+  assert.ok(f.updates.some((u) => u.entity === Invite)); assert.deepEqual(f.locks, [Lead.name, Room.name, Contract.name]);
+  assert.equal(await closeEndedLease(f.db, 20, '2026-10-14'), null, 'already closed: nothing');
+
+  // AC-8.7: no decision: ended, marked undecided, the lead and the tenancy stay.
+  const undecided = fixture({ contract: { end_date: '2026-10-13' } });
+  assert.equal(await closeEndedLease(undecided.db, 20, '2026-10-20'), 'expired');
+  const u = undecided.state.contracts[0];
+  assert.deepEqual([u.status, u.end_reason_id, u.effective_end_date, u.end_recorded_by_user_id, u.data.undecided], ['expired', 1, '2026-10-13', null, { since: '2026-10-20' }]);
+  assert.equal(undecided.state.lead.booking_released_at, null); assert.equal(undecided.state.tenancy.status, 'active');
+  assert.ok(!undecided.updates.some((u) => u.entity === Tenancy || u.entity === Lead), 'the stay is not touched');
+  assert.equal(await closeEndedLease(undecided.db, 20, '2026-10-21'), null, 'still undecided: nothing more');
+
+  const renewal = { id: 21, created_by_user_id: 7, template_id: 2, lead_id: 1, tenant_id: 2, rent_room_id: 3, room_tenancy_id: 4, previous_agreement_id: 20, formKind: 'renewal', start_date: '2026-10-14', end_date: '2027-10-13' };
+  const renewed = fixture({ contract: { end_date: '2026-10-13' }, others: [{ ...renewal, status: 'active' }] });
+  assert.equal(await closeEndedLease(renewed.db, 20, '2026-10-14'), 'expired');
+  assert.deepEqual([renewed.state.contracts[0].end_reason_id, renewed.state.contracts[0].effective_end_date, renewed.state.contracts[0].end_recorded_by_user_id], [1, '2026-10-13', null], 'closed by the system');
+  assert.equal(renewed.state.lead.booking_released_at, null, 'the renewal keeps the booking');
+  assert.equal(renewed.state.tenancy.status, 'active', 'and the stay');
+  const pending = fixture({ contract: { end_date: '2026-10-13' }, others: [{ ...renewal, status: 'awaiting_signatures' }] });
+  assert.equal(await closeEndedLease(pending.db, 20, '2026-10-14'), 'expired', 'a renewal not signed by everyone yet: ended, undecided');
+  assert.ok(pending.state.contracts[0].data.undecided); assert.equal(pending.state.tenancy.status, 'active');
+  const earlyRenewed = fixture({ contract: { data: { endsOn: { date: '2026-10-12', reason: 'x', recordedBy: 7 } } }, others: [{ ...renewal, start_date: '2026-11-01', status: 'active' }] });
+  assert.equal(await closeEndedLease(earlyRenewed.db, 20, '2026-10-13'), null, 'an early end is not applied over a renewal in force');
+  assert.equal(earlyRenewed.updates.length, 0);
+});
+
+test('H1: a daily close that fails half way changes nothing', async () => {
+  const f = fixture({ failTenancy: true, contract: { data: { endsOn: { date: '2026-10-12', reason: 'x', recordedBy: 7 } } } });
+  await assert.rejects(() => closeEndedLease(f.db, 20, '2026-10-13'), /tenancy save failed/);
+  assert.equal(f.state.contracts[0].status, 'active'); assert.equal(f.state.lead.booking_released_at, null);
+  assert.equal(f.updates.length, 0, 'rolled back');
+  const wrong = fixture({ strictTenancy: true, tenancy: { rent_room_id: 99 }, contract: { data: { endsOn: { date: '2026-10-12', reason: 'x', recordedBy: 7 } } } });
+  await assert.rejects(() => closeEndedLease(wrong.db, 20, '2026-10-13'), (e) => e.getStatus() === 409, 'a tenancy that does not match the lease');
+  assert.equal(wrong.state.contracts[0].status, 'active');
+});
+
+test('AC-8.7: an undecided ended lease is released once the stay is over; a renewal in force takes it over', () => {
+  const at = (today, patch = {}) => endedStayRelease({ end: '2026-10-31', notRenewing: null, renewed: false, today, ...patch });
+  assert.equal(at('2026-11-10'), null, 'no decision yet');
+  assert.equal(at('2026-11-10', { notRenewing: { recordedOn: '2026-11-10' } }), null, 'recorded today: until tomorrow');
+  assert.deepEqual(at('2026-11-11', { notRenewing: { recordedOn: '2026-11-10' } }), { moveOutDate: '2026-11-10' });
+  assert.deepEqual(at('2026-11-02', { notRenewing: { recordedOn: '2026-10-20' } }), { moveOutDate: '2026-10-31' }, 'recorded before the end');
+  assert.equal(at('2026-11-10', { renewed: true }), 'renewed');
+});
+
+test('AC-8.7: the daily close releases the stay of an undecided lease the day after "not renewing" is recorded', async () => {
+  const ended = { status: 'expired', end_date: '2026-10-13', effective_end_date: '2026-10-13', end_reason_id: 1 };
+  const f = fixture({ strictTenancy: true, contract: { ...ended, data: { undecided: { since: '2026-10-14' }, notRenewing: { recordedOn: '2026-10-20', recordedBy: 7 } } } });
+  assert.equal(await closeEndedLease(f.db, 20, '2026-10-20'), null, 'recorded today');
+  assert.equal(await closeEndedLease(f.db, 20, '2026-10-21'), 'released');
+  const c = f.state.contracts[0];
+  assert.equal(c.data.undecided, undefined); assert.ok(c.data.notRenewing); assert.equal(c.status, 'expired');
+  assert.ok(f.state.lead.booking_released_at); assert.deepEqual([f.state.tenancy.status, f.state.tenancy.move_out_date], ['moved_out', '2026-10-20']);
+  assert.equal(await closeEndedLease(f.db, 20, '2026-10-22'), null, 'once');
+  const renewal = { id: 21, created_by_user_id: 7, template_id: 2, lead_id: 1, tenant_id: 2, rent_room_id: 3, room_tenancy_id: 4, previous_agreement_id: 20, formKind: 'renewal', status: 'active', start_date: '2026-10-14', end_date: '2027-10-13' };
+  const r = fixture({ contract: { ...ended, data: { undecided: { since: '2026-10-14' } } }, others: [renewal] });
+  assert.equal(await closeEndedLease(r.db, 20, '2026-11-02'), 'renewed');
+  assert.equal(r.state.contracts[0].data.undecided, undefined); assert.equal(r.state.lead.booking_released_at, null); assert.equal(r.state.tenancy.status, 'active');
+  const plain = fixture({ contract: { ...ended, data: {} } });
+  assert.equal(await closeEndedLease(plain.db, 20, '2026-11-02'), null, 'an ended lease that is not undecided is left alone');
 });

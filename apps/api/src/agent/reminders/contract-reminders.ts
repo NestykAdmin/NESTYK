@@ -18,9 +18,10 @@ import { bangkokDate } from "../contracts/reservation-letter";
  * - refund_late (D5, AC-C.2, C.3): a cancelled deal's refund not recorded after its due day (told 15 Oct, due 22 Oct,
  *   reminded from 23 Oct: TC-C.05, C.07).
  * - early_end_refund_late (D16, AC-7.7): unused rent typed as a refund, with no proof, after its due day
- *   (ending 15 Jan, due 22 Jan, reminded from 23 Jan: TC-7.10).
+ *   (ending 15 Jan, due 22 Jan, reminded from 23 Jan: TC-7.10); or no amount typed at all 7 days after the end (M2).
  * - deposit_refund_late (D16, AC-8.5): an approved deposit refund not transferred after 30 days from the
- *   stay's last day (ends 31 Oct, due 30 Nov, reminded from 1 Dec: TC-8.07). A linked renewal has none.
+ *   stay's last day (ends 31 Oct, due 30 Nov, reminded from 1 Dec: TC-8.07); or, for a leaving stay with a deposit,
+ *   no settlement approved by then (M2). A linked renewal has none.
  */
 export const RENEWAL_NOTICE_DEFAULT_DAYS = 30;
 const OPEN_SIGNING = ["draft", "awaiting_signatures"];
@@ -44,6 +45,8 @@ export type ReminderContract = {
   data: Record<string, unknown> | null;
   /** The renewal notice days of the deal's offer (null: none, so 30). */
   noticeDays: number | null;
+  /** The deposit of the lease (null or 0: none to refund). */
+  deposit?: number | null;
 };
 /** D5: a cancelled deal whose refund is not recorded yet, with what the reminder shows. */
 export type ReminderRefund = Pick<ReminderContract, "contractNo" | "tenantId" | "tenantName" | "property" | "room" | "agentId"> & {
@@ -91,23 +94,39 @@ export function dueReminders(today: string, contracts: ReminderContract[], bills
     }
     const end = asIsoDate(c.endDate);
     const renewed = contracts.some((other) => other.previousAgreementId === c.id && other.status !== "cancelled");
-    if ((c.formKind === "lease" || c.formKind === "renewal") && c.status === "active" && end && !c.effectiveEndDate && !renewed) {
+    const leavingData = (c.data ?? {}) as { notRenewing?: unknown; endsOn?: unknown };
+    // L3: a stay recorded as not renewing or ending early has no renewal to ask about.
+    if ((c.formKind === "lease" || c.formKind === "renewal") && c.status === "active" && end && !c.effectiveEndDate && !renewed
+      && !leavingData.notRenewing && !leavingData.endsOn) {
       const left = daysBetween(today, end);
       if (left >= 0 && left <= (c.noticeDays ?? RENEWAL_NOTICE_DEFAULT_DAYS)) out.push(base("renewal_notice", c, end, [c.agentId]));
     }
     const endsOn = c.data?.endsOn as { date?: string; money?: { kind?: string; dueOn?: string; proofPath?: string | null; amount?: number } } | undefined;
-    if ((c.formKind === "lease" || c.formKind === "renewal") && endsOn?.money?.kind === "refund" && !endsOn.money.proofPath && isIsoDate(endsOn.money.dueOn) && today > endsOn.money.dueOn)
+    const stay = c.formKind === "lease" || c.formKind === "renewal";
+    if (stay && endsOn?.money?.kind === "refund" && !endsOn.money.proofPath && isIsoDate(endsOn.money.dueOn) && today > endsOn.money.dueOn)
       out.push({ ...base("early_end_refund_late", c, endsOn.money.dueOn, [c.agentId]), amount: Number(endsOn.money.amount) || null });
+    // M2 (Aof 29 Oct 2026): also when the agent has not typed the amount yet, 7 days after the early end.
+    if (stay && !endsOn?.money && isIsoDate(endsOn?.date) && today > shiftIsoDate(endsOn.date, 7) && c.status !== "cancelled")
+      out.push(base("early_end_refund_late", c, shiftIsoDate(endsOn.date, 7), [c.agentId]));
     const deposit = depositById.get(c.id);
-    const stayEnd = isIsoDate(endsOn?.date) ? endsOn.date : end;
-    if ((c.formKind === "lease" || c.formKind === "renewal") && deposit?.status === "approved" && deposit.refundAmount > 0 && !deposit.refunded && stayEnd && !renewed) {
+    const stayEnd = isIsoDate(endsOn?.date) ? endsOn.date : asIsoDate(c.effectiveEndDate) || end;
+    if (stay && deposit?.status === "approved" && deposit.refundAmount > 0 && !deposit.refunded && stayEnd && !renewed) {
       const due = shiftIsoDate(stayEnd, 30);
       if (today > due) out.push({ ...base("deposit_refund_late", c, due, [c.agentId]), amount: deposit.refundAmount });
+    }
+    // M2: a leaving stay with a deposit and no settlement approved yet is reminded too, 30 days after its last day.
+    // AC-8.7: an ended lease with no decision yet is no move-out (the stay goes on).
+    const undecided = !!(c.data as { undecided?: unknown } | null)?.undecided && !leavingData.notRenewing;
+    const leaving = !undecided && (!!leavingData.notRenewing || !!leavingData.endsOn || c.status === "expired" || c.status === "terminated");
+    if (stay && leaving && !renewed && stayEnd && (c.deposit ?? 0) > 0 && (!deposit || deposit.status === "draft")) {
+      const due = shiftIsoDate(stayEnd, 30);
+      if (today > due) out.push(base("deposit_refund_late", c, due, [c.agentId]));
     }
   }
   for (const bill of bills) {
     const c = byId.get(bill.leaseContractId);
-    if (!c || bill.status !== "pending" || c.status !== "active") continue;
+    // Rent left unpaid is still chased after the lease has ended (H2).
+    if (!c || bill.status !== "pending" || !["active", "expired", "terminated"].includes(c.status)) continue;
     const withBill = (item: DueReminder) => ({ ...item, billId: bill.id, billPeriod: bill.period, amount: bill.amount });
     if (today >= shiftIsoDate(bill.dueDate, 16))
       out.push(withBill(base("rent_overdue_15", c, bill.dueDate, [c.agentId, c.landlordUserId])));

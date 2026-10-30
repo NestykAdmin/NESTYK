@@ -47,6 +47,7 @@ import { TenantContractAttachments } from "./TenantContractList";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
 import { bookingPaymentBlocksSigning } from "../lib/contract-signing";
+import { earlyEndMoneyOf, earlyEndSlipState } from "../lib/early-end-slip";
 
 const CONTRACT_ICON: Record<PartyContract["formKind"], AppIconName> = {
   reservation: "calendar",
@@ -131,7 +132,8 @@ export function PartyContractDetail({
   const body = { color: theme.textSecondary, fontFamily: tokens.typography.native.body };
   const card = { backgroundColor: theme.card, borderColor: theme.border };
   const mine = contract.myParties;
-  const collectInvoice = (contract.data as { endsOn?: { money?: { kind?: string; invoicePath?: string | null; slipPath?: string | null } } } | undefined)?.endsOn?.money;
+  const cancelledDeal = contract.status === "cancelled";
+  const collectInvoice = earlyEndMoneyOf(contract.data);
   const showCollect = collectInvoice?.kind === "collect" && !!collectInvoice.invoicePath;
   async function openEarlyFile(kind: "invoice" | "slip") {
     setError("");
@@ -149,8 +151,14 @@ export function PartyContractDetail({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setError("");
+    // Step 28 (B3): the API serves a cancelled deal only in the list, so its documents are not fetched.
+    if (cancelledDeal) {
+      setLoading(false);
+      onReloadSettled?.(reloadToken);
+      return;
+    }
+    setLoading(true);
     listMyAttachments(contract.id)
       .then((next) => {
         if (!cancelled) setAttachments(next);
@@ -168,7 +176,7 @@ export function PartyContractDetail({
     return () => {
       cancelled = true;
     };
-  }, [contract.id, reloadToken, onReloadSettled]);
+  }, [contract.id, cancelledDeal, reloadToken, onReloadSettled]);
 
   useEffect(() => {
     if (!signing) return;
@@ -390,14 +398,22 @@ export function PartyContractDetail({
               ? fillTemplate(tc.common.dated, { date: dateLabel(contract.startDate) })
               : `${dateLabel(contract.startDate)} – ${dateLabel(contract.endDate)}`}
         </Text>
-        <MobileButton
-          variant="outline"
-          disabled={previewBusy}
-          isLoading={previewBusy}
-          onPress={() => void openDocument()}
-        >
-          {tc.party.viewContractDocument}
-        </MobileButton>
+        {/* AC-8.1: the landlord sees the renewal commission (the API leaves it out for the tenant). */}
+        {contract.formKind === "renewal" && contract.data?.renewalCommission != null ? (
+          <Text style={[styles.copy, body]}>
+            {fillTemplate(tc.renewalForm.commissionShown, { amount: money(Number(contract.data.renewalCommission)) })}
+          </Text>
+        ) : null}
+        {cancelledDeal ? null : (
+          <MobileButton
+            variant="outline"
+            disabled={previewBusy}
+            isLoading={previewBusy}
+            onPress={() => void openDocument()}
+          >
+            {tc.party.viewContractDocument}
+          </MobileButton>
+        )}
       </View>
 
       {/* D5: a cancelled deal: who caused it, why, and what is forfeited or refunded (by when, and when refunded). */}
@@ -407,6 +423,8 @@ export function PartyContractDetail({
         </View>
       ) : null}
 
+      {/* Step 28 (B3): a cancelled deal is history: its summary above, no payments, handover, documents or signing. */}
+      {cancelledDeal ? null : (<>
       {/* D13: the landlord sees the commission confirmation they sign with the letter (the tenant's has none). */}
       <ReservationTerms
         contract={contract}
@@ -428,9 +446,16 @@ export function PartyContractDetail({
         <View style={[styles.card, card]}>
           <Text style={[styles.copy, title]}>{t.tenant.bills.earlyEndInvoice}</Text>
           <MobileButton variant="outline" onPress={() => void openEarlyFile("invoice")}>{t.tenant.bills.earlyEndInvoice}</MobileButton>
-          {mine.includes("tenant") && !collectInvoice.slipPath ? (
+          {earlyEndSlipState(collectInvoice) === "returned" ? (
+            <Text style={[styles.copy, title]}>{t.tenant.bills.earlyEndReturned.replace("{reason}", collectInvoice.returnNote ?? "")}</Text>
+          ) : null}
+          {earlyEndSlipState(collectInvoice) === "paid" ? (
+            <Text style={[styles.copy, title]}>{t.tenant.bills.earlyEndPaid}</Text>
+          ) : null}
+          {/* M5: a new slip until the agent confirms the money. */}
+          {mine.includes("tenant") && earlyEndSlipState(collectInvoice) !== "paid" ? (
             <MobileButton disabled={busy} onPress={() => { slipTarget.current = "early"; setSlipSourceOpen(true); }}>
-              {t.tenant.bills.earlyEndPay}
+              {collectInvoice.slipPath ? t.tenant.bills.earlyEndPayAgain : t.tenant.bills.earlyEndPay}
             </MobileButton>
           ) : null}
           {collectInvoice.slipPath ? (
@@ -590,6 +615,7 @@ export function PartyContractDetail({
           </>
         ) : null}
       </View>
+      </>)}
 
       <MobileBottomSheet visible={slipSourceOpen} onClose={() => setSlipSourceOpen(false)} maxHeight="50%">
         <View style={{ gap: 12, padding: 16 }}>

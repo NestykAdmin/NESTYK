@@ -49,18 +49,21 @@ function leaseRow(overrides = {}) {
 }
 
 const isNull = (value) => value instanceof FindOperator && value.type === 'isNull';
-const matches = (row, where = {}) => Object.entries(where).every(([key, value]) => (isNull(value) ? row[key] == null : row[key] === value));
+const matches = (row, where = {}) => Object.entries(where).every(([key, value]) => (isNull(value) ? row[key] == null
+  : value instanceof FindOperator && value.type === 'in' ? value.value.includes(row[key]) : row[key] === value));
 const clone = (value) => structuredClone(value);
 
 /**
  * In-memory lease 11 with its deposit invoice, handover tables and signatures. Each transaction works on a copy and
  * keeps it only when the callback succeeds (a rollback). Unique indexes of the migration answer 23505 like Postgres.
  */
-function harness({ lease = {}, receipt = true, deposit = true } = {}) {
+function harness({ lease = {}, receipt = true, deposit = true, others = [] } = {}) {
   const row = leaseRow(lease);
   let tables = {
     invoices: deposit ? [{ id: 50, lease_contract_id: 11, invoice_kind: 'deposit', receipt_pdf_path: receipt ? '7/receipts/r.pdf' : null }] : [],
     records: [], items: [], photos: [], signatures: [],
+    // Step 28 (B4): the other deals' leases of the same room.
+    leases: others.map((other) => leaseRow({ id: 20, lead_id: 5, tenant_id: 4, ...other })),
   };
   let nextId = 100;
   const events = [];
@@ -80,7 +83,7 @@ function harness({ lease = {}, receipt = true, deposit = true } = {}) {
 
   const tableOf = (t, entity) => (entity === HandoverRecordEntity ? t.records : entity === HandoverItemEntity ? t.items
     : entity === HandoverPhotoEntity ? t.photos : entity === AgreementSignatureEntity ? t.signatures
-    : entity === AgentInvoiceEntity ? t.invoices : null);
+    : entity === AgentInvoiceEntity ? t.invoices : entity === LeaseContractEntity ? t.leases : null);
   const unique = (t, entity, value) => {
     if (entity === HandoverRecordEntity && t.records.some((r) => r.agreement_id === value.agreement_id && r.kind === value.kind))
       throw Object.assign(new Error('duplicate key uq_handover_records_agreement_kind'), { code: '23505' });
@@ -196,6 +199,16 @@ async function ready(options) {
   return { ...h, view, png: (await signaturePng()).toString('base64') };
 }
 
+test('B4 (step 28): the room hands over from the day after the previous lease\'s last day (TC-6.05, TC-8.11)', async (t) => {
+  const rentSchedule = require('../src/billing/rent-schedule.ts');
+  t.mock.method(rentSchedule, 'bangkokToday', () => '2027-11-01');
+  const reason = async (other) => (await harness({ others: [other] }).handover.agentView(7, 11)).blockedReason;
+  assert.equal(await reason({ end_date: '2027-11-01' }), 'room_occupied', 'the old lease ends today');
+  assert.equal(await reason({ end_date: '2027-10-31' }), null, 'it ended yesterday');
+  assert.equal(await reason({ end_date: '2027-10-31', data: { notRenewing: { recordedOn: '2027-11-01' } } }), 'room_occupied', 'not renewing recorded today, after the end');
+  assert.equal(await reason({ end_date: '2027-12-31', data: { endsOn: { date: '2027-10-31' } } }), null, 'ended early yesterday');
+});
+
 test('the handover opens after the lease document and the deposit receipt; a lease without a deposit only needs the document', async () => {
   const cases = [
     [{ receipt: false }, 'deposit_unpaid'],
@@ -208,6 +221,11 @@ test('the handover opens after the lease document and the deposit receipt; a lea
     [{ lease: { status: 'expired' } }, 'contract_ended'],
     [{ lease: { template: { form_kind: 'reservation', document_template_key: 'reservation/letter-v1' }, agreement_type: { form_kind: 'reservation' } } }, 'not_lease'],
     [{ lease: { template: { form_kind: 'renewal', document_template_key: 'lease_renewal/v1' }, agreement_type: { form_kind: 'renewal' } } }, 'not_lease'],
+    // Step 28 (B4, AC-6.1): the previous tenant's lease of the room has not ended (or ended with no decision yet).
+    [{ others: [{ start_date: '2098-01-01', end_date: '2099-01-01' }] }, 'room_occupied'],
+    [{ others: [{ status: 'expired', start_date: '2020-01-01', end_date: '2020-12-31', data: { undecided: { since: '2021-01-01' } } }] }, 'room_occupied'],
+    [{ others: [{ template: { form_kind: 'renewal', document_template_key: 'lease_renewal/v1' }, agreement_type: { form_kind: 'renewal' }, end_date: '2099-01-01' }] }, 'room_occupied'],
+    [{ others: [{ end_date: null }] }, 'room_occupied'],
   ];
   for (const [options, reason] of cases) {
     const h = harness(options);
@@ -221,7 +239,10 @@ test('the handover opens after the lease document and the deposit receipt; a lea
     assert.equal(h.objects.size, 0, 'nothing is uploaded');
   }
   // Deposit 0: no deposit invoice, and the handover is open once the lease is issued.
-  for (const options of [{ lease: { deposit: '0.00' }, deposit: false }, {}]) {
+  // The previous tenant's lease is over (and the deal's own leases never count).
+  const over = [{ status: 'expired', start_date: '2020-01-01', end_date: '2020-12-31' }, { lead_id: 1, end_date: '2099-06-30' },
+    { rent_room_id: 4, end_date: '2099-06-30' }, { status: 'cancelled', end_date: '2099-06-30' }];
+  for (const options of [{ lease: { deposit: '0.00' }, deposit: false }, {}, { others: over }]) {
     const view = await harness(options).handover.agentView(7, 11);
     assert.deepEqual([view.status, view.blockedReason, view.id, view.revision], ['not_started', null, null, 0], JSON.stringify(options));
   }

@@ -7,11 +7,12 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { DataSource, EntityManager, In, IsNull } from "typeorm";
+import { DataSource, EntityManager, In, IsNull, Not } from "typeorm";
 import type { AgentTenantBilling, BillLateFee, BillReservationCredit, FinancialDocumentInput, TenantBill, TenantNextBill } from "@nestyk/types";
 import { TenantEntity } from '../entities/tenant.entity';
 import { RoomTenancyEntity } from '../entities/room-tenancy.entity';
 import { financialTotals } from '../agent/contracts/financial-document';
+import { closeEndedLease } from "../agent/contracts/contract-closure";
 import { LeaseContractEntity } from "../entities/lease-contract.entity";
 import { TenantBillEntity } from "../entities/tenant-bill.entity";
 import { AgentInvoiceEntity } from "../entities/agent-invoice.entity";
@@ -42,6 +43,7 @@ import {
 type LeaseFormData = {
   rentDueDay?: unknown;
   graceDay?: unknown;
+  latePenalty?: unknown;
   advanceMonths?: unknown;
   bankName?: unknown;
   accountName?: unknown;
@@ -56,8 +58,12 @@ function leaseForm(c: LeaseContractEntity): LeaseFormData {
   const form = renewal as { dueDay?: unknown; bankAccount?: unknown };
   const bank = typeof form.bankAccount === "string" ? form.bankAccount.trim() : "";
   const parts = bank.split(/\s*\/\s*/);
+  // Step 28 (B5): the grace day and daily late fee of the first lease, copied when the renewal was saved.
+  const terms = (c.data?.renewalTerms ?? {}) as { graceDay?: unknown; latePenalty?: unknown };
   return {
     ...base,
+    graceDay: base.graceDay ?? terms.graceDay ?? undefined,
+    latePenalty: base.latePenalty ?? terms.latePenalty ?? undefined,
     rentDueDay: form.dueDay || base.rentDueDay,
     ...(parts.length === 3 ? { bankName: parts[0], accountName: parts[1], accountNo: parts[2] }
       : parts.length === 2 ? { bankName: parts[0], accountNo: parts[1] } : { accountNo: bank || base.accountNo }),
@@ -262,6 +268,12 @@ export class TenantBillingService {
       for (const c of current) {
         const moveIn = c.move_in_date ?? c.start_date;
         if (c.room_tenancy_id && moveIn <= today && (!c.end_date || today <= c.end_date)) {
+          // Step 28 (B0b): the previous tenant's stay is released by the closing job; until then the room keeps
+          // one active stay (unique index), so this one waits instead of failing every lease's bills tonight.
+          const occupied = await manager.count(RoomTenancyEntity, {
+            where: { rent_room_id: c.rent_room_id, status: 'active', id: Not(c.room_tenancy_id) },
+          });
+          if (occupied) continue;
           // The daily job and billing reads activate occupancy only once the signed stay starts.
           // The parent lock keeps a concurrent closure from reactivating a moved-out tenancy.
           await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, tenant_id: c.tenant_id,
@@ -285,28 +297,38 @@ export class TenantBillingService {
     return created;
   }
 
-  /** Writes the ended status the day after the last day. An early ending becomes terminated; a natural end becomes expired. */
+  /**
+   * H1/H2, AC-8.7 (Aof 29 Oct 2026): writes the end of each lease past its last day, with its end reason, as closing
+   * by hand does, and releases the stay of an ended lease once it is over (see closeEndedLease). One lease at a time:
+   * one that fails is logged and the others still close.
+   */
   async persistEndedLeases(today = bangkokToday()) {
     const rows = await this.db.getRepository(LeaseContractEntity).createQueryBuilder("c")
       .leftJoin("c.template", "template")
       .leftJoin("c.agreement_type", "agreementType")
-      .where("c.status = :active", { active: "active" })
-      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
-      .andWhere("(c.end_date < :today OR (c.data->'endsOn'->>'date') < :today)", { today })
-      .getMany();
+      .select("c.id", "id")
+      .where("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
+      // One parameter, two types: a date column and a JSON text value (left uncast, Postgres refuses text < date).
+      // AC-8.7: also the ended leases still waiting for a decision (their stay may be over now).
+      .andWhere(`((c.status = 'active' AND (c.end_date < CAST(:today AS date) OR (c.data->'endsOn'->>'date') < CAST(:today AS text)))
+        OR (c.status = 'expired' AND (c.data->'undecided') IS NOT NULL))`, { today })
+      .orderBy("c.id", "ASC")
+      .getRawMany<{ id: number }>();
     let changed = 0;
-    for (const lease of rows) {
-      const endsOn = (lease.data as { endsOn?: { date?: unknown } } | null)?.endsOn?.date;
-      const early = typeof endsOn === "string" ? endsOn.slice(0, 10) : null;
-      const end = lease.end_date ? String(lease.end_date).slice(0, 10) : null;
-      const last = early && end ? (early < end ? early : end) : early || end;
-      if (!last || last >= today) continue;
-      const status = early && early < today && (!end || early <= end) ? "terminated" : "expired";
-      const result = await this.db.getRepository(LeaseContractEntity).update({ id: lease.id, status: "active" }, { status });
-      changed += result.affected ?? 0;
+    for (const { id } of rows) {
+      try {
+        if (await this.closeEnded(Number(id), today)) changed++;
+      } catch (error) {
+        this.logger.error(`Could not close ended lease ${id}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
     if (changed) this.logger.log(`Closed ${changed} ended lease(s) on ${today}`);
     return changed;
+  }
+
+  /** One lease of the daily close (a seam for tests). */
+  closeEnded(id: number, today: string) {
+    return closeEndedLease(this.db, id, today);
   }
 
   async ensureForUser(userId: number, today = bangkokToday()) {
@@ -384,7 +406,7 @@ export class TenantBillingService {
       amount: Number(b.amount),
       reservationCredit: billReservationCredit(b, credits),
       lateDays: lateFeeDays(b.grace_until, paidOn(b.paid_at) ?? today),
-      lateFeePerDay: lateFeeRate((c?.data?.leaseAgreement as { latePenalty?: unknown } | undefined)?.latePenalty),
+      lateFeePerDay: lateFeeRate(c ? leaseForm(c).latePenalty : undefined),
       lateFee: lateFeeSummary(lateFee),
       status: b.status === "paid" ? "paid" : today > b.grace_until ? "overdue" : "pending",
       leaseActive: c?.status === "active",
@@ -709,18 +731,6 @@ export class TenantBillingService {
       throw error;
     }
     return this.view(await this.forAgent(agentId, id));
-  }
-
-  /** AC-7.8: the landlord of the lease can issue the same late fee. It is still filed under the deal agent. */
-  async createLateFeeForLandlord(landlordId: number, id: number, input: unknown) {
-    const bill = await this.db.getRepository(TenantBillEntity).findOne({
-      where: { id },
-      relations: { lease_contract: { rent_room: true } },
-    });
-    const lease = bill?.lease_contract;
-    const owns = lease?.owner_user_id === landlordId || (lease?.owner_user_id == null && lease?.rent_room?.owner_id === landlordId);
-    if (!bill || !lease || !owns) throw new ForbiddenException("เฉพาะผู้ให้เช่าของห้องนี้");
-    return this.createLateFee(lease.created_by_user_id, id, input);
   }
 
   /** D12: the agent returns the tenant's late fee slip with a reason. */

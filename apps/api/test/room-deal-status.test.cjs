@@ -111,3 +111,13 @@ test('lead matching offers available and soon-vacant rooms, a soon-vacant one fr
   assert.deepEqual(rooms.map((r) => [r.id, r.availableFromDate]), [[1, '2026-11-01'], [4, '2099-01-16']],
     'not the booked room 2, not room 3 let outside the system');
 });
+
+test('AC-8.7 (Aof 29 Oct 2026): a lease ended with no decision keeps the room let; "not renewing" recorded later frees it the day after', () => {
+  const undecided = c('lease', 'expired', { endDate: '2027-10-31', effectiveEndDate: '2027-10-31', undecided: true });
+  assert.equal(st('2027-11-05', [undecided], [booked()]), 'rented');
+  const later = { ...undecided, notRenewing: true, notRenewingOn: '2027-11-05' };
+  assert.deepEqual(at('2027-11-05', [later], [booked(1, '2027-11-05T03:00:00Z')]), { status: 'soon_vacant', vacantFrom: '2027-11-06', nextBooked: false });
+  assert.equal(st('2027-11-06', [later], []), 'available');
+  assert.equal(st('2027-11-05', [undecided, c('renewal', 'awaiting_signatures', { endDate: '2028-10-31' })], [booked()]), 'rented', 'a renewal not signed yet');
+  assert.equal(st('2027-11-05', [c('lease', 'expired', { endDate: '2027-10-31', effectiveEndDate: '2027-10-31' })], []), 'available', 'ended and not undecided');
+});

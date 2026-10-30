@@ -62,12 +62,39 @@ test('TC-7.10 and TC-8.07: unused rent is reminded the day after day 7, and the 
   const kinds = (today, extra = {}) => dueReminders(today, [{ ...lease, ...extra }], []).map((row) => row.kind);
   assert.deepEqual(kinds('2027-01-22'), []);
   assert.deepEqual(kinds('2027-01-23'), ['early_end_refund_late']);
+  for (const status of ['terminated', 'expired']) assert.deepEqual(kinds('2027-01-23', { status }), ['early_end_refund_late'], `H2: still after the lease is ${status}`);
   assert.deepEqual(kinds('2027-01-23', { data: { endsOn: { date: '2027-01-15', money: { kind: 'refund', amount: 1, dueOn: '2027-01-22', proofPath: 'proof' } } } }), []);
   const deposit = { contractId: 11, status: 'approved', refundAmount: 35000, refunded: false };
   const ended = { ...lease, data: {}, endDate: '2027-10-31' };
   const depositKinds = (today, rows = [deposit], contracts = [ended]) => dueReminders(today, contracts, [], [], rows).map((row) => [row.kind, row.dueDate, row.amount]);
   assert.deepEqual(depositKinds('2027-11-30'), []);
   assert.deepEqual(depositKinds('2027-12-01'), [['deposit_refund_late', '2027-11-30', 35000]]);
+  assert.deepEqual(depositKinds('2027-12-01', [deposit], [{ ...ended, status: 'expired' }]), [['deposit_refund_late', '2027-11-30', 35000]], 'H2: after the daily close too');
   assert.deepEqual(depositKinds('2027-12-01', [{ ...deposit, refunded: true }]), []);
   assert.deepEqual(depositKinds('2027-12-01', [deposit], [ended, { ...ended, id: 12, previousAgreementId: 11, status: 'awaiting_signatures' }]), []);
+});
+
+test('H3 (Aof 29 Oct 2026): a renewal refunds the deposit received with the first lease of the chain', async () => {
+  const { DepositSettlementService } = require('../src/agent/contracts/deposit-settlement.ts');
+  const { AgentInvoiceEntity } = require('../src/entities/agent-invoice.entity.ts');
+  const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.ts');
+  const invoice = (contract) => ({ lease_contract_id: contract, invoice_kind: 'deposit', receipt_pdf_path: `receipts/${contract}.pdf`, data: { items: [{ description: 'Deposit', quantity: 1, unitPrice: 40000 }], discount: 0, vatRate: 0 } });
+  const invoices = [invoice(1)];
+  const db = { getRepository: (entity) => entity === AgentInvoiceEntity
+    ? { findOne: async ({ where }) => invoices.find((row) => row.lease_contract_id === where.lease_contract_id && row.invoice_kind === where.invoice_kind) ?? null }
+    : entity === LeaseContractEntity ? { find: async ({ where }) => chain.filter((row) => row.previous_agreement_id === where.previous_agreement_id) } : assert.fail(entity.name) };
+  // The chain 1 (first lease) → 2 → 3 (renewals); only the last one refunds, so the deposit is not refunded twice.
+  const chain = [{ id: 2, previous_agreement_id: 1, status: 'expired' }, { id: 3, previous_agreement_id: 2, status: 'active' }];
+  const service = new DepositSettlementService(db, null);
+  const renewal = { id: 3, agreement_kind: 'renewal', previous_agreement_id: 2, root_agreement_id: 1, status: 'active', end_date: '2026-10-01', data: { notRenewing: {} }, template: { form_kind: 'renewal' } };
+  assert.deepEqual(await service['depositReceipt'](renewal), { total: 40000, path: 'receipts/1.pdf' });
+  assert.equal(await service['gate'](renewal), null, 'the last of the chain: the refund opens');
+  assert.equal(await service['gate']({ ...renewal, id: 1, agreement_kind: 'new', root_agreement_id: null, template: { form_kind: 'lease' } }), 'has_successor', 'the first lease: renewed');
+  assert.equal(await service['gate']({ ...renewal, id: 2, previous_agreement_id: 1 }), 'has_successor', 'the middle one: renewed');
+  assert.equal(await service['gate']({ ...renewal, id: 4, previous_agreement_id: 9, root_agreement_id: 1 }), null, 'a renewal not renewed again');
+  chain.push({ id: 5, previous_agreement_id: 3, status: 'cancelled' });
+  assert.equal(await service['gate'](renewal), null, 'a cancelled renewal does not count');
+  assert.equal(await service['gate']({ ...renewal, root_agreement_id: 9 }), 'no_deposit', 'no receipt in the chain');
+  invoices.push(invoice(3));
+  assert.equal((await service['depositReceipt'](renewal)).path, 'receipts/3.pdf', 'its own deposit invoice comes first');
 });

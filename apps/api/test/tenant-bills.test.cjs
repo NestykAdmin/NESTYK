@@ -264,12 +264,52 @@ test('billing activates only signed stays that have started, and preserves close
     lease({ id: 43, room_tenancy_id: 10, start_date: '2026-11-01', move_in_date: '2026-11-01' }),
     lease({ id: 44, room_tenancy_id: 11, status: 'terminated' })];
   const manager = { findOne: async (_, options) => records.find(c => c.id === options.where.id && c.status === options.where.status),
+    count: async () => 0,
     update: async (_, where, patch) => { updates.push({ where, patch }); },
     createQueryBuilder: () => { const qb = {}; for (const name of ['insert', 'into', 'values', 'orIgnore']) qb[name] = () => qb; qb.execute = async () => ({ raw: [] }); return qb; } };
   const service = new TenantBillingService({ transaction: fn => fn(manager) });
   await service.insertBills(records, '2026-10-14');
   assert.equal(updates.length, 1); assert.equal(updates[0].where.id, 9);
   assert.equal(updates[0].where.status, 'prospect'); assert.equal(updates[0].patch.move_in_date, '2026-10-01');
+});
+
+test('B0b (step 28): a new stay waits while the room still has the previous active stay, and the bills still go out', async () => {
+  const updates = [], inserted = [];
+  const c = lease({ id: 42, room_tenancy_id: 9, rent_room_id: 21, start_date: '2026-10-01', move_in_date: '2026-10-01',
+    data: { leaseAgreement: { rentDueDay: '1', advanceMonths: '0' } } });
+  const counted = [];
+  const manager = { findOne: async (_, options) => (options.where.id === 42 ? c : null),
+    count: async (_, options) => { counted.push(options.where); return 1; },
+    update: async (_, where, patch) => { updates.push({ where, patch }); },
+    createQueryBuilder: () => { const qb = {}; for (const name of ['insert', 'into', 'orIgnore']) qb[name] = () => qb; qb.values = (rows) => { inserted.push(...rows); return qb; }; qb.execute = async () => ({ raw: [] }); return qb; } };
+  await new TenantBillingService({ transaction: fn => fn(manager) }).insertBills([c], '2026-10-03');
+  assert.equal(updates.length, 0, 'the stay is not activated');
+  assert.equal(counted[0].rent_room_id, 21); assert.equal(counted[0].status, 'active');
+  assert.deepEqual([counted[0].id.type, counted[0].id.value], ['not', 9], 'another stay than its own');
+  assert.deepEqual(inserted.map((row) => row.period), ['2026-10'], 'the rent bill is still issued');
+});
+
+test('B0b (step 28): the nightly job closes ended leases before billing, and one failing part does not stop the other', async () => {
+  const { TenantBillingScheduler } = require('../src/billing/tenant-billing.scheduler.ts');
+  const calls = [];
+  const billing = { persistEndedLeases: async () => { calls.push('close'); throw new Error('one lease failed'); }, ensureAllActive: async () => { calls.push('bill'); } };
+  const scheduler = new TenantBillingScheduler(billing);
+  const logged = [];
+  scheduler.logger = { error: (message) => logged.push(message) };
+  await scheduler.issueDueBills();
+  assert.deepEqual(calls, ['close', 'bill']);
+  assert.deepEqual(logged, ['Failed to close ended leases']);
+});
+
+test('B5 (step 28): renewal bills use the grace day and daily late fee kept from the first lease', () => {
+  const renewal = (data) => lease({ agreement_kind: 'renewal', data: { leaseRenewal: { dueDay: '1', bankAccount: 'KBank / Owner / 123' }, ...data } });
+  const service = new TenantBillingService({});
+  const kept = renewal({ renewalTerms: { graceDay: '3', latePenalty: '200' } });
+  const [oct] = openRentBills(kept, '2026-10-01');
+  assert.deepEqual([oct.due_date, oct.grace_until], ['2026-10-01', '2026-10-03']);
+  assert.equal(service.serialize(bill({ lease_contract: kept })).lateFeePerDay, 200);
+  const old = renewal({});
+  assert.equal(openRentBills(old, '2026-10-01')[0].grace_until, '2026-10-06', 'saved before step 28: the default 5 days');
 });
 
 
@@ -284,22 +324,25 @@ const newLease = (patch = {}) => lease({
 });
 const firstBill = (c, today, credit) => openRentBills(c, today, credit).find((row) => row.period === '2026-11');
 
-test('the daily close writes terminated after an early end and expired after a natural end', async () => {
-  const rows = [
-    { id: 1, end_date: '2027-07-31', data: { endsOn: { date: '2027-01-15' } } },
-    { id: 2, end_date: '2026-10-31', data: {} },
-    { id: 3, end_date: '2027-12-31', data: { endsOn: { date: '2027-11-01' } } },
-  ];
-  const updates = [];
-  const qb = { leftJoin() { return this; }, where() { return this; }, andWhere() { return this; }, getMany: async () => rows };
-  const service = new TenantBillingService({
-    getRepository: () => ({ createQueryBuilder: () => qb, update: async (where, patch) => { updates.push({ where, patch }); return { affected: 1 }; } }),
-  });
-  assert.equal(await service.persistEndedLeases('2027-01-16'), 2);
-  assert.deepEqual(updates, [
-    { where: { id: 1, status: 'active' }, patch: { status: 'terminated' } },
-    { where: { id: 2, status: 'active' }, patch: { status: 'expired' } },
-  ]);
+test('H1: the daily close goes lease by lease; one that fails is logged and the others still close', async () => {
+  const queries = [];
+  const qb = {};
+  for (const m of ['leftJoin', 'select', 'where', 'andWhere', 'orderBy']) qb[m] = (...args) => { queries.push([m, ...args]); return qb; };
+  qb.getRawMany = async () => [{ id: 1 }, { id: 2 }, { id: 3 }];
+  const service = new TenantBillingService({ getRepository: () => ({ createQueryBuilder: () => qb }) });
+  const calls = [];
+  service.closeEnded = async (id, today) => {
+    calls.push([id, today]);
+    if (id === 2) throw new Error('trigger refused');
+    return id === 1 ? 'terminated' : null;
+  };
+  service.logger = { log() {}, error: (message) => calls.push(['error', message]) };
+  assert.equal(await service.persistEndedLeases('2027-01-16'), 1);
+  assert.deepEqual(calls, [[1, '2027-01-16'], [2, '2027-01-16'], ['error', 'Could not close ended lease 2: trigger refused'], [3, '2027-01-16']]);
+  const dates = queries.find(([m, sql]) => m === 'andWhere' && /end_date/.test(sql));
+  assert.match(dates[1], /CAST\(:today AS date\)/); assert.match(dates[1], /CAST\(:today AS text\)/);
+  assert.match(dates[1], /c\.status = 'expired' AND \(c\.data->'undecided'\) IS NOT NULL/, 'AC-8.7: the undecided ended leases too');
+  assert.deepEqual(dates[2], { today: '2027-01-16' });
 });
 
 test('first month counts the days from move-in through the day before the due date (AC-7.1)', () => {
@@ -330,7 +373,7 @@ test('first bill of a new lease is the rent less the reservation, closed at once
   assert.equal('paid_at' in dec[1], false);
 });
 
-test('first bill amounts: rent above, below or without a reservation receipt (AC-2.4, TC-7.13)', () => {
+test('first bill amounts: rent above, below or without a reservation receipt (AC-2.4)', () => {
   const above = firstBill(newLease({ monthly_rent: '21000.00' }), '2026-11-01', 20000);
   assert.equal(above.amount, '1000.00'); assert.equal(above.status, 'pending'); assert.equal('paid_at' in above, false);
   const below = firstBill(newLease({ monthly_rent: '19000.00' }), '2026-11-01', 20000);
