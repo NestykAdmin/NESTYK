@@ -121,12 +121,12 @@ export class BillsApi {
   }
 
   /**
-   * POST /bills/received/:id/late-fee : เจ้าของห้องออกใบแจ้งหนี้ค่าปรับ เนื้อคำขอ { amount, dueDate? } (owner-bills.controller.ts:32)
-   * createLateFeeForLandlord (tenant-billing.service.ts:715) อ่านบิลด้วย id อย่างเดียว ถ้าไม่พบบิล หรือผู้เรียกไม่ใช่ผู้ให้เช่าของห้อง
-   * ตอบ 403 "เฉพาะผู้ให้เช่าของห้องนี้" (บรรทัด 722) ไม่ใช่ 404 และตอบก่อนตรวจเนื้อคำขอ
-   * ถ้าผ่าน ระบบเรียก createLateFee ในนามนายหน้าของดีล ซึ่งสร้างไฟล์ PDF และบันทึกใบค่าปรับ
+   * POST /bills/received/:id/late-fee : เส้นทางเดิมที่เจ้าของห้องออกใบแจ้งหนี้ค่าปรับ ถูกลบตั้งแต่ develop 1b16d32
+   * (ลบจาก owner-bills.controller.ts และลบ createLateFeeForLandlord) ตอนนี้ NestJS ตอบ 404 "Cannot POST ..."
+   * เก็บตัวเรียกไว้ให้ bills.spec.ts ตรวจว่าเส้นทางยังไม่ถูกเปิดกลับเท่านั้น ห้ามใช้เป็นเส้นทางที่ใช้งานอยู่
+   * (อนุมาน: ถ้าเส้นทางกลับมาและบิลมีอยู่จริง อาจบันทึกใบค่าปรับเหมือนโค้ดเดิม โค้ดของเส้นทางที่จะกลับมายังไม่มีให้ดู)
    */
-  receivedCreateLateFee(id: number | string, body: unknown): Promise<APIResponse> {
+  retiredReceivedCreateLateFee(id: number | string, body: unknown): Promise<APIResponse> {
     return this.client.post(`bills/received/${id}/late-fee`, body);
   }
 

@@ -1,11 +1,13 @@
 import type { APIResponse } from '@playwright/test';
 import type { TenantBill } from '../../src/api/types';
 import { expect, test, type ApiSession } from '../../src/fixtures/api.fixture';
+import { env } from '../../src/config/env';
 import { expectError, expectJson } from '../../src/support/http';
 
 /**
  * บิลค่าเช่าและสลิป (กลุ่ม /bills) ชุดแรก: เคสที่ไม่ต้องมีบิลในฐานข้อมูล
  * ที่มา: apps/api/src/billing/ และ apps/api/src/common/database-id.pipe.ts ตรวจซ้ำที่ develop 9644dd9
+ *   ส่วนเส้นทาง POST bills/received/:id/late-fee ตรวจซ้ำที่ develop bc77a8b (ถูกลบใน 1b16d32)
  *
  * สิ่งที่ต้องมีก่อน
  *   - API ที่รวม DEV/main ถึง f7d52ed แล้ว (มีตัวตรวจ id DatabaseIdPipe และเส้นทาง mine/:id/confirm, agent/:id/return)
@@ -13,6 +15,8 @@ import { expectError, expectJson } from '../../src/support/http';
  *     mine ใช้ qa-tenant (tenant-bills.controller.ts:26) received ใช้ qa-landlord (owner-bills.controller.ts:14) agent ใช้ qa-agent (agent-bills.controller.ts:11)
  *     (landlord คือชื่อใหม่ของ owner ตั้งแต่ develop 84087e2) ถ้ายังไม่ได้ตั้ง uuid ของ qa-tenant หรือ qa-landlord เทสของกลุ่มนั้นข้าม พร้อมเหตุผล
  *   - เทสของเส้นทางค่าปรับ (late-fee) ที่เพิ่มใน develop 9644dd9 ต้องใช้ API ตั้งแต่ 9644dd9 กับ API รุ่นก่อน ทุกข้อของเส้นทางนี้ได้ 404 "Cannot ..." ของ NestJS
+ *   - เทส 'retired late fee of the landlord' ต้องใช้ API ตั้งแต่ 1b16d32 กับ API ตั้งแต่ 9644dd9 แต่ก่อน 1b16d32 (เส้นทางยังมี)
+ *     จะได้ 401 แทน "Cannot POST ..." ซึ่งไม่ใช่บั๊ก
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
  *   - ไม่เรียก GET mine, mine/next, received และ agent/tenants/:tenantId ด้วยบัญชีหรือ id ที่มีจริง เพราะ 4 เส้นทางนี้
@@ -22,8 +26,9 @@ import { expectError, expectJson } from '../../src/support/http';
  *   - เส้นทาง POST ใช้เฉพาะ id ที่ไม่มีอยู่จริง หรือ id ที่ผิดรูปแบบ ระบบหาบิลไม่เจอหรือปฏิเสธก่อนบันทึก
  *     (mine, owned, forAgent ใน tenant-billing.service.ts ตอบ 404 ก่อนตรวจสถานะและก่อนบันทึก)
  *   - POST bills/agent/:id/late-fee ตรวจเนื้อคำขอก่อนหาบิล (createLateFee ใน tenant-billing.service.ts:664-667 ที่ develop 9644dd9)
- *     จึงส่งเนื้อคำขอที่ผ่าน (LATE_FEE_BODY) ส่วน POST bills/received/:id/late-fee อ่านบิลด้วย id แล้วตอบ 403 ก่อนตรวจเนื้อคำขอ
- *     และก่อนบันทึก (createLateFeeForLandlord บรรทัด 715-724)
+ *     จึงส่งเนื้อคำขอที่ผ่าน (LATE_FEE_BODY)
+ *   - POST bills/received/:id/late-fee (เจ้าของห้องออกใบค่าปรับ) ถูกลบตั้งแต่ develop 1b16d32 (owner-bills.controller.ts และ
+ *     createLateFeeForLandlord ใน tenant-billing.service.ts) เทสไฟล์นี้ตรวจแค่ว่าเส้นทางนี้ไม่มีแล้ว (ดู 'retired late fee of the landlord')
  *
  * ยังไม่มีเทส (ต้องมีบิลในฐานข้อมูลก่อน): ขั้นตอนอัป ส่ง ยืนยัน และตีกลับสลิป, การออกใบค่าปรับ ส่งและตีกลับสลิปค่าปรับ, ชนิดและขนาดไฟล์,
  *   และบิลของผู้ใช้อื่นต้องได้ 404 (403 ของบทบาทที่ไม่ตรงอยู่ใน roles.spec.ts ซึ่งใช้บัญชี QA แยกบทบาท)
@@ -41,8 +46,6 @@ const MESSAGE = {
   tenantNotFound: 'ไม่พบผู้เช่า',
   idOutOfRange: 'ID must be an integer between 1 and 2147483647',
   noToken: 'Missing Bearer token',
-  /** POST bills/received/:id/late-fee เมื่อไม่พบบิล หรือผู้เรียกไม่ใช่ผู้ให้เช่าของห้อง (tenant-billing.service.ts:722 ที่ develop 9644dd9) */
-  notLandlordOfRoom: 'เฉพาะผู้ให้เช่าของห้องนี้',
 } as const;
 
 /** เนื้อคำขอที่ผ่านการตรวจของการออกใบค่าปรับ: ยอดมากกว่า 0 ไม่ส่ง dueDate = วันนี้ (lateFeeInput ใน apps/api/src/billing/late-fee-invoice.ts:54-62) */
@@ -51,7 +54,7 @@ const LATE_FEE_BODY = { amount: 1 };
 /** เนื้อคำขอของการตีกลับสลิปค่าปรับ ไม่ต้องผ่านการตรวจ เพราะ returnLateFeeSlip หาบิลก่อนตรวจ 2 ช่องนี้ (tenant-billing.service.ts:727-737) */
 const LATE_FEE_RETURN_BODY = { reason: 'e2e', submittedAt: '2026-01-01T00:00:00.000Z' };
 
-/** เส้นทางกลุ่ม /bills ทั้งหมด 19 เส้นทาง (ใช้กับเทสที่ไม่ต้องล็อกอิน) รวมค่าปรับ 7 เส้นทางของ develop 9644dd9 */
+/** เส้นทางกลุ่ม /bills ทั้งหมด 18 เส้นทาง (ใช้กับเทสที่ไม่ต้องล็อกอิน) รวมค่าปรับ 6 เส้นทาง (develop 9644dd9 เพิ่ม 7 เส้นทาง 1b16d32 ลบ 1) */
 const allEndpoints: { name: string; call: (session: ApiSession) => Promise<APIResponse> }[] = [
   { name: 'GET /bills/mine', call: (s) => s.bills.mine() },
   { name: 'GET /bills/mine/next', call: (s) => s.bills.mineNext() },
@@ -67,7 +70,6 @@ const allEndpoints: { name: string; call: (session: ApiSession) => Promise<APIRe
   { name: 'POST /bills/agent/:id/return', call: (s) => s.bills.agentReturn(NO_SUCH_ID, { reason: 'e2e' }) },
   { name: 'GET /bills/mine/:id/late-fee/:kind', call: (s) => s.bills.mineLateFeeDocument(NO_SUCH_ID, 'invoice') },
   { name: 'POST /bills/mine/:id/late-fee/payment-slip', call: (s) => s.bills.uploadMineLateFeeSlipWithoutFile(NO_SUCH_ID) },
-  { name: 'POST /bills/received/:id/late-fee', call: (s) => s.bills.receivedCreateLateFee(NO_SUCH_ID, LATE_FEE_BODY) },
   { name: 'GET /bills/received/:id/late-fee/:kind', call: (s) => s.bills.receivedLateFeeDocument(NO_SUCH_ID, 'invoice') },
   { name: 'GET /bills/agent/:id/late-fee/:kind', call: (s) => s.bills.agentLateFeeDocument(NO_SUCH_ID, 'invoice') },
   { name: 'POST /bills/agent/:id/late-fee', call: (s) => s.bills.agentCreateLateFee(NO_SUCH_ID, LATE_FEE_BODY) },
@@ -125,7 +127,7 @@ const idEndpoints: {
     notFound: MESSAGE.billNotFound,
     call: (s, id) => s.bills.agentReturn(id, { reason: 'e2e' }),
   },
-  // ค่าปรับของบิล (develop 9644dd9) ทุกเส้นทางหาบิลก่อน ยกเว้น POST bills/received/:id/late-fee ซึ่งตอบ 403 (ดู landlordLateFee ด้านล่าง)
+  // ค่าปรับของบิล (develop 9644dd9) ทุกเส้นทางหาบิลก่อน
   {
     name: 'GET /bills/mine/:id/late-fee/:kind',
     caller: 'tenant',
@@ -165,16 +167,6 @@ const idEndpoints: {
   },
 ];
 
-/**
- * POST /bills/received/:id/late-fee (develop 9644dd9) ไม่อยู่ใน idEndpoints เพราะบิลที่ไม่มีจริงได้ 403 ไม่ใช่ 404 (ดูเทสแยกด้านล่าง)
- * แต่รับ id ผ่าน DatabaseIdPipe เหมือนเส้นทางอื่น (owner-bills.controller.ts:32-40) จึงอยู่ในเทส 400 ของ id ผิดรูปแบบด้วย
- */
-const landlordLateFee: { name: string; caller: BillCaller; call: (s: ApiSession, id: number | string) => Promise<APIResponse> } = {
-  name: 'POST /bills/received/:id/late-fee',
-  caller: 'landlord',
-  call: (s, id) => s.bills.receivedCreateLateFee(id, LATE_FEE_BODY),
-};
-
 /** id ที่เป็นจำนวนเต็มแต่อยู่นอกช่วง 1 ถึง 2147483647: DatabaseIdPipe ตอบ 400 พร้อมข้อความ idOutOfRange */
 const OUT_OF_RANGE_IDS = ['0', '-1', String(INT32_MAX + 1)];
 
@@ -209,20 +201,32 @@ test.describe('bills of an id that does not exist', () => {
   }
 });
 
-test.describe('late fee of the landlord for a bill that does not exist', () => {
-  test('POST /bills/received/:id/late-fee answers 403 (not 404) for a bill that does not exist', async ({ qa }) => {
-    // createLateFeeForLandlord (tenant-billing.service.ts:715-724 ที่ develop 9644dd9) อ่านบิลด้วย id อย่างเดียว แล้วตอบ 403 เดียวกัน
-    //   ทั้งตอนไม่พบบิลและตอนผู้เรียกไม่ใช่ผู้ให้เช่าของห้อง (บรรทัด 722) ก่อนตรวจเนื้อคำขอและก่อนบันทึก ต่างจากเส้นทางอื่นของกลุ่มนี้ที่ตอบ 404
-    //   ข้อความต่างจาก 403 ของ RolesGuard ("Required role: landlord") จึงตรวจข้อความด้วย
-    // ขั้นที่ 1: ล็อกอินด้วย qa-landlord (ข้ามถ้ายังไม่ได้ตั้ง uuid) แล้วขอออกใบค่าปรับของบิลที่ไม่มีจริง พร้อมเนื้อคำขอที่ผ่านการตรวจ
-    const session = await qa(landlordLateFee.caller);
-    // ขั้นที่ 2: ต้องได้ 403 ว่าเฉพาะผู้ให้เช่าของห้องนี้ (ไม่มีอะไรถูกบันทึก)
-    expect(await expectError(await landlordLateFee.call(session, NO_SUCH_ID), 403)).toBe(MESSAGE.notLandlordOfRoom);
+test.describe('retired late fee of the landlord', () => {
+  /**
+   * develop 1b16d32 ลบเส้นทางที่เจ้าของห้องออกใบค่าปรับเอง (owner-bills.controller.ts เหลือแค่ GET received, received/:id/payment-slip
+   * และ received/:id/late-fee/:kind) ตอนนี้นายหน้าเป็นคนออกใบค่าปรับ (POST /bills/agent/:id/late-fee)
+   *
+   * วิธีตรวจเหมือน 'retired public sign links' ใน party-contracts.spec.ts: เส้นทางที่ไม่มีอยู่ NestJS ตอบ 404 "Cannot <วิธีเรียก> <path>"
+   *   เรียกโดยไม่ล็อกอิน: เทสไม่ข้ามแม้ยังไม่ได้ตั้ง uuid ของ qa-landlord และถ้าเส้นทางกลับมา AuthGuard ระดับ class ของ
+   *   owner-bills.controller.ts ตอบ 401 "Missing Bearer token" ก่อนถึง handler จึงไม่มีอะไรถูกบันทึก แต่ข้อความไม่ใช่ "Cannot ..."
+   *   เทสนี้จะไม่ผ่าน เพื่อให้ถามทีมว่าตั้งใจเปิดกลับหรือไม่
+   */
+  test('POST /bills/received/:id/late-fee no longer exists', async ({ anonymous }) => {
+    // ขั้นที่ 1: เรียกเส้นทางเดิมโดยไม่ล็อกอิน ด้วยบิลที่ไม่มีจริงและเนื้อคำขอที่ผ่านการตรวจเดิม
+    const response = await anonymous.bills.retiredReceivedCreateLateFee(NO_SUCH_ID, LATE_FEE_BODY);
+    const message = await expectError(response, 404);
+
+    // ขั้นที่ 2: คำตอบต้องมาจากที่อยู่เดิม ไม่ใช่ที่อยู่อื่นที่ถูกส่งต่อไป (ที่อยู่ที่คาดสร้างจาก E2E_API_BASE_URL)
+    const expectedPath = new URL(`bills/received/${NO_SUCH_ID}/late-fee`, `${env.apiBaseUrl}/`).pathname;
+    expect(new URL(response.url()).pathname).toBe(expectedPath);
+
+    // ขั้นที่ 3: ข้อความต้องเป็นของ NestJS ว่าไม่มีเส้นทางนี้ ("Cannot POST /api/v1/bills/received/2147483647/late-fee")
+    expect(message).toBe(`Cannot POST ${expectedPath}`);
   });
 });
 
 test.describe('bills with an id that is not valid', () => {
-  for (const endpoint of [...idEndpoints, landlordLateFee]) {
+  for (const endpoint of idEndpoints) {
     test(`${endpoint.name} answers 400 for ids outside 1 to 2147483647`, async ({ qa }) => {
       // ขั้นที่ 1: ล็อกอินด้วยบัญชีที่มีบทบาทของเส้นทางนี้ แล้วส่ง id 0, -1 และค่าที่เกินช่วงของ integer อยู่ 1
       //   (ต้องเป็นบัญชีที่มีบทบาท ไม่อย่างนั้น RolesGuard ตอบ 403 ก่อนถึงตัวตรวจ id)
