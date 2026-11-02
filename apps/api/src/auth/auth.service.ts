@@ -30,8 +30,9 @@ export type AuthUserResponse = {
 };
 
 const DEV_GRANTABLE: MasterRoleName[] = ['landlord', 'tenant', 'agent', 'admin'];
-// Public self-registration policy approved for this release. Applied only when provisioning a new profile.
-const SELF_REGISTRATION_ROLES: MasterRoleName[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+// R1 (Mos 2 Nov 2026): anyone can self-register, so a new self-registered profile is only a guest and an agent.
+// Landlords and tenants get their accounts from the agent's documents; admin is never self-granted.
+const SELF_REGISTRATION_ROLES: MasterRoleName[] = ['guest', 'agent'];
 
 @Injectable()
 export class AuthService {
@@ -228,8 +229,11 @@ export class AuthService {
   private async storeAvatar(userId: number, avatarUrl: string | null): Promise<AuthUserResponse> {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
+    const previous = user.avatar_url;
     user.avatar_url = avatarUrl;
     await this.usersRepo.save(user);
+    // R5: the old photo leaves the public bucket once the new address is saved.
+    if (previous && previous !== avatarUrl && this.avatars) await this.avatars.removeOwned(userId, previous);
     const loaded = await this.loadUserWithRoles(userId);
     return this.toResponse(loaded, false);
   }

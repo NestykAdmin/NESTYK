@@ -1,6 +1,15 @@
 export type GoogleSession = { access_token: string; user: { id: string } };
 export type OAuthProvider = 'google' | 'facebook';
 
+/**
+ * R2 (Mos 2 Nov 2026): Google and Facebook sign-in stay off until the team sets the providers up in Supabase and
+ * turns on EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true. While off, the buttons only say the option is not available yet.
+ */
+export function socialLoginProvider(button: string, enabled: unknown): OAuthProvider | null {
+  if (enabled !== 'true') return null;
+  return button === 'Google' ? 'google' : button === 'Facebook' ? 'facebook' : null;
+}
+
 type GoogleAuthClient = {
   auth: {
     signInWithOAuth(args: {

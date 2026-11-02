@@ -23,7 +23,8 @@ function setup({ existing = false, missing, identity: given } = {}) {
   const manager = {
     query: async () => {},
     create: (_entity, data) => ({ ...data }),
-    find: async (entity) => { assert.equal(entity, MasterRoleEntity); return roles; },
+    // Honour the In(...) filter, so the test sees exactly the roles the service asks for.
+    find: async (entity, { where }) => { assert.equal(entity, MasterRoleEntity); return roles.filter(r => where.name.value.includes(r.name)); },
     findOne: async (entity, { where }) => {
       if (entity === MasterRoleEntity) return roles.find(r => r.name === where.name) ?? null;
       assert.equal(entity, UserEntity);
@@ -43,15 +44,24 @@ function setup({ existing = false, missing, identity: given } = {}) {
   return { service: new AuthService({}, {}, {}, db), identity, counts: () => [users.length, links.length], users: () => users };
 }
 
-test('self-registration provisions all five roles once; a retry creates neither user nor role duplicates', async () => {
+// R1 (Mos 2 Nov 2026): agents sign up by themselves, so self-registration gives guest and agent only.
+const SELF = ['agent', 'guest'];
+
+test('self-registration provisions guest and agent once; a retry creates neither user nor role duplicates', async () => {
   const { service, identity, counts } = setup();
   const first = await service.sync(identity);
-  assert.deepEqual([...first.roles].sort(), [...ALL].sort());
+  assert.deepEqual([...first.roles].sort(), SELF);
   assert.equal(first.provisioned, true);
   const second = await service.sync(identity);
-  assert.deepEqual([...second.roles].sort(), [...ALL].sort());
+  assert.deepEqual([...second.roles].sort(), SELF);
   assert.equal(second.provisioned, false);
-  assert.deepEqual(counts(), [1, 5]);
+  assert.deepEqual(counts(), [1, 2]);
+});
+
+test('R1: self-registration never grants admin, landlord or tenant', async () => {
+  const { service, identity } = setup();
+  const { roles } = await service.sync(identity);
+  for (const role of ['admin', 'landlord', 'tenant']) assert.equal(roles.includes(role), false, role);
 });
 
 test('an existing user cannot get extra roles by setting registration metadata', async () => {
@@ -103,10 +113,10 @@ test('Google sign-up receives the self-registration roles and stores no password
 
   const { service, counts, users } = setup({ identity });
   const created = await service.sync(identity);
-  assert.deepEqual([...created.roles].sort(), [...ALL].sort());
+  assert.deepEqual([...created.roles].sort(), SELF);
   assert.equal(created.provisioned, true);
   assert.equal(users()[0].password ?? null, null);
-  assert.deepEqual(counts(), [1, 5]);
+  assert.deepEqual(counts(), [1, 2]);
 
   user.app_metadata = { provider: 'facebook' };
   assert.equal((await guard.resolveIdentity(randomBytes(24).toString('hex'))).selfRegistered, true);
