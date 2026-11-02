@@ -100,6 +100,7 @@ export const MobileAccountSettingsBody = forwardRef<
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailNotifEnabled, setEmailNotifEnabled] = useState(true);
   const slideX = useSharedValue(0);
+  const canDeleteAccount = !!(onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion);
 
   const cardStyle = {
     backgroundColor: theme.card,
@@ -308,8 +309,16 @@ export const MobileAccountSettingsBody = forwardRef<
                   t.mobile.account.changePassword,
                   'shield',
                   () => openNested('password'),
-                  { isLast: true },
+                  { isLast: !canDeleteAccount },
                 )}
+                {canDeleteAccount
+                  ? renderLinkRow(
+                      t.mobile.account.deleteAccount,
+                      'trash',
+                      () => openNested('delete'),
+                      { isLast: true },
+                    )
+                  : null}
               </View>
 
               <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
@@ -376,17 +385,6 @@ export const MobileAccountSettingsBody = forwardRef<
                 </View>
               </View>
 
-              {onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion ? (
-                <TouchableOpacity
-                  style={[styles.signOutBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-                  onPress={() => openNested('delete')}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.mobile.account.deleteAccount}
-                >
-                  <Text style={[styles.signOutText, { color: tokens.colors.danger }]}>{t.mobile.account.deleteAccount}</Text>
-                </TouchableOpacity>
-              ) : null}
               <TouchableOpacity
                 style={[
                   styles.signOutBtn,

@@ -228,6 +228,7 @@ export const en: TranslationSchema = {
       done: 'OK',
       security: 'Security',
       changePassword: 'Change Password',
+      manageAccount: 'Manage account',
       deleteAccount: 'Delete account',
       deleteAccountBody: 'Your name, phone number, and profile photo will be removed and you will be signed out. Signed contracts, invoices, and receipts are kept for 5 years as required by law.',
       deleteAccountConfirm: 'Confirm deletion',

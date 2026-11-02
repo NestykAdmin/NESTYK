@@ -228,6 +228,7 @@ export const ja: TranslationSchema = {
       done: 'OK',
       security: 'セキュリティ',
       changePassword: 'パスワード変更',
+      manageAccount: 'アカウント管理',
       deleteAccount: 'アカウントを削除',
       deleteAccountBody: '氏名、電話番号、プロフィール写真は削除され、ログアウトします。署名済みの契約、請求書、領収書は法律に従い5年間保管します。',
       deleteAccountConfirm: '削除を確定',

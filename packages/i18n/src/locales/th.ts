@@ -228,6 +228,7 @@ export const th: TranslationSchema = {
       done: 'ตกลง',
       security: 'ความปลอดภัย',
       changePassword: 'เปลี่ยนรหัสผ่าน',
+      manageAccount: 'จัดการบัญชี',
       deleteAccount: 'ลบบัญชี',
       deleteAccountBody: 'ชื่อ เบอร์โทร และรูปโปรไฟล์จะถูกลบ บัญชีจะออกจากระบบ สัญญาที่ลงนามแล้ว ใบแจ้งหนี้ และใบเสร็จยังถูกเก็บตามกฎหมาย 5 ปี',
       deleteAccountConfirm: 'ยืนยันลบบัญชี',

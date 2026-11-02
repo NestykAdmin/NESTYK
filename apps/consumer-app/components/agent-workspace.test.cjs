@@ -53,6 +53,13 @@ function render(input) {
   cursor = 0;
   return nodes(load(path.join(__dirname, 'agent-web/AgentWorkspace.web.tsx')).AgentWorkspace(input));
 }
+const button = (tree, label) => tree.find((node) => node?.type === 'button' && node.props.children === label);
+function openAccountMenu(input) {
+  const manage = button(render(input), 'Manage account');
+  assert.ok(manage);
+  manage.props.onClick();
+  return render(input);
+}
 
 test('sidebar provides the four main destinations and the same four More shortcuts', () => {
   state = [];
@@ -124,8 +131,8 @@ test('the agent account menu saves a profile and other roles do not get that edi
     onUploadAvatar: async () => 'https://cdn.example/a.jpg',
     onRemoveAvatar: async () => {},
   };
-  const open = render(props(editor));
-  const edit = open.find((node) => node?.type === 'button' && node.props.children === 'Edit Profile');
+  const open = openAccountMenu(props(editor));
+  const edit = button(open, 'Edit Profile');
   assert.ok(edit);
   edit.props.onClick();
   const formTree = render(props(editor));
@@ -143,12 +150,12 @@ test('desktop account menu changes the password on every role', async () => {
   state = [];
   const saved = [];
   const opened = [];
-  const menu = render(props({
+  const menu = openAccountMenu(props({
     activeRole: 'landlord',
     onNavigate: (tab) => opened.push(tab),
     onChangePassword: async (input) => { saved.push(input); },
   }));
-  const open = menu.find((node) => node?.type === 'button' && node.props.children === 'Change Password');
+  const open = button(menu, 'Change Password');
   assert.ok(open);
   open.props.onClick();
   const formTree = render(props({
@@ -175,6 +182,31 @@ test('desktop account menu changes the password on every role', async () => {
   assert.ok(done.includes('Your password has been updated.'));
   done.find((node) => node?.type === 'button' && node.props.children === 'OK').props.onClick();
   assert.deepEqual(opened, ['dashboard']);
+});
+
+test('Manage account groups edit profile, change password and delete account behind one button', () => {
+  state = [];
+  const input = props({
+    onSaveProfile: async () => {},
+    onChangePassword: async () => {},
+    onLoadAccountDeletion: async () => ({ blocked: false, reasons: [], scheduledFor: null }),
+    onDeleteAccount: async () => {},
+  });
+  const closed = render(input);
+  assert.ok(button(closed, 'Manage account'));
+  for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.equal(button(closed, label), undefined);
+  assert.ok(closed.some((node) => node?.type === 'option'));
+
+  const opened = openAccountMenu(input);
+  assert.equal(button(opened, 'Manage account'), undefined);
+  for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.ok(button(opened, label));
+  assert.equal(opened.some((node) => node?.type === 'option'), false);
+
+  button(opened, 'Cancel').props.onClick();
+  assert.ok(button(render(input), 'Manage account'));
+
+  state = [];
+  assert.equal(button(render(props()), 'Manage account'), undefined);
 });
 
 test('a custom sidebar replaces the agent menu and ignores disabled items', () => {

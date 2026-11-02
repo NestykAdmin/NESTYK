@@ -222,6 +222,7 @@ export interface TranslationSchema {
       done: string;
       security: string;
       changePassword: string;
+      manageAccount: string;
       deleteAccount: string;
       deleteAccountBody: string;
       deleteAccountConfirm: string;

@@ -50,6 +50,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [captchaToken, setCaptchaToken] = React.useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = React.useState(0);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
   const [deleteBlocked, setDeleteBlocked] = React.useState<string[] | null>(null);
   const [deleteScheduled, setDeleteScheduled] = React.useState<string | null>(null);
   const [deletePending, setDeletePending] = React.useState<"now" | "later" | "cancel" | null>(null);
@@ -108,6 +109,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       setPasswordOpen(false);
       setProfileOpen(false);
       setDeleteOpen(false);
+      setAccountMenuOpen(false);
       setPasswordError(null);
       setProfileError(null);
     };
@@ -132,6 +134,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const menuLabel = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
     item.labelKey ? t.agent.dashboard[item.labelKey] : t.mobile.tabs[item.tab];
   const shellRole = props.activeRole ?? "agent";
+  const canEditProfile = shellRole === "agent" && !!props.onSaveProfile;
+  const canDeleteAccount = !!props.onLoadAccountDeletion && !!props.onDeleteAccount;
+  const hasAccountActions = canEditProfile || !!props.onChangePassword || canDeleteAccount;
   const openProfile = () => {
     const parts = props.userName.trim().split(/\s+/).filter(Boolean);
     setProfileFirst(parts[0] ?? "");
@@ -530,17 +535,47 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                       </button>
                     </form>
                   ) : null}
-                  {shellRole === "agent" && props.onSaveProfile && !profileOpen && !passwordOpen && !deleteOpen ? (
-                    <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
-                      {t.mobile.account.editProfile}
-                    </button>
-                  ) : null}
-                  {props.onChangePassword && !profileOpen && !passwordOpen && !deleteOpen ? (
-                    <button type="button" className="aw-button aw-button-secondary" onClick={() => { setPasswordError(null); setPasswordOpen(true); }}>
-                      {t.mobile.account.changePassword}
-                    </button>
+                  {hasAccountActions && !profileOpen && !passwordOpen && !deleteOpen ? (
+                    accountMenuOpen ? (
+                      <>
+                      {canEditProfile ? (
+                        <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
+                          {t.mobile.account.editProfile}
+                        </button>
+                      ) : null}
+                      {props.onChangePassword ? (
+                        <button type="button" className="aw-button aw-button-secondary" onClick={() => { setPasswordError(null); setPasswordOpen(true); }}>
+                          {t.mobile.account.changePassword}
+                        </button>
+                      ) : null}
+                      {canDeleteAccount ? (
+                        <button type="button" className="aw-button aw-button-secondary" onClick={() => {
+                          setDeleteError(null);
+                          setDeleteBlocked(null);
+                          setDeleteOpen(true);
+                          void props.onLoadAccountDeletion!().then((preview) => {
+                            setDeleteBlocked(preview.blocked ? preview.reasons : []);
+                            setDeleteScheduled(preview.scheduledFor);
+                            setDeletePending(null);
+                          }).catch((cause: unknown) => {
+                            setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+                          });
+                        }}>
+                          {t.mobile.account.deleteAccount}
+                        </button>
+                      ) : null}
+                      <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(false)}>
+                        {t.common.cancel}
+                      </button>
+                      </>
+                    ) : (
+                      <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(true)}>
+                        {t.mobile.account.manageAccount}
+                      </button>
+                    )
                   ) : null}
                   {profileOpen || passwordOpen ? null : <>
+                  {accountMenuOpen || deleteOpen ? null : <>
                   <label>
                     {t.mobile.profile.switchRole}
                     <AgentSelect
@@ -585,22 +620,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                       }
                     />
                   </label>
-                  {props.onLoadAccountDeletion && props.onDeleteAccount && !profileOpen && !passwordOpen && !deleteOpen ? (
-                    <button type="button" className="aw-button aw-button-secondary" onClick={() => {
-                      setDeleteError(null);
-                      setDeleteBlocked(null);
-                      setDeleteOpen(true);
-                      void props.onLoadAccountDeletion!().then((preview) => {
-                        setDeleteBlocked(preview.blocked ? preview.reasons : []);
-                        setDeleteScheduled(preview.scheduledFor);
-                        setDeletePending(null);
-                      }).catch((cause: unknown) => {
-                        setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
-                      });
-                    }}>
-                      {t.mobile.account.deleteAccount}
-                    </button>
-                  ) : null}
+                  </>}
                   {deleteOpen ? (
                     <div className="aw-profile-form">
                       <p className="aw-photo-hint">{t.mobile.account.deleteAccountBody}</p>

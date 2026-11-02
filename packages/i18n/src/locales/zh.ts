@@ -227,6 +227,7 @@ export const zh: TranslationSchema = {
       done: '好的',
       security: '安全',
       changePassword: '修改密码',
+      manageAccount: '管理账户',
       deleteAccount: '删除账户',
       deleteAccountBody: '姓名、电话和头像将被删除，并退出登录。已签署的合同、账单和收据依法保留 5 年。',
       deleteAccountConfirm: '确认删除账户',
