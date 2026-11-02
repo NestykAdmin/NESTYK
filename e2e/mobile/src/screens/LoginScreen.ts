@@ -4,7 +4,7 @@
  * รวมวิธีหาและวิธีสั่งงานชิ้นส่วนของหน้า login ไว้ที่นี่ที่เดียว ไฟล์เทสเรียกผ่านคลาสนี้
  * คลาสนี้ไม่ตรวจผล (ไม่มี expect) การตรวจอยู่ในไฟล์เทส เพื่อให้อ่านไฟล์เทสแล้วรู้ว่าแต่ละข้อคาดอะไร
  * คลาสนี้หาชิ้นส่วนได้ไม่ว่าแอปจะแสดงภาษาไหนในภาษาที่ชุดเทสรู้จัก เทสที่ต้องการรู้ว่าแอปแสดงภาษาอะไร ให้อ่านข้อความแล้วเทียบเอง
- * ที่มาของหน้าจอ: apps/consumer-app/app/login.tsx (อ่านที่ commit 0b7682c และปรับเลขบรรทัดตาม a6b3b1e)
+ * ที่มาของหน้าจอ: apps/consumer-app/app/login.tsx (อ่านที่ commit 0b7682c และตรวจเลขบรรทัดในไฟล์นี้ซ้ำที่ develop bc77a8b แล้วตรงทุกจุด)
  */
 import { inEveryLanguage, type SocialProvider, socialLoginLabel } from '../labels/index';
 import { reportKeyboardForMissingCharacters } from '../support/keyboard';

@@ -18,9 +18,11 @@ export type AgentTab = (typeof AGENT_TABS)[number];
 /**
  * แท็บที่ชุดเทสตรวจว่าโหลดรายการจาก API สำเร็จตอนเปิด
  * แท็บเพิ่มเติมไม่เรียก API (AgentMoreToolsBody.tsx) ส่วนแท็บภาพรวม ตั้งแต่ develop f845ac6 เรียก GET /agent/dashboard
- * (useAgentDashboard ใน apps/consumer-app/app/index.tsx บรรทัด 811-818 ที่ 9644dd9 ; ก่อน f845ac6 หน้านี้ใช้ข้อมูลจำลอง) ชุด session ที่ล็อกอินเป็น agent จึงเรียกเส้นทางนี้จริง
- * ซึ่งอ่านอย่างเดียว (agent-dashboard.service.ts ที่ 9644dd9 ไม่มีคำสั่งเขียน) แต่ยังไม่อยู่ในรายการนี้
- * เพราะยังไม่ได้เก็บข้อความตัวโหลดและข้อความโหลดไม่สำเร็จของหน้าภาพรวม (agent.dashboard.webOverview.loadFailed) ไว้ใน labels
+ * (useAgentDashboard ใน apps/consumer-app/app/index.tsx บรรทัด 811-818 ที่ 9644dd9 และ bc77a8b ส่วนก่อน f845ac6 หน้านี้ใช้ข้อมูลจำลอง) ชุด session ที่ล็อกอินเป็น agent จึงเรียกเส้นทางนี้จริง
+ * ซึ่งอ่านอย่างเดียว (agent-dashboard.service.ts ที่ 9644dd9 และ bc77a8b ไม่มีคำสั่งเขียน) แต่ยังไม่อยู่ในรายการนี้
+ * เพราะข้อความโหลดไม่สำเร็จของหน้าภาพรวม (agent.dashboard.webOverview.loadFailed) ยังไม่อยู่ใน labels: ภาษาไทยตรงกับ leads.loadError ที่เก็บไว้แล้ว
+ * แต่ภาษาอังกฤษต่างกัน และแอปแสดงข้อความนี้แยกทีละส่วนของหน้า (packages/feature-listing/src/components/MobileAgentDashboardBody.tsx บรรทัด 199)
+ * ส่วนตัวโหลดของหน้าภาพรวมใช้ common.loading ซึ่งเก็บไว้แล้ว (index.tsx บรรทัด 903 ถึง 908 และ MobileAgentDashboardBody.tsx บรรทัด 194)
  */
 export const DATA_TABS = ['listingRoom', 'listingLead', 'clients'] as const;
 export type DataTab = (typeof DATA_TABS)[number];
@@ -50,7 +52,7 @@ export interface SessionLabels {
   /**
    * ข้อความตั้งต้นเมื่อโหลดรายการของแท็บไม่สำเร็จ
    * แอปแสดงข้อความ error ที่ได้รับแทนข้อความเหล่านี้ ถ้าข้อความนั้นเป็นภาษาเดียวกับแอป (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 28)
-   * หน้าลีดแสดงข้อความตั้งต้นเป็นหัวข้อทุกครั้งที่มี error (AgentLeadsScreen.tsx บรรทัด 343 ถึง 360)
+   * หน้าลีดแสดงข้อความตั้งต้นเป็นหัวข้อทุกครั้งที่มี error (AgentLeadsScreen.tsx บรรทัด 341 ถึง 360)
    * หน้าห้องแสดงเป็นหัวข้อเมื่อยังไม่มีรายการ (packages/feature-listing/src/components/MobileAgentListingsBody.tsx บรรทัด 553 ถึง 565)
    * ส่วนหน้าผู้เช่าแสดงแค่ข้อความ error ข้อความเดียว (AgentTenantsScreen.tsx บรรทัด 792 ถึง 796) ผลต่อข้อ 3 ของชุด session ดู README หัวข้อ "ชุด session"
    */
@@ -121,9 +123,9 @@ const ALL: Record<AppLanguage, SessionLabels> = { th, en };
  * ข้อความ error ภาษาไทยของ API ที่หน้าผู้เช่าแสดงตรง ๆ ในรอบภาษาไทย (เป็นข้อความของ API ไม่ใช่ของแอป จึงไม่อยู่ใน th.ts)
  * หน้าผู้เช่าไม่มีหัวข้อหรือปุ่มลองใหม่ให้จับแทน (AgentTenantsScreen.tsx บรรทัด 792 ถึง 796) ข้อ 3 จึงต้องรู้จักตัวข้อความ
  * ในรอบภาษาอังกฤษ แอปแสดงข้อความตั้งต้นของแอปแทนข้อความเหล่านี้ (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 28)
- * ที่มา (apps/api/src ที่ commit feefcf2): หน้าผู้เช่าเรียก GET /agent/tenants ซึ่งขอ URL ของเอกสารสัญญาด้วยเมื่อมีสัญญาที่มีเอกสาร
- *   (agent/tenants/agent-tenants.service.ts บรรทัด 176 ถึง 182, agent/contracts/agent-contracts.service.ts บรรทัด 648 ถึง 653 และ 695 ถึง 699)
- *   ถ้าที่เก็บเอกสารใช้ไม่ได้ API ตอบข้อความในรายการนี้ (agent/contracts/contract-document-storage.service.ts บรรทัด 35, 40, 53, 68 และ 383)
+ * ที่มา (apps/api/src ที่ develop bc77a8b ส่วนฉบับก่อนอ้าง feefcf2): หน้าผู้เช่าเรียก GET /agent/tenants ซึ่งขอ URL ของเอกสารสัญญาด้วยเมื่อมีสัญญาที่มีเอกสาร
+ *   (agent/tenants/agent-tenants.service.ts บรรทัด 192 ถึง 198, agent/contracts/agent-contracts.service.ts บรรทัด 1118 ถึง 1122 และ 1043 ถึง 1061)
+ *   ถ้าที่เก็บเอกสารใช้ไม่ได้ API ตอบข้อความในรายการนี้ (agent/contracts/contract-document-storage.service.ts บรรทัด 35, 40, 53, 68 และ 438)
  * ถ้า API เปลี่ยนหรือเพิ่มข้อความบนเส้นทางนี้ ต้องแก้รายการนี้ตาม ไม่อย่างนั้นข้อ 3 ของชุด session จะจับไม่ได้ (README หัวข้อ "ชุด session")
  */
 export const TENANTS_API_ERRORS_TH: readonly string[] = [
@@ -136,11 +138,11 @@ export const TENANTS_API_ERRORS_TH: readonly string[] = [
 
 /**
  * ข้อความ error ภาษาอังกฤษที่หน้าผู้เช่าแสดงตรง ๆ ในรอบภาษาอังกฤษ (ในรอบภาษาไทย แอปแสดงข้อความตั้งต้นของแอปแทน)
- * ที่มา (commit feefcf2): GET /agent/tenants ผ่าน AuthGuard และ RolesGuard ที่ต้องการบทบาท agent (apps/api/src/agent/tenants/agent-tenants.controller.ts บรรทัด 26 ถึง 28)
+ * ที่มา (develop bc77a8b ส่วนฉบับก่อนอ้าง feefcf2): GET /agent/tenants ผ่าน AuthGuard และ RolesGuard ที่ต้องการบทบาท agent (apps/api/src/agent/tenants/agent-tenants.controller.ts บรรทัด 27 ถึง 29)
  *   - apps/api/src/auth/guards/auth.guard.ts บรรทัด 39, 44 และ 87 กับ auth/guards/roles.guard.ts บรรทัด 29 และ 34
  *     (ไม่ใส่ข้อความของ auth.guard.ts บรรทัด 68 และ 80 ถึง 82 เพราะถ้าเกิด 2 กรณีนั้น การล็อกอินในขั้นเตรียมพังก่อน:
- *     แอปใช้ token เดียวกันเรียก /auth/sync ตอนล็อกอิน apps/consumer-app/lib/auth/AuthContext.tsx บรรทัด 160 ถึง 166)
- *   - apps/consumer-app/lib/api.ts บรรทัด 60: เมื่อคำตอบไม่มี message แอปใช้ "HTTP <รหัส>" (รายการนี้ใส่เฉพาะรหัส 500 ถึง 504)
+ *     แอปใช้ token เดียวกันเรียก /auth/sync ตอนล็อกอิน apps/consumer-app/lib/auth/AuthContext.tsx บรรทัด 52 ถึง 54, 183 และ 210)
+ *   - apps/consumer-app/lib/api.ts บรรทัด 159: เมื่อคำตอบไม่มี message แอปใช้ "HTTP <รหัส>" (รายการนี้ใส่เฉพาะรหัส 500 ถึง 504)
  *   - ค่าเริ่มต้นของไลบรารี (ไม่อยู่ในโค้ดของทีม และยังไม่เคยเห็นบนเครื่องจริง): "Internal server error" ของ NestJS เมื่อเกิดข้อผิดพลาดที่ไม่ได้ดักไว้
  *     และ "Network request failed" ของ fetch ใน React Native เมื่อต่อ API ไม่ได้
  * ข้อความอังกฤษอื่น เช่น ของ POST /auth/sync ที่หน้าผู้เช่าเรียกก่อน (apps/consumer-app/lib/agent-session.ts บรรทัด 11 ถึง 17) ยังจับไม่ได้
