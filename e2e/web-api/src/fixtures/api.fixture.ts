@@ -15,7 +15,7 @@ import { RoomShareLinksApi } from '../api/share-links.api';
 import { TenantsApi } from '../api/tenants.api';
 import { LeadViewingsApi } from '../api/viewings.api';
 import { env } from '../config/env';
-import { qaAccounts, qaDevToken, qaSkipReason, type QaRole } from '../config/qa-accounts';
+import { qaAccounts, qaAgent2, qaDevToken, qaSkipReason, type QaRole } from '../config/qa-accounts';
 
 /** ชุดตัวเรียก API ของผู้เรียก 1 คน แยกตามเรื่อง */
 export interface ApiSession {
@@ -92,6 +92,11 @@ interface ApiFixtures {
    * global-setup ตรวจแล้วว่าทุกบัญชีที่ตั้ง uuid มีในฐานข้อมูลและบทบาทตรงกับ migration
    */
   qa: (role: QaRole) => Promise<ApiSession>;
+  /**
+   * นายหน้าคนที่ 2 (qa-agent2 ดู qaAgent2 ใน src/config/qa-accounts.ts) ใช้เทสว่าเห็นข้อมูลของ qa-agent ไม่ได้
+   * ถ้ายังไม่ได้ตั้ง E2E_QA_AGENT2_UUID เทสข้อที่ขอ fixture นี้จะข้ามพร้อมเหตุผล
+   */
+  agent2: ApiSession;
 }
 
 export const test = base.extend<ApiFixtures>({
@@ -120,6 +125,11 @@ export const test = base.extend<ApiFixtures>({
   agent: async ({ apiAs }, use) => {
     // qaDevToken โยน error ที่บอกชื่อตัวแปรถ้ายังไม่ได้ตั้ง uuid (ปกติไม่ถึงจุดนี้ เพราะ global-setup หยุดก่อน)
     await use(await apiAs(`Bearer ${qaDevToken(qaAccounts.agent)}`));
+  },
+
+  agent2: async ({ apiAs }, use, testInfo) => {
+    testInfo.skip(qaAgent2.uuid === null, qaSkipReason(qaAgent2));
+    await use(await apiAs(`Bearer ${qaDevToken(qaAgent2)}`));
   },
 
   qa: async ({ apiAs }, use, testInfo) => {

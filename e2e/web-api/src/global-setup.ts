@@ -1,6 +1,6 @@
 import { request, type APIRequestContext } from '@playwright/test';
 import { env } from './config/env';
-import { malformedQaUuidVariables, qaAccounts, qaDevToken, QA_ROLES, type QaAccount } from './config/qa-accounts';
+import { allQaAccounts, malformedQaUuidVariables, qaAccounts, qaAgent2, qaDevToken, QA_ROLES, type QaAccount } from './config/qa-accounts';
 
 /**
  * ทำงาน 1 ครั้งก่อนเริ่มเทสทั้งชุด: ตรวจว่าระบบพร้อมให้เทส
@@ -136,14 +136,15 @@ async function checkQaAccounts(api: APIRequestContext): Promise<void> {
     );
   }
 
-  const configured = QA_ROLES.map((role) => qaAccounts[role]).filter((account) => account.uuid !== null);
+  // รวม qa-agent2 ในการตรวจ uuid ซ้ำและการยืนยันบัญชีด้วย แต่บรรทัดสรุป 5 บัญชีเดิมนับเฉพาะบทบาท (ไม่เปลี่ยนข้อความเดิม)
+  const configured = allQaAccounts().filter((account) => account.uuid !== null);
   const uuids = configured.map((account) => account.uuid!.toLowerCase());
   // รวมทุกตัวแปรที่ใช้ uuid เดียวกัน (ทั้งตัวแรกและตัวที่ซ้ำ) เพราะไม่รู้ว่าตัวไหนคัดลอกผิด
   const duplicated = configured.filter((account) => uuids.filter((uuid) => uuid === account.uuid!.toLowerCase()).length > 1);
   if (duplicated.length > 0) {
     throw new Error(
       `${duplicated.map((account) => account.uuidVariable).join(', ')} ใช้ uuid ซ้ำกัน\n` +
-        'วิธีแก้: แต่ละบทบาทต้องใช้ UID ของบัญชีตัวเอง (qa-<บทบาท>@...) ตรวจการคัดลอกอีกครั้ง',
+        'วิธีแก้: แต่ละบัญชีต้องใช้ UID ของตัวเอง (qa-<บทบาท>@... และ qa-agent2@...) ตรวจการคัดลอกอีกครั้ง',
     );
   }
 
@@ -152,15 +153,23 @@ async function checkQaAccounts(api: APIRequestContext): Promise<void> {
   }
 
   // บรรทัดสรุปในผลรัน ไม่พิมพ์ uuid
+  const configuredRoles = QA_ROLES.filter((role) => qaAccounts[role].uuid !== null);
   const missing = QA_ROLES.filter((role) => qaAccounts[role].uuid === null);
   console.log(
-    `[บัญชี QA] ตรวจแล้ว ${configured.length} จาก ${QA_ROLES.length} บัญชี` +
-      (configured.length > 0 ? `: ${configured.map((account) => account.role).join(', ')}` : '') +
+    `[บัญชี QA] ตรวจแล้ว ${configuredRoles.length} จาก ${QA_ROLES.length} บัญชี` +
+      (configuredRoles.length > 0 ? `: ${configuredRoles.join(', ')}` : '') +
       (missing.length > 0 ? ` | ไม่ได้ตั้ง uuid (เทสที่ใช้บัญชีนี้จะข้าม): ${missing.join(', ')}` : ''),
+  );
+  console.log(
+    `[บัญชี QA] นายหน้าคนที่ 2 (${qaAgent2.email}): ` +
+      (qaAgent2.uuid === null ? `ไม่ได้ตั้ง ${qaAgent2.uuidVariable} (เทสข้ามนายหน้าจะข้าม)` : 'ตรวจแล้ว'),
   );
 }
 
 async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promise<void> {
+  // ที่มาของบัญชีและบทบาทที่คาด: 5 บัญชีตามบทบาทมาจาก migration ส่วน qa-agent2 ทีมสร้างให้เองตามคำขอ
+  const isAgent2 = account.uuidVariable === qaAgent2.uuidVariable;
+  const source = isAgent2 ? 'บัญชีที่ทีมสร้างตามคำขอฉบับที่ 8 (2 พ.ย. 2026)' : 'migration 20261019100000_link_qa_accounts.sql';
   const headers = { Authorization: `Bearer ${qaDevToken(account)}` };
 
   // ขั้นที่ 1: ยืนยันว่าบัญชีมีในตาราง users แล้ว ด้วยคำขอแบบอ่านอย่างเดียว
@@ -171,8 +180,10 @@ async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promi
     throw new Error(
       `บัญชี ${account.email} (${account.uuidVariable}) ยังไม่มีในตาราง users ของฐานข้อมูลที่ API ใช้\n` +
         'สาเหตุที่เป็นไปได้: (1) uuid ที่ตั้งไม่ใช่ UID ของบัญชีนี้ ' +
-        '(2) ทีมยังไม่ได้ขึ้น migration 20261019100000_link_qa_accounts.sql หรือสร้างล็อกอินหลังจาก migration นั้นรันไปแล้ว ' +
-        '(หัวไฟล์ migration บอกวิธีให้ทีมผูกบัญชีที่สร้างทีหลัง)\n' +
+        (isAgent2
+          ? '(2) ทีมสร้างล็อกอินแล้วแต่ยังไม่ได้ผูกโปรไฟล์ในตาราง users กับบทบาท (ทำแบบเดียวกับ migration 20261019100000_link_qa_accounts.sql)\n'
+          : '(2) ทีมยังไม่ได้ขึ้น migration 20261019100000_link_qa_accounts.sql หรือสร้างล็อกอินหลังจาก migration นั้นรันไปแล้ว ' +
+            '(หัวไฟล์ migration บอกวิธีให้ทีมผูกบัญชีที่สร้างทีหลัง)\n') +
         'ห้ามเรียก POST /auth/sync ด้วยบัญชีนี้ แม้ API จะบอกให้เรียก เพราะจะสร้างผู้ใช้ใหม่ในฐานข้อมูล ให้แจ้งทีม',
     );
   }
@@ -187,9 +198,9 @@ async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promi
   if (probe.status() === 200) {
     // ไม่พิมพ์เนื้อคำตอบ เพราะเป็นข้อมูลของระบบ และไม่เรียก sync ต่อ (ยืนยันไม่ได้ว่าบัญชีมีอยู่)
     throw new Error(
-      `บัญชี ${account.email} เรียก GET /${path} ได้ (200) แต่บทบาทตาม migration ต้องได้ 403\n` +
+      `บัญชี ${account.email} เรียก GET /${path} ได้ (200) แต่บทบาทที่คาดต้องได้ 403 (ที่มาของบทบาท: ${source})\n` +
         'สาเหตุที่เป็นไปได้ (ตรวจตามลำดับ): (1) uuid ที่ตั้งเป็นของบัญชีอื่น ให้คัดลอก UID จากแถวของอีเมลนี้ใหม่ ' +
-        '(2) บัญชีมีบทบาทเกินจาก migration (3) เส้นทางนี้เลิกกันสิทธิ์แล้ว ข้อ 2 และ 3 ให้แจ้งทีม\n' +
+        '(2) บัญชีมีบทบาทเกินจากที่คาด (3) เส้นทางนี้เลิกกันสิทธิ์แล้ว ข้อ 2 และ 3 ให้แจ้งทีม\n' +
         'ชุดเทสหยุดก่อนเรียก POST /auth/sync',
     );
   }
@@ -203,7 +214,7 @@ async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promi
     );
   }
 
-  // ขั้นที่ 2: บัญชีมีอยู่แล้ว จึงเรียก sync ได้โดยไม่สร้างข้อมูล แล้วเทียบอีเมลกับบทบาทกับที่ migration กำหนด
+  // ขั้นที่ 2: บัญชีมีอยู่แล้ว จึงเรียก sync ได้โดยไม่สร้างข้อมูล แล้วเทียบอีเมลกับบทบาทกับที่คาด (ที่มาอยู่ใน source)
   const sync = await api.post('auth/sync', { headers });
   const syncText = await sync.text();
   if (sync.status() !== 201) {
@@ -230,7 +241,7 @@ async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promi
   if (actual.join(',') !== expected.join(',')) {
     throw new Error(
       `บัญชี ${account.email} มีบทบาท ${actual.join(', ') || '(ไม่มี)'} แต่ชุดเทสคาด ${expected.join(', ')} ` +
-        '(ตาม migration 20261019100000_link_qa_accounts.sql)\n' +
+        `(ที่มา: ${source})\n` +
         'เทส 403 ต้องใช้บัญชีที่บทบาทตรงตามนี้ ถ้ามีบทบาทเกินหรือขาด ให้แจ้งทีม (ห้ามขอบทบาทเองด้วย POST /auth/dev/roles)',
     );
   }

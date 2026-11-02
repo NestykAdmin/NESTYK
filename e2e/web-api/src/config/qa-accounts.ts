@@ -67,12 +67,31 @@ export const qaAccounts: Record<QaRole, QaAccount> = Object.fromEntries(
 ) as Record<QaRole, QaAccount>;
 
 /**
+ * นายหน้าคนที่ 2 (qa-agent2) สำหรับเทสว่านายหน้าคนหนึ่งเห็นหรือแก้ข้อมูลของนายหน้าอีกคนไม่ได้
+ *   ทีมสร้างให้ตามคำขอฉบับที่ 8 (2 พ.ย. 2026) บทบาท guest + agent เหมือน qa-agent
+ *   ไม่อยู่ใน QA_ROLES เพราะเทสสิทธิ์ตามบทบาท (roles.spec.ts) วนตามบทบาท ไม่ใช่ตามบัญชี
+ *   ตั้ง uuid ด้วย E2E_QA_AGENT2_UUID ถ้าไม่ได้ตั้ง เทสข้ามนายหน้าจะข้ามพร้อมเหตุผล
+ */
+export const qaAgent2: QaAccount = {
+  role: 'agent',
+  uuidVariable: 'E2E_QA_AGENT2_UUID',
+  uuid: process.env.E2E_QA_AGENT2_UUID?.trim() || null,
+  email: `qa-agent2@${process.env.E2E_QA_EMAIL_DOMAIN?.trim().toLowerCase() || 'nestyk.test'}`,
+  roles: ROLES_OF.agent,
+};
+
+/** บัญชี QA ทุกบัญชีที่ global-setup ตรวจ: 5 บัญชีตามบทบาท และนายหน้าคนที่ 2 */
+export function allQaAccounts(): QaAccount[] {
+  return [...QA_ROLES.map((role) => qaAccounts[role]), qaAgent2];
+}
+
+/**
  * ตรวจรูปแบบ uuid ที่ตั้งไว้ คืนรายการชื่อตัวแปรที่รูปแบบผิด
  * ตรวจก่อนส่งให้ API เพราะ dev token ที่ uuid ผิดรูปแบบทำให้ API ตอบ 500 (บั๊กที่รู้แล้ว ดู auth.spec.ts) ไม่ใช่ 401
  * ไม่คืนค่าที่ตั้งไว้ เพื่อไม่ให้ uuid ไปอยู่ในผลรัน
  */
 export function malformedQaUuidVariables(): string[] {
-  return QA_ROLES.map((role) => qaAccounts[role])
+  return allQaAccounts()
     .filter((account) => account.uuid !== null && !UUID_FORMAT.test(account.uuid))
     .map((account) => account.uuidVariable);
 }
