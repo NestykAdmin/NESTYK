@@ -7,7 +7,7 @@ const ts = require('typescript');
 const React = require('react');
 
 function setup({ confirmation = false, signupError, syncError, testSignupError, development = true } = {}) {
-  const calls = { signup: [], sync: [], saved: [], signout: [], testSignup: [] };
+  const calls = { signup: [], sync: [], saved: [], signout: [], testSignup: [], verify: [], resend: [], profile: [] };
   const credentials = { firstName: 'Mary Ann', lastName: 'Van Buren', email: `${randomUUID()}@example.test`, password: randomBytes(16).toString('hex') };
   const user = { id: randomUUID() };
   const session = { access_token: randomBytes(24).toString('hex') };
@@ -16,10 +16,12 @@ function setup({ confirmation = false, signupError, syncError, testSignupError, 
     signUp: async body => { calls.signup.push(body); return { data: { user, session: confirmation ? null : session }, error: signupError ?? null }; },
     signInWithPassword: async () => ({ data: { user, session }, error: null }),
     signOut: async options => { calls.signout.push(options); },
+    verifyOtp: async body => { calls.verify.push(body); return { data: { session: { ...session, user } }, error: null }; },
+    resend: async body => { calls.resend.push(body); return { error: null }; },
   } };
   const deps = {
     react: { ...React, useState: value => [value, () => {}], useRef: current => ({ current }), useEffect() {}, useMemo: fn => fn(), useCallback: fn => fn },
-    '../api': { apiPost: async (route, body) => {
+    '../api': { apiPatch: async (route, body) => { calls.profile.push([route, body]); return profile; }, apiPost: async (route, body) => {
       if (route === '/auth/dev/register') {
         calls.testSignup.push(body);
         if (testSignupError) throw testSignupError;
@@ -31,6 +33,7 @@ function setup({ confirmation = false, signupError, syncError, testSignupError, 
     './session-expiry': {},
     './google-oauth': { providerRedirectPending: () => false },
     './google-sign-in': { signInWithGoogle: async () => null, signInWithFacebook: async () => null },
+    './reset-password': { requestPasswordReset: async () => {}, verifyRecoveryCode: async () => {}, saveResetPassword: async () => {} },
     './supabase': { getSupabaseClient: () => supabase, isSupabaseConfigured: () => true },
     './session-storage': { saveAuthSession: async next => calls.saved.push(next), displayNameFrom: () => '', initialsFromName: () => '' },
   };
@@ -50,11 +53,25 @@ test('signup uses real Supabase flow with normalized email and a registration so
   assert.equal(calls.signup[0].password, credentials.password);
   assert.deepEqual(calls.signup[0].options.data, {
     first_name: credentials.firstName, last_name: credentials.lastName,
-    full_name: `${credentials.firstName} ${credentials.lastName}`, registration_source: 'self_service',
+    full_name: `${credentials.firstName} ${credentials.lastName}`, phone: '', registration_source: 'self_service',
   });
   assert.deepEqual(calls.sync, ['/auth/sync']);
   assert.equal(calls.saved.length, 1);
   assert.equal(calls.saved[0].roles.length, 5);
+});
+
+test('an email that already has an account still looks like a code was sent', async () => {
+  const error = Object.assign(new Error('already registered'), { code: 'email_exists' });
+  const { auth, credentials, calls } = setup({ signupError: error });
+  assert.equal((await auth.signUp(credentials.email, credentials.password, credentials.firstName, credentials.lastName, '+66812345678')).needsEmailConfirmation, true);
+  assert.deepEqual(calls.saved, []);
+  assert.equal(calls.signup[0].options.data.phone, '+66812345678');
+});
+
+test('signup sends the captcha token with the Supabase request', async () => {
+  const { auth, credentials, calls } = setup({ confirmation: true });
+  await auth.signUp(credentials.email, credentials.password, credentials.firstName, credentials.lastName, '', false, 'hcaptcha-token');
+  assert.equal(calls.signup[0].options.captchaToken, 'hcaptcha-token');
 });
 
 test('email confirmation required: no API profile or application session is created yet', async () => {

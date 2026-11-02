@@ -18,7 +18,7 @@ import { MobileLinkedAccountsBody } from '../components/MobileLinkedAccountsBody
 import { tokens } from '../theme/tokens';
 import { getCardElevation } from '../theme/elevation';
 import { useMobileTheme } from '../theme/ThemeContext';
-import { MobileChangePasswordBody } from './MobileChangePasswordBody';
+import { ChangePasswordInput, MobileChangePasswordBody } from './MobileChangePasswordBody';
 
 export interface MobileAccountProfile {
   name: string;
@@ -37,6 +37,10 @@ export interface MobileAccountSettingsBodyProps {
   onSaveProfile?: (input: ProfileSaveInput) => Promise<void>;
   onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
+  onChangePassword?: (input: ChangePasswordInput) => Promise<void>;
+  captcha?: React.ReactNode;
+  captchaRequired?: boolean;
+  captchaToken?: string | null;
 }
 
 export interface MobileAccountSettingsBodyHandle {
@@ -71,6 +75,10 @@ export const MobileAccountSettingsBody = forwardRef<
   onSaveProfile,
   onUploadAvatar,
   onRemoveAvatar,
+  onChangePassword,
+  captcha,
+  captchaRequired,
+  captchaToken,
 }, ref) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
@@ -211,7 +219,13 @@ export const MobileAccountSettingsBody = forwardRef<
       case 'password':
         return (
           <View style={{ width: paneWidth, flex: 1 }}>
-            <MobileChangePasswordBody />
+            <MobileChangePasswordBody
+              onChangePassword={onChangePassword}
+              onFinished={closeNested}
+              captcha={captcha}
+              captchaRequired={captchaRequired}
+              captchaToken={captchaToken}
+            />
           </View>
         );
       case 'about':

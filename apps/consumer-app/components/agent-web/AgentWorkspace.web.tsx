@@ -16,6 +16,9 @@ import {
 } from "./navigation";
 import "./agent-workspace.css";
 import { AgentSelect } from "./AgentSelect";
+import { passwordIsStrong } from "../../lib/auth/password-rules";
+import { hcaptchaSiteKey } from "../../lib/auth/hcaptcha-site-key";
+import { HcaptchaField } from "../../components/HcaptchaField";
 
 const ROLES: UserRole[] = ["guest", "tenant", "landlord", "agent", "admin"];
 
@@ -37,6 +40,16 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [profileSaving, setProfileSaving] = React.useState(false);
   const [profileError, setProfileError] = React.useState<string | null>(null);
   const [profilePreview, setProfilePreview] = React.useState<string | null>(null);
+  const [passwordOpen, setPasswordOpen] = React.useState(false);
+  const [currentPassword, setCurrentPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [passwordSaving, setPasswordSaving] = React.useState(false);
+  const [passwordError, setPasswordError] = React.useState<string | null>(null);
+  const [complete, setComplete] = React.useState<null | "profile" | "password">(null);
+  const [captchaToken, setCaptchaToken] = React.useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = React.useState(0);
+  const captchaRequired = hcaptchaSiteKey().length > 0;
   const copy = t.agent.dashboard.webWorkspace;
   const parent = agentWebParent(props.activeTab);
 
@@ -62,6 +75,20 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       document.removeEventListener("pointerdown", closeAccount);
       document.removeEventListener("keydown", escape);
     };
+  }, [props.enabled]);
+
+  useEffect(() => {
+    const account = accountRef.current;
+    if (!props.enabled || !account) return;
+    const onToggle = () => {
+      if (account.open) return;
+      setPasswordOpen(false);
+      setProfileOpen(false);
+      setPasswordError(null);
+      setProfileError(null);
+    };
+    account.addEventListener("toggle", onToggle);
+    return () => account.removeEventListener("toggle", onToggle);
   }, [props.enabled]);
 
   useEffect(() => {
@@ -112,11 +139,55 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         phone: profilePhone.trim() ? profilePhone.trim() : null,
       });
       setProfileOpen(false);
+      setPasswordOpen(false);
+      setComplete("profile");
       accountRef.current?.removeAttribute("open");
     } catch (cause) {
       setProfileError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
     } finally {
       setProfileSaving(false);
+    }
+  };
+  const savePassword = async () => {
+    if (!props.onChangePassword || passwordSaving) return;
+    const copyPassword = t.mobile.account.password;
+    if (!currentPassword) {
+      setPasswordError(copyPassword.required);
+      return;
+    }
+    if (!passwordIsStrong(newPassword)) {
+      setPasswordError(t.mobile.auth.passwordRules);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(copyPassword.mismatch);
+      return;
+    }
+    if (captchaRequired && !captchaToken) {
+      setPasswordError(t.mobile.auth.captchaRequired);
+      return;
+    }
+    setPasswordSaving(true);
+    setPasswordError(null);
+    try {
+      await props.onChangePassword({
+        currentPassword,
+        newPassword,
+        ...(captchaToken ? { captchaToken } : {}),
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordOpen(false);
+      setComplete("password");
+      accountRef.current?.removeAttribute("open");
+    } catch (cause) {
+      const code = cause && typeof cause === "object" && "code" in cause ? (cause as { code?: string }).code : undefined;
+      setPasswordError(code === "WRONG_PASSWORD" ? copyPassword.incorrect : code === "WEAK_PASSWORD" ? t.mobile.auth.passwordRules : cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+    } finally {
+      setCaptchaToken(null);
+      setCaptchaKey(captchaKey + 1);
+      setPasswordSaving(false);
     }
   };
   const workspaceLabel = props.workspaceLabel ?? t.agent.dashboard.workspaceLabel;
@@ -329,7 +400,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                     color={theme.textSecondary}
                   />
                 </summary>
-                <div className="aw-account-popover">
+                <div className={passwordOpen ? "aw-account-popover aw-account-popover-password" : "aw-account-popover"}>
                   <div className="aw-account-info">
                     <strong>{props.userName}</strong>
                     <span>{props.userEmail}</span>
@@ -404,12 +475,48 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                       </button>
                     </form>
                   ) : null}
-                  {shellRole === "agent" && props.onSaveProfile && !profileOpen ? (
+                  {props.onChangePassword && passwordOpen ? (
+                    <form
+                      className="aw-profile-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        return savePassword();
+                      }}
+                    >
+                      <p className="aw-photo-hint">{t.mobile.auth.passwordRules}</p>
+                      <label>
+                        {t.mobile.account.password.current}
+                        <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" />
+                      </label>
+                      <label>
+                        {t.mobile.account.password.new}
+                        <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" />
+                      </label>
+                      <label>
+                        {t.mobile.account.password.confirm}
+                        <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
+                      </label>
+                      {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                      {passwordError ? <p className="aw-profile-error" role="alert">{passwordError}</p> : null}
+                      <button type="submit" className="aw-button aw-button-primary" disabled={passwordSaving}>
+                        {passwordSaving ? t.common.loading : t.mobile.account.password.submit}
+                      </button>
+                      <button type="button" className="aw-button aw-button-secondary" disabled={passwordSaving} onClick={() => setPasswordOpen(false)}>
+                        {t.common.cancel}
+                      </button>
+                    </form>
+                  ) : null}
+                  {shellRole === "agent" && props.onSaveProfile && !profileOpen && !passwordOpen ? (
                     <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
                       {t.mobile.account.editProfile}
                     </button>
                   ) : null}
-                  {profileOpen ? null : <>
+                  {props.onChangePassword && !profileOpen && !passwordOpen ? (
+                    <button type="button" className="aw-button aw-button-secondary" onClick={() => { setPasswordError(null); setPasswordOpen(true); }}>
+                      {t.mobile.account.changePassword}
+                    </button>
+                  ) : null}
+                  {profileOpen || passwordOpen ? null : <>
                   <label>
                     {t.mobile.profile.switchRole}
                     <AgentSelect
@@ -471,6 +578,26 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
             {props.children}
           </main>
         </div>
+        {complete ? (
+          <div className="aw-complete" role="dialog" aria-modal="true" aria-labelledby="aw-complete-title">
+            <div className="aw-complete-card">
+              <div className="aw-complete-badge" aria-hidden="true">
+                <MobileIcon name="check" size={28} color="#211E1E" weight="bold" />
+              </div>
+              <h2 id="aw-complete-title">
+                {complete === "password" ? t.mobile.account.changePassword : t.mobile.account.editProfile}
+              </h2>
+              <p>{complete === "password" ? t.mobile.account.password.updated : t.mobile.account.profileSaved}</p>
+              <button type="button" className="aw-button aw-button-primary" onClick={() => {
+                const returnToOverview = complete === "password";
+                setComplete(null);
+                if (returnToOverview) navigate("dashboard");
+              }}>
+                {t.mobile.account.done}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <dialog
           className="aw-notifications"
           ref={dialogRef}

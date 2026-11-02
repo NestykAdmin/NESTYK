@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity,
 } from 'react-native';
@@ -10,6 +10,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { MobileButton, MobileIcon, MobileInput, MobileNestykLogo, SelectionCheck, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
+import { passwordIsStrong } from '../lib/auth/password-rules';
+import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { HcaptchaField } from '../components/HcaptchaField';
+import { PhoneField } from '../components/PhoneField';
+import { phoneDraftToE164, type PhoneDraft } from '../lib/phone';
 
 function GoogleMark() {
   return (
@@ -26,11 +31,13 @@ export default function RegisterScreen() {
   const { t, locale } = useLocale();
   const copy = t.mobile.auth;
   const { theme } = useMobileTheme();
-  const { signUp, signInWithGoogle, signInWithFacebook, isAuthenticated } = useAuth();
+  const { signUp, verifySignupCode, resendSignupCode, signInWithGoogle, signInWithFacebook, isAuthenticated } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState<PhoneDraft>({ region: 'TH', digits: '' });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -38,7 +45,17 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
+  const [code, setCode] = useState('');
+  const [resendIn, setResendIn] = useState(0);
   const [forTesting, setForTesting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
+  const [resendCaptcha, setResendCaptcha] = useState(false);
+  const captchaRequired = hcaptchaSiteKey().length > 0;
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaKey(captchaKey + 1);
+  };
   const showTestRegistration = typeof __DEV__ !== 'undefined' && __DEV__;
   const submitting = useRef(false);
   const lastNameRef = useRef<TextInput>(null);
@@ -50,37 +67,56 @@ export default function RegisterScreen() {
     if (isAuthenticated) router.replace('/');
   }, [isAuthenticated, router]);
 
+  useEffect(() => {
+    if (!needsEmailConfirmation || resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((seconds) => seconds - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [needsEmailConfirmation, resendIn]);
+
   const onSubmit = async () => {
     if (submitting.current) return;
     setError(null);
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !confirmation) {
+    const phoneNumber = phoneDraftToE164(phone);
+    if (!firstName.trim() || !lastName.trim() || !phoneNumber || !email.trim() || !password || !confirmation) {
       setError(copy.registrationRequiredFields);
+      return;
+    }
+    if (!acceptedTerms) {
+      setError(copy.acceptTermsRequired);
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError(copy.invalidEmail);
       return;
     }
-    if (password.length < 8) {
-      setError(copy.passwordTooShort);
+    if (!passwordIsStrong(password)) {
+      setError(copy.passwordRules);
       return;
     }
     if (password !== confirmation) {
       setError(copy.passwordMismatch);
       return;
     }
+    if (captchaRequired && !forTesting && !captchaToken) {
+      setError(copy.captchaRequired);
+      return;
+    }
     submitting.current = true;
     setLoading(true);
     try {
-      const result = await signUp(email, password, firstName, lastName, showTestRegistration && forTesting);
+      const result = await signUp(email, password, firstName, lastName, phoneNumber, showTestRegistration && forTesting, captchaToken ?? undefined);
+      resetCaptcha();
       if (result.needsEmailConfirmation) {
         setPassword('');
         setConfirmation('');
+        setCode('');
+        setResendIn(60);
         setNeedsEmailConfirmation(true);
       } else {
         router.replace('/');
       }
     } catch (e) {
+      resetCaptcha();
       const code = e && typeof e === 'object' ? (e as { code?: string }).code : undefined;
       setError(code === 'SUPABASE_NOT_CONFIGURED'
         ? copy.registrationUnavailable
@@ -88,11 +124,52 @@ export default function RegisterScreen() {
           ? copy.testRegistrationUnavailable
           : code === 'REGISTRATION_FAILED' || code === 'REGISTRATION_INVALID_INPUT'
             ? copy.registrationFailed
-            : code === 'user_already_exists' || code === 'email_exists'
-              ? copy.emailAlreadyRegistered
-              : localizedError(e, copy.registrationFailed, locale));
+            : localizedError(e, copy.registrationFailed, locale));
     } finally {
       submitting.current = false;
+      setLoading(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (submitting.current) return;
+    setError(null);
+    if (!/^\d{6}$/.test(code.trim())) {
+      setError(copy.otpInvalid);
+      return;
+    }
+    const phoneNumber = phoneDraftToE164(phone) ?? '';
+    submitting.current = true;
+    setLoading(true);
+    try {
+      await verifySignupCode(email, code.trim(), { firstName, lastName, phone: phoneNumber });
+      router.replace('/');
+    } catch (e) {
+      setError(localizedError(e, copy.otpInvalid, locale));
+    } finally {
+      submitting.current = false;
+      setLoading(false);
+    }
+  };
+
+  const sendCodeAgain = async () => {
+    if (loading || resendIn > 0) return;
+    setError(null);
+    if (captchaRequired && !captchaToken) {
+      setResendCaptcha(true);
+      setError(copy.captchaRequired);
+      return;
+    }
+    setLoading(true);
+    try {
+      await resendSignupCode(email, captchaToken ?? undefined);
+      resetCaptcha();
+      setResendCaptcha(false);
+      setResendIn(60);
+    } catch (e) {
+      resetCaptcha();
+      setError(localizedError(e, copy.registrationFailed, locale));
+    } finally {
       setLoading(false);
     }
   };
@@ -129,6 +206,7 @@ export default function RegisterScreen() {
                     autoComplete="family-name" textContentType="familyName" maxLength={255} returnKeyType="next"
                     onSubmitEditing={() => emailRef.current?.focus()} editable={!loading} style={fieldStyle} />
                   </View>
+                  <PhoneField label={t.mobile.account.phone} value={phone} onChange={setPhone} required disabled={loading} />
                   <View style={styles.field}>
                   <Text style={[styles.label, { color: theme.textHeading }]}>{copy.email}</Text>
                   <MobileInput ref={emailRef} accessibilityLabel={copy.email} value={email} onChangeText={setEmail}
@@ -139,7 +217,7 @@ export default function RegisterScreen() {
                   <Text style={[styles.label, { color: theme.textHeading }]}>{copy.password}</Text>
                   <MobileInput ref={passwordRef} accessibilityLabel={copy.password} value={password} onChangeText={setPassword}
                     secureTextEntry={!passwordVisible} autoCapitalize="none" autoCorrect={false} autoComplete="new-password"
-                    textContentType="newPassword" returnKeyType="next" helperText={copy.passwordTooShort}
+                    textContentType="newPassword" returnKeyType="next" helperText={copy.passwordRules}
                     onSubmitEditing={() => confirmationRef.current?.focus()} editable={!loading} style={fieldStyle} />
                   </View>
                   <View style={styles.field}>
@@ -153,6 +231,13 @@ export default function RegisterScreen() {
                     style={styles.visibility}>
                     <Text style={[styles.body, { color: theme.textSecondary }]}>{passwordVisible ? copy.hidePassword : copy.showPassword}</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={copy.acceptTerms}
+                    aria-checked={acceptedTerms}
+                    accessibilityState={{ checked: acceptedTerms, disabled: loading }} disabled={loading}
+                    activeOpacity={0.7} onPress={() => setAcceptedTerms(!acceptedTerms)} style={styles.testRegistration}>
+                    <SelectionCheck selected={acceptedTerms} variant="row" />
+                    <Text style={[styles.body, styles.testRegistrationLabel, { color: theme.textHeading }]}>{copy.acceptTerms}</Text>
+                  </TouchableOpacity>
                   {showTestRegistration ? (
                     <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={copy.testRegistration}
                       aria-checked={forTesting}
@@ -162,6 +247,7 @@ export default function RegisterScreen() {
                       <Text style={[styles.body, styles.testRegistrationLabel, { color: theme.textHeading }]}>{copy.testRegistration}</Text>
                     </TouchableOpacity>
                   ) : null}
+                  {captchaRequired && !forTesting ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                   {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
                   <MobileButton onPress={onSubmit} isLoading={loading} disabled={loading}>{copy.registerButton}</MobileButton>
                   <View style={styles.dividerRow}>
@@ -206,10 +292,27 @@ export default function RegisterScreen() {
                     <Text style={[styles.googleLabel, { color: theme.textHeading }]}>{copy.registerWithFacebook}</Text>
                   </TouchableOpacity>
                 </>
-              ) : null}
-              <TouchableOpacity onPress={() => router.replace('/login')} disabled={loading} accessibilityRole="button" style={styles.back}>
-                <Text style={[styles.body, { color: theme.textHeading }]}>{copy.backToLogin}</Text>
-              </TouchableOpacity>
+              ) : (
+                <>
+                  <View style={styles.field}>
+                    <Text style={[styles.label, { color: theme.textHeading }]}>{copy.otpCode}</Text>
+                    <MobileInput accessibilityLabel={copy.otpCode} value={code} onChangeText={setCode}
+                      keyboardType="number-pad" maxLength={6} editable={!loading} style={fieldStyle} />
+                  </View>
+                  {captchaRequired && resendCaptcha ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                  {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
+                  <MobileButton onPress={() => { void verifyCode(); }} isLoading={loading} disabled={loading}>{copy.otpCode}</MobileButton>
+                  <MobileButton variant="outline" disabled={loading || resendIn > 0} onPress={() => { void sendCodeAgain(); }}>
+                    {resendIn > 0 ? copy.resendWait.replace('{seconds}', String(resendIn)) : copy.resendCode}
+                  </MobileButton>
+                  <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => { setNeedsEmailConfirmation(false); setResendCaptcha(false); setError(null); }} style={styles.back}>
+                    <Text style={[styles.body, { color: theme.textHeading }]}>{copy.changeEmail}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              <MobileButton variant="outline" disabled={loading} onPress={() => router.replace('/login')}>
+                {copy.backToLogin}
+              </MobileButton>
             </View>
           </View>
         </ScrollView>

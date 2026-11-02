@@ -41,6 +41,7 @@ export interface AgentWorkspaceProps {
   onSaveProfile?: (input: { firstName: string; lastName: string; phone: string | null }) => Promise<void>;
   onUploadAvatar?: (photo: { uri: string; name: string; mimeType: string; file?: Blob }) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
+  onChangePassword?: (input: { currentPassword: string; newPassword: string; captchaToken?: string }) => Promise<void>;
   initials: string;
   notificationCount: number;
   notificationsOpen: boolean;

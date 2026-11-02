@@ -219,9 +219,9 @@ export interface TranslationSchema {
       photoPermissionDenied: string;
       emailManagedInLinkedAccounts: string;
       profileSaved: string;
+      done: string;
       security: string;
       changePassword: string;
-      changePasswordHint: string;
       linkedAccounts: {
         title: string;
         subtitle: string;
@@ -250,6 +250,7 @@ export interface TranslationSchema {
         required: string;
         tooShort: string;
         mismatch: string;
+        incorrect: string;
         updated: string;
       };
       notifications: string;
@@ -280,6 +281,15 @@ export interface TranslationSchema {
       registrationRequiredFields: string;
       invalidEmail: string;
       passwordTooShort: string;
+      passwordRules: string;
+      phoneRequired: string;
+      acceptTerms: string;
+      acceptTermsRequired: string;
+      otpCode: string;
+      otpInvalid: string;
+      resendCode: string;
+      resendWait: string;
+      changeEmail: string;
       passwordMismatch: string;
       registrationFailed: string;
       registrationUnavailable: string;
@@ -292,6 +302,13 @@ export interface TranslationSchema {
       unavailable: string;
       signupUnavailable: string;
       resetUnavailable: string;
+      resetTitle: string;
+      resetSend: string;
+      resetLinkSent: string;
+      resetNewTitle: string;
+      resetNewSubtitle: string;
+      resetDone: string;
+      captchaRequired: string;
       requiredFields: string;
       signIn: string;
       email: string;

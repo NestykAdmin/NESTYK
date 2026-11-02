@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
+import { isRecoveryLanding } from './reset-password';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -11,6 +12,15 @@ export function isSupabaseConfigured(): boolean {
 
 let client: SupabaseClient | null = null;
 
+/**
+ * Read once, before the auth client strips `?code=` from the address.
+ * Email click-tracking drops URL fragments, so recovery uses PKCE (`?code=`), which survives.
+ */
+const initialHref = typeof window !== 'undefined' && typeof window.location?.href === 'string'
+  ? window.location.href
+  : '';
+export const openedPasswordResetLink = initialHref !== '' && isRecoveryLanding(initialHref);
+
 export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured()) return null;
   if (!client) {
@@ -20,6 +30,7 @@ export function getSupabaseClient(): SupabaseClient | null {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: Platform.OS === 'web',
+        flowType: 'pkce',
       },
     });
     if (Platform.OS !== 'web') {

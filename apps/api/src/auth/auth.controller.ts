@@ -17,6 +17,7 @@ import { CurrentUser, AuthRequestUser } from './decorators/current-user.decorato
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DevRegistrationGuard } from './guards/dev-registration.guard';
 import { MAX_PROFILE_AVATAR_BYTES } from './profile-avatar-storage.service';
+import { notifyPasswordChanged } from './password-changed-email';
 
 @Controller('auth')
 export class AuthController {
@@ -88,6 +89,14 @@ export class AuthController {
   async clearAvatar(@CurrentUser() user: AuthRequestUser) {
     this.requireUser(user);
     return this.authService.clearAvatar(user.id);
+  }
+
+  @Post('password-changed')
+  @UseGuards(AuthGuard)
+  async passwordChanged(@CurrentUser() user: AuthRequestUser) {
+    this.requireUser(user);
+    const sent = await notifyPasswordChanged(user.email);
+    return { sent };
   }
 
   @Post('dev/roles')

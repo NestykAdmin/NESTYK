@@ -14,6 +14,7 @@ import { MobileButton } from '../components/MobileButton';
 import { MobileNestykLogo } from '../components/MobileNestykLogo';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
 import { MobileProfileEditBody, ProfilePhotoFile, ProfileSaveInput } from '../components/MobileProfileEditBody';
+import { ChangePasswordInput } from './MobileChangePasswordBody';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -55,6 +56,10 @@ export interface MobileProfileDrawerProps {
   onSaveProfile?: (input: ProfileSaveInput) => Promise<void>;
   onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
+  onChangePassword?: (input: ChangePasswordInput) => Promise<void>;
+  captcha?: React.ReactNode;
+  captchaRequired?: boolean;
+  captchaToken?: string | null;
   activeRole: UserRole;
   onRoleChange: (role: UserRole) => void;
   onSignOut?: () => void;
@@ -112,6 +117,10 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   onSaveProfile,
   onUploadAvatar,
   onRemoveAvatar,
+  onChangePassword,
+  captcha,
+  captchaRequired,
+  captchaToken,
   initials,
   activeRole,
   onRoleChange,
@@ -576,6 +585,10 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                     onSaveProfile={onSaveProfile}
                     onUploadAvatar={onUploadAvatar}
                     onRemoveAvatar={onRemoveAvatar}
+                    onChangePassword={onChangePassword}
+                    captcha={captcha}
+                    captchaRequired={captchaRequired}
+                    captchaToken={captchaToken}
                     appVersion="0.1.0"
                     onSignOut={handleSignOut}
                     signOutLabel={signOutLabel}

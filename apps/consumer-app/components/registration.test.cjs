@@ -48,7 +48,11 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
     '@nestyk/i18n': { useLocale: () => ({ t, locale: 'en' }), localizedError: (e, fallback) => e?.message ?? fallback },
     '@nestyk/ui/native': { MobileInput: 'Input', MobileButton: 'Button', MobileIcon: 'Icon', MobileNestykLogo: 'Logo', SelectionCheck: 'SelectionCheck',
       useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { primary: '#211e1e', brand: { 500: '#f8b615' }, error: '#dc2626' } } },
-    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, signInWithGoogle: async () => { google.push('google'); }, signInWithFacebook: async () => { facebook.push('facebook'); }, signUp: async (...args) => { calls.push(args); if (error) throw error; return result; } }) },
+    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, signInWithGoogle: async () => { google.push('google'); }, signInWithFacebook: async () => { facebook.push('facebook'); }, verifySignupCode: async () => {}, resendSignupCode: async () => {}, signUp: async (...args) => { calls.push(args); if (error) throw error; return result; } }) },
+    '../components/PhoneField': { PhoneField: 'PhoneField' },
+    '../lib/phone': { phoneDraftToE164: (draft) => draft?.digits ? `+66${draft.digits}` : null },
+    '../lib/auth/password-rules': { passwordIsStrong: (password) => password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password) },
+    'react-native-webview': { WebView: 'WebView' },
     '../assets/login-apartment.jpg': 1,
   };
   const file = path.join(__dirname, '../app/register.tsx');
@@ -67,9 +71,11 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
   return { render, fill, submit, calls, routes, google, facebook, copy: t.mobile.auth, labels: t.mobile.account };
 }
 function fillValid(form) {
-  const password = randomBytes(12).toString('hex');
+  const password = `Aa1${randomBytes(4).toString('hex')}`;
   form.fill(form.labels.firstName, 'Mary Ann');
   form.fill(form.labels.lastName, 'Van Buren');
+  form.render().find(n => n?.type === 'PhoneField').props.onChange({ region: 'TH', digits: '812345678' });
+  form.render().find(n => n?.props?.accessibilityLabel === form.copy.acceptTerms).props.onPress();
   form.fill(form.copy.email, `${randomUUID()}@example.test`);
   form.fill(form.copy.password, password);
   form.fill(form.copy.confirmPassword, password);
@@ -146,7 +152,7 @@ test('successful registration enters the app; a signup rejection stays on the fo
 
 test('test registration is opt-in, can be toggled, and requests the no-email flow only when selected', async () => {
   const form = screen({ result: { needsEmailConfirmation: false } });
-  const checkbox = () => form.render().find(n => n?.props?.accessibilityRole === 'checkbox');
+  const checkbox = () => form.render().find(n => n?.props?.accessibilityLabel === form.copy.testRegistration);
   assert.ok(checkbox(), 'development registration offers a test checkbox');
   assert.equal(checkbox().props.accessibilityState.checked, false);
   assert.equal(checkbox().props['aria-checked'], false);
@@ -155,15 +161,28 @@ test('test registration is opt-in, can be toggled, and requests the no-email flo
   assert.equal(checkbox().props['aria-checked'], true);
   fillValid(form);
   await form.submit();
-  assert.equal(form.calls[0][4], true);
+  assert.equal(form.calls[0][5], true);
   assert.deepEqual(form.routes, ['/']);
+});
+
+test('registration asks for the captcha before signup when hCaptcha is configured', async () => {
+  process.env.EXPO_PUBLIC_HCAPTCHA_SITE_KEY = 'site-key';
+  try {
+    const form = screen();
+    fillValid(form);
+    await form.submit();
+    assert.equal(form.calls.length, 0);
+    assert.ok(form.render().includes(form.copy.captchaRequired));
+  } finally {
+    delete process.env.EXPO_PUBLIC_HCAPTCHA_SITE_KEY;
+  }
 });
 
 test('production registration never offers the test checkbox and keeps normal signup', async () => {
   const form = screen({ development: false });
-  assert.equal(form.render().some(n => n?.props?.accessibilityRole === 'checkbox'), false);
+  assert.equal(form.render().some(n => n?.props?.accessibilityLabel === form.copy.testRegistration), false);
   fillValid(form);
   await form.submit();
-  assert.ok(!form.calls[0][4]);
+  assert.ok(!form.calls[0][5]);
   assert.ok(form.render().includes(form.copy.emailConfirmationBody));
 });

@@ -79,6 +79,11 @@ import {
 import { MobileServiceCatalogBody } from '@nestyk/feature-services';
 import { createAgentScoutRoom, fetchAgentContacts, fetchAgentPropertyTypes, fetchAgentContractTypes, fetchAgentRoomTypes, fetchAgentFacilities, generateListingPromo } from '../lib/agent-listings-api';
 import { clearProfileAvatar, updateMyProfile, uploadProfileAvatar } from '../lib/profile-api';
+import { changePassword as changeAccountPassword } from '../lib/auth/change-password';
+import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { HcaptchaField } from '../components/HcaptchaField';
+import { apiPost } from '../lib/api';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/auth/supabase';
 import { pickRoomPhotos, uploadRoomPhoto, enhanceRoomPhoto } from '../lib/room-photos';
 import { searchPlaces, getPlaceDetails, searchNearbyPlaces, reverseMapLocation } from '../lib/places-api';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -163,6 +168,9 @@ export default function AppHomeScreen() {
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [passwordCaptchaToken, setPasswordCaptchaToken] = useState<string | null>(null);
+  const [passwordCaptchaKey, setPasswordCaptchaKey] = useState(0);
+  const passwordCaptchaRequired = hcaptchaSiteKey().length > 0;
   const [partyInbox, setPartyInbox] = useState(false);
   const [selectedPartyRoom, setSelectedPartyRoom] = useState<PartyContractRoom | null>(null);
   const [contractHistory, setContractHistory] = useState(false);
@@ -1378,6 +1386,23 @@ export default function AppHomeScreen() {
     await clearProfileAvatar();
     await refreshProfile();
   };
+  const changePassword = async (input: { currentPassword: string; newPassword: string; captchaToken?: string }) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !isSupabaseConfigured() || !session?.email) {
+      throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
+    }
+    try {
+      await changeAccountPassword(supabase, session.email, input.currentPassword, input.newPassword, input.captchaToken);
+      try {
+        await apiPost('/auth/password-changed', {});
+      } catch {
+        // The password is already changed. A failed notice must not look like the change failed.
+      }
+    } finally {
+      setPasswordCaptchaToken(null);
+      setPasswordCaptchaKey(passwordCaptchaKey + 1);
+    }
+  };
 
   const handleAuthAction = async () => {
     setDrawerOpen(false);
@@ -1488,6 +1513,7 @@ export default function AppHomeScreen() {
         onSaveProfile={saveProfile}
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
+        onChangePassword={isAuthenticated ? changePassword : undefined}
         initials={profileInitials}
         notificationCount={unreadCount}
         notificationsOpen={notificationsOpen}
@@ -1699,6 +1725,10 @@ export default function AppHomeScreen() {
         onSaveProfile={saveProfile}
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
+        onChangePassword={isAuthenticated ? changePassword : undefined}
+        captcha={passwordCaptchaRequired ? <HcaptchaField resetKey={passwordCaptchaKey} onToken={setPasswordCaptchaToken} /> : undefined}
+        captchaRequired={passwordCaptchaRequired}
+        captchaToken={passwordCaptchaToken}
         initials={profileInitials}
         activeRole={activeRole}
         isAuthenticated={isAuthenticated}

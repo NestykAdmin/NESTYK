@@ -26,6 +26,8 @@ function load(filename) {
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale], setLocale() {} }) };
     if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader' };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
+    if (name === 'react-native') return { View: () => null, StyleSheet: { create: (styles) => styles } };
+    if (name === 'react-native-webview') return { WebView: () => null };
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
     return load([base, `${base}.ts`, `${base}.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));
@@ -135,6 +137,44 @@ test('the agent account menu saves a profile and other roles do not get that edi
   state = [];
   const landlord = render(props({ activeRole: 'landlord', onSaveProfile: async () => {} }));
   assert.equal(landlord.some((node) => node?.props?.children === 'Edit Profile'), false);
+});
+
+test('desktop account menu changes the password on every role', async () => {
+  state = [];
+  const saved = [];
+  const opened = [];
+  const menu = render(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  const open = menu.find((node) => node?.type === 'button' && node.props.children === 'Change Password');
+  assert.ok(open);
+  open.props.onClick();
+  const formTree = render(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  const fields = formTree.filter((node) => node?.type === 'input' && node.props.type === 'password');
+  fields[0].props.onChange({ target: { value: 'old-secret' } });
+  fields[1].props.onChange({ target: { value: 'Newsecret1' } });
+  fields[2].props.onChange({ target: { value: 'Newsecret1' } });
+  const submitted = render(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  await submitted.find((node) => node?.type === 'form').props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, [{ currentPassword: 'old-secret', newPassword: 'Newsecret1' }]);
+  const done = render(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  assert.ok(done.includes('Your password has been updated.'));
+  done.find((node) => node?.type === 'button' && node.props.children === 'OK').props.onClick();
+  assert.deepEqual(opened, ['dashboard']);
 });
 
 test('a custom sidebar replaces the agent menu and ignores disabled items', () => {
