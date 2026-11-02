@@ -8,8 +8,8 @@ import { expect, test, type WriterSession } from '../../src/write/write.fixture'
  *
  * สิ่งที่ต้องมีก่อนรัน (รายละเอียดใน README หัวข้อ "เทสที่เขียนข้อมูล")
  *   - รันด้วย E2E_ALLOW_WRITES=yes npm run test:write (playwright.write.config.ts) และตั้ง E2E_QA_AGENT_UUID
- *   - ระหว่างที่ทีมยังไม่ตกลงเรื่องข้อมูล E2E- (TEAM_DB_WRITES_AGREED = false ใน src/write/write-guard.ts)
- *     ต้องตั้ง E2E_WRITE_TARGET=own-db และ API ต้องต่อฐานข้อมูลที่ QA เป็นเจ้าของเท่านั้น
+ *   - ทีมตกลงเรื่องข้อมูล E2E- ในฐานข้อมูล dev แล้ว (TEAM_DB_WRITES_AGREED = true ใน src/write/write-guard.ts ตั้งแต่ 2 พ.ย. 2026)
+ *     ถ้าเปลี่ยนกลับเป็น false ต้องตั้ง E2E_WRITE_TARGET=own-db และ API ต้องต่อฐานข้อมูลที่ QA เป็นเจ้าของเท่านั้น
  *
  * ไฟล์นี้สร้างและแก้ข้อมูล
  *   - ลีดถาวร E2E-QA-LEAD-1 ของ qa-agent (src/write/qa-dataset.ts): รอบแรกสร้าง 1 ราย ลบไม่ได้ รอบต่อไปใช้ตัวเดิม

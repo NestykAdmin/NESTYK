@@ -26,9 +26,10 @@ import { expect, test, type LifecycleSession } from '../../src/write/write.fixtu
  *
  * สิ่งที่ต้องมีก่อนรัน (README หัวข้อ "เทสที่เขียนข้อมูล")
  *   - E2E_ALLOW_WRITES=yes npm run test:write และตั้ง E2E_QA_AGENT_UUID, E2E_QA_TENANT_UUID, E2E_QA_LANDLORD_UUID
- *   - ระหว่างที่ทีมยังไม่ตกลง (TEAM_DB_WRITES_AGREED = false) ต้องตั้ง E2E_WRITE_TARGET=own-db และ API ต้องต่อฐานข้อมูลของ QA เอง
- *   - API ต้องต่อที่เก็บไฟล์ (Supabase Storage) ได้ เพราะเกือบทุกขั้นอัปโหลดหรือสร้าง PDF และระหว่างที่ทีมยังไม่ตกลง
- *     SUPABASE_URL ใน .env.api ต้องชี้เครื่องนี้ด้วย (assertEnvFileStorageIsLocal ใน write-guard.ts ตรวจใน fixture)
+ *   - ทีมตกลงเรื่องข้อมูล E2E- ในฐานข้อมูลและ Storage ของ dev แล้ว (TEAM_DB_WRITES_AGREED = true ตั้งแต่ 2 พ.ย. 2026)
+ *     ถ้าเปลี่ยนกลับเป็น false ต้องตั้ง E2E_WRITE_TARGET=own-db และ API ต้องต่อฐานข้อมูลของ QA เอง
+ *   - API ต้องต่อที่เก็บไฟล์ (Supabase Storage) ได้ เพราะเกือบทุกขั้นอัปโหลดหรือสร้าง PDF
+ *   - ถ้าค่าคงที่เป็น false: SUPABASE_URL ใน .env.api ต้องชี้เครื่องนี้ด้วย (assertEnvFileStorageIsLocal ใน write-guard.ts ตรวจใน fixture)
  *   - ไม่เริ่มรันช่วง 23:50 ถึง 00:10 เวลากรุงเทพ (เทสข้ามพร้อมเหตุผล ดู nearMidnightReason ใน lifecycle-data.ts)
  *
  * ข้อมูลที่ 1 รอบสร้างถาวร (ไม่มีเส้นทางลบ ทุกข้อความติดป้าย E2E-LC-<รหัสรอบ>)
@@ -49,7 +50,7 @@ import { expect, test, type LifecycleSession } from '../../src/write/write.fixtu
  *     ใน agent-contracts.service.ts บรรทัด 3755-3777) และเขียนทับชื่อ นามสกุล เลขบัตร สัญชาติ และเบอร์ถ้าว่าง
  *     (party-login.ts บรรทัด 196-205) ชื่อที่แสดงของ 2 บัญชีนี้จึงเป็นชื่อของรอบล่าสุด เช่น E2E-LC-<รหัสรอบ> Tenant
  *   - ลีดของรอบได้ booking_released_at ตอนแจ้งย้ายออก (agent-contracts.service.ts บรรทัด 2261-2264)
- *   - หลังจบรอบ ถ้า API เปิดอยู่ตอน 00:05 งานตั้งเวลาปิดสัญญาเช่าของรอบนี้ (persistEndedLeases ใน tenant-billing.scheduler.ts
+ *   - หลังจบรอบ ถ้ามี API ตัวใดตัวหนึ่งที่ต่อฐานข้อมูลเดียวกันเปิดอยู่ตอน 00:05 (บนฐานข้อมูล dev รวม API ของทีม) งานตั้งเวลาปิดสัญญาเช่าของรอบนี้ (persistEndedLeases ใน tenant-billing.scheduler.ts
  *     บรรทัด 12-17 ซึ่งเป็นผู้เรียกเดียว) ถ้าไม่เปิด สัญญาค้างเป็น active ในบัญชีของ qa-tenant จนกว่าจะเปิด API ข้ามเวลานั้น
  *     งาน 08:00 อาจเขียนการเตือนของสัญญาเพิ่ม (ยังไม่ได้ตรวจว่ากี่แถว)
  *
@@ -118,8 +119,20 @@ interface SettlementView {
 
 /** สัญญาที่บัญชีนั้นเห็นใน /contracts/mine */
 async function myContractIds(response: Promise<APIResponse>): Promise<number[]> {
-  return (await expectJson<{ id: number }[]>(await response, 200)).map((contract) => contract.id);
+  return (await myContracts(response)).map((contract) => contract.id);
 }
+
+/** สัญญาที่บัญชีนั้นเห็นใน /contracts/mine พร้อมชื่อโครงการ (ใช้ตรวจว่าเป็นข้อมูลของเทสหรือไม่) */
+async function myContracts(response: Promise<APIResponse>): Promise<{ id: number; property: string | null }[]> {
+  return expectJson<{ id: number; property: string | null }[]>(await response, 200);
+}
+
+/**
+ * ป้ายที่ขึ้นต้นชื่อโครงการของทุกรอบ (lifecycleLabel + " Tower") ใช้แยกสัญญาของเทสออกจากสัญญาที่ทีมผูกกับบัญชี qa-*
+ * ทำไมต้องตรวจ: ขั้น 10 เรียก GET /bills/mine และ /bills/received ซึ่งออกบิลให้ทุกสัญญาของบัญชีนั้น ไม่ใช่แค่ของรอบนี้
+ *   ข้อตกลงกับทีม (ฉบับที่ 8, 2 พ.ย. 2026) ครอบเฉพาะข้อมูล E2E- จึงหยุดก่อนเขียนถ้าบัญชี qa-tenant หรือ qa-landlord มีสัญญาอื่น
+ */
+const RUN_PROPERTY_PREFIX = 'E2E-LC-';
 
 test('rental lifecycle from a scout room to the deposit refund across agent, tenant and landlord', async ({ lifecycle, runId }, testInfo) => {
   // ตรวจก่อนส่งคำขอแรก (fixture สร้างแค่ผู้เรียก ยังไม่ส่งคำขอ)
@@ -142,9 +155,16 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
   // ค่าคงที่ต้องถูกก่อนเขียนอะไร
   expect(isValidThaiId(TEST_THAI_ID)).toBe(true);
 
-  // ตัวนับก่อนรัน
-  const tenantBefore = await myContractIds(tenant.contracts());
-  const landlordBefore = await myContractIds(landlord.contracts());
+  // ตัวนับก่อนรัน และตรวจแบบอ่านอย่างเดียวว่าสัญญาเดิมของ 2 บัญชีเป็นของเทสทั้งหมด (ถ้าไม่ใช่ หยุดก่อนเขียน บอกแค่ id)
+  const tenantExisting = await myContracts(tenant.contracts());
+  const landlordExisting = await myContracts(landlord.contracts());
+  const foreign = [...tenantExisting, ...landlordExisting].filter((contract) => !(contract.property ?? '').startsWith(RUN_PROPERTY_PREFIX));
+  expect(
+    [...new Set(foreign.map((contract) => contract.id))],
+    'qa-tenant หรือ qa-landlord มีสัญญาที่ไม่ใช่ของเทส (id ตามนี้) ให้ถามทีมก่อนรัน เพราะขั้น 10 จะออกบิลให้สัญญาเหล่านี้ด้วย',
+  ).toEqual([]);
+  const tenantBefore = tenantExisting.map((contract) => contract.id);
+  const landlordBefore = landlordExisting.map((contract) => contract.id);
 
   try {
     await test.step('1. ข้อมูลอ้างอิงและห้อง scout ใหม่', async () => {

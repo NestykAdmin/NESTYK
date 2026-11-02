@@ -8,11 +8,12 @@ import { env } from '../config/env';
  * เทสชุดนี้สร้างและแก้ข้อมูลในฐานข้อมูลที่ API ต่ออยู่ ด้วยบัญชี qa-agent (เทสลีด) และ qa-agent, qa-tenant, qa-landlord (เทสวงจรเช่าห้อง)
  * ตรวจก่อนส่งคำขอใด ๆ ไปที่ API (write-global-setup.ts เรียกเป็นอย่างแรก) ถ้าข้อไหนไม่ผ่านให้หยุด
  *   1. ผู้รันตั้ง E2E_ALLOW_WRITES=yes เอง (ตั้งใจรันเทสที่เขียนข้อมูล)
- *   2. ทีมยังไม่ตกลงเรื่องข้อมูล E2E- ในฐานข้อมูลของทีม (TEAM_DB_WRITES_AGREED = false):
+ *   2. ใช้เฉพาะเมื่อ TEAM_DB_WRITES_AGREED = false (ตอนนี้เป็น true จึงข้ามข้อนี้):
  *      ผู้รันต้องตั้ง E2E_WRITE_TARGET=own-db เพื่อยืนยันว่า API ต่อฐานข้อมูลที่ QA เป็นเจ้าของ ไม่ใช่ของทีม
  *      และ DATABASE_URL ทุกบรรทัดในไฟล์ .env.api ที่รากของ repo ต้องชี้ไปที่เครื่องนี้ (assertEnvFileDatabaseIsLocal)
  *   3. API อยู่ในเครื่องที่รัน (localhost, 127.0.0.1 หรือ [::1])
- *   เทสที่อัปโหลดไฟล์ (วงจรเช่าห้อง) ตรวจเพิ่มใน fixture: SUPABASE_URL ทุกบรรทัดใน .env.api ต้องชี้เครื่องนี้ด้วย (assertEnvFileStorageIsLocal)
+ *   เทสที่อัปโหลดไฟล์ (วงจรเช่าห้อง) ตรวจเพิ่มใน fixture เฉพาะเมื่อ TEAM_DB_WRITES_AGREED = false: SUPABASE_URL ทุกบรรทัดใน .env.api
+ *   ต้องชี้เครื่องนี้ด้วย (assertEnvFileStorageIsLocal)
  * ข้อจำกัด: API อ่าน .env.api ที่รากของ repo ครั้งเดียวตอนเปิด (apps/api/src/main.ts บรรทัด 5-21 ที่ qa/e2e a7eb77c) ส่วนตัวกันอ่านไฟล์ตอนรันเทส
  *   ตัวกันจึงมองไม่เห็นค่าที่ API ใช้อยู่จริงในกรณีเหล่านี้: ตั้ง DATABASE_URL ใน Terminal ตอนเปิด API (dotenv ไม่ทับตัวแปรที่ตั้งไว้แล้ว),
  *   แก้ไฟล์แล้วไม่ได้เปิด API ใหม่, เปิด API จากสำเนาอื่นของ repo, หรือ localhost เป็นทางผ่าน (port forward, tunnel) ไปยังฐานข้อมูลของทีม
@@ -22,10 +23,13 @@ import { env } from '../config/env';
 
 /**
  * ทีมตกลงให้ QA เขียนข้อมูลที่ติดป้าย E2E- ลงฐานข้อมูลของทีมแล้วหรือยัง
- * ณ 30 ต.ค. 2026 ยังไม่ตกลง (คำขอยังไม่ได้ส่ง) และกฎกลาง ง.14 ของงาน QA ห้ามเทสเขียนข้อมูลเมื่อ API ต่อฐานข้อมูลของทีม
- * เปลี่ยนเป็น true ใน commit แยก หลังทีมตอบรับแล้วเท่านั้น พร้อมแก้ README หัวข้อข้อตกลงให้ตรง
+ * 30 ต.ค. 2026 ยังไม่ตกลง (ค่า false: รันได้เฉพาะฐานข้อมูลและที่เก็บไฟล์ของ QA เอง)
+ * 2 พ.ย. 2026 ทีมตอบคำขอฉบับที่ 8 แล้ว (Aof แจ้ง): QA สร้างข้อมูล E2E- ด้วยบัญชี qa-* ในฐานข้อมูลและ Storage ของ dev ได้
+ *   ทีมไม่ลบ ไม่แก้ และไม่จองข้อมูลนี้ และไม่มีข้อจำกัดเรื่องชนิดข้อมูลหรือช่วงเวลา จึงเปลี่ยนเป็น true ใน commit แยกนี้
+ *   ข้อที่ยังใช้ทุกครั้ง: E2E_ALLOW_WRITES=yes, API ในเครื่องนี้, worker เดียว และบัญชี qa-* ที่ global-setup ยืนยันบทบาทแล้ว
+ *   ถ้าทีมขอให้หยุด ให้เปลี่ยนกลับเป็น false ใน commit แยก ตัวกันข้อ 2 กับการตรวจ SUPABASE_URL จะกลับมาทำงานเอง
  */
-export const TEAM_DB_WRITES_AGREED: boolean = false;
+export const TEAM_DB_WRITES_AGREED: boolean = true;
 
 /** ชื่อตัวแปรที่ผู้รันต้องตั้งเป็น yes */
 export const WRITE_SWITCH = 'E2E_ALLOW_WRITES';

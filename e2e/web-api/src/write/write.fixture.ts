@@ -14,7 +14,7 @@ import { assertEnvFileStorageIsLocal, assertWriteSetupDone } from './write-guard
  *   writer    = ผู้เรียกที่ล็อกอินด้วย qa-agent (เทสลีด) ใช้ได้ทั้งใน beforeAll, afterAll และตัวเทส (ขอบเขต worker)
  *   lifecycle = ผู้เรียก 3 บทบาทของเทสวงจรเช่าห้อง: qa-agent, qa-tenant และ qa-landlord (ขอบเขต worker)
  *               qa-tenant กับ qa-landlord ต้องตั้ง E2E_QA_TENANT_UUID กับ E2E_QA_LANDLORD_UUID (เทสข้ามก่อนถึง fixture ถ้าไม่ได้ตั้ง)
- *               และตรวจ SUPABASE_URL ใน .env.api ก่อนสร้างผู้เรียก (assertEnvFileStorageIsLocal)
+ *               และถ้า TEAM_DB_WRITES_AGREED เป็น false ตรวจ SUPABASE_URL ใน .env.api ก่อนสร้างผู้เรียก (assertEnvFileStorageIsLocal)
  *   ตรวจตัวกันก่อนสร้างผู้เรียกทุกตัว ถ้าไม่ผ่าน เทสหยุดก่อนส่งคำขอ
  */
 
@@ -74,7 +74,7 @@ export const test = base.extend<object, WriteWorkerFixtures>({
   lifecycle: [
     async ({ playwright, runId }, use) => {
       void runId;
-      // เทสนี้อัปโหลดไฟล์ ระหว่างที่ทีมยังไม่ตกลง ที่เก็บไฟล์ต้องอยู่เครื่องนี้ด้วย (ตรวจก่อนสร้างผู้เรียก)
+      // เทสนี้อัปโหลดไฟล์ ถ้าค่าคงที่เป็น false ต้องให้ที่เก็บไฟล์อยู่เครื่องนี้ (ตรวจก่อนสร้างผู้เรียก ตอนนี้ข้ามเพราะทีมตกลงแล้ว)
       assertEnvFileStorageIsLocal();
       // qaDevToken หยุดพร้อมชื่อตัวแปรถ้ายังไม่ได้ตั้ง uuid ของบัญชีนั้น จึงอ่านบัตรผ่านครบทั้ง 3 ก่อนสร้างตัวส่งคำขอ
       const tokens = [tokenOf(qaAccounts.agent), tokenOf(qaAccounts.tenant), tokenOf(qaAccounts.landlord)];
