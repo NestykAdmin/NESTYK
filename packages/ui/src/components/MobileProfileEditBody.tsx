@@ -12,6 +12,7 @@ import {
 import { useLocale } from '@nestyk/i18n';
 import { MobileInput } from './MobileInput';
 import { MobileButton } from './MobileButton';
+import { AccountCompleteModal } from './AccountCompleteModal';
 import { MobileProfileAvatar } from './MobileProfileAvatar';
 import { MobileIcon } from '../icons/MobileIcon';
 import { tokens } from '../theme/tokens';
@@ -132,6 +133,7 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
   const [pendingPhoto, setPendingPhoto] = useState<ProfilePhotoFile | null>(null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [complete, setComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const email = initialEmail;
 
@@ -153,7 +155,7 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
   const handleSave = async () => {
     if (saving) return;
     if (!onSave) {
-      Alert.alert(t.common.confirm, t.mobile.account.profileSaved);
+      setComplete(true);
       return;
     }
     setSaving(true);
@@ -168,7 +170,7 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
       });
       setPendingPhoto(null);
       setAvatarRemoved(false);
-      Alert.alert(t.common.confirm, t.mobile.account.profileSaved);
+      setComplete(true);
     } catch (cause) {
       const message = cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric;
       setError(message);
@@ -224,8 +226,9 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
   };
 
   return (
-    <>
+    <View style={styles.screen}>
       <ScrollView
+        style={styles.screen}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -304,11 +307,18 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
           </View>
         </View>
       </ScrollView>
-    </>
+      <AccountCompleteModal
+        visible={complete}
+        title={t.mobile.account.editProfile}
+        body={t.mobile.account.profileSaved}
+        onClose={() => setComplete(false)}
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   scrollContent: {
     paddingBottom: 24,
     paddingHorizontal: 0,

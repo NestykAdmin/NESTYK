@@ -38,6 +38,12 @@ export class UserEntity extends SerialCreatedEntity {
   @Column({ type: 'boolean', default: false })
   profile_completed: boolean;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  deletion_requested_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  deletion_effective_at: Date | null;
+
   @OneToMany(() => UserRoleEntity, (ur) => ur.user)
   user_roles: UserRoleEntity[];
 }

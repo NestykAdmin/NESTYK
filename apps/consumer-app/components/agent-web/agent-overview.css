@@ -52,6 +52,18 @@
   gap: var(--nestyk-web-section-gap);
   padding-bottom: 8px;
 }
+.aov-deletion {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid #dc2626;
+  border-radius: 16px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-family: "Mitr_500Medium", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 28px;
+}
 .aov-dashboard h1,
 .aov-dashboard h2,
 .aov-dashboard p {

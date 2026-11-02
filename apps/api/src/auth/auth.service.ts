@@ -16,6 +16,8 @@ import { AuthRequestUser } from './decorators/current-user.decorator';
 import { JwtIdentity } from './guards/auth.guard';
 import { devRegistrationEnabled } from './guards/dev-registration.guard';
 import { ProfileAvatarStorage } from './profile-avatar-storage.service';
+import { anonymizedAccountEmail, deletionBlockers, deletionEffectiveAt, type AccountDeleteBlocker } from './account-deletion';
+import { notifyAccountDeleted } from './account-deleted-email';
 
 export type AuthUserResponse = {
   id: number;
@@ -263,6 +265,134 @@ export class AuthService {
     }
     const loaded = await this.loadUserWithRoles(userId);
     return this.toResponse(loaded, false);
+  }
+
+  async deletionPreview(userId: number): Promise<{
+    blocked: boolean;
+    reasons: AccountDeleteBlocker[];
+    scheduledFor: string | null;
+  }> {
+    const reasons = deletionBlockers(await this.deletionCounts(userId));
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    return {
+      blocked: reasons.length > 0,
+      reasons,
+      scheduledFor: user?.deletion_effective_at ? user.deletion_effective_at.toISOString() : null,
+    };
+  }
+
+  async scheduleAccountDeletion(userId: number): Promise<{ scheduledFor: string }> {
+    const reasons = deletionBlockers(await this.deletionCounts(userId));
+    if (reasons.length) throw new ConflictException({ code: 'ACCOUNT_DELETE_BLOCKED', reasons });
+    const requestedAt = new Date();
+    const effectiveAt = deletionEffectiveAt(requestedAt);
+    await this.usersRepo.update(userId, { deletion_requested_at: requestedAt, deletion_effective_at: effectiveAt });
+    return { scheduledFor: effectiveAt.toISOString() };
+  }
+
+  async cancelAccountDeletion(userId: number): Promise<{ cancelled: true }> {
+    await this.usersRepo.update(userId, { deletion_requested_at: null, deletion_effective_at: null });
+    return { cancelled: true };
+  }
+
+  async deleteDueAccounts(now = new Date()): Promise<number> {
+    const due = await this.usersRepo
+      .createQueryBuilder('user')
+      .where('user.deletion_effective_at IS NOT NULL')
+      .andWhere('user.deletion_effective_at <= :now', { now })
+      .andWhere("user.email NOT LIKE 'deleted+%@users.invalid'")
+      .getMany();
+    let deleted = 0;
+    for (const user of due) {
+      try {
+        await this.deleteAccount(user.id);
+        deleted += 1;
+      } catch {
+        // A contract or bill appeared after the request. Leave the schedule and try again next day.
+      }
+    }
+    return deleted;
+  }
+
+  async deleteAccount(userId: number): Promise<{ deleted: true }> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const reasons = deletionBlockers(await this.deletionCounts(userId));
+    if (reasons.length) {
+      throw new ConflictException({ code: 'ACCOUNT_DELETE_BLOCKED', reasons });
+    }
+    const originalEmail = user.email;
+    await notifyAccountDeleted(originalEmail);
+    if (user.supabase_user_id) {
+      const admin = this.adminClient();
+      const { error } = await admin.auth.admin.deleteUser(user.supabase_user_id);
+      if (error && !/not found/i.test(error.message)) {
+        throw new ServiceUnavailableException({ code: 'ACCOUNT_DELETE_FAILED', message: 'Could not delete the login' });
+      }
+    }
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(UserRoleEntity).delete({ user_id: userId });
+      await manager.getRepository(UserEntity).update(userId, {
+        email: anonymizedAccountEmail(userId),
+        supabase_user_id: null,
+        first_name: 'Deleted',
+        last_name: '',
+        phone: null,
+        identity_number: null,
+        nationality: null,
+        avatar_url: null,
+        profile_completed: false,
+        password: null,
+        deletion_requested_at: null,
+        deletion_effective_at: null,
+      });
+    });
+    return { deleted: true };
+  }
+
+  private async deletionCounts(userId: number): Promise<{ openContracts: number; unpaidBills: number; unrefundedDeposits: number }> {
+    const [openContracts, unpaidBills, unrefundedDeposits] = await Promise.all([
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS n FROM lease_contracts c
+         LEFT JOIN tenants t ON t.id = c.tenant_id
+         WHERE c.status NOT IN ('cancelled', 'expired', 'terminated')
+           AND (c.owner_user_id = $1 OR t.user_id = $1)`,
+        [userId],
+      ),
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS n FROM tenant_bills b
+         JOIN tenants t ON t.id = b.tenant_id
+         WHERE t.user_id = $1 AND b.status = 'pending'`,
+        [userId],
+      ),
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS n FROM contract_deposit_settlements s
+         JOIN lease_contracts c ON c.id = s.lease_contract_id
+         LEFT JOIN tenants t ON t.id = c.tenant_id
+         WHERE (c.owner_user_id = $1 OR t.user_id = $1)
+           AND s.refund_amount > 0 AND s.refunded_at IS NULL AND s.status <> 'completed'`,
+        [userId],
+      ),
+    ]);
+    return {
+      openContracts: Number(openContracts[0]?.n ?? 0),
+      unpaidBills: Number(unpaidBills[0]?.n ?? 0),
+      unrefundedDeposits: Number(unrefundedDeposits[0]?.n ?? 0),
+    };
+  }
+
+  private adminClient(): SupabaseClient {
+    if (!this.registrationAdminClient) {
+      const url = process.env.SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!url || !key) {
+        throw new ServiceUnavailableException({ code: 'ACCOUNT_DELETE_FAILED', message: 'Account deletion is unavailable' });
+      }
+      this.registrationAdminClient = createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+    }
+    return this.registrationAdminClient;
   }
 
   async revokeDevRole(userId: number, roleName: string): Promise<AuthUserResponse> {

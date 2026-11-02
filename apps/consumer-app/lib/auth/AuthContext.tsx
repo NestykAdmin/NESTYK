@@ -7,11 +7,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { apiPost, setSessionExpiredHandler } from '../api';
+import { apiPatch, apiPost, setSessionExpiredHandler } from '../api';
 import { DEV_AUTH_CONFIG, toDevAccessToken } from './dev-auth';
 import { createSessionExpiry, restoreSession } from './session-expiry';
 import { providerRedirectPending } from './google-oauth';
 import { signInWithFacebook as startFacebookSignIn, signInWithGoogle as startGoogleSignIn } from './google-sign-in';
+import { isRecoveryLanding, requestPasswordReset as requestPasswordResetFlow, saveResetPassword as saveResetPasswordFlow, verifyRecoveryCode as verifyRecoveryCodeFlow } from './reset-password';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 import {
   clearAuthSession,
@@ -40,10 +41,16 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   displayName: string;
   initials: string;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, captchaToken?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithFacebook: () => Promise<void>;
-  signUp: (email: string, password: string, firstName: string, lastName: string, forTesting?: boolean) => Promise<{ needsEmailConfirmation: boolean }>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, phone?: string | boolean, forTesting?: boolean, captchaToken?: string) => Promise<{ needsEmailConfirmation: boolean }>;
+  verifySignupCode: (email: string, token: string, profile: { firstName: string; lastName: string; phone: string }) => Promise<void>;
+  resendSignupCode: (email: string, captchaToken?: string) => Promise<void>;
+  requestPasswordReset: (email: string, captchaToken?: string, redirectTo?: string) => Promise<void>;
+  verifyRecoveryCode: (email: string, token: string) => Promise<void>;
+  saveResetPassword: (newPassword: string) => Promise<void>;
+  enterAfterPasswordReset: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   /** The login ran out (or was ended elsewhere): the sign-in screen shows a notice until the next sign-in. */
@@ -140,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           stored,
           client: getSupabaseClient(),
           sync: syncProfile,
-          adoptProviderSession: !stored && providerRedirectPending(href),
+          adoptProviderSession: !stored && providerRedirectPending(href) && !(href && isRecoveryLanding(href)),
         });
         if (cancelled) return;
         if (result.kind === 'synced') {
@@ -165,8 +172,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [applySession]);
 
+  const finishSupabaseSession = useCallback(async (accessToken: string, userId: string) => {
+    let profile = await syncProfile(accessToken);
+    const granted = await ensureAdminRole(accessToken, profile.roles);
+    if (granted) profile = granted;
+    await applySession(sessionFromSync('supabase', accessToken, userId, profile));
+    setSessionExpired(false);
+  }, [applySession]);
+
   const signIn = useCallback(
-    async (email: string, password: string, supabaseOnly = false) => {
+    async (email: string, password: string, captchaToken?: string, supabaseOnly = false) => {
       const normalizedEmail = email.trim().toLowerCase();
       const supabase = getSupabaseClient();
 
@@ -175,6 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data, error } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
           password,
+          ...(captchaToken ? { options: { captchaToken } } : {}),
         });
         if (error || !data.session) {
           // Fall through to local dev credentials when enabled
@@ -188,20 +204,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error(error?.message ?? 'Sign in failed');
           }
         } else {
-          const accessToken = data.session.access_token;
-          const userId = data.user.id;
           try {
-            let profile = await syncProfile(accessToken);
-            const granted = await ensureAdminRole(accessToken, profile.roles);
-            if (granted) profile = granted;
-            await applySession(sessionFromSync('supabase', accessToken, userId, profile));
+            await finishSupabaseSession(data.session.access_token, data.user.id);
           } catch (syncError) {
             // Signed in to Supabase but the API refused the profile: undo the Supabase sign-in,
             // so a guest is not left holding this account's session.
             await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
             throw syncError;
           }
-          setSessionExpired(false);
           return;
         }
       }
@@ -230,7 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       throw new Error('Invalid email or password');
     },
-    [applySession],
+    [finishSupabaseSession],
   );
 
   const signInWithOAuth = useCallback(async (start: typeof startGoogleSignIn) => {
@@ -276,8 +286,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [session?.mode]);
 
-  const signUp = useCallback(async (email: string, password: string, firstName: string, lastName: string, forTesting = false) => {
-    if (forTesting && (typeof __DEV__ === 'undefined' || !__DEV__)) {
+  const saveSignupProfile = useCallback(async (
+    accessToken: string,
+    profile: { firstName: string; lastName: string; phone: string },
+  ) => {
+    await apiPatch('/auth/profile', {
+      firstName: profile.firstName.trim(),
+      lastName: profile.lastName.trim(),
+      phone: profile.phone.trim(),
+    }, accessToken);
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string, firstName: string, lastName: string, phoneOrTesting: string | boolean = '', forTesting = false, captchaToken?: string) => {
+    const phone = typeof phoneOrTesting === 'string' ? phoneOrTesting : '';
+    const testing = typeof phoneOrTesting === 'boolean' ? phoneOrTesting : forTesting;
+    if (testing && (typeof __DEV__ === 'undefined' || !__DEV__)) {
       throw Object.assign(new Error(), { code: 'TEST_REGISTRATION_UNAVAILABLE' });
     }
     const supabase = getSupabaseClient();
@@ -285,7 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
     }
     const normalizedEmail = email.trim().toLowerCase();
-    if (forTesting) {
+    if (testing) {
       await apiPost('/auth/dev/register', {
         email: normalizedEmail, password, firstName: firstName.trim(), lastName: lastName.trim(),
       });
@@ -293,27 +316,110 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
-        options: { data: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          full_name: [firstName.trim(), lastName.trim()].join(' '),
-          registration_source: 'self_service',
-        } },
+        options: {
+          ...(captchaToken ? { captchaToken } : {}),
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            full_name: [firstName.trim(), lastName.trim()].join(' '),
+            phone: phone.trim(),
+            registration_source: 'self_service',
+          },
+        },
       });
+      const duplicate = error && ['user_already_exists', 'email_exists'].includes(String((error as { code?: string }).code));
+      if (duplicate) return { needsEmailConfirmation: true };
       if (error) throw error;
       if (!data.user) throw new Error();
       if (!data.session) return { needsEmailConfirmation: true };
+      try {
+        await finishSupabaseSession(data.session.access_token, data.user.id);
+      } catch (syncError) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        throw syncError;
+      }
+      return { needsEmailConfirmation: false };
     }
 
-    // Use the existing sign-in/session flow; registration never constructs a token or grants DEV roles.
+    // Test registration has no Supabase session yet. A normal signup that already
+    // returned a session does not sign in again, because that would spend a second captcha token.
     try {
-      await signIn(normalizedEmail, password, true);
+      await signIn(normalizedEmail, password, undefined, true);
     } catch (signInError) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       throw signInError;
     }
     return { needsEmailConfirmation: false };
-  }, [signIn]);
+  }, [finishSupabaseSession, signIn]);
+
+  const verifySignupCode = useCallback(async (
+    email: string,
+    token: string,
+    profile: { firstName: string; lastName: string; phone: string },
+  ) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !isSupabaseConfigured()) {
+      throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: token.trim(),
+      type: 'signup',
+    });
+    if (error || !data.session) throw error ?? new Error();
+    try {
+      let synced = await syncProfile(data.session.access_token);
+      await saveSignupProfile(data.session.access_token, profile);
+      synced = await syncProfile(data.session.access_token);
+      await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced));
+    } catch (syncError) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      throw syncError;
+    }
+    setSessionExpired(false);
+  }, [applySession, saveSignupProfile]);
+
+  const resetClient = useCallback(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !isSupabaseConfigured()) {
+      throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
+    }
+    return supabase;
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string, captchaToken?: string, redirectTo?: string) => {
+    await requestPasswordResetFlow(resetClient(), email, captchaToken, redirectTo);
+  }, [resetClient]);
+
+  const verifyRecoveryCode = useCallback(async (email: string, token: string) => {
+    await verifyRecoveryCodeFlow(resetClient(), email, token);
+  }, [resetClient]);
+
+  const saveResetPassword = useCallback(async (newPassword: string) => {
+    await saveResetPasswordFlow(resetClient(), newPassword);
+  }, [resetClient]);
+
+  const enterAfterPasswordReset = useCallback(async () => {
+    const supabase = resetClient();
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) throw error ?? new Error();
+    const synced = await syncProfile(data.session.access_token);
+    await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced));
+    setSessionExpired(false);
+  }, [applySession, resetClient]);
+
+  const resendSignupCode = useCallback(async (email: string, captchaToken?: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !isSupabaseConfigured()) {
+      throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
+    }
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+      ...(captchaToken ? { options: { captchaToken } } : {}),
+    });
+    if (error) throw error;
+  }, []);
 
   const dismissSessionExpired = useCallback(() => setSessionExpired(false), []);
 
@@ -331,12 +437,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signInWithGoogle,
       signInWithFacebook,
       signUp,
+      verifySignupCode,
+      resendSignupCode,
+      requestPasswordReset,
+      verifyRecoveryCode,
+      saveResetPassword,
+      enterAfterPasswordReset,
       signOut,
       refreshProfile,
       sessionExpired,
       dismissSessionExpired,
     };
-  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
+  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryCode, saveResetPassword, enterAfterPasswordReset, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

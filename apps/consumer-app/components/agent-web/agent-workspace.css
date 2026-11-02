@@ -457,6 +457,9 @@
   max-height: calc(100dvh - 100px);
   overflow-y: auto;
 }
+.aw-account-popover-password {
+  width: 360px;
+}
 .aw-account-info {
   display: flex;
   flex-direction: column;
@@ -641,6 +644,73 @@
 .aw-button-secondary {
   background: var(--aw-surface);
   border-color: var(--aw-border);
+}
+.aw-button-danger {
+  background: #dc2626;
+  color: #ffffff !important;
+}
+.aw-button-danger:hover {
+  background: #b91c1c;
+}
+.aw-button-danger:disabled {
+  background: #fecaca;
+}
+.aw-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.aw-confirm-actions .aw-button {
+  width: 100%;
+}
+.aw-complete-card .aw-profile-form,
+.aw-complete-card .aw-profile-error {
+  width: 100%;
+  text-align: left;
+}
+.aw-complete {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(33, 30, 30, 0.45);
+}
+.aw-complete-card {
+  width: min(360px, 100%);
+  border-radius: 24px;
+  padding: 24px;
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.aw-complete-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f8b615;
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+}
+.aw-complete-card h2 {
+  margin: 0;
+  font-family: "Mitr_500Medium", sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 33px;
+}
+.aw-complete-card p {
+  margin: 0 0 12px;
+  color: var(--aw-muted);
+  font-size: 14px;
+  line-height: 21px;
 }
 .aw-notifications {
   position: fixed;

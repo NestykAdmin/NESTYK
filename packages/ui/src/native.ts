@@ -24,6 +24,8 @@ export * from './components/MobileActionSheetBody';
 export * from './components/MobilePhotoViewer';
 export * from './components/MobileProfileAvatar';
 export * from './components/MobileProfileEditBody';
+export * from './components/AccountCompleteModal';
+export * from './components/AccountDeletionNotice';
 export * from './components/MobileLinkedAccountsBody';
 export * from './components/MobileLanguagePickerBody';
 export * from './components/MobilePreloadScreen';
