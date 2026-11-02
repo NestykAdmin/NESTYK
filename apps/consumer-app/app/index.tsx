@@ -52,6 +52,7 @@ import { useRouter } from 'expo-router';
 import { useLocale } from '@nestyk/i18n';
 import {
   MobileModePage,
+  AccountDeletionNotice,
   MobileBrandLoader,
   MobileButton,
   MobileBadge,
@@ -79,10 +80,10 @@ import {
 import { MobileServiceCatalogBody } from '@nestyk/feature-services';
 import { createAgentScoutRoom, fetchAgentContacts, fetchAgentPropertyTypes, fetchAgentContractTypes, fetchAgentRoomTypes, fetchAgentFacilities, generateListingPromo } from '../lib/agent-listings-api';
 import { clearProfileAvatar, updateMyProfile, uploadProfileAvatar } from '../lib/profile-api';
-import { changePassword as changeAccountPassword } from '../lib/auth/change-password';
+import { changePassword as changeAccountPassword, confirmCurrentPassword } from '../lib/auth/change-password';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
-import { apiPost } from '../lib/api';
+import { apiDelete, apiGet, apiPost } from '../lib/api';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/auth/supabase';
 import { pickRoomPhotos, uploadRoomPhoto, enhanceRoomPhoto } from '../lib/room-photos';
 import { searchPlaces, getPlaceDetails, searchNearbyPlaces, reverseMapLocation } from '../lib/places-api';
@@ -203,6 +204,7 @@ export default function AppHomeScreen() {
   const [clientsView, setClientsView] = useState<TenantListView>('work');
   const clearClientsWorkFilter = useCallback(() => setClientsWorkFilter(null), []);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+  const [deletionScheduledFor, setDeletionScheduledFor] = useState<string | null>(null);
   const [pageRefreshing, setPageRefreshing] = useState(false);
   const refreshSequence = useRef(0);
   const pendingRefresh = useRef<number | null>(null);
@@ -975,6 +977,7 @@ export default function AppHomeScreen() {
             snapshot={agentDashboardSnapshot}
             onNavigate={handleAgentDashboardNavigate}
             onRefresh={handlePageRefresh}
+            deletionScheduledFor={deletionScheduledFor}
           />
         );
       }
@@ -985,6 +988,7 @@ export default function AppHomeScreen() {
             onNavigate={handleAgentDashboardNavigate}
             initials={profileInitials}
             onRefresh={handlePageRefresh}
+            deletionScheduledFor={deletionScheduledFor}
           />
         </View>
       );
@@ -999,6 +1003,7 @@ export default function AppHomeScreen() {
     const summary = summaries[activeRole];
     return (
       <View style={styles.bodyContainer}>
+        {deletionScheduledFor ? <AccountDeletionNotice scheduledFor={deletionScheduledFor} /> : null}
         <View style={[styles.card, cardStyle]}>
           <View style={styles.listingTopRow}>
             <Text style={[styles.sectionHeader, headingText]}>{summary.title}</Text>
@@ -1403,6 +1408,45 @@ export default function AppHomeScreen() {
       setPasswordCaptchaKey(passwordCaptchaKey + 1);
     }
   };
+  const loadAccountDeletion = () => apiGet<{
+    blocked: boolean;
+    reasons: Array<'open_contract' | 'unpaid_bill' | 'unrefunded_deposit'>;
+    scheduledFor: string | null;
+  }>('/auth/account/deletion');
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setDeletionScheduledFor(null);
+      return;
+    }
+    let cancelled = false;
+    loadAccountDeletion()
+      .then((preview) => { if (!cancelled) setDeletionScheduledFor(preview.scheduledFor); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isAuthenticated, session?.email]);
+  const proveAccountPassword = async (password: string, captchaToken?: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !isSupabaseConfigured() || !session?.email) {
+      throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
+    }
+    await confirmCurrentPassword(supabase, session.email, password, captchaToken);
+  };
+  const deleteAccount = async (proof: { password: string; captchaToken?: string }) => {
+    await proveAccountPassword(proof.password, proof.captchaToken);
+    await apiDelete('/auth/account');
+    await signOut();
+  };
+  const scheduleAccountDeletion = async (proof: { password: string; captchaToken?: string }) => {
+    await proveAccountPassword(proof.password, proof.captchaToken);
+    const result = await apiPost<{ scheduledFor: string }>('/auth/account/deletion', {});
+    setDeletionScheduledFor(result.scheduledFor);
+    setDrawerOpen(false);
+    setActiveTab('dashboard');
+  };
+  const cancelAccountDeletion = async () => {
+    await apiDelete('/auth/account/deletion');
+    setDeletionScheduledFor(null);
+  };
 
   const handleAuthAction = async () => {
     setDrawerOpen(false);
@@ -1514,6 +1558,10 @@ export default function AppHomeScreen() {
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
         onChangePassword={isAuthenticated ? changePassword : undefined}
+        onLoadAccountDeletion={isAuthenticated ? loadAccountDeletion : undefined}
+        onDeleteAccount={isAuthenticated ? deleteAccount : undefined}
+        onScheduleAccountDeletion={isAuthenticated ? scheduleAccountDeletion : undefined}
+        onCancelAccountDeletion={isAuthenticated ? cancelAccountDeletion : undefined}
         initials={profileInitials}
         notificationCount={unreadCount}
         notificationsOpen={notificationsOpen}
@@ -1726,9 +1774,14 @@ export default function AppHomeScreen() {
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
         onChangePassword={isAuthenticated ? changePassword : undefined}
+        onLoadAccountDeletion={isAuthenticated ? loadAccountDeletion : undefined}
+        onDeleteAccount={isAuthenticated ? deleteAccount : undefined}
+        onScheduleAccountDeletion={isAuthenticated ? scheduleAccountDeletion : undefined}
+        onCancelAccountDeletion={isAuthenticated ? cancelAccountDeletion : undefined}
         captcha={passwordCaptchaRequired ? <HcaptchaField resetKey={passwordCaptchaKey} onToken={setPasswordCaptchaToken} /> : undefined}
         captchaRequired={passwordCaptchaRequired}
         captchaToken={passwordCaptchaToken}
+        onCaptchaReset={() => { setPasswordCaptchaToken(null); setPasswordCaptchaKey((key) => key + 1); }}
         initials={profileInitials}
         activeRole={activeRole}
         isAuthenticated={isAuthenticated}

@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Patch,
   Post,
   UploadedFile,
@@ -89,6 +90,34 @@ export class AuthController {
   async clearAvatar(@CurrentUser() user: AuthRequestUser) {
     this.requireUser(user);
     return this.authService.clearAvatar(user.id);
+  }
+
+  @Get('account/deletion')
+  @UseGuards(AuthGuard)
+  async deletionPreview(@CurrentUser() user: AuthRequestUser) {
+    this.requireUser(user);
+    return this.authService.deletionPreview(user.id);
+  }
+
+  @Delete('account')
+  @UseGuards(AuthGuard)
+  async deleteAccount(@CurrentUser() user: AuthRequestUser) {
+    this.requireUser(user);
+    return this.authService.deleteAccount(user.id);
+  }
+
+  @Post('account/deletion')
+  @UseGuards(AuthGuard)
+  async scheduleAccountDeletion(@CurrentUser() user: AuthRequestUser) {
+    this.requireUser(user);
+    return this.authService.scheduleAccountDeletion(user.id);
+  }
+
+  @Delete('account/deletion')
+  @UseGuards(AuthGuard)
+  async cancelAccountDeletion(@CurrentUser() user: AuthRequestUser) {
+    this.requireUser(user);
+    return this.authService.cancelAccountDeletion(user.id);
   }
 
   @Post('password-changed')

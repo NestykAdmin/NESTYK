@@ -645,6 +645,30 @@
   background: var(--aw-surface);
   border-color: var(--aw-border);
 }
+.aw-button-danger {
+  background: #dc2626;
+  color: #ffffff !important;
+}
+.aw-button-danger:hover {
+  background: #b91c1c;
+}
+.aw-button-danger:disabled {
+  background: #fecaca;
+}
+.aw-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.aw-confirm-actions .aw-button {
+  width: 100%;
+}
+.aw-complete-card .aw-profile-form,
+.aw-complete-card .aw-profile-error {
+  width: 100%;
+  text-align: left;
+}
 .aw-complete {
   position: fixed;
   inset: 0;

@@ -42,6 +42,10 @@ export interface AgentWorkspaceProps {
   onUploadAvatar?: (photo: { uri: string; name: string; mimeType: string; file?: Blob }) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
   onChangePassword?: (input: { currentPassword: string; newPassword: string; captchaToken?: string }) => Promise<void>;
+  onLoadAccountDeletion?: () => Promise<{ blocked: boolean; reasons: Array<'open_contract' | 'unpaid_bill' | 'unrefunded_deposit'>; scheduledFor: string | null }>;
+  onDeleteAccount?: (proof: { password: string; captchaToken?: string }) => Promise<void>;
+  onScheduleAccountDeletion?: (proof: { password: string; captchaToken?: string }) => Promise<void>;
+  onCancelAccountDeletion?: () => Promise<void>;
   initials: string;
   notificationCount: number;
   notificationsOpen: boolean;

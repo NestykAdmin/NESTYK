@@ -11,6 +11,25 @@ type PasswordClient = {
   };
 };
 
+/** Checks the current password by signing in again. A wrong password changes nothing. */
+export async function confirmCurrentPassword(
+  client: PasswordClient,
+  email: string,
+  currentPassword: string,
+  captchaToken?: string,
+): Promise<void> {
+  const signedIn = await client.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password: currentPassword,
+    ...(captchaToken ? { options: { captchaToken } } : {}),
+  });
+  if (signedIn.error) {
+    throw Object.assign(new Error(signedIn.error.message), {
+      code: signedIn.error.code === 'invalid_credentials' ? WRONG_PASSWORD : signedIn.error.code,
+    });
+  }
+}
+
 /** Confirms the current password, then stores the new one. A wrong current password changes nothing. */
 export async function changePassword(
   client: PasswordClient,
@@ -22,16 +41,7 @@ export async function changePassword(
   if (!passwordIsStrong(newPassword)) {
     throw Object.assign(new Error('Password is too weak'), { code: WEAK_PASSWORD });
   }
-  const signedIn = await client.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
-    password: currentPassword,
-    ...(captchaToken ? { options: { captchaToken } } : {}),
-  });
-  if (signedIn.error) {
-    throw Object.assign(new Error(signedIn.error.message), {
-      code: signedIn.error.code === 'invalid_credentials' ? WRONG_PASSWORD : signedIn.error.code,
-    });
-  }
+  await confirmCurrentPassword(client, email, currentPassword, captchaToken);
   const updated = await client.auth.updateUser({ password: newPassword });
   if (updated.error) throw new Error(updated.error.message);
   await client.auth.signOut({ scope: 'others' }).catch(() => undefined);

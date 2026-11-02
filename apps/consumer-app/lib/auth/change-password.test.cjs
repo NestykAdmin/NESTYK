@@ -17,7 +17,7 @@ new Function('require', 'module', 'exports', source)((id) => {
   new Function('require', 'module', 'exports', childSource)(() => { throw new Error(id); }, child, child.exports);
   return child.exports;
 }, mod, mod.exports);
-const { changePassword, WRONG_PASSWORD, WEAK_PASSWORD } = mod.exports;
+const { changePassword, confirmCurrentPassword, WRONG_PASSWORD, WEAK_PASSWORD } = mod.exports;
 
 function client({ signInError = null, updateError = null } = {}) {
   const calls = [];
@@ -80,6 +80,15 @@ test('checking the current password includes the captcha token', async () => {
   const auth = client();
   await changePassword(auth, 'jom@nestyk.com', 'old-secret', 'Newsecret1', 'hcaptcha-token');
   assert.deepEqual(auth.calls[0], ['sign-in', { email: 'jom@nestyk.com', password: 'old-secret', options: { captchaToken: 'hcaptcha-token' } }]);
+});
+
+test('confirming the current password rejects a wrong password', async () => {
+  const auth = client({ signInError: { message: 'Invalid login credentials', code: 'invalid_credentials' } });
+  await assert.rejects(
+    () => confirmCurrentPassword(auth, 'Jom@Nestyk.com', 'old-secret', 'hcaptcha-token'),
+    (error) => error.code === WRONG_PASSWORD,
+  );
+  assert.deepEqual(auth.calls, [['sign-in', { email: 'jom@nestyk.com', password: 'old-secret', options: { captchaToken: 'hcaptcha-token' } }]]);
 });
 
 test('a weak new password is rejected before the current password is checked', async () => {

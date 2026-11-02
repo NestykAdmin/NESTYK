@@ -15,6 +15,7 @@ import { MobileNestykLogo } from '../components/MobileNestykLogo';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
 import { MobileProfileEditBody, ProfilePhotoFile, ProfileSaveInput } from '../components/MobileProfileEditBody';
 import { ChangePasswordInput } from './MobileChangePasswordBody';
+import type { AccountDeletionPreview, AccountDeletionProof } from './MobileDeleteAccountBody';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -57,9 +58,14 @@ export interface MobileProfileDrawerProps {
   onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
   onChangePassword?: (input: ChangePasswordInput) => Promise<void>;
+  onLoadAccountDeletion?: () => Promise<AccountDeletionPreview>;
+  onDeleteAccount?: (proof: AccountDeletionProof) => Promise<void>;
+  onScheduleAccountDeletion?: (proof: AccountDeletionProof) => Promise<void>;
+  onCancelAccountDeletion?: () => Promise<void>;
   captcha?: React.ReactNode;
   captchaRequired?: boolean;
   captchaToken?: string | null;
+  onCaptchaReset?: () => void;
   activeRole: UserRole;
   onRoleChange: (role: UserRole) => void;
   onSignOut?: () => void;
@@ -118,9 +124,14 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   onUploadAvatar,
   onRemoveAvatar,
   onChangePassword,
+  onLoadAccountDeletion,
+  onDeleteAccount,
+  onScheduleAccountDeletion,
+  onCancelAccountDeletion,
   captcha,
   captchaRequired,
   captchaToken,
+  onCaptchaReset,
   initials,
   activeRole,
   onRoleChange,
@@ -586,9 +597,14 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                     onUploadAvatar={onUploadAvatar}
                     onRemoveAvatar={onRemoveAvatar}
                     onChangePassword={onChangePassword}
+                    onLoadAccountDeletion={onLoadAccountDeletion}
+                    onDeleteAccount={onDeleteAccount}
+                    onScheduleAccountDeletion={onScheduleAccountDeletion}
+                    onCancelAccountDeletion={onCancelAccountDeletion}
                     captcha={captcha}
                     captchaRequired={captchaRequired}
                     captchaToken={captchaToken}
+                    onCaptchaReset={onCaptchaReset}
                     appVersion="0.1.0"
                     onSignOut={handleSignOut}
                     signOutLabel={signOutLabel}

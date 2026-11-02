@@ -222,6 +222,24 @@ export interface TranslationSchema {
       done: string;
       security: string;
       changePassword: string;
+      deleteAccount: string;
+      deleteAccountBody: string;
+      deleteAccountConfirm: string;
+      deleteAccountNow: string;
+      deleteAccountLater: string;
+      deleteAccountConfirmNow: string;
+      deleteAccountConfirmLater: string;
+      deleteAccountScheduled: string;
+      deleteAccountOverview: string;
+      deleteAccountCancel: string;
+      deleteAccountCancelConfirm: string;
+      deleteAccountPasswordPrompt: string;
+      deleteAccountBlocked: string;
+      deleteAccountReasons: {
+        open_contract: string;
+        unpaid_bill: string;
+        unrefunded_deposit: string;
+      };
       linkedAccounts: {
         title: string;
         subtitle: string;

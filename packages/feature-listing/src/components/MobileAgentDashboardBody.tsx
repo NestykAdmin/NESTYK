@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import {
+  AccountDeletionNotice,
   MobileButton,
   MobileIcon,
   MobileProfileAvatar,
@@ -26,6 +27,7 @@ export type MobileAgentDashboardBodyProps = {
   /** Initials for greeting avatar (display only). */
   initials?: string;
   avatarUri?: string | null;
+  deletionScheduledFor?: string | null;
 };
 
 const { subtle, brand, primary, success, danger, accent, onBrand } = tokens.colors;
@@ -99,6 +101,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
   onRefresh,
   initials = '?',
   avatarUri,
+  deletionScheduledFor,
 }) => {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
@@ -207,6 +210,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
 
   return (
     <View style={styles.root}>
+      {deletionScheduledFor ? <AccountDeletionNotice scheduledFor={deletionScheduledFor} /> : null}
       {snapshot.isDemoPreview ? (
         <View style={[styles.demoBanner, { backgroundColor: subtle.brandBg, borderColor: brand[500] }]}>
           <Text style={[styles.demoBannerText, { color: primary }]}>{copy.demoBanner}</Text>

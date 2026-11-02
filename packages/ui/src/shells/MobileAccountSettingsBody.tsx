@@ -19,6 +19,8 @@ import { tokens } from '../theme/tokens';
 import { getCardElevation } from '../theme/elevation';
 import { useMobileTheme } from '../theme/ThemeContext';
 import { ChangePasswordInput, MobileChangePasswordBody } from './MobileChangePasswordBody';
+import { MobileDeleteAccountBody } from './MobileDeleteAccountBody';
+import type { AccountDeletionPreview, AccountDeletionProof } from './MobileDeleteAccountBody';
 
 export interface MobileAccountProfile {
   name: string;
@@ -38,9 +40,14 @@ export interface MobileAccountSettingsBodyProps {
   onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
   onChangePassword?: (input: ChangePasswordInput) => Promise<void>;
+  onLoadAccountDeletion?: () => Promise<AccountDeletionPreview>;
+  onDeleteAccount?: (proof: AccountDeletionProof) => Promise<void>;
+  onScheduleAccountDeletion?: (proof: AccountDeletionProof) => Promise<void>;
+  onCancelAccountDeletion?: () => Promise<void>;
   captcha?: React.ReactNode;
   captchaRequired?: boolean;
   captchaToken?: string | null;
+  onCaptchaReset?: () => void;
 }
 
 export interface MobileAccountSettingsBodyHandle {
@@ -52,6 +59,7 @@ type SettingsView =
   | 'profile'
   | 'linkedAccounts'
   | 'password'
+  | 'delete'
   | 'about'
   | 'terms'
   | 'privacy'
@@ -76,9 +84,14 @@ export const MobileAccountSettingsBody = forwardRef<
   onUploadAvatar,
   onRemoveAvatar,
   onChangePassword,
+  onLoadAccountDeletion,
+  onDeleteAccount,
+  onScheduleAccountDeletion,
+  onCancelAccountDeletion,
   captcha,
   captchaRequired,
   captchaToken,
+  onCaptchaReset,
 }, ref) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
@@ -102,6 +115,8 @@ export const MobileAccountSettingsBody = forwardRef<
           return t.mobile.account.linkedAccounts.title;
         case 'password':
           return t.mobile.account.changePassword;
+        case 'delete':
+          return t.mobile.account.deleteAccount;
         case 'about':
           return t.mobile.appSettings.aboutNestyk;
         case 'terms':
@@ -228,6 +243,21 @@ export const MobileAccountSettingsBody = forwardRef<
             />
           </View>
         );
+      case 'delete':
+        return onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion ? (
+          <View style={{ width: paneWidth, flex: 1 }}>
+            <MobileDeleteAccountBody
+              onLoad={onLoadAccountDeletion}
+              onDeleteNow={onDeleteAccount}
+              onSchedule={onScheduleAccountDeletion}
+              onCancelSchedule={onCancelAccountDeletion}
+              captcha={captcha}
+              captchaRequired={captchaRequired}
+              captchaToken={captchaToken}
+              onCaptchaReset={onCaptchaReset}
+            />
+          </View>
+        ) : null;
       case 'about':
         return renderInfoBody(t.mobile.appSettings.aboutBody);
       case 'terms':
@@ -346,6 +376,17 @@ export const MobileAccountSettingsBody = forwardRef<
                 </View>
               </View>
 
+              {onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion ? (
+                <TouchableOpacity
+                  style={[styles.signOutBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+                  onPress={() => openNested('delete')}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.mobile.account.deleteAccount}
+                >
+                  <Text style={[styles.signOutText, { color: tokens.colors.danger }]}>{t.mobile.account.deleteAccount}</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={[
                   styles.signOutBtn,
