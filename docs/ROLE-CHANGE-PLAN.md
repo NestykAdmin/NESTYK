@@ -241,6 +241,7 @@ UPDATE public.master_roles
 | `qa-self-owner@nestyk.test` | ยังไม่สร้าง (รอ role `self_owner` รอบ 2) | guest, self_owner |
 | `qa-agent@nestyk.test` | guest, agent | guest, agent |
 | `qa-admin@nestyk.test` | guest, admin | guest, admin |
+| `qa-agent2@nestyk.test` | guest, agent | guest, agent (นายหน้าคนที่ 2 เพิ่ม 2 พ.ย. 2026) |
 
 - รหัสผ่านทุกบัญชีเท่ากัน มาจาก `TEST_USER_PASSWORD` ใน `.env.api` ถ้ามี `#` ต้องครอบด้วย `"..."`
 - หยุดทันทีถ้าไม่มี `ALLOW_TEST_USERS=true` (อ่านจาก `.env.api` หรือตัวแปรใน shell), ขาด `DATABASE_URL`/`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`, รหัสผ่านสั้นกว่า 8 ตัว หรือโดเมนไม่มีจุด ห้ามตั้ง `ALLOW_TEST_USERS=true` ในไฟล์ที่ชี้ prod
