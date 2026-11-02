@@ -5,13 +5,14 @@ import { env } from '../config/env';
 /**
  * ตัวกันของเทสที่เขียนข้อมูลจริง (tests/write)
  *
- * เทสชุดนี้สร้างและแก้ข้อมูลในฐานข้อมูลที่ API ต่ออยู่ ด้วยบัญชี qa-agent เท่านั้น
+ * เทสชุดนี้สร้างและแก้ข้อมูลในฐานข้อมูลที่ API ต่ออยู่ ด้วยบัญชี qa-agent (เทสลีด) และ qa-agent, qa-tenant, qa-landlord (เทสวงจรเช่าห้อง)
  * ตรวจก่อนส่งคำขอใด ๆ ไปที่ API (write-global-setup.ts เรียกเป็นอย่างแรก) ถ้าข้อไหนไม่ผ่านให้หยุด
  *   1. ผู้รันตั้ง E2E_ALLOW_WRITES=yes เอง (ตั้งใจรันเทสที่เขียนข้อมูล)
  *   2. ทีมยังไม่ตกลงเรื่องข้อมูล E2E- ในฐานข้อมูลของทีม (TEAM_DB_WRITES_AGREED = false):
  *      ผู้รันต้องตั้ง E2E_WRITE_TARGET=own-db เพื่อยืนยันว่า API ต่อฐานข้อมูลที่ QA เป็นเจ้าของ ไม่ใช่ของทีม
  *      และ DATABASE_URL ทุกบรรทัดในไฟล์ .env.api ที่รากของ repo ต้องชี้ไปที่เครื่องนี้ (assertEnvFileDatabaseIsLocal)
  *   3. API อยู่ในเครื่องที่รัน (localhost, 127.0.0.1 หรือ [::1])
+ *   เทสที่อัปโหลดไฟล์ (วงจรเช่าห้อง) ตรวจเพิ่มใน fixture: SUPABASE_URL ทุกบรรทัดใน .env.api ต้องชี้เครื่องนี้ด้วย (assertEnvFileStorageIsLocal)
  * ข้อจำกัด: API อ่าน .env.api ที่รากของ repo ครั้งเดียวตอนเปิด (apps/api/src/main.ts บรรทัด 5-21 ที่ qa/e2e a7eb77c) ส่วนตัวกันอ่านไฟล์ตอนรันเทส
  *   ตัวกันจึงมองไม่เห็นค่าที่ API ใช้อยู่จริงในกรณีเหล่านี้: ตั้ง DATABASE_URL ใน Terminal ตอนเปิด API (dotenv ไม่ทับตัวแปรที่ตั้งไว้แล้ว),
  *   แก้ไฟล์แล้วไม่ได้เปิด API ใหม่, เปิด API จากสำเนาอื่นของ repo, หรือ localhost เป็นทางผ่าน (port forward, tunnel) ไปยังฐานข้อมูลของทีม
@@ -76,6 +77,41 @@ export function assertEnvFileDatabaseIsLocal(path: string = ROOT_ENV_API): void 
       throw new Error(
         'หยุดก่อนเรียก API: DATABASE_URL ใน .env.api ที่รากของ repo ไม่ได้ชี้ไปที่เครื่องนี้ (ไม่พิมพ์ค่า) ' +
           'จึงน่าจะเป็นฐานข้อมูลของทีม ทีมยังไม่ได้ตกลงให้เทสเขียนข้อมูลลงฐานข้อมูลของทีม',
+      );
+    }
+  }
+}
+
+/**
+ * ส่วนของเทสที่อัปโหลดไฟล์: ระหว่างที่ TEAM_DB_WRITES_AGREED = false ทุกบรรทัด SUPABASE_URL ใน .env.api ที่รากของ repo ต้องชี้เครื่องนี้
+ * เหตุผล: API เขียนไฟล์ลงที่เก็บไฟล์ที่ SUPABASE_URL ชี้ (apps/api/src/agent/contracts/contract-document-storage.service.ts
+ * storage() บรรทัด 65-74 ที่ develop bc77a8b) ถ้าเปลี่ยนแค่ DATABASE_URL เป็นฐานข้อมูลในเครื่อง ไฟล์ของทุกรอบจะไปอยู่ใน Storage ของทีม
+ * ไม่มีไฟล์หรือไม่มี SUPABASE_URL = หยุด เพราะตรวจไม่ได้ ข้อความหยุดไม่พิมพ์ค่า ข้อจำกัดเดียวกับ DATABASE_URL (ค่าที่ตั้งใน Terminal ตอนเปิด API ตัวกันไม่เห็น)
+ */
+export function assertEnvFileStorageIsLocal(path: string = ROOT_ENV_API): void {
+  if (TEAM_DB_WRITES_AGREED) return;
+  if (!existsSync(path)) {
+    throw new Error(`หยุดก่อนเรียก API: ไม่พบ .env.api ที่รากของ repo จึงตรวจไม่ได้ว่า API เขียนไฟล์ลงที่เก็บไฟล์ไหน (${path})`);
+  }
+  const values = readFileSync(path, 'utf8')
+    .split(/\r?\n/)
+    .map((line) => /^\s*(?:export\s+)?SUPABASE_URL\s*(?:=|:\s)\s*(.*)$/.exec(line)?.[1])
+    .filter((value): value is string => value !== undefined)
+    .map((value) => value.trim().replace(/^(['"])(.*)\1$/, '$2'));
+  if (values.length === 0) {
+    throw new Error('หยุดก่อนเรียก API: .env.api ที่รากของ repo ไม่มี SUPABASE_URL จึงตรวจไม่ได้ว่า API เขียนไฟล์ลงที่เก็บไฟล์ไหน');
+  }
+  for (const value of values) {
+    let host: string;
+    try {
+      host = new URL(value).hostname.toLowerCase();
+    } catch {
+      throw new Error('หยุดก่อนเรียก API: อ่าน SUPABASE_URL ใน .env.api ที่รากของ repo ไม่ได้ (ไม่พิมพ์ค่า)');
+    }
+    if (!LOCAL_HOSTS.has(host)) {
+      throw new Error(
+        'หยุดก่อนเรียก API: SUPABASE_URL ใน .env.api ที่รากของ repo ไม่ได้ชี้ไปที่เครื่องนี้ (ไม่พิมพ์ค่า) ' +
+          'เทสวงจรเช่าห้องจะอัปโหลดไฟล์ลงที่เก็บไฟล์ของทีม ซึ่งทีมยังไม่ได้ตกลง',
       );
     }
   }
