@@ -274,6 +274,26 @@ export interface TranslationSchema {
       socialDivider: string;
       newHere: string;
       signUp: string;
+      registrationTitle: string;
+      registrationSubtitle: string;
+      fullName: string;
+      confirmPassword: string;
+      registerButton: string;
+      registerOr: string;
+      registerWithGoogle: string;
+      registerWithFacebook: string;
+      backToLogin: string;
+      emailConfirmationTitle: string;
+      emailConfirmationBody: string;
+      registrationRequiredFields: string;
+      invalidEmail: string;
+      passwordTooShort: string;
+      passwordMismatch: string;
+      registrationFailed: string;
+      registrationUnavailable: string;
+      testRegistration: string;
+      testRegistrationUnavailable: string;
+      emailAlreadyRegistered: string;
       showPassword: string;
       hidePassword: string;
       socialLogin: string;
@@ -308,6 +328,11 @@ export interface TranslationSchema {
     billsAndPayments: string;
     reportIssue: string;
     cleaningRequest: string;
+    webWorkspace: {
+      brandTag: string;
+      workspaceLabel: string;
+      main: string;
+    };
     bills: {
       current: string;
       history: string;
@@ -367,6 +392,11 @@ export interface TranslationSchema {
     rentalIncome: string;
     coAgentSettings: string;
     requestMaintenance: string;
+    webWorkspace: {
+      brandTag: string;
+      workspaceLabel: string;
+      main: string;
+    };
     bills: {
       current: string;
       history: string;

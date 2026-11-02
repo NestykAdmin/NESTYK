@@ -1,16 +1,21 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { UserEntity } from '../entities/user.entity';
 import { MasterRoleEntity, MasterRoleName } from '../entities/master-role.entity';
 import { UserRoleEntity } from '../entities/user-role.entity';
 import { AuthRequestUser } from './decorators/current-user.decorator';
 import { JwtIdentity } from './guards/auth.guard';
+import { devRegistrationEnabled } from './guards/dev-registration.guard';
+import { ProfileAvatarStorage } from './profile-avatar-storage.service';
 
 export type AuthUserResponse = {
   id: number;
@@ -25,9 +30,13 @@ export type AuthUserResponse = {
 };
 
 const DEV_GRANTABLE: MasterRoleName[] = ['landlord', 'tenant', 'agent', 'admin'];
+// Public self-registration policy approved for this release. Applied only when provisioning a new profile.
+const SELF_REGISTRATION_ROLES: MasterRoleName[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
 
 @Injectable()
 export class AuthService {
+  private registrationAdminClient: SupabaseClient | null = null;
+
   constructor(
     @InjectRepository(UserEntity)
     private readonly usersRepo: Repository<UserEntity>,
@@ -37,7 +46,51 @@ export class AuthService {
     private readonly userRolesRepo: Repository<UserRoleEntity>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly avatars?: ProfileAvatarStorage,
   ) {}
+
+  async registerForTesting(body: unknown): Promise<{ created: true }> {
+    if (!devRegistrationEnabled()) {
+      throw new NotFoundException({ code: 'TEST_REGISTRATION_UNAVAILABLE', message: 'Test registration is unavailable' });
+    }
+    const input = body as Record<string, unknown> | null;
+    if (!input || Array.isArray(input) ||
+        typeof input.email !== 'string' || input.email.trim().length > 255 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim()) ||
+        typeof input.password !== 'string' || input.password.length < 8 || input.password.length > 1024 ||
+        typeof input.firstName !== 'string' || !input.firstName.trim() || input.firstName.trim().length > 255 ||
+        typeof input.lastName !== 'string' || !input.lastName.trim() || input.lastName.trim().length > 255) {
+      throw new BadRequestException({ code: 'REGISTRATION_INVALID_INPUT', message: 'Invalid registration input' });
+    }
+    if (!this.registrationAdminClient) {
+      const url = process.env.SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!url || !key) {
+        throw new ServiceUnavailableException({ code: 'TEST_REGISTRATION_UNAVAILABLE', message: 'Test registration is unavailable' });
+      }
+      this.registrationAdminClient = createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+    }
+    const firstName = input.firstName.trim();
+    const lastName = input.lastName.trim();
+    const { data, error } = await this.registrationAdminClient.auth.admin.createUser({
+      email: input.email.trim().toLowerCase(),
+      password: input.password,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName, last_name: lastName,
+        full_name: `${firstName} ${lastName}`, registration_source: 'self_service',
+      },
+    });
+    if (error?.code === 'email_exists' || error?.code === 'user_already_exists') {
+      throw new ConflictException({ code: 'email_exists', message: 'Email already registered' });
+    }
+    if (error || !data.user) {
+      throw new BadRequestException({ code: 'REGISTRATION_FAILED', message: 'Registration failed' });
+    }
+    return { created: true };
+  }
 
   async findBySupabaseUserId(supabaseUserId: string): Promise<UserEntity | null> {
     return this.usersRepo.findOne({ where: { supabase_user_id: supabaseUserId } });
@@ -99,18 +152,28 @@ export class AuthService {
         });
         user = await manager.save(user);
 
-        const guest = await manager.findOne(MasterRoleEntity, {
-          where: { name: 'guest' },
-        });
-        if (!guest) {
-          throw new BadRequestException('master_roles.guest is missing — run npm run db:push and db:seed masters');
+        if (identity.selfRegistered) {
+          const roles = await manager.find(MasterRoleEntity, { where: { name: In(SELF_REGISTRATION_ROLES) } });
+          const missing = SELF_REGISTRATION_ROLES.filter(name => !roles.some(role => role.name === name));
+          if (missing.length) {
+            throw new BadRequestException(`Missing registration roles: ${missing.join(', ')}`);
+          }
+          const userId = user.id;
+          await manager.save(roles.map(role => manager.create(UserRoleEntity, { user_id: userId, role_id: role.id })));
+        } else {
+          const guest = await manager.findOne(MasterRoleEntity, {
+            where: { name: 'guest' },
+          });
+          if (!guest) {
+            throw new BadRequestException('master_roles.guest is missing — run npm run db:push and db:seed masters');
+          }
+          await manager.save(
+            manager.create(UserRoleEntity, {
+              user_id: user.id,
+              role_id: guest.id,
+            }),
+          );
         }
-        await manager.save(
-          manager.create(UserRoleEntity, {
-            user_id: user.id,
-            role_id: guest.id,
-          }),
-        );
       }
 
       const loaded = await manager.findOne(UserEntity, {
@@ -149,6 +212,20 @@ export class AuthService {
 
   async updateAvatar(userId: number, avatarUrl: string): Promise<AuthUserResponse> {
     if (typeof avatarUrl !== 'string' || !avatarUrl.trim() || avatarUrl.length > 512) throw new BadRequestException('avatarUrl must be text up to 512 characters');
+    return this.storeAvatar(userId, avatarUrl.trim());
+  }
+
+  async uploadAvatar(userId: number, file: { buffer: Buffer; size: number } | undefined): Promise<AuthUserResponse> {
+    if (!this.avatars) throw new ServiceUnavailableException('Profile photo storage is not configured');
+    const avatarUrl = await this.avatars.upload(userId, file);
+    return this.storeAvatar(userId, avatarUrl);
+  }
+
+  async clearAvatar(userId: number): Promise<AuthUserResponse> {
+    return this.storeAvatar(userId, null);
+  }
+
+  private async storeAvatar(userId: number, avatarUrl: string | null): Promise<AuthUserResponse> {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     user.avatar_url = avatarUrl;

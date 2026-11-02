@@ -13,7 +13,7 @@ import { useLocale } from '@nestyk/i18n';
 import { MobileIcon } from '../icons/MobileIcon';
 import { AppIconName } from '../icons/types';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
-import { MobileProfileEditBody } from '../components/MobileProfileEditBody';
+import { MobileProfileEditBody, ProfilePhotoFile, ProfileSaveInput } from '../components/MobileProfileEditBody';
 import { MobileLinkedAccountsBody } from '../components/MobileLinkedAccountsBody';
 import { tokens } from '../theme/tokens';
 import { getCardElevation } from '../theme/elevation';
@@ -25,6 +25,7 @@ export interface MobileAccountProfile {
   initials: string;
   email: string;
   phone?: string;
+  avatarUri?: string | null;
 }
 
 export interface MobileAccountSettingsBodyProps {
@@ -33,6 +34,9 @@ export interface MobileAccountSettingsBodyProps {
   signOutLabel?: string;
   onNestedViewChange?: (active: boolean, title?: string) => void;
   appVersion?: string;
+  onSaveProfile?: (input: ProfileSaveInput) => Promise<void>;
+  onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
+  onRemoveAvatar?: () => Promise<void>;
 }
 
 export interface MobileAccountSettingsBodyHandle {
@@ -64,6 +68,9 @@ export const MobileAccountSettingsBody = forwardRef<
   signOutLabel,
   onNestedViewChange,
   appVersion = '0.1.0',
+  onSaveProfile,
+  onUploadAvatar,
+  onRemoveAvatar,
 }, ref) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
@@ -188,6 +195,10 @@ export const MobileAccountSettingsBody = forwardRef<
               name={profile.name}
               email={profile.email}
               phone={profile.phone}
+              avatarUri={profile.avatarUri}
+              onSave={onSaveProfile}
+              onUploadAvatar={onUploadAvatar}
+              onRemoveAvatar={onRemoveAvatar}
             />
           </View>
         );
