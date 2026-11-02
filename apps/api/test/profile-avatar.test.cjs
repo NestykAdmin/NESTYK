@@ -38,13 +38,57 @@ test('saving a profile photo stores the uploaded address and clearing removes it
       assert.equal(userId, 7);
       assert.equal(file.size, 1);
       return 'https://cdn.example/avatar.jpg';
-    } },
+    }, removeOwned: async (userId, url) => { removed.push([userId, url]); return true; } },
   );
+  const removed = [];
   const uploaded = await service.uploadAvatar(7, { buffer: Buffer.from('x'), size: 1 });
   assert.equal(uploaded.avatarUrl, 'https://cdn.example/avatar.jpg');
   assert.equal(user.avatar_url, 'https://cdn.example/avatar.jpg');
+  assert.deepEqual(removed, [], 'no old photo to remove');
   const cleared = await service.clearAvatar(7);
   assert.equal(cleared.avatarUrl, null);
   assert.equal(user.avatar_url, null);
   assert.equal(writes, 2);
+  // R5: clearing removes the photo that was saved before.
+  assert.deepEqual(removed, [[7, 'https://cdn.example/avatar.jpg']]);
+});
+
+test('R5: replacing a photo removes the old one after the new address is saved', async () => {
+  const user = { id: 7, email: 'a@example.test', first_name: 'A', last_name: 'B', avatar_url: 'old-url', user_roles: [] };
+  const order = [];
+  const service = new AuthService(
+    { findOne: async () => user, save: async (row) => { order.push(['save', row.avatar_url]); return row; } },
+    {}, {}, {},
+    { upload: async () => 'new-url', removeOwned: async (_id, url) => { order.push(['remove', url]); return true; } },
+  );
+  await service.uploadAvatar(7, { buffer: Buffer.from('x'), size: 1 });
+  assert.deepEqual(order, [['save', 'new-url'], ['remove', 'old-url']]);
+  order.length = 0;
+  await service.updateAvatar(7, 'new-url');
+  assert.deepEqual(order, [['save', 'new-url']], 'the same address is not removed');
+});
+
+test('R5: only this user\'s file in this bucket on this project is ever removed', async () => {
+  const old = process.env.SUPABASE_URL; process.env.SUPABASE_URL = 'https://proj.supabase.co';
+  try {
+    const storage = new ProfileAvatarStorage();
+    const own = 'https://proj.supabase.co/storage/v1/object/public/profile-avatars/7/0f8fad5b-d9cb-469f-a165-70867728950e.jpg';
+    assert.equal(storage.ownedObjectPath(7, own), '7/0f8fad5b-d9cb-469f-a165-70867728950e.jpg');
+    for (const url of [
+      own.replace('/7/', '/8/'),                                  // another user's photo
+      own.replace('proj.supabase.co', 'evil.example'),            // another host
+      own.replace('profile-avatars', 'contract-documents'),       // another bucket
+      'https://proj.supabase.co/storage/v1/object/public/profile-avatars/7/..%2F8%2Fx.jpg',
+      'https://lh3.googleusercontent.com/a/photo',                // a Google profile picture
+      'not a url', null,
+    ]) assert.equal(storage.ownedObjectPath(7, url), null, String(url));
+    const calls = [];
+    storage.storage = () => ({ remove: async (paths) => { calls.push(paths); return { error: null }; } });
+    assert.equal(await storage.removeOwned(7, own), true);
+    assert.equal(await storage.removeOwned(7, 'https://lh3.googleusercontent.com/a/photo'), false);
+    assert.deepEqual(calls, [['7/0f8fad5b-d9cb-469f-a165-70867728950e.jpg']]);
+    storage.storage = () => ({ remove: async () => ({ error: new Error('storage down') }) });
+    storage.logger = { warn() {} };
+    assert.equal(await storage.removeOwned(7, own), false, 'a failed removal does not throw');
+  } finally { if (old === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = old; }
 });

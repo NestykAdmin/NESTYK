@@ -9,7 +9,16 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'google-o
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('unexpected import'); }, mod, mod.exports);
-const { providerRedirectPending, redirectParams, startGoogleOAuth } = mod.exports;
+const { providerRedirectPending, redirectParams, startGoogleOAuth, socialLoginProvider } = mod.exports;
+
+test('R2: Google and Facebook stay off unless EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN is exactly "true"', () => {
+  for (const enabled of [undefined, '', 'false', '1', 'TRUE', true]) {
+    for (const button of ['Google', 'Facebook', 'Apple']) assert.equal(socialLoginProvider(button, enabled), null, `${button} ${enabled}`);
+  }
+  assert.equal(socialLoginProvider('Google', 'true'), 'google');
+  assert.equal(socialLoginProvider('Facebook', 'true'), 'facebook');
+  assert.equal(socialLoginProvider('Apple', 'true'), null);
+});
 
 test('a provider return is recognized from the code or the token, and a normal page is not', () => {
   assert.equal(providerRedirectPending(null), false);

@@ -194,14 +194,16 @@ export async function ensurePartyLogin(db: DataSource, input: PartyLoginInput): 
         }),
       );
     } else {
+      // R1 (entity analysis 5.3, Mos 2 Nov 2026): an agent's letter may name an account that already exists (anyone
+      // can sign up as an agent), so it only fills what the account is missing and never rewrites its profile.
       if (!user.supabase_user_id) user.supabase_user_id = supabaseId;
       if (!user.phone) user.phone = phone;
-      if (first) {
+      if (first && !user.first_name?.trim()) {
         user.first_name = first;
-        user.last_name = last;
+        if (!user.last_name?.trim()) user.last_name = last;
       }
-      if (identity) user.identity_number = identity;
-      if (nationality) user.nationality = nationality;
+      if (identity && !user.identity_number?.trim()) user.identity_number = identity;
+      if (nationality && !user.nationality?.trim()) user.nationality = nationality;
       await manager.save(user);
     }
     const role = await manager.findOneBy(MasterRoleEntity, { name: input.role });

@@ -3132,49 +3132,70 @@ export class AgentContractsService {
     }));
   }
 
-  async searchOwnerUsers(query: string) {
+  /**
+   * R1 (entity analysis 5.2 and 5.3, Mos 2 Nov 2026): agents sign up by themselves, so the search only gives back
+   * what this agent typed as the landlord in this agent's own reservation letters (the latest letter for each
+   * email), never the account behind the email. Naming another person's email in a draft letter therefore shows
+   * nothing of that person. Identity numbers are not a search key.
+   */
+  async searchOwnerUsers(agentId: number, query: string) {
     const q = query.trim();
-    if (!q || q.length > 80) return [];
+    if (!Number.isInteger(agentId) || agentId < 1 || !q || q.length > 80) return [];
     const like = `%${q.replace(/[%_\\]/g, "")}%`;
     const rows: Array<{
-      id: number;
+      id: number | null;
       email: string;
       phone: string | null;
-      first_name: string;
-      last_name: string;
+      first_name: string | null;
+      last_name: string | null;
+      name: string | null;
       identity_number: string | null;
       nationality: string | null;
     }> = await this.db.query(
       `
-      SELECT u.id, u.email, u.phone, u.first_name, u.last_name,
-             u.identity_number, u.nationality
-      FROM users u
-      INNER JOIN user_roles ur ON ur.user_id = u.id
-      INNER JOIN master_roles r ON r.id = ur.role_id
-      WHERE r.name = 'landlord'
-        AND (
-          u.email ILIKE $1
-          OR COALESCE(u.phone, '') ILIKE $1
-          OR u.first_name ILIKE $1
-          OR u.last_name ILIKE $1
-          OR (u.first_name || ' ' || u.last_name) ILIKE $1
-          OR COALESCE(u.identity_number, '') ILIKE $1
-        )
-      ORDER BY u.first_name ASC, u.id ASC
+      SELECT * FROM (
+        SELECT DISTINCT ON (LOWER(rl->>'landlordEmail'))
+               lc.owner_user_id AS id,
+               rl->>'landlordEmail' AS email,
+               rl->>'landlordPhone' AS phone,
+               rl->>'landlordFirstName' AS first_name,
+               rl->>'landlordLastName' AS last_name,
+               rl->>'landlordName' AS name,
+               rl->>'landlordId' AS identity_number,
+               rl->>'landlordNationality' AS nationality
+        FROM lease_contracts lc
+        CROSS JOIN LATERAL (SELECT lc.data->'reservationLetter' AS rl) letter
+        WHERE lc.created_by_user_id = $2
+          AND jsonb_typeof(rl) = 'object'
+          AND COALESCE(rl->>'landlordEmail', '') <> ''
+          AND (
+            rl->>'landlordEmail' ILIKE $1
+            OR COALESCE(rl->>'landlordPhone', '') ILIKE $1
+            OR COALESCE(rl->>'landlordFirstName', '') ILIKE $1
+            OR COALESCE(rl->>'landlordLastName', '') ILIKE $1
+            OR COALESCE(rl->>'landlordName', '') ILIKE $1
+          )
+        ORDER BY LOWER(rl->>'landlordEmail'), lc.updated_at DESC NULLS LAST, lc.id DESC
+      ) latest
+      ORDER BY COALESCE(first_name, name) ASC, email ASC
       LIMIT 15
       `,
-      [like],
+      [like, agentId],
     );
-    return rows.map((row) => ({
-      id: row.id,
-      name: `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim(),
-      firstName: row.first_name ?? "",
-      lastName: row.last_name ?? "",
-      email: row.email,
-      phone: row.phone ?? "",
-      identityNumber: row.identity_number ?? "",
-      nationality: row.nationality ?? "",
-    }));
+    return rows.map((row) => {
+      const firstName = row.first_name ?? "";
+      const lastName = row.last_name ?? "";
+      return {
+        id: row.id,
+        name: `${firstName} ${lastName}`.trim() || (row.name ?? ""),
+        firstName,
+        lastName,
+        email: row.email,
+        phone: row.phone ?? "",
+        identityNumber: row.identity_number ?? "",
+        nationality: row.nationality ?? "",
+      };
+    });
   }
 
   async reservationDefaults(

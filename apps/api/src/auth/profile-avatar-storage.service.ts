@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
@@ -9,6 +9,7 @@ export const MAX_PROFILE_AVATAR_BYTES = 5 * 1024 * 1024;
 export class ProfileAvatarStorage {
   private client?: SupabaseClient;
   private readonly bucket = process.env.SUPABASE_BUCKET_AVATARS || 'profile-avatars';
+  private readonly logger = new Logger(ProfileAvatarStorage.name);
   private bucketReady?: Promise<void>;
 
   private async ensureBucket() {
@@ -69,5 +70,39 @@ export class ProfileAvatarStorage {
     const avatarUrl = storage.getPublicUrl(objectPath).data.publicUrl;
     if (!avatarUrl || avatarUrl.length > 512) throw new ServiceUnavailableException('Profile photo address is not usable');
     return avatarUrl;
+  }
+
+  /**
+   * R5 (Mos 2 Nov 2026): the bucket is public, so a replaced or cleared photo must leave storage too. Only a file of
+   * this user in this bucket on this project's Supabase is removed; anything else (an outside URL) is left alone.
+   * A failed removal is logged and never fails the profile change.
+   */
+  async removeOwned(userId: number, avatarUrl: string | null | undefined): Promise<boolean> {
+    const objectPath = this.ownedObjectPath(userId, avatarUrl);
+    if (!objectPath) return false;
+    try {
+      const { error } = await this.storage().remove([objectPath]);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      this.logger.warn(`Could not remove old profile photo ${objectPath}: ${(error as Error)?.message ?? error}`);
+      return false;
+    }
+  }
+
+  ownedObjectPath(userId: number, avatarUrl: string | null | undefined): string | null {
+    if (!avatarUrl || !Number.isInteger(userId) || userId < 1) return null;
+    const base = process.env.SUPABASE_URL;
+    if (!base) return null;
+    try {
+      const url = new URL(avatarUrl);
+      if (url.origin !== new URL(base).origin) return null;
+      const marker = `/storage/v1/object/public/${this.bucket}/`;
+      if (!url.pathname.startsWith(marker)) return null;
+      const objectPath = decodeURIComponent(url.pathname.slice(marker.length));
+      return /^\d+\/[0-9a-f-]{36}\.jpg$/i.test(objectPath) && objectPath.startsWith(`${userId}/`) ? objectPath : null;
+    } catch {
+      return null;
+    }
   }
 }

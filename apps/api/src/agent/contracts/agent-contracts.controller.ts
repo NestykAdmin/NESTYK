@@ -342,8 +342,8 @@ export class AgentContractsController {
     return this.contracts.candidates(user.id);
   }
   @Get("owner-users")
-  ownerUsers(@Query("q", SingleQueryPipe) q?: string) {
-    return this.contracts.searchOwnerUsers(q ?? "");
+  ownerUsers(@CurrentUser() user: AuthRequestUser, @Query("q", SingleQueryPipe) q?: string) {
+    return this.contracts.searchOwnerUsers(user.id, q ?? "");
   }
   @Get("reservation-defaults/:leadId") reservationDefaults(
     @CurrentUser() user: AuthRequestUser,

@@ -31,6 +31,7 @@ import { useAuth } from "../lib/auth/AuthContext";
 import { hcaptchaSiteKey } from "../lib/auth/hcaptcha-site-key";
 import { HcaptchaField } from "../components/HcaptchaField";
 import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
+import { socialLoginProvider } from "../lib/auth/google-oauth";
 import { requestGuestBrowse } from "../lib/auth/role-gate";
 import { APP_CONFIG } from "../lib/config";
 
@@ -391,7 +392,9 @@ export default function LoginScreen() {
                     ]}
                     disabled={loading}
                     onPress={() => {
-                      const start = provider === "Google" ? signInWithGoogle : provider === "Facebook" ? signInWithFacebook : null;
+                      // R2: off until EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true (providers set up in Supabase).
+                      const oauth = socialLoginProvider(provider, process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN);
+                      const start = oauth === "google" ? signInWithGoogle : oauth === "facebook" ? signInWithFacebook : null;
                       if (!start) {
                         setNotice(copy.unavailable);
                         return;

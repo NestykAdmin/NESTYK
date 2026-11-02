@@ -186,6 +186,8 @@ test('calendar exposes the shared desktop refresh and mobile pull-to-refresh cal
     pendingRefresh: { current: null }, refreshSequence: { current: 0 },
     setPageRefreshing: value => refreshing.push(value), setCalendarReloadToken: token => reloads.push(token), finishPageRefresh() {},
     isTenantWorkspace: false, isWizardTab: false,
+    // R4: index.tsx also refreshes the landlord and tenant web pages; this is the agent on the calendar.
+    isLandlordWeb: false, isTenantWeb: false,
   };
   env.handlePageRefresh = new Function(...Object.keys(env), `return (${initializers.handlePageRefresh});`)(...Object.values(env));
   const callback = new Function(...Object.keys(env), `return (${initializers.onPageRefresh});`)(...Object.values(env));
