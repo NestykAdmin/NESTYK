@@ -12,6 +12,26 @@ export async function expectJson<T>(response: APIResponse, status: number): Prom
 }
 
 /**
+ * ตรวจรหัสตอบกลับโดยไม่ใส่ที่อยู่หรือเนื้อคำตอบในข้อความ แล้วคืนเนื้อคำตอบที่แปลงจาก JSON
+ * ใช้แทน expectJson เมื่อที่อยู่หรือคำตอบมีค่าที่ไม่ควรอยู่ในผลรัน เช่น URL ของ Storage ของทีม (มีที่อยู่ของ SUPABASE_URL)
+ * what = ชื่อคำขอที่จะพิมพ์แทน
+ */
+export async function expectJsonQuiet<T>(response: APIResponse, status: number, what: string): Promise<T> {
+  expect(response.status(), `${what} ต้องตอบ ${status} (ไม่พิมพ์ที่อยู่และเนื้อคำตอบ)`).toBe(status);
+  return (await response.json()) as T;
+}
+
+/**
+ * แบบเดียวกับ expectError แต่ไม่ใส่ที่อยู่หรือเนื้อคำตอบในข้อความถ้ารหัสไม่ตรง (เช่น API รับไฟล์ไปแล้วตอบข้อมูลผู้ใช้ที่มี URL ของ Storage)
+ * คืนข้อความ (message) ของ API
+ */
+export async function expectErrorQuiet(response: APIResponse, status: number, what: string): Promise<string> {
+  const body = await expectJsonQuiet<ApiErrorBody>(response, status, what);
+  expect(body.statusCode).toBe(status);
+  return Array.isArray(body.message) ? body.message.join('; ') : body.message;
+}
+
+/**
  * ตรวจว่า API ปฏิเสธคำขอด้วยรหัสที่คาดไว้ และเนื้อคำตอบเป็นรูปแบบมาตรฐาน { statusCode, message, error }
  * คืนข้อความ (message) ของ API เผื่อเทสอยากตรวจต่อ
  */

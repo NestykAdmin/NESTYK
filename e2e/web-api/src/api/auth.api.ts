@@ -1,6 +1,9 @@
 import type { APIResponse } from '@playwright/test';
 import type { ApiClient } from './api-client';
 
+/** ฟอร์ม multipart: ชื่อช่อง -> ข้อความ หรือไฟล์ */
+export type MultipartForm = Record<string, string | { name: string; mimeType: string; buffer: Buffer }>;
+
 /** เส้นทางกลุ่ม /auth */
 export class AuthApi {
   constructor(private readonly client: ApiClient) {}
@@ -25,5 +28,40 @@ export class AuthApi {
    */
   grantDevRole(role: string): Promise<APIResponse> {
     return this.client.post('auth/dev/roles', { role });
+  }
+
+  /**
+   * POST /auth/dev/register : สร้างบัญชีทดสอบใน Supabase Auth (ไม่ต้องล็อกอิน) ที่มา develop accb616:
+   *   auth.controller.ts:25-29, ตัวกัน guards/dev-registration.guard.ts:3-39 และ registerForTesting ใน auth.service.ts:53-93
+   * เปิดเฉพาะเมื่อ API ตั้ง NODE_ENV=development และ ALLOW_DEV_REGISTRATION=true และคำขอมาตรงจากเครื่องเดียวกัน ไม่อย่างนั้น 404
+   *
+   * ข้อควรระวัง: ถ้าเส้นทางเปิดและเนื้อคำขอถูกทุกช่องด้วยอีเมลใหม่ API จะสร้างบัญชีที่ยืนยันอีเมลแล้วใน Supabase Auth
+   * ซึ่ง API ไม่มีเส้นทางลบ ชุดเทสจึงส่งได้เฉพาะเนื้อคำขอที่ผิด หรืออีเมลของบัญชีที่มีอยู่แล้ว (ได้ 409)
+   * headers ใช้ส่งหัวข้อเพิ่ม เช่น X-Forwarded-For เพื่อทดสอบตัวกัน
+   */
+  devRegister(body: unknown, headers: Record<string, string> = {}): Promise<APIResponse> {
+    return this.client.postWithHeaders('auth/dev/register', body, headers);
+  }
+
+  /**
+   * POST /auth/profile/avatar/upload : อัปโหลดรูปโปรไฟล์ของผู้ล็อกอิน (ช่องไฟล์ชื่อ file, ไม่เกิน 5 MB, ห้ามมีช่องข้อความ)
+   * ที่มา develop accb616: auth.controller.ts:75-84, uploadAvatar ใน auth.service.ts:219-223, profile-avatar-storage.service.ts:45-73
+   *
+   * ข้อควรระวัง: ไฟล์ภาพที่ถูกต้องจะถูกเก็บใน Storage (bucket profile-avatars ซึ่ง API สร้างแบบสาธารณะเองถ้ายังไม่มี)
+   * และเขียน users.avatar_url ของผู้ล็อกอิน เทสใน tests/api จึงส่งได้เฉพาะคำขอที่ API ปฏิเสธก่อนแตะ Storage
+   * multipart = undefined หมายถึงไม่ส่งเนื้อคำขอเลย
+   */
+  uploadAvatar(multipart?: MultipartForm): Promise<APIResponse> {
+    return multipart === undefined ? this.client.post('auth/profile/avatar/upload') : this.client.postMultipart('auth/profile/avatar/upload', multipart);
+  }
+
+  /**
+   * DELETE /auth/profile/avatar : ล้างรูปโปรไฟล์ของผู้ล็อกอิน (ตั้ง avatar_url เป็น null แล้วลบไฟล์เดิมถ้าเป็นไฟล์ของระบบ)
+   * ที่มา develop accb616: auth.controller.ts:86-91, clearAvatar/storeAvatar ใน auth.service.ts:225-240
+   * ข้อควรระวัง: เมื่อผู้ล็อกอินมีบัญชี เส้นทางนี้บันทึกแถว users เสมอ เทสใน tests/api จึงเรียกได้เฉพาะแบบที่ถูกปฏิเสธก่อนเรียก service
+   *   (ไม่มีบัตรผ่าน: AuthGuard ตอบ 401 ; บัตรผ่านของคนที่ไม่มีบัญชี: requireUser ใน controller ตอบ 401)
+   */
+  clearAvatar(): Promise<APIResponse> {
+    return this.client.delete('auth/profile/avatar');
   }
 }

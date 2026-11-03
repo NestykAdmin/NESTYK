@@ -1,5 +1,6 @@
 import { test as base, expect, type APIRequestContext, type PlaywrightWorkerArgs } from '@playwright/test';
 import { ApiClient } from '../api/api-client';
+import { AuthApi } from '../api/auth.api';
 import { LeadsApi } from '../api/leads.api';
 import { LeadsWriteApi } from '../api/leads-write.api';
 import { LifecycleAgentApi, LifecyclePartyApi } from '../api/lifecycle-write.api';
@@ -20,6 +21,7 @@ import { assertEnvFileStorageIsLocal, assertWriteSetupDone } from './write-guard
  * เทสใน tests/write จึงมีแค่ผู้เรียกที่ประกาศในไฟล์นี้ ไม่มี agent, qa หรือ apiAs ที่ข้ามตัวกันได้
  *   writer    = ผู้เรียกที่ล็อกอินด้วย qa-agent (เทสลีด) ใช้ได้ทั้งใน beforeAll, afterAll และตัวเทส (ขอบเขต worker)
  *   crossAgent = qa-agent (owner) กับ qa-agent2 (intruder) ของเทสข้ามนายหน้า (ขอบเขต worker)
+ *   agent2Auth = เส้นทาง /auth ของ qa-agent2 สำหรับเทสรูปโปรไฟล์ (ขอบเขต worker)
  *   lifecycle = ผู้เรียก 3 บทบาทของเทสวงจรเช่าห้อง: qa-agent, qa-tenant และ qa-landlord (ขอบเขต worker)
  *               qa-tenant กับ qa-landlord ต้องตั้ง E2E_QA_TENANT_UUID กับ E2E_QA_LANDLORD_UUID (เทสข้ามก่อนถึง fixture ถ้าไม่ได้ตั้ง)
  *               และถ้า TEAM_DB_WRITES_AGREED เป็น false ตรวจ SUPABASE_URL ใน .env.api ก่อนสร้างผู้เรียก (assertEnvFileStorageIsLocal)
@@ -81,6 +83,7 @@ interface WriteWorkerFixtures {
   writer: WriterSession;
   lifecycle: LifecycleSession;
   crossAgent: CrossAgentSession;
+  agent2Auth: AuthApi;
   /** รหัสรอบที่ write-global-setup ตั้ง */
   runId: string;
 }
@@ -141,6 +144,17 @@ export const test = base.extend<object, WriteWorkerFixtures>({
       const [owner, intruder] = contexts.map((context) => crossAgentApis(new ApiClient(context)));
       await use({ owner, intruder });
       for (const context of contexts) await context.dispose();
+    },
+    { scope: 'worker' },
+  ],
+
+  agent2Auth: [
+    async ({ playwright, runId }, use) => {
+      void runId;
+      // เทสรูปโปรไฟล์ข้ามก่อนถึง fixture ถ้ายังไม่ได้ตั้ง E2E_QA_AGENT2_UUID qaDevToken จึงเป็นตาข่ายสำรอง
+      const context = await contextFor(playwright, tokenOf(qaAgent2));
+      await use(new AuthApi(new ApiClient(context)));
+      await context.dispose();
     },
     { scope: 'worker' },
   ],

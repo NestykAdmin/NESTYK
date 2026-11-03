@@ -30,6 +30,14 @@ export class ApiClient {
     return this.request.put(relativePath(path), body === undefined ? {} : { data: body });
   }
 
+  /**
+   * POST พร้อมหัวข้อเพิ่มเฉพาะคำขอนี้ (เช่น X-Forwarded-For, Origin) ใช้ทดสอบตัวกันที่ดูหัวข้อของคำขอ
+   * หัวข้อที่ส่งที่นี่ทับหัวข้อตั้งต้นของตัวส่งคำขอที่ชื่อเดียวกัน
+   */
+  postWithHeaders(path: string, body: unknown, headers: Record<string, string>): Promise<APIResponse> {
+    return this.request.post(relativePath(path), { data: body, headers });
+  }
+
   delete(path: string): Promise<APIResponse> {
     return this.request.delete(relativePath(path));
   }
