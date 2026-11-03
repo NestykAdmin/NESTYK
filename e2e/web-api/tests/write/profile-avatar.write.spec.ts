@@ -12,8 +12,9 @@ import { expect, test } from '../../src/write/write.fixture';
  *   - upload: ตรวจภาพ (sharp) -> ensureBucket (สร้าง bucket แบบสาธารณะถ้ายังไม่มี บรรทัด 15-35) -> อัปไฟล์ที่ `<users.id>/<uuid>.jpg`
  *     แปลงเป็น JPEG 512x512 (บรรทัด 56) -> บันทึก avatar_url เป็น URL สาธารณะ -> ลบไฟล์เดิมของผู้ใช้นี้ (removeOwned บรรทัด 80-107)
  *   - DELETE: ตั้ง avatar_url เป็น null แล้วลบไฟล์ปัจจุบันเท่านั้น (ไฟล์ก่อนหน้าที่ลบไม่สำเร็จจะไม่ถูกลบซ้ำ)
- * ทำไมต้องตั้ง E2E_ALLOW_AVATAR_WRITES=yes เพิ่ม: ถ้า Storage ของ dev ยังไม่มี bucket profile-avatars รอบแรกจะสร้าง bucket สาธารณะ
- *   ขึ้นมา ซึ่งไม่อยู่ในข้อตกลงกับทีมเมื่อ 2 พ.ย. 2026 ตอนนี้รอทีมยืนยัน (ข้อนี้รันในห้องทดลองของ QA แล้ว)
+ * ทำไมต้องตั้ง E2E_ALLOW_AVATAR_WRITES=yes เพิ่ม: เทสนี้อัปไฟล์ลง bucket สาธารณะทุกรอบ ผู้รันจึงต้องตั้งใจรันเอง
+ *   ทีมยืนยัน 3 พ.ย. 2026 ว่า Storage ของ dev มี bucket profile-avatars แล้ว (รันบน dev ผ่านครั้งแรกวันเดียวกัน รหัสรอบ 20261103-140410)
+ *   ถ้าใช้กับ Storage อื่นที่ยังไม่มี bucket นี้ รอบแรกจะสร้าง bucket สาธารณะขึ้นมาเอง
  * ข้อมูลที่เขียน: ไฟล์ภาพสีพื้นขนาดเล็ก 2 ไฟล์ (src/support/test-images.ts ไม่มีข้อมูลของใคร) ซึ่งถูกลบในข้อเดียวกัน
  *   และ users.avatar_url ของ qa-agent2 ซึ่งจบที่ null เท่ากับตอนเริ่ม
  *   ถ้าเทสไม่ผ่านกลางทาง afterAll ล้างรูปปัจจุบันให้ แต่ทำไม่ได้ 2 กรณี: process ถูกปิดกลางทาง (afterAll ไม่รัน)
@@ -25,7 +26,7 @@ import { expect, test } from '../../src/write/write.fixture';
 test.skip(qaAgent2.uuid === null, `ยังไม่ได้ตั้ง ${qaAgent2.uuidVariable} (uuid ของ ${qaAgent2.email})`);
 test.skip(
   process.env.E2E_ALLOW_AVATAR_WRITES !== 'yes',
-  'ตั้ง E2E_ALLOW_AVATAR_WRITES=yes เมื่อทีมยืนยันแล้วว่าสร้างหรือใช้ bucket profile-avatars ใน Storage ของ dev ได้',
+  'ตั้ง E2E_ALLOW_AVATAR_WRITES=yes เมื่อตั้งใจรันเทสนี้ (อัปไฟล์ลง bucket profile-avatars แบบสาธารณะ แล้วลบในข้อเดียวกัน)',
 );
 
 /** ส่วนของ URL หลัง /object/public/ (bucket/<users.id>/<uuid>.jpg) ใช้บันทึกในรายงานแทน URL เต็ม */
