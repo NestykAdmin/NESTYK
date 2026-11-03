@@ -33,6 +33,8 @@ export interface AgentWorkspaceProps {
   refreshing?: boolean;
   onNavigate: (tab: MobileAppTab) => void;
   onRoleChange: (role: UserRole) => void;
+  /** Roles the signed-in account holds; the role switcher lists only these (plus the active role). Omitted = every role. */
+  allowedRoles?: readonly string[];
   onSignOut: () => void;
   userName: string;
   userEmail: string;
@@ -43,6 +45,8 @@ export interface AgentWorkspaceProps {
   onRemoveAvatar?: () => Promise<void>;
   initials: string;
   notificationCount: number;
+  /** Text for an empty notification list. Defaults to the generic "no data" text. */
+  notificationsEmptyLabel?: string;
   notificationsOpen: boolean;
   onNotificationsOpen: () => void;
   onNotificationsClose: () => void;

@@ -15,6 +15,7 @@ export * from './components/SelectionChip';
 export * from './components/MobileBottomTabBar';
 export * from './config/mobileTabMatrix';
 export * from './config/mobileDrawerMenuMatrix';
+export * from './config/agentComingSoon';
 export * from './components/MobileHeaderActions';
 export * from './components/MobileWorkspaceHeader';
 export * from './components/MobileSectionHeader';

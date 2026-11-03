@@ -24,7 +24,7 @@ function load(filename) {
       return [state[index], value => { state[index] = value; }];
     } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale], setLocale() {} }) };
-    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader' };
+    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader', isAgentComingSoonTab: load(`${root}/packages/ui/src/config/agentComingSoon.ts`).isAgentComingSoonTab };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
@@ -58,7 +58,10 @@ test('sidebar provides the four main destinations and the same four More shortcu
   const tree = render(props({ onNavigate: tab => calls.push(tab), activeTab: 'createLead' }));
   const buttons = byClass(tree, 'aw-nav-item').filter(node => !node.props.disabled);
   buttons.forEach(button => button.props.onClick());
-  assert.deepEqual(calls, ['dashboard', 'listingRoom', 'listingLead', 'clients', 'calendar', 'contact', 'services', 'contracts']);
+  // Contacts, services and contracts archive are "coming soon" (meeting 2 Nov 2026): shown but not clickable
+  assert.deepEqual(calls, ['dashboard', 'listingRoom', 'listingLead', 'clients', 'calendar']);
+  const soon = byClass(tree, 'aw-nav-item').filter(node => node.props.disabled).map(node => node.props.title);
+  assert.deepEqual(soon, ['Contacts · Coming soon', 'Services · Coming soon', 'Contracts archive · Coming soon', 'Commission · Coming soon']);
   assert.equal(buttons.find(node => node.props['aria-current'] === 'page').props.title, 'Leads');
   assert.equal(tree.filter(node => node?.type === 'nav').length, 3);
 });
@@ -203,4 +206,17 @@ test('desktop shell is used for the Agent, Landlord and Tenant roles on web', ()
   assert.match(source, /visible=\{!isDesktopWeb && drawerOpen\}/);
   assert.match(source, /visible=\{!isDesktopWeb && notificationsOpen\}/);
   assert.match(source, /isDesktopWeb \|\| \['createListing'/);
+});
+
+test('the role switcher lists only the roles the account holds, plus the active role', () => {
+  const ROLE_VALUES = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+  state = [];
+  const options = render(props({ allowedRoles: ['guest', 'agent'] })).filter(node => node?.type === 'option' && ROLE_VALUES.includes(node.props.value)).map(node => node.props.value);
+  assert.deepEqual(options, ['guest', 'agent']);
+  state = [];
+  const landlordShell = render(props({ activeRole: 'landlord', allowedRoles: ['agent'] })).filter(node => node?.type === 'option' && ROLE_VALUES.includes(node.props.value)).map(node => node.props.value);
+  assert.deepEqual(landlordShell, ['landlord', 'agent']);
+  state = [];
+  const everyRole = render(props()).filter(node => node?.type === 'option' && ROLE_VALUES.includes(node.props.value)).map(node => node.props.value);
+  assert.deepEqual(everyRole, ['guest', 'tenant', 'landlord', 'agent', 'admin']);
 });

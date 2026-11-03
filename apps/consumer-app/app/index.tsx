@@ -67,6 +67,7 @@ import {
   MobileIcon,
   useMobileTheme,
   getDefaultTabForRole,
+  isAgentComingSoonTab,
   tokens,
 } from '@nestyk/ui/native';
 import { UserRole, CONTRACT_PARTY_ROLE, type AgentLead, type AgentTenant, type ContractParty, type PartyContract } from '@nestyk/types';
@@ -91,12 +92,13 @@ import {
 } from '../lib/auth/role-gate';
 import {
   MOCK_LISTINGS,
-  MOCK_ACTIVITY_NOTIFICATIONS,
-  MOCK_MESSAGE_NOTIFICATIONS,
   MOCK_SERVICE_TICKETS,
   type DemoNotification,
 } from '../lib/mock-data';
 import { localeTag } from '../lib/lead-format';
+
+/** Empty feed until notifications are connected to the API (the bell panel shows "coming soon"). */
+const NO_NOTIFICATIONS: DemoNotification[] = [];
 
 function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t']): string {
   switch (tab) {
@@ -185,7 +187,8 @@ export default function AppHomeScreen() {
         time: time.format(new Date(at)),
         unread: unread && !notificationsRead,
       }));
-    return [show(MOCK_ACTIVITY_NOTIFICATIONS), show(MOCK_MESSAGE_NOTIFICATIONS)];
+    // Notifications are not connected to the API yet: show none instead of the demo feed ("coming soon", meeting 2 Nov 2026).
+    return [show(NO_NOTIFICATIONS), show(NO_NOTIFICATIONS)];
   }, [t, locale, notificationsRead]);
   const [createLeadBusy, setCreateLeadBusy] = useState(false);
   const [leadsWorkFilter, setLeadsWorkFilter] = useState<'lead_follow_up' | null>(null);
@@ -821,13 +824,10 @@ export default function AppHomeScreen() {
           setActiveTab('clients');
           return;
         case 'viewServices':
-          setActiveTab('services');
-          return;
         case 'viewContacts':
-          setActiveTab('contact');
-          return;
         case 'viewContracts':
-          setActiveTab('contracts');
+          // Pages not ready yet (same "coming soon" as the More tab)
+          Alert.alert(t.agent.dashboard.comingSoon, t.agent.dashboard.unavailableSection);
           return;
         case 'viewListing':
           setActiveTab('listingRoom');
@@ -1193,6 +1193,18 @@ export default function AppHomeScreen() {
       return <AgentMoreToolsBody onOpen={setActiveTab} />;
     }
 
+    // Agent pages that are not ready (contacts, contracts archive, services): "coming soon" instead of mock content.
+    if (activeRole === 'agent' && isAgentComingSoonTab(activeTab)) {
+      return (
+        <View style={styles.bodyContainer}>
+          <View style={[styles.card, cardStyle]}>
+            <Text style={[styles.sectionHeader, headingText]}>{t.agent.dashboard.comingSoon}</Text>
+            <Text style={[styles.sectionDesc, secondaryText]}>{t.agent.dashboard.unavailableSection}</Text>
+          </View>
+        </View>
+      );
+    }
+
     if (activeTab === 'contact') {
       return (
         <View style={styles.bodyContainer}>
@@ -1480,6 +1492,8 @@ export default function AppHomeScreen() {
         refreshing={pageRefreshing}
         onNavigate={handleTabPress}
         onRoleChange={handleRoleChange}
+        allowedRoles={isAuthenticated ? session?.roles : undefined}
+        notificationsEmptyLabel={t.agent.dashboard.comingSoon}
         onSignOut={handleAuthAction}
         userName={profileName}
         userEmail={profileEmail}
@@ -1706,6 +1720,7 @@ export default function AppHomeScreen() {
         onRoleChange={(role) => {
           handleRoleChange(role);
         }}
+        allowedRoles={isAuthenticated && session ? (session.roles as UserRole[]) : undefined}
         onSignOut={handleAuthAction}
         signOutLabel={isAuthenticated ? t.common.signOut : t.common.signIn}
         onMenuAction={(action) => {
@@ -1736,6 +1751,7 @@ export default function AppHomeScreen() {
         <MobileNotificationsBody
           activityItems={notifications}
           messageItems={messages}
+          emptyLabel={t.agent.dashboard.comingSoon}
           onBack={() => setNotificationsOpen(false)}
           onClearAll={() => {
             setNotificationsRead(true);

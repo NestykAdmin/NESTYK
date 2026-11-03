@@ -7,6 +7,7 @@ import {
   type MobileModePageProps,
 } from "@nestyk/ui/native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
+import { isAgentComingSoonTab } from "@nestyk/ui/native";
 import type { UserRole } from "@nestyk/types";
 import type { AgentWorkspaceProps, WorkspaceNavItem } from "./AgentWorkspace.types";
 import {
@@ -148,7 +149,20 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       {item.active ? <span className="aw-active-dot" /> : null}
     </button>
   );
-  const navItem = (item: (typeof AGENT_WEB_PRIMARY)[number]) => (
+  const navItem = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
+    isAgentComingSoonTab(item.tab) ? (
+      <button
+        key={item.tab}
+        type="button"
+        className="aw-nav-item"
+        disabled
+        title={`${menuLabel(item)} · ${t.agent.dashboard.comingSoon}`}
+      >
+        <MobileIcon name={item.icon} size={20} color={theme.textSecondary} />
+        <span className="aw-nav-label">{menuLabel(item)}</span>
+        <span className="aw-soon aw-nav-label">{t.agent.dashboard.comingSoon}</span>
+      </button>
+    ) : (
     <button
       key={item.tab}
       type="button"
@@ -420,7 +434,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                         props.onRoleChange(e.target.value as UserRole);
                       }}
                     >
-                      {ROLES.map((role) => (
+                      {ROLES.filter((role) => !props.allowedRoles || props.allowedRoles.includes(role) || role === shellRole).map((role) => (
                         <option key={role} value={role}>
                           {t.roles[role]}
                         </option>
@@ -545,7 +559,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               ? props.activityItems
               : props.messageItems
             ).length === 0 ? (
-              <p className="aw-notification-empty">{t.common.noData}</p>
+              <p className="aw-notification-empty">{props.notificationsEmptyLabel ?? t.common.noData}</p>
             ) : null}
             {(notificationTab === "activity"
               ? props.activityItems
