@@ -48,6 +48,8 @@ export const contractsZh: ContractCopy = {
       expired: '已结束',
       terminated: '已终止',
     },
+    /** A booking letter its lease has taken over (terminated with reservation_fulfilled). */
+    statusFulfilled: '已使用',
     parties: {
       owner: '出租方',
       tenant: '租客',
@@ -336,6 +338,8 @@ export const contractsZh: ContractCopy = {
     paidHint: '中介已确认付款并开具收据',
     submittedHint: '已提交付款凭证，等待中介核实',
     closed: '预订书已关闭',
+    /** A booking letter its lease has taken over: the booking fee is the first month's rent. */
+    fulfilled: '已使用：已抵扣首月租金',
     viewInvoice: '查看订金账单',
     createInvoice: '创建订金账单',
     noInvoice: '暂无订金账单',

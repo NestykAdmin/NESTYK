@@ -17,6 +17,7 @@ import { AuthGuard, JwtIdentity } from './guards/auth.guard';
 import { CurrentUser, AuthRequestUser } from './decorators/current-user.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DevRegistrationGuard } from './guards/dev-registration.guard';
+import { RecentAuthGuard } from './guards/recent-auth.guard';
 import { MAX_PROFILE_AVATAR_BYTES } from './profile-avatar-storage.service';
 import { notifyPasswordChanged } from './password-changed-email';
 
@@ -100,14 +101,14 @@ export class AuthController {
   }
 
   @Delete('account')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RecentAuthGuard)
   async deleteAccount(@CurrentUser() user: AuthRequestUser) {
     this.requireUser(user);
-    return this.authService.deleteAccount(user.id);
+    return this.authService.deleteAccountNow(user.id);
   }
 
   @Post('account/deletion')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RecentAuthGuard)
   async scheduleAccountDeletion(@CurrentUser() user: AuthRequestUser) {
     this.requireUser(user);
     return this.authService.scheduleAccountDeletion(user.id);

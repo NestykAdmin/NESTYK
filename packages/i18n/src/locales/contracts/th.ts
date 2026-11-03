@@ -46,6 +46,8 @@ export const contractsTh = {
       expired: 'สิ้นสุด',
       terminated: 'สิ้นสุดสัญญา',
     },
+    /** A booking letter its lease has taken over (terminated with reservation_fulfilled). */
+    statusFulfilled: 'ใช้แล้ว',
     parties: {
       owner: 'ผู้ให้เช่า',
       tenant: 'ผู้เช่า',
@@ -334,6 +336,8 @@ export const contractsTh = {
     paidHint: 'เอเจนต์ยืนยันการชำระและออกใบเสร็จแล้ว',
     submittedHint: 'ส่งสลิปแล้ว กำลังรอเอเจนต์ตรวจสอบการชำระเงิน',
     closed: 'หนังสือจองปิดแล้ว',
+    /** A booking letter its lease has taken over: the booking fee is the first month's rent. */
+    fulfilled: 'ใช้แล้ว: หักเป็นค่าเช่าเดือนแรก',
     viewInvoice: 'ดูใบแจ้งหนี้ค่าจอง',
     createInvoice: 'สร้างใบแจ้งหนี้ค่าจอง',
     noInvoice: 'ยังไม่มีใบแจ้งหนี้ค่าจอง',

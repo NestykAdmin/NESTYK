@@ -1,4 +1,5 @@
 import type { ContractParty } from "@nestyk/types";
+import { isFulfilledReservation } from "../lib/contract-status";
 import { FinancialDocumentForm } from "./FinancialDocumentForm";
 import { CommissionConfirmationForm } from "./CommissionConfirmationForm";
 import { AgreementAttachments } from "./AgreementAttachments";
@@ -2584,7 +2585,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
             {roomSuffix(selected.room)}
           </Text>
           <Text style={[s.body, { color: color(selected.status) }]}>
-            {labels[selected.status]}
+            {isFulfilledReservation(selected) ? tc.common.statusFulfilled : labels[selected.status]}
           </Text>
           <View style={[s.divider, { borderColor: theme.border }]} />
           <Text style={[s.small, muted]}>

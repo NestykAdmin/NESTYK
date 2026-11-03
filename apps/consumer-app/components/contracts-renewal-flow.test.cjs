@@ -55,6 +55,7 @@ function harness(rows, options = {}) {
     './ContractTypePicker':{ContractTypePicker:'type-picker'},
     './AgentContractLibrary':{AgentContractLibrary:'contract-library'},
     '../lib/agent-contract-library':load('../lib/agent-contract-library.ts'),
+    '../lib/contract-status':load('../lib/contract-status.ts'),
     '../lib/contract-close':load('../lib/contract-close.ts', id=>id==='./lease-term'?term:require(id)),
     '../lib/signature-log':load('../lib/signature-log.ts', id=>id==='@nestyk/i18n'?{fillTemplate:require('./test-i18n.cjs').fillTemplate}:require(id)),
     './ContractCloseCard':{ContractCloseCard:'close-card',closeResultNotice:()=>'closed'},

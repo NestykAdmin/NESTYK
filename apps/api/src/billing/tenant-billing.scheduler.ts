@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { TenantBillingService } from "./tenant-billing.service";
+import { scheduledJobsDisabled } from "../common/scheduled-jobs";
 
 @Injectable()
 export class TenantBillingScheduler {
@@ -11,6 +12,10 @@ export class TenantBillingScheduler {
   /** Safe on multiple API instances: `(lease_contract_id, period)` is unique and inserts ignore conflicts. */
   @Cron("5 0 * * *", { name: "tenant-rent-bills", timeZone: "Asia/Bangkok" })
   async issueDueBills() {
+    if (scheduledJobsDisabled()) {
+      this.logger.log("Skipped: DISABLE_SCHEDULED_JOBS=true");
+      return;
+    }
     // Step 28 (B0b): close the ended leases first, so a stay that ends tonight frees its room for the next
     // tenant's stay before billing activates it; each part runs even when the other fails.
     try {

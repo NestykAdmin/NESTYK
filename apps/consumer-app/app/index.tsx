@@ -1410,8 +1410,9 @@ export default function AppHomeScreen() {
   };
   const loadAccountDeletion = () => apiGet<{
     blocked: boolean;
-    reasons: Array<'open_contract' | 'unpaid_bill' | 'unrefunded_deposit'>;
+    reasons: Array<'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit'>;
     scheduledFor: string | null;
+    deleteNowAvailable?: boolean;
   }>('/auth/account/deletion');
   useEffect(() => {
     if (!isAuthenticated) {
@@ -1435,6 +1436,18 @@ export default function AppHomeScreen() {
     await proveAccountPassword(proof.password, proof.captchaToken);
     await apiDelete('/auth/account');
     await signOut();
+    // QA B4: say it is done and land on the home page as a guest (like signing out, without the login page).
+    setDrawerOpen(false);
+    setPartyInbox(false);
+    setSelectedPartyRoom(null);
+    setOpenedPartyContract(null);
+    setDeletionScheduledFor(null);
+    setActiveRole('guest');
+    setActiveTab(getDefaultTabForRole('guest'));
+    const done = t.mobile.account.deleteAccountDone;
+    // react-native-web's Alert does nothing, so the browser's own dialog says it on the web.
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(done);
+    else Alert.alert(t.mobile.account.deleteAccount, done);
   };
   const scheduleAccountDeletion = async (proof: { password: string; captchaToken?: string }) => {
     await proveAccountPassword(proof.password, proof.captchaToken);

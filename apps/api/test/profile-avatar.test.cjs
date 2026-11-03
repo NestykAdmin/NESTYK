@@ -17,6 +17,19 @@ test('profile photo upload rejects a missing, invalid, or oversized file before 
   await assert.rejects(() => storage.upload(1, { buffer: Buffer.alloc(MAX_PROFILE_AVATAR_BYTES + 1), size: MAX_PROFILE_AVATAR_BYTES + 1 }), bad);
 });
 
+test('profile photo upload rejects HEIF and AVIF before storage', async () => {
+  const sharp = require('sharp');
+  const storage = new ProfileAvatarStorage();
+  const pixel = { create: { width: 8, height: 8, channels: 3, background: { r: 20, g: 40, b: 60 } } };
+  // Sharp reports an AVIF file as heif. That tag is what the old allowlist accepted.
+  const avif = await sharp(pixel).avif().toBuffer();
+  assert.equal((await sharp(avif).metadata()).format, 'heif');
+  await assert.rejects(
+    () => storage.upload(1, { buffer: avif, size: avif.length }),
+    (error) => error.getStatus?.() === 400 && error.message === 'Use a valid JPEG, PNG or WebP image',
+  );
+});
+
 test('saving a profile photo stores the uploaded address and clearing removes it', async () => {
   const user = {
     id: 7,

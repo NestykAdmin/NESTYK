@@ -16,8 +16,11 @@ import { AuthRequestUser } from './decorators/current-user.decorator';
 import { JwtIdentity } from './guards/auth.guard';
 import { devRegistrationEnabled } from './guards/dev-registration.guard';
 import { ProfileAvatarStorage } from './profile-avatar-storage.service';
-import { anonymizedAccountEmail, deletionBlockers, deletionEffectiveAt, type AccountDeleteBlocker } from './account-deletion';
+import { anonymizedAccountEmail, deletionBlockers, deletionEffectiveAt, immediateDeletionEnabled, type AccountDeleteBlocker } from './account-deletion';
+import { holdsAccount } from '../agent/contracts/agreement-hold';
+import { bangkokToday } from '../billing/rent-schedule';
 import { notifyAccountDeleted } from './account-deleted-email';
+import { notifyAccountDeletionScheduled } from './account-deletion-scheduled-email';
 
 export type AuthUserResponse = {
   id: number;
@@ -35,6 +38,9 @@ const DEV_GRANTABLE: MasterRoleName[] = ['landlord', 'tenant', 'agent', 'admin']
 // R1 (Mos 2 Nov 2026): anyone can self-register, so a new self-registered profile is only a guest and an agent.
 // Landlords and tenants get their accounts from the agent's documents; admin is never self-granted.
 const SELF_REGISTRATION_ROLES: MasterRoleName[] = ['guest', 'agent'];
+
+/** Advisory lock key of the scheduled deletion job (one API instance at a time). */
+const ACCOUNT_DELETION_JOB_LOCK = 'nestyk:account-deletions';
 
 @Injectable()
 export class AuthService {
@@ -275,6 +281,8 @@ export class AuthService {
     blocked: boolean;
     reasons: AccountDeleteBlocker[];
     scheduledFor: string | null;
+    /** Whether this API offers "delete now" (QA only, ALLOW_IMMEDIATE_ACCOUNT_DELETION). */
+    deleteNowAvailable: boolean;
   }> {
     const reasons = deletionBlockers(await this.deletionCounts(userId));
     const user = await this.usersRepo.findOne({ where: { id: userId } });
@@ -282,6 +290,7 @@ export class AuthService {
       blocked: reasons.length > 0,
       reasons,
       scheduledFor: user?.deletion_effective_at ? user.deletion_effective_at.toISOString() : null,
+      deleteNowAvailable: immediateDeletionEnabled(),
     };
   }
 
@@ -291,6 +300,9 @@ export class AuthService {
     const requestedAt = new Date();
     const effectiveAt = deletionEffectiveAt(requestedAt);
     await this.usersRepo.update(userId, { deletion_requested_at: requestedAt, deletion_effective_at: effectiveAt });
+    // D: tell the owner once the schedule is saved (a failed send is swallowed and never undoes it).
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    await notifyAccountDeletionScheduled(user?.email, effectiveAt).catch(() => false);
     return { scheduledFor: effectiveAt.toISOString() };
   }
 
@@ -300,41 +312,64 @@ export class AuthService {
   }
 
   async deleteDueAccounts(now = new Date()): Promise<number> {
-    const due = await this.usersRepo
-      .createQueryBuilder('user')
-      .where('user.deletion_effective_at IS NOT NULL')
-      .andWhere('user.deletion_effective_at <= :now', { now })
-      .andWhere("user.email NOT LIKE 'deleted+%@users.invalid'")
-      .getMany();
-    let deleted = 0;
-    for (const user of due) {
+    // With more than one API instance, only the one that takes this lock runs the job (the others skip it).
+    const runner = this.dataSource.createQueryRunner();
+    await runner.connect();
+    try {
+      const [lock] = await runner.query('SELECT pg_try_advisory_lock(hashtext($1)) AS locked', [ACCOUNT_DELETION_JOB_LOCK]);
+      if (!lock?.locked) return 0;
       try {
-        await this.deleteAccount(user.id);
-        deleted += 1;
-      } catch {
-        // A contract or bill appeared after the request. Leave the schedule and try again next day.
+        const due = await this.usersRepo
+          .createQueryBuilder('user')
+          .where('user.deletion_effective_at IS NOT NULL')
+          .andWhere('user.deletion_effective_at <= :now', { now })
+          .andWhere("user.email NOT LIKE 'deleted+%@users.invalid'")
+          .getMany();
+        let deleted = 0;
+        for (const user of due) {
+          try {
+            await this.deleteAccount(user.id);
+            deleted += 1;
+          } catch {
+            // A contract or bill appeared after the request. Leave the schedule and try again next day.
+          }
+        }
+        return deleted;
+      } finally {
+        await runner.query('SELECT pg_advisory_unlock(hashtext($1))', [ACCOUNT_DELETION_JOB_LOCK]);
       }
+    } finally {
+      await runner.release();
     }
-    return deleted;
+  }
+
+  /** DELETE /auth/account: "delete now", for QA only. The scheduled job calls deleteAccount itself. */
+  async deleteAccountNow(userId: number): Promise<{ deleted: true }> {
+    if (!immediateDeletionEnabled()) {
+      throw new NotFoundException({ code: 'IMMEDIATE_DELETION_UNAVAILABLE', message: 'Deleting an account at once is unavailable' });
+    }
+    return this.deleteAccount(userId);
   }
 
   async deleteAccount(userId: number): Promise<{ deleted: true }> {
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    const reasons = deletionBlockers(await this.deletionCounts(userId));
-    if (reasons.length) {
-      throw new ConflictException({ code: 'ACCOUNT_DELETE_BLOCKED', reasons });
-    }
-    const originalEmail = user.email;
-    await notifyAccountDeleted(originalEmail);
-    if (user.supabase_user_id) {
-      const admin = this.adminClient();
-      const { error } = await admin.auth.admin.deleteUser(user.supabase_user_id);
-      if (error && !/not found/i.test(error.message)) {
-        throw new ServiceUnavailableException({ code: 'ACCOUNT_DELETE_FAILED', message: 'Could not delete the login' });
+    // QA A9: one deletion at a time per account. The row lock makes a second request (a double tap, or the job)
+    // wait, and the blockers are read inside the same transaction.
+    const done = await this.dataSource.transaction(async (manager) => {
+      const user = await manager.getRepository(UserEntity).findOne({ where: { id: userId }, lock: { mode: 'pessimistic_write' } });
+      if (!user) throw new NotFoundException('User not found');
+      // The other request won: nothing to delete, nothing to send.
+      if (user.email === anonymizedAccountEmail(userId)) return null;
+      const reasons = deletionBlockers(await this.deletionCounts(userId, manager));
+      if (reasons.length) {
+        throw new ConflictException({ code: 'ACCOUNT_DELETE_BLOCKED', reasons });
       }
-    }
-    await this.dataSource.transaction(async (manager) => {
+      if (user.supabase_user_id) {
+        const admin = this.adminClient();
+        const { error } = await admin.auth.admin.deleteUser(user.supabase_user_id);
+        if (error && !/not found/i.test(error.message)) {
+          throw new ServiceUnavailableException({ code: 'ACCOUNT_DELETE_FAILED', message: 'Could not delete the login' });
+        }
+      }
       await manager.getRepository(UserRoleEntity).delete({ user_id: userId });
       await manager.getRepository(UserEntity).update(userId, {
         email: anonymizedAccountEmail(userId),
@@ -350,26 +385,58 @@ export class AuthService {
         deletion_requested_at: null,
         deletion_effective_at: null,
       });
+      return { email: user.email, avatarUrl: user.avatar_url };
     });
+    if (done) {
+      // QA A2/D3: tell the user only once the login and the profile are gone. A failure above sends nothing, so a
+      // scheduled deletion that is retried the next day does not email again.
+      await notifyAccountDeleted(done.email);
+      // QA A8: the photo sits in a public bucket; it goes once the account is gone (a failed removal is only logged).
+      if (done.avatarUrl && this.avatars) await this.avatars.removeOwned(userId, done.avatarUrl);
+    }
     return { deleted: true };
   }
 
-  private async deletionCounts(userId: number): Promise<{ openContracts: number; unpaidBills: number; unrefundedDeposits: number }> {
-    const [openContracts, unpaidBills, unrefundedDeposits] = await Promise.all([
-      this.dataSource.query(
-        `SELECT COUNT(*)::int AS n FROM lease_contracts c
+  /** `runner`: the deletion transaction (QA A9), or the data source for the preview and the schedule. */
+  private async deletionCounts(userId: number, runner: { query: DataSource['query'] } = this.dataSource): Promise<{
+    openContracts: number; openAgentContracts: number; unpaidBills: number; billsAwaitingReview: number; unrefundedDeposits: number;
+  }> {
+    const [agreements, bills, unrefundedDeposits] = await Promise.all([
+      // Every agreement the user is in (tenant, landlord or the deal's agent); agreement-hold.ts decides which hold.
+      runner.query(
+        `SELECT c.id, COALESCE(ct.form_kind, cat.form_kind) AS form_kind, c.status,
+                to_char(c.start_date, 'YYYY-MM-DD') AS start_date, c.data,
+                (c.created_by_user_id = $1) AS as_agent,
+                (c.owner_user_id = $1 OR t.user_id IS NOT DISTINCT FROM $1) AS as_party,
+                EXISTS (
+                  SELECT 1 FROM lease_contracts l
+                  LEFT JOIN agreement_templates lt ON lt.id = l.template_id
+                  LEFT JOIN master_agreement_types la ON la.code = l.agreement_type_code
+                  WHERE l.lead_id = c.lead_id AND l.rent_room_id = c.rent_room_id AND l.tenant_id = c.tenant_id
+                    AND COALESCE(lt.form_kind, la.form_kind) = 'lease' AND l.agreement_kind = 'new'
+                    AND l.status IN ('active', 'expired', 'terminated')
+                ) AS lease_started
+         FROM lease_contracts c
+         LEFT JOIN agreement_templates ct ON ct.id = c.template_id
+         LEFT JOIN master_agreement_types cat ON cat.code = c.agreement_type_code
          LEFT JOIN tenants t ON t.id = c.tenant_id
-         WHERE c.status NOT IN ('cancelled', 'expired', 'terminated')
-           AND (c.owner_user_id = $1 OR t.user_id = $1)`,
+         WHERE c.status <> 'cancelled'
+           AND (c.created_by_user_id = $1 OR c.owner_user_id = $1 OR t.user_id = $1)`,
         [userId],
-      ),
-      this.dataSource.query(
-        `SELECT COUNT(*)::int AS n FROM tenant_bills b
+      ) as Promise<Array<{
+        form_kind: string | null; status: string; start_date: string | null; data: unknown;
+        as_agent: boolean; as_party: boolean; lease_started: boolean;
+      }>>,
+      // A pending bill with a sent slip waits for the agent; without one the tenant still has to pay.
+      runner.query(
+        `SELECT COUNT(*) FILTER (WHERE NOT (b.payment_slip_path IS NOT NULL AND b.slip_submitted_at IS NOT NULL))::int AS unpaid,
+                COUNT(*) FILTER (WHERE b.payment_slip_path IS NOT NULL AND b.slip_submitted_at IS NOT NULL)::int AS review
+         FROM tenant_bills b
          JOIN tenants t ON t.id = b.tenant_id
          WHERE t.user_id = $1 AND b.status = 'pending'`,
         [userId],
       ),
-      this.dataSource.query(
+      runner.query(
         `SELECT COUNT(*)::int AS n FROM contract_deposit_settlements s
          JOIN lease_contracts c ON c.id = s.lease_contract_id
          LEFT JOIN tenants t ON t.id = c.tenant_id
@@ -378,9 +445,15 @@ export class AuthService {
         [userId],
       ),
     ]);
+    const today = bangkokToday();
+    const holding = agreements.filter((row) => holdsAccount({
+      formKind: row.form_kind, status: row.status, startDate: row.start_date, data: row.data, leaseStarted: row.lease_started,
+    }, today));
     return {
-      openContracts: Number(openContracts[0]?.n ?? 0),
-      unpaidBills: Number(unpaidBills[0]?.n ?? 0),
+      openContracts: holding.filter((row) => row.as_party).length,
+      openAgentContracts: holding.filter((row) => row.as_agent).length,
+      unpaidBills: Number(bills[0]?.unpaid ?? 0),
+      billsAwaitingReview: Number(bills[0]?.review ?? 0),
       unrefundedDeposits: Number(unrefundedDeposits[0]?.n ?? 0),
     };
   }

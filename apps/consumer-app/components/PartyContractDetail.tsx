@@ -1,4 +1,5 @@
 import type { ContractParty } from "@nestyk/types";
+import { isFulfilledReservation } from "../lib/contract-status";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -367,7 +368,7 @@ export function PartyContractDetail({
           <Text style={[styles.heading, title, styles.flex]}>{contract.property}</Text>
           <View style={[styles.badge, { backgroundColor: `${statusColor(contract.status)}15` }]}>
             <Text style={[styles.badgeLabel, { color: statusColor(contract.status) }]}>
-              {tc.common.status[contract.status]}
+              {isFulfilledReservation(contract) ? tc.common.statusFulfilled : tc.common.status[contract.status]}
             </Text>
           </View>
         </View>

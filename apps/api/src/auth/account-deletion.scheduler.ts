@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthService } from './auth.service';
+import { scheduledJobsDisabled } from '../common/scheduled-jobs';
 
 @Injectable()
 export class AccountDeletionScheduler {
@@ -11,6 +12,10 @@ export class AccountDeletionScheduler {
   /** 00:10 Bangkok. A scheduled deletion stays until this run, and can be cancelled before then. */
   @Cron('10 0 * * *', { name: 'account-deletions', timeZone: 'Asia/Bangkok' })
   async deleteDueAccounts() {
+    if (scheduledJobsDisabled()) {
+      this.logger.log('Skipped: DISABLE_SCHEDULED_JOBS=true');
+      return;
+    }
     try {
       await this.auth.deleteDueAccounts();
     } catch (error) {

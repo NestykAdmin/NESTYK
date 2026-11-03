@@ -243,10 +243,14 @@ export interface TranslationSchema {
       deleteAccountCancel: string;
       deleteAccountCancelConfirm: string;
       deleteAccountPasswordPrompt: string;
+      deleteAccountReauth: string;
+      deleteAccountDone: string;
       deleteAccountBlocked: string;
       deleteAccountReasons: {
         open_contract: string;
+        open_agent_contract: string;
         unpaid_bill: string;
+        bill_awaiting_review: string;
         unrefunded_deposit: string;
       };
       linkedAccounts: {

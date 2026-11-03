@@ -4,6 +4,7 @@ import { LeaseContractEntity } from "../../entities/lease-contract.entity";
 import { LeadEntity } from "../../entities/lead.entity";
 import { bangkokToday } from "../../billing/rent-schedule";
 import { asIsoDate, shiftIsoDate } from "../contracts/lease-term";
+import { hasUndecidedStay } from "../contracts/agreement-hold";
 
 /**
  * D8 (AC-1.2, 3.1, 6.3, 7.7, 8.3, 8.4, C.4; Aof 27 Oct 2026): a room's status follows its deals and the date (Bangkok),
@@ -103,7 +104,7 @@ async function statusesOf(
       notRenewing: Boolean((c.data as { notRenewing?: unknown } | null)?.notRenewing),
       notRenewingOn: ((c.data as { notRenewing?: { recordedOn?: unknown } } | null)?.notRenewing?.recordedOn as string) || null,
       endsOn: ((c.data as { endsOn?: { date?: unknown } } | null)?.endsOn?.date as string) || null,
-      undecided: Boolean((c.data as { undecided?: unknown } | null)?.undecided),
+      undecided: hasUndecidedStay(c.data),
     }));
     const roomLeads = leads.filter((l) => l.rent_room_id === room.id)
       .map((l) => ({ id: l.id, status: l.status, bookingReleasedAt: l.booking_released_at ?? null }));

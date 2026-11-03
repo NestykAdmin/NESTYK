@@ -5,11 +5,14 @@ import { MobileButton } from '../components/MobileButton';
 import { MobileInput } from '../components/MobileInput';
 import { tokens } from '../theme/tokens';
 import { useMobileTheme } from '../theme/ThemeContext';
+import { formatAccountDeletionDate } from '../components/AccountDeletionNotice';
 
 export type AccountDeletionPreview = {
   blocked: boolean;
-  reasons: Array<'open_contract' | 'unpaid_bill' | 'unrefunded_deposit'>;
+  reasons: Array<'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit'>;
   scheduledFor: string | null;
+  /** The API offers "delete now" (QA only). Missing means no. */
+  deleteNowAvailable?: boolean;
 };
 
 export type AccountDeletionProof = { password: string; captchaToken?: string };
@@ -75,17 +78,34 @@ export const MobileDeleteAccountBody: React.FC<{
     return cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric;
   };
 
-  const run = async (action: () => Promise<void>) => {
+  const closeAfterRequest = () => {
+    setPending(null);
+    setPasswordStep(false);
+    setPassword('');
+  };
+
+  /** `signedOut`: the account was deleted now, so there is no status to load (the host confirms and signs out). */
+  const run = async (action: () => Promise<void>, signedOut = false) => {
     setBusy(true);
     setError(null);
     try {
       await action();
-      setPending(null);
-      setPasswordStep(false);
-      setPassword('');
-      await reload();
+      closeAfterRequest();
+      if (!signedOut) await reload();
     } catch (cause) {
-      setError(messageFor(cause));
+      const code = cause && typeof cause === 'object' && 'code' in cause ? String((cause as { code: unknown }).code) : '';
+      if (code === 'REAUTH_REQUIRED') {
+        // More than 5 minutes since the password was confirmed: ask for it again (the API checks it, QA A).
+        setPassword('');
+        setPasswordStep(true);
+        setError(copy.deleteAccountReauth);
+      } else if (code === 'ACCOUNT_DELETE_BLOCKED') {
+        // QA B10: something new blocks deletion since the page opened: show the fresh reasons, not "HTTP 409".
+        closeAfterRequest();
+        await reload().catch(() => setError(t.common.errorGeneric));
+      } else {
+        setError(messageFor(cause));
+      }
       onCaptchaReset?.();
     } finally {
       setBusy(false);
@@ -102,11 +122,12 @@ export const MobileDeleteAccountBody: React.FC<{
       return;
     }
     const proof = { password, ...(captchaToken ? { captchaToken } : {}) };
-    void run(() => (pending === 'now' ? onDeleteNow(proof) : onSchedule(proof)));
+    void run(() => (pending === 'now' ? onDeleteNow(proof) : onSchedule(proof)), pending === 'now');
   };
 
   const scheduledLabel = preview?.scheduledFor
-    ? copy.deleteAccountScheduled.replace('{date}', new Date(preview.scheduledFor).toLocaleDateString(locale))
+    // QA A10: Bangkok time, the same day as the banner (the device time zone must not move it).
+    ? copy.deleteAccountScheduled.replace('{date}', formatAccountDeletionDate(preview.scheduledFor, locale))
     : '';
 
   return (
@@ -133,7 +154,9 @@ export const MobileDeleteAccountBody: React.FC<{
       {error ? <Text style={[styles.reason, { color: tokens.colors.danger }]}>{error}</Text> : null}
       {!preview?.blocked && !preview?.scheduledFor ? (
         <>
-          <MobileButton onPress={() => setPending('now')} disabled={!preview || busy}>{copy.deleteAccountNow}</MobileButton>
+          {preview?.deleteNowAvailable ? (
+            <MobileButton onPress={() => setPending('now')} disabled={busy}>{copy.deleteAccountNow}</MobileButton>
+          ) : null}
           <MobileButton variant="outline" onPress={() => setPending('later')} disabled={!preview || busy}>{copy.deleteAccountLater}</MobileButton>
         </>
       ) : null}

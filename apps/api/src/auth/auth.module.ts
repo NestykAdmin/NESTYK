@@ -8,12 +8,13 @@ import { AuthService } from './auth.service';
 import { AccountDeletionScheduler } from './account-deletion.scheduler';
 import { AuthGuard } from './guards/auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { RecentAuthGuard } from './guards/recent-auth.guard';
 import { ProfileAvatarStorage } from './profile-avatar-storage.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserEntity, MasterRoleEntity, UserRoleEntity])],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard, RolesGuard, ProfileAvatarStorage, AccountDeletionScheduler],
+  providers: [AuthService, AuthGuard, RolesGuard, RecentAuthGuard, ProfileAvatarStorage, AccountDeletionScheduler],
   exports: [AuthService, AuthGuard, RolesGuard],
 })
 export class AuthModule {}

@@ -51,6 +51,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [captchaKey, setCaptchaKey] = React.useState(0);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
+  const [deleteNowAvailable, setDeleteNowAvailable] = React.useState(false);
   const [deleteBlocked, setDeleteBlocked] = React.useState<string[] | null>(null);
   const [deleteScheduled, setDeleteScheduled] = React.useState<string | null>(null);
   const [deletePending, setDeletePending] = React.useState<"now" | "later" | "cancel" | null>(null);
@@ -556,6 +557,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                           void props.onLoadAccountDeletion!().then((preview) => {
                             setDeleteBlocked(preview.blocked ? preview.reasons : []);
                             setDeleteScheduled(preview.scheduledFor);
+                            setDeleteNowAvailable(preview.deleteNowAvailable === true);
                             setDeletePending(null);
                           }).catch((cause: unknown) => {
                             setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
@@ -628,15 +630,15 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                         <>
                           <p className="aw-profile-error">{t.mobile.account.deleteAccountBlocked}</p>
                           {deleteBlocked.map((reason) => (
-                            <p key={reason} className="aw-profile-error">{t.mobile.account.deleteAccountReasons[reason as 'open_contract' | 'unpaid_bill' | 'unrefunded_deposit']}</p>
+                            <p key={reason} className="aw-profile-error">{t.mobile.account.deleteAccountReasons[reason as 'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit']}</p>
                           ))}
                         </>
                       ) : null}
-                      {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace('{date}', new Date(deleteScheduled).toLocaleDateString(locale))}</p> : null}
+                      {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
                       {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
                       {!deleteBlocked?.length && !deleteScheduled ? (
                         <>
-                          <button type="button" className="aw-button aw-button-primary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('now')}>{t.mobile.account.deleteAccountNow}</button>
+                          {deleteNowAvailable ? <button type="button" className="aw-button aw-button-primary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('now')}>{t.mobile.account.deleteAccountNow}</button> : null}
                           <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('later')}>{t.mobile.account.deleteAccountLater}</button>
                         </>
                       ) : null}
@@ -766,7 +768,25 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                       if (choice === "later") navigate("dashboard");
                     }).catch((cause: unknown) => {
                       const code = cause && typeof cause === "object" && "code" in cause ? String((cause as { code: unknown }).code) : "";
-                      setDeleteError(code === "WRONG_PASSWORD" ? t.mobile.account.password.incorrect : cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+                      if (code === "REAUTH_REQUIRED") {
+                        // More than 5 minutes since the password was confirmed: ask for it again (QA A).
+                        setDeletePassword("");
+                        setDeletePasswordStep(true);
+                        setDeleteError(t.mobile.account.deleteAccountReauth);
+                      } else if (code === "ACCOUNT_DELETE_BLOCKED" && props.onLoadAccountDeletion) {
+                        // QA B10: something new blocks deletion since the panel opened: show the fresh reasons.
+                        setDeletePending(null);
+                        setDeletePasswordStep(false);
+                        setDeletePassword("");
+                        setDeleteError(null);
+                        void props.onLoadAccountDeletion().then((preview) => {
+                          setDeleteBlocked(preview.blocked ? preview.reasons : []);
+                          setDeleteScheduled(preview.scheduledFor);
+                            setDeleteNowAvailable(preview.deleteNowAvailable === true);
+                        }).catch(() => setDeleteError(t.common.errorGeneric));
+                      } else {
+                        setDeleteError(code === "WRONG_PASSWORD" ? t.mobile.account.password.incorrect : cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+                      }
                       setCaptchaToken(null);
                       setCaptchaKey((key) => key + 1);
                       setDeleteBusy(false);
