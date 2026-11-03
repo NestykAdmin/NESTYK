@@ -2,7 +2,7 @@
  * บัญชี QA แยกบทบาทของทีม (qa-<role>@nestyk.test) ที่เทสใช้เมื่อต้องล็อกอิน
  *   - qa-agent เป็นผู้เรียกหลัก (fixture agent ใน src/fixtures/api.fixture.ts) เทสของกลุ่ม agent/* อ่านลีดและห้องของบัญชีนี้
  *   - qa-tenant และ qa-landlord ใช้กับเส้นทางที่รับเฉพาะบทบาทนั้น (bills/mine/*, bills/received/*, contracts/mine*)
- *     และ qa-landlord เป็นบัญชีเจ้าของห้องที่เทสค้นใน GET /agent/contracts/owner-users
+ *     และ qa-landlord เป็นอีเมลเจ้าของห้องที่เทสวงจรเช่าห้องกรอกในหนังสือจอง (ข้อค้นใน GET /agent/contracts/owner-users เทียบ id กับบัญชีนี้)
  *   - ทุกบัญชีใช้กับเทสสิทธิ์ตามบทบาท (401/403) ใน roles.spec.ts
  *
  * ที่มา: supabase/migrations/20261019100000_link_qa_accounts.sql บรรทัด 23-27 (ในไฟล์ migration) ที่ develop a09e6d2

@@ -1,16 +1,20 @@
 import type { APIResponse } from '@playwright/test';
 import type { AgreementDefaultsKind } from '../../src/api/contracts.api';
 import type { AgreementTemplate, AgreementType, AuthUser, Lead, NextDocumentNumber, OwnerUserOption, Paginated } from '../../src/api/types';
+import { qaAccounts } from '../../src/config/qa-accounts';
 import { expect, test, type ApiSession } from '../../src/fixtures/api.fixture';
 import { expectError, expectJson } from '../../src/support/http';
 import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
+import { letterLandlords, MAX_QUERY_LENGTH, OWNER_SEARCH_LIMIT, searchOwners, STRIPPED_FROM_QUERY, type LetterLandlord } from '../../src/support/reservation-letters';
 
 /**
  * สัญญาฝั่งนายหน้า: ประเภทและแม่แบบสัญญา รายการ เลขที่เอกสารถัดไป ข้อมูลตั้งต้น สัญญาที่ไม่มีอยู่ และการค้นบัญชีเจ้าของห้อง
  *
  * สิ่งที่ต้องมีก่อน
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) ผู้เรียกคือ qa-agent (fixture agent)
- *     เทสการค้นบัญชีเจ้าของห้องใช้ qa-landlord เป็นบัญชีที่ถูกค้น (ข้ามถ้ายังไม่ได้ตั้ง uuid)
+ *     เทสการค้นเจ้าของห้อง (owner-users) ต้องมีหนังสือจองของ qa-agent ที่กรอกอีเมลเจ้าของห้อง ไม่อย่างนั้นข้อที่ต้องค้นเจอจะข้าม
+ *     ต้องใช้ API ตั้งแต่ develop accb616 (R1: ค้นเฉพาะหนังสือจองของนายหน้าผู้เรียก) ถ้าเป็นรุ่นก่อนนั้น ข้อค้นด้วย % จะเจอบัญชีเจ้าของห้องทั้งระบบและไม่ผ่าน
+ *     ถ้าอีเมลเจ้าของห้องที่ใช้เป็นเป้าคือ qa-landlord ข้อค้นด้วยอีเมลจะเทียบ id ด้วย (ต้องตั้ง uuid ของ qa-landlord ไม่อย่างนั้นข้อนั้นข้าม)
  *     ชื่อบทบาท owner เปลี่ยนเป็น landlord ตั้งแต่ develop 84087e2 (supabase/migrations/20261016100000_rename_owner_role_to_landlord.sql)
  *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบ (ข้อมูลตั้งต้นของทีมอยู่ที่ supabase/seed/masters.sql: master_agreement_types บรรทัด 33-37
  *     และ agreement_templates บรรทัด 44-55 ที่ develop 9644dd9) และ qa-agent มีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย
@@ -387,45 +391,131 @@ test.describe('a contract that does not exist', () => {
 });
 
 test.describe('GET /agent/contracts/owner-users', () => {
-  // ข้อควรระวัง: เส้นทางนี้คืนข้อมูลส่วนตัวของเจ้าของห้อง (อีเมล เบอร์โทร เลขบัตร)
-  //   เทสจึงตรวจแค่จำนวนกับ id และไม่เทียบทั้งรายการ เพราะถ้าไม่ผ่าน Playwright จะพิมพ์ค่าที่เทียบออกมาในผลรัน
-  //   ผู้ค้นคือ qa-agent (fixture agent) บัญชีที่ถูกค้นคือ qa-landlord ซึ่งมีบทบาท landlord ที่เส้นทางนี้ค้น
-  //   (agent-contracts.service.ts:2299 ที่ develop 84087e2) ถ้าการตรวจคำค้นของ API หลุด คำตอบจะมีบัญชีนี้ เทสจึงจับได้
-  //   การกรองเฉพาะบทบาท landlord ตรวจใน roles.spec.ts (บัญชี QA ที่ไม่มี landlord ต้องค้นไม่เจอ)
+  // ที่มา (develop accb616, R1 ของทีม 2 พ.ย. 2026): เส้นทางนี้ค้นเฉพาะเจ้าของห้องที่นายหน้าผู้เรียกกรอกไว้ในหนังสือจองของตัวเอง
+  //   (searchOwnerUsers ใน agent-contracts.service.ts บรรทัด 3141-3199) ค้นด้วยอีเมล เบอร์ ชื่อ นามสกุล และ landlordName ได้
+  //   ไม่ค้นด้วยเลขบัตรแล้ว และไม่กรองตามบทบาทของบัญชีแล้ว (เดิมกรองบทบาท landlord จึงเคยมีเทสใน roles.spec.ts)
+  // ค่าที่คาด: เจ้าของห้องจากหนังสือจองของ qa-agent อ่านผ่าน GET /agent/contracts (src/support/reservation-letters.ts)
+  //   ถ้า qa-agent ยังไม่มีหนังสือจองที่กรอกอีเมลเจ้าของห้อง ข้อที่ต้องค้นเจอจะข้ามพร้อมเหตุผล
+  //   (บน dev 3 พ.ย. 2026 น่าจะยังไม่มี: รอบวงจรเช่าบน dev หยุดก่อนสร้างหนังสือจอง ร่างถึงทีมฉบับที่ 10)
+  // ข้อควรระวัง: คำตอบมีข้อมูลส่วนตัวของเจ้าของห้อง เทสจึงตรวจเป็นจริง/เท็จหรือจำนวน และไม่ใส่คำค้นในข้อความของการตรวจ
+  //   ถ้าไม่ผ่าน Playwright จะพิมพ์แค่ true/false หรือตัวเลข ทุกคำขอเรียกผ่าน searchOwners ซึ่งไม่พิมพ์ที่อยู่ (มีคำค้น) และเนื้อคำตอบ
+  // ห้ามรันพร้อมชุดเขียน: ข้อค้นด้วย % อ่านหนังสือจองก่อนแล้วจึงค้น ถ้ามีหนังสือจองใหม่ระหว่าง 2 คำขอนี้ จำนวนจะไม่ตรง
 
-  test('answers an empty list when the search is empty or longer than 80 characters', async ({ agent, qa }) => {
-    // ทั้งข้อต้องใช้ qa-landlord ไม่ใช่แค่กรณี q ยาว 81 ตัว: กรณีไม่ส่ง q และ q ว่างจับบั๊กได้เฉพาะเมื่อมีบัญชี landlord ในฐานข้อมูล
-    //   (ถ้าการตรวจคำค้นว่างหาย คำค้นจะเป็น %% ซึ่งเจอทุกบัญชี landlord) qa-landlord คือบัญชีที่ยืนยันได้ว่ามีบทบาทนี้
-    // ขั้นที่ 1: หาอีเมลของ qa-landlord (ข้ามถ้ายังไม่ได้ตั้ง uuid)
-    const me = await landlordAccount(await qa('landlord'));
+  /** เหตุผลที่ข้อซึ่งต้องค้นเจอข้าม */
+  const NO_LETTER = 'qa-agent ยังไม่มีหนังสือจองที่กรอกอีเมลเจ้าของห้อง (รันเทสวงจรเช่าห้องก่อน)';
 
-    // ขั้นที่ 2: สร้างคำค้นยาว 81 ตัว จากอีเมลต่อท้ายด้วย _
-    //   searchOwnerUsers ใน agent-contracts.service.ts ตรวจความยาวก่อนตัด % _ และ \ ออก
-    //   ถ้าการตรวจความยาวหาย คำค้นจะเหลือแค่อีเมลแล้วเจอบัญชีนี้ คำค้นแบบนี้จึงจับได้ (คำค้นธรรมดายาว 81 ตัวไม่เจอใครอยู่แล้ว จึงจับไม่ได้)
-    expect(me.email.length, 'อีเมลของ qa-landlord ต้องสั้นกว่า 81 ตัว').toBeLessThan(81);
-    const tooLong = me.email + '_'.repeat(81 - me.email.length);
+  /**
+   * เป้าการค้น: เจ้าของห้อง 1 อีเมลจากหนังสือจองของ qa-agent เลือกอีเมลของ qa-landlord ก่อน (เทียบ id ได้)
+   * ข้ามอีเมลที่มี % _ \ (API ตัดอักขระเหล่านี้ออกจากคำค้น) หรือยาวเกิน 80 ตัว (API ไม่ค้นให้)
+   */
+  async function searchTarget(agent: ApiSession): Promise<{ landlord: LetterLandlord; all: Map<string, LetterLandlord> }> {
+    const all = await letterLandlords(agent.contracts);
+    test.skip(all.size === 0, NO_LETTER);
+    const usable = [...all.values()].filter((l) => !STRIPPED_FROM_QUERY.test(l.email) && l.email.length <= MAX_QUERY_LENGTH);
+    test.skip(usable.length === 0, 'อีเมลเจ้าของห้องในหนังสือจองของ qa-agent มี % _ \\ หรือยาวเกิน 80 ตัวทุกอีเมล จึงใช้เป็นคำค้นไม่ได้');
+    const landlord = usable.find((l) => l.email.toLowerCase() === qaAccounts.landlord.email.toLowerCase()) ?? usable[0];
+    return { landlord, all };
+  }
 
-    // ขั้นที่ 3: ไม่ส่ง q, q ว่าง และ q ยาว 81 ตัว ต้องได้รายการว่างทุกแบบ
-    const searches: [string, string | undefined][] = [['ไม่ส่ง q', undefined], ['q ว่าง', ''], ['q ยาว 81 ตัว', tooLong]];
+  /** แถวของอีเมลนี้ในผลค้น (เทียบแบบไม่สนตัวพิมพ์ เพราะ API รวมแถวด้วย LOWER(email)) */
+  const rowsOf = (owners: OwnerUserOption[], landlord: LetterLandlord) =>
+    owners.filter((owner) => owner.email.toLowerCase() === landlord.email.toLowerCase());
+
+  test('answers an empty list when nothing matches', async ({ agent }) => {
+    // ขั้นที่ 1: ค้นด้วยคำที่ไม่มีหนังสือจองฉบับไหนใช้   ขั้นที่ 2: ต้องได้รายการว่าง
+    const owners = await searchOwners(agent.contracts, 'e2e-no-such-owner-zz');
+    expect(owners.length).toBe(0);
+    // ถ้า qa-agent ไม่มีหนังสือจองเลย ข้อนี้ผ่านได้แม้การค้นจะคืนทุกแถวหรือคืนรายการว่างเสมอ จึงบันทึกไว้ในรายงาน
+    if ((await letterLandlords(agent.contracts)).size === 0) {
+      test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: 'qa-agent ไม่มีหนังสือจอง ข้อนี้จึงผ่านได้ทั้งที่ระบบผิด' });
+    }
+  });
+
+  test("finds a landlord from the agent's own reservation letters by email, once", async ({ agent, qa }) => {
+    // ขั้นที่ 1: หาเป้าการค้นจากหนังสือจองของ qa-agent (ข้ามถ้ายังไม่มี)
+    const { landlord } = await searchTarget(agent);
+
+    // ขั้นที่ 2: ค้นด้วยอีเมลเต็ม   ขั้นที่ 3: อีเมลนี้ต้องมีพอดี 1 แถว (หนังสือหลายฉบับที่ใช้อีเมลเดียวกันถูกรวมเป็นแถวเดียว บรรทัด 3157)
+    const rows = rowsOf(await searchOwners(agent.contracts, landlord.email), landlord);
+    expect(rows.length, 'จำนวนแถวของอีเมลนี้').toBe(1);
+
+    // ขั้นที่ 4: ชื่อและเบอร์ต้องเป็นค่าที่กรอกในหนังสือจองที่ใช้อีเมลนี้ (API ใช้ฉบับที่แก้ล่าสุด เทสจึงยอมรับค่าของฉบับใดก็ได้)
+    expect(landlord.names.includes(rows[0].name), 'ชื่อในผลค้นต้องเป็นชื่อที่กรอกในหนังสือจองที่ใช้อีเมลนี้').toBe(true);
+    //   เบอร์ว่างยอมรับเฉพาะเมื่อมีหนังสือฉบับที่ใช้อีเมลนี้แต่ไม่กรอกเบอร์ (หนังสือที่บันทึกผ่าน API ต้องมีเบอร์ party-login.ts บรรทัด 162 จึงไม่ควรมี)
+    const phoneOk = rows[0].phone === '' ? landlord.hasBlankPhone : landlord.phones.includes(rows[0].phone);
+    expect(phoneOk, 'เบอร์ในผลค้นต้องเป็นเบอร์ที่กรอกในหนังสือจองที่ใช้อีเมลนี้').toBe(true);
+
+    // ขั้นที่ 5: id = owner_user_id ของสัญญา (บรรทัด 3158 และ 3189) ถ้าเป็นอีเมลของ qa-landlord ต้องเป็น id ของบัญชีนี้
+    //   เพราะตอนสร้างหนังสือจอง ensurePartyLogin ผูกอีเมลนี้กับบัญชีที่มีอยู่ ส่วนอีเมลอื่นอาจยังไม่มีบัญชี (null)
+    if (landlord.email.toLowerCase() === qaAccounts.landlord.email.toLowerCase()) {
+      const me = await landlordAccount(await qa('landlord'));
+      expect(rows[0].id, 'id ต้องเป็นของ qa-landlord').toBe(me.id);
+    } else {
+      expect(rows[0].id === null || Number.isInteger(rows[0].id), 'id ต้องเป็นตัวเลขหรือ null').toBe(true);
+    }
+  });
+
+  test('finds the same landlord by the phone or part of the name', async ({ agent }) => {
+    // ขั้นที่ 1: หาเป้าการค้น แล้วเตรียมคำค้น 2 แบบ: เบอร์ และชื่อบางส่วน (ตัดตัวแรกออก เพื่อยืนยันว่าค้นแบบมีคำอยู่ตรงกลางได้ บรรทัด 3144)
+    const { landlord } = await searchTarget(agent);
+    const phone = landlord.phones.find((p) => !STRIPPED_FROM_QUERY.test(p));
+    const name = landlord.names.find((n) => n.trim().length >= 4 && !STRIPPED_FROM_QUERY.test(n));
+    const searches: [string, string | undefined][] = [
+      ['เบอร์', phone],
+      ['ชื่อบางส่วน', name?.trim().slice(1, 11)],
+    ];
+    test.skip(searches.every(([, q]) => q === undefined), 'หนังสือจองที่ใช้อีเมลนี้ไม่มีเบอร์หรือชื่อที่ใช้เป็นคำค้นได้');
+
+    // ขั้นที่ 2: ค้นทีละแบบ   ขั้นที่ 3: ผลต้องมีอีเมลเดียวกับเป้า
+    let checked = 0;
     for (const [label, q] of searches) {
-      const owners = await expectJson<OwnerUserOption[]>(await agent.contracts.ownerUsers(q), 200);
+      if (q === undefined) {
+        test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: `ค้นด้วย${label}: หนังสือจองไม่มีค่าที่ใช้เป็นคำค้นได้` });
+        continue;
+      }
+      const owners = await searchOwners(agent.contracts, q);
+      if (rowsOf(owners, landlord).length === 0 && owners.length === OWNER_SEARCH_LIMIT) {
+        // ผลเต็มเพดาน 15 แถวแล้ว อีเมลเป้าอาจอยู่ถัดไป ข้อนี้จึงตัดสินไม่ได้
+        test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: `ค้นด้วย${label}: ผลเต็ม ${OWNER_SEARCH_LIMIT} แถว` });
+        continue;
+      }
+      expect(rowsOf(owners, landlord).length, `ค้นด้วย${label}: จำนวนแถวของอีเมลเป้า`).toBe(1);
+      checked += 1;
+    }
+    // ถ้าไม่ได้ตรวจสักแบบ (ไม่มีคำค้น หรือผลเต็ม 15 แถวทุกแบบ) ข้อนี้ตัดสินไม่ได้ จึงข้าม แทนการผ่านโดยไม่ได้ตรวจ
+    test.skip(checked === 0, 'ค้นด้วยเบอร์และชื่อไม่ได้ตรวจสักแบบ (ดู annotation "ไม่ได้ตรวจ")');
+  });
+
+  test('answers an empty list when the search is empty or longer than 80 characters', async ({ agent }) => {
+    // ขั้นที่ 1: หาเป้าการค้น แล้วยืนยันก่อนว่าค้นด้วยอีเมลนี้เจอ (ตัวคุม: ถ้าไม่มีขั้นนี้ ข้อนี้จะผ่านทั้งที่ไม่มีอะไรให้ค้นเจอ)
+    const { landlord } = await searchTarget(agent);
+    const control = await searchOwners(agent.contracts, landlord.email);
+    expect(rowsOf(control, landlord).length, 'ตัวคุม: ค้นด้วยอีเมลเต็มต้องเจอ').toBe(1);
+
+    // ขั้นที่ 2: คำค้นยาว 81 ตัว = อีเมลเติม _ ต่อท้าย
+    //   API ตรวจความยาวก่อน (บรรทัด 3143) แล้วจึงตัด % _ \ ทิ้ง (บรรทัด 3144) ถ้าการตรวจความยาวหาย คำค้นจะเหลือแค่อีเมลแล้วเจอแถวนี้
+    //   ส่วนไม่ส่ง q และ q ว่าง: ถ้าการตรวจคำค้นว่างหาย คำค้นจะเป็น %% ซึ่งเจอทุกแถวของ qa-agent
+    const tooLong = landlord.email + '_'.repeat(MAX_QUERY_LENGTH + 1 - landlord.email.length);
+    const searches: [string, string | undefined][] = [['ไม่ส่ง q', undefined], ['q ว่าง', ''], ['q ยาว 81 ตัว', tooLong]];
+
+    // ขั้นที่ 3: ทุกแบบต้องได้รายการว่าง
+    for (const [label, q] of searches) {
+      const owners = await searchOwners(agent.contracts, q);
       expect(owners.length, label).toBe(0);
     }
   });
 
-  test('answers an empty list when nothing matches', async ({ agent }) => {
-    // ขั้นที่ 1: ค้นด้วยคำที่ไม่มีบัญชีไหนใช้   ขั้นที่ 2: ต้องได้รายการว่าง
-    const owners = await expectJson<OwnerUserOption[]>(await agent.contracts.ownerUsers('e2e-no-such-owner-zz'), 200);
-    expect(owners.length).toBe(0);
-  });
+  test("a search that matches everything returns only landlords from the agent's own letters", async ({ agent }) => {
+    // ขั้นที่ 1: หาเจ้าของห้องทั้งหมดจากหนังสือจองของ qa-agent
+    const { all } = await searchTarget(agent);
 
-  test('finds a landlord account by its email', async ({ agent, qa }) => {
-    // ขั้นที่ 1: หา id และอีเมลของ qa-landlord (ข้ามถ้ายังไม่ได้ตั้ง uuid)
-    const me = await landlordAccount(await qa('landlord'));
+    // ขั้นที่ 2: ค้นด้วย % ซึ่ง API ตัดทิ้ง คำค้นจึงเป็น %% และตรงกับทุกแถวที่ qa-agent ค้นได้ (บรรทัด 3143-3144)
+    const owners = await searchOwners(agent.contracts, '%');
 
-    // ขั้นที่ 2: qa-agent ค้นด้วยอีเมลที่ API ตอบมา   ขั้นที่ 3: ต้องเจอบัญชีนี้ ตรวจแค่ id
-    const owners = await expectJson<OwnerUserOption[]>(await agent.contracts.ownerUsers(me.email), 200);
-    expect(owners.map((owner) => owner.id)).toContain(me.id);
+    // ขั้นที่ 3: ทุกแถวต้องเป็นอีเมลจากหนังสือจองของ qa-agent และจำนวนต้องเท่ากับจำนวนอีเมลที่ไม่ซ้ำ ไม่เกิน 15 (บรรทัด 3181)
+    //   ถ้าตัวกรองนายหน้า (บรรทัด 3168) หาย ผลจะมีเจ้าของห้องจากหนังสือของนายหน้าคนอื่น (ตรวจตรง ๆ ใน cross-agent.spec.ts)
+    expect(owners.every((owner) => all.has(owner.email.toLowerCase())), 'ทุกแถวต้องมาจากหนังสือจองของ qa-agent').toBe(true);
+    expect(owners.length, 'จำนวนแถว').toBe(Math.min(OWNER_SEARCH_LIMIT, all.size));
   });
 
   test('answers 400 when q is sent twice', async ({ agent }) => {

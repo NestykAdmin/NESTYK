@@ -67,9 +67,9 @@ export class ContractsApi {
   }
 
   /**
-   * GET /agent/contracts/owner-users?q= : ค้นบัญชีที่มีบทบาทเจ้าของห้อง (ใช้ในฟอร์มสัญญา)
-   * ข้อควรระวัง: คำตอบมีข้อมูลส่วนตัว เทสควรตรวจแค่จำนวนกับ id และไม่ควรเทียบทั้งรายการ
-   * เพราะถ้าเทสไม่ผ่าน Playwright จะพิมพ์ค่าที่เทียบออกมาในผลรัน
+   * GET /agent/contracts/owner-users?q= : ค้นเจ้าของห้องที่นายหน้าผู้เรียกกรอกในหนังสือจองของตัวเอง (ใช้ในฟอร์มสัญญา ตั้งแต่ develop accb616)
+   * ข้อควรระวัง: คำตอบและคำค้นมีข้อมูลส่วนตัว เทสควรเรียกผ่าน searchOwners (src/support/reservation-letters.ts) และตรวจเป็นจริง/เท็จหรือจำนวน
+   * เพราะถ้าเทสไม่ผ่าน Playwright จะพิมพ์ค่าที่เทียบ (และ expectJson พิมพ์ที่อยู่ที่มีคำค้น) ออกมาในผลรัน
    */
   ownerUsers(q?: string): Promise<APIResponse> {
     return this.client.get('agent/contracts/owner-users', { q });

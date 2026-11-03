@@ -197,11 +197,16 @@ export interface NextDocumentNumber {
 }
 
 /**
- * บัญชีเจ้าของห้อง 1 รายการใน GET /agent/contracts/owner-users
- * API ส่งข้อมูลส่วนตัวมาด้วย (ชื่อ อีเมล เบอร์โทร เลขบัตร) แต่เทสตั้งใจใช้แค่ id จึงประกาศไว้ช่องเดียว
+ * เจ้าของห้อง 1 รายการใน GET /agent/contracts/owner-users (develop accb616: ค่ามาจากหนังสือจองของนายหน้าที่เรียก
+ *   agent-contracts.service.ts บรรทัด 3186-3198) API ส่งเลขบัตรและสัญชาติมาด้วย แต่เทสไม่ใช้ จึงไม่ประกาศ
+ * ข้อควรระวัง: ชื่อ อีเมล และเบอร์เป็นข้อมูลส่วนตัว เทสตรวจเป็นจริง/เท็จหรือจำนวน ไม่เทียบค่าตรง ๆ
  */
 export interface OwnerUserOption {
-  id: number;
+  /** owner_user_id ของสัญญา: บัญชีของเจ้าของห้องถ้ามี null ถ้ายังไม่มีบัญชี */
+  id: number | null;
+  name: string;
+  email: string;
+  phone: string;
 }
 
 /** ส่วนลดค่าจองบนบิลแรกของสัญญาเช่าใหม่ (develop 9644dd9: BillReservationCredit ใน packages/types/src/contracts.ts:23-26) */

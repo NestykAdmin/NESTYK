@@ -1,6 +1,5 @@
 import type { APIResponse } from '@playwright/test';
-import type { AuthUser, OwnerUserOption } from '../../src/api/types';
-import { qaAccounts, type QaRole } from '../../src/config/qa-accounts';
+import type { QaRole } from '../../src/config/qa-accounts';
 import { expect, test, type ApiSession } from '../../src/fixtures/api.fixture';
 import { expectError, expectJson } from '../../src/support/http';
 
@@ -238,45 +237,6 @@ test.describe('accounts with the role are accepted', () => {
       const session = await qa(role);
       const contracts = await expectJson<unknown>(await session.partyContracts.mine(), 200);
       expect(Array.isArray(contracts)).toBe(true);
-    });
-  }
-});
-
-test.describe('GET /agent/contracts/owner-users searches landlord accounts only', () => {
-  // ที่มา: searchOwnerUsers ใน agent-contracts.service.ts กรอง r.name = 'landlord' และค้นด้วย ILIKE ที่อีเมล ชื่อ เบอร์โทร และเลขบัตร
-  // ข้อควรระวัง: คำตอบมีข้อมูลส่วนตัว เทสจึงเทียบแค่ id (ถ้าไม่ผ่าน Playwright พิมพ์เฉพาะ id ออกมา)
-  //   ผู้ค้นคือ qa-agent (fixture agent) เส้นทางนี้ไม่ได้ใช้ข้อมูลของผู้ค้น (controller ไม่ส่ง user.id ให้ service)
-
-  /** id ของบัญชี QA จาก POST /auth/sync (global-setup ยืนยันแล้วว่าบัญชีมีอยู่ จึงไม่สร้างผู้ใช้ใหม่) */
-  async function qaUserId(session: ApiSession, role: QaRole): Promise<number> {
-    const user = await expectJson<AuthUser>(await session.auth.sync(), 201);
-    expect(user.provisioned, `sync ของ qa-${role} สร้างผู้ใช้ใหม่ (ไม่ควรเกิด เพราะ global-setup ยืนยันแล้วว่าบัญชีมีอยู่) ให้แจ้งทีมพร้อมเวลาที่รัน`).toBe(false);
-    return user.id;
-  }
-
-  test('finds qa-landlord by its email', async ({ agent, qa }) => {
-    // ขั้นที่ 1: หา id ของ qa-landlord
-    const landlordId = await qaUserId(await qa('landlord'), 'landlord');
-
-    // ขั้นที่ 2: ค้นด้วยอีเมลของบัญชีนี้   ขั้นที่ 3: ต้องเจอบัญชีนี้ (อีเมลไม่ซ้ำ: users_email_key)
-    const owners = await expectJson<OwnerUserOption[]>(await agent.contracts.ownerUsers(qaAccounts.landlord.email), 200);
-    expect(owners.map((owner) => owner.id)).toContain(landlordId);
-  });
-
-  for (const role of ['guest', 'tenant', 'agent', 'admin'] as const) {
-    test(`does not return qa-${role}, which has no landlord role`, async ({ agent, qa }) => {
-      // ขั้นที่ 1: ตัวคุม: ค้น qa-landlord ด้วยอีเมลแล้วต้องเจอ (ข้ามถ้าไม่ได้ตั้ง uuid ของ qa-landlord)
-      //   ถ้าไม่มีขั้นนี้ การค้นที่พังจนคืนรายการว่างเสมอจะทำให้ขั้นที่ 3 ผ่านโดยไม่ได้ตรวจอะไร
-      const landlordId = await qaUserId(await qa('landlord'), 'landlord');
-      const landlords = await expectJson<OwnerUserOption[]>(await agent.contracts.ownerUsers(qaAccounts.landlord.email), 200);
-      expect(landlords.map((owner) => owner.id), 'ตัวคุม: ต้องค้นเจอ qa-landlord').toContain(landlordId);
-
-      // ขั้นที่ 2: หา id ของบัญชีที่ไม่มีบทบาท landlord (บัญชีมีอยู่จริง ถ้าตัวกรองบทบาทหาย การค้นด้วยอีเมลจะเจอบัญชีนี้)
-      const userId = await qaUserId(await qa(role), role);
-
-      // ขั้นที่ 3: ค้นด้วยอีเมลของบัญชีนี้ แล้วคำตอบต้องไม่มีบัญชีนี้
-      const owners = await expectJson<OwnerUserOption[]>(await agent.contracts.ownerUsers(qaAccounts[role].email), 200);
-      expect(owners.map((owner) => owner.id)).not.toContain(userId);
     });
   }
 });
