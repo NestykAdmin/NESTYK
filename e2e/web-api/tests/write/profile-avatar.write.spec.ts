@@ -32,6 +32,12 @@ test.skip(
 /** ส่วนของ URL หลัง /object/public/ (bucket/<users.id>/<uuid>.jpg) ใช้บันทึกในรายงานแทน URL เต็ม */
 const objectPath = (url: string) => url.split('/object/public/')[1] ?? '(ไม่ใช่ URL สาธารณะของ Storage)';
 
+/**
+ * รหัสที่หมายถึง "ไม่มีไฟล์นี้แล้ว" ใน URL สาธารณะของ Storage: Supabase Storage ตอบ 400 พร้อมเนื้อคำตอบที่บอก statusCode "404" (ตัวจำลองในห้องทดลองตอบแบบนี้)
+ *   หรือ 404 ถ้าเป็น Storage รุ่นใหม่ (อนุมาน ยังไม่ได้บันทึกรหัสจริงบน dev) ไม่ใช้ .ok === false เพราะ 403, 429 หรือ 503 ชั่วคราวจะนับว่าลบแล้วทั้งที่ไฟล์ยังอยู่
+ */
+const GONE = [400, 404];
+
 /** true เมื่อเทสอาจตั้งรูปให้ qa-agent2 แล้ว (afterAll ล้างเฉพาะกรณีนี้ และเฉพาะเมื่อรูปไม่ว่าง) */
 let photoMayBeSet = false;
 
@@ -45,46 +51,41 @@ test.afterAll(async ({ agent2Auth }) => {
 });
 
 
-test('qa-agent2 uploads a photo, replaces it, then clears it, and old files are removed', async ({ agent2Auth, playwright }) => {
-  const context = await playwright.request.newContext();
-  const files = new PublicFileApi(context);
+test('qa-agent2 uploads a photo, replaces it, then clears it, and old files are removed', async ({ agent2Auth }) => {
+  const files = new PublicFileApi();
   const uploaded = (url: string) => test.info().annotations.push({ type: 'ไฟล์ที่อัป', description: objectPath(url) });
-  try {
-    // ขั้นที่ 1: รูปของ qa-agent2 ต้องว่างก่อนเริ่ม (ไม่อย่างนั้นหยุด เพื่อไม่ทับรูปที่มีอยู่)
-    const before = await expectJsonQuiet<AuthUser>(await agent2Auth.sync(), 201, 'POST /auth/sync');
-    expect(before.avatarUrl === null, 'qa-agent2 มีรูปโปรไฟล์อยู่แล้ว เทสหยุดก่อนเขียน (ล้างรูปเองในแอป หรือแจ้งทีมถ้าไม่ได้ตั้งเอง)').toBe(true);
+  // ขั้นที่ 1: รูปของ qa-agent2 ต้องว่างก่อนเริ่ม (ไม่อย่างนั้นหยุด เพื่อไม่ทับรูปที่มีอยู่)
+  const before = await expectJsonQuiet<AuthUser>(await agent2Auth.sync(), 201, 'POST /auth/sync');
+  expect(before.avatarUrl === null, 'qa-agent2 มีรูปโปรไฟล์อยู่แล้ว เทสหยุดก่อนเขียน (ล้างรูปเองในแอป หรือแจ้งทีมถ้าไม่ได้ตั้งเอง)').toBe(true);
 
-    // ขั้นที่ 2: อัปโหลด PNG สีน้ำเงิน ต้องได้ 201 และ avatarUrl เป็นไฟล์ JPEG ในโฟลเดอร์ของ qa-agent2 (`<users.id>/<uuid>.jpg` บรรทัด 62)
-    //   ตั้ง photoMayBeSet ก่อนส่งคำขอ: ถ้า API บันทึกรูปแล้วแต่ตอบรหัสอื่นหรือหมดเวลา afterAll ยังล้างให้ (afterAll ดูรูปจริงก่อนล้าง)
-    const shape = new RegExp(`/storage/v1/object/public/[^/]+/${before.id}/[0-9a-f-]{36}\\.jpg$`);
-    photoMayBeSet = true;
-    const first = await expectJsonQuiet<AuthUser>(await agent2Auth.uploadAvatar({ file: PNG_BLUE() }), 201, 'อัปโหลดรูปแรก');
-    const firstUrl = first.avatarUrl ?? '';
-    uploaded(firstUrl);
-    expect(shape.test(firstUrl), 'avatarUrl ต้องเป็น URL สาธารณะของไฟล์ JPEG ในโฟลเดอร์ของ qa-agent2').toBe(true);
+  // ขั้นที่ 2: อัปโหลด PNG สีน้ำเงิน ต้องได้ 201 และ avatarUrl เป็นไฟล์ JPEG ในโฟลเดอร์ของ qa-agent2 (`<users.id>/<uuid>.jpg` บรรทัด 62)
+  //   ตั้ง photoMayBeSet ก่อนส่งคำขอ: ถ้า API บันทึกรูปแล้วแต่ตอบรหัสอื่นหรือหมดเวลา afterAll ยังล้างให้ (afterAll ดูรูปจริงก่อนล้าง)
+  const shape = new RegExp(`/storage/v1/object/public/[^/]+/${before.id}/[0-9a-f-]{36}\\.jpg$`);
+  photoMayBeSet = true;
+  const first = await expectJsonQuiet<AuthUser>(await agent2Auth.uploadAvatar({ file: PNG_BLUE() }), 201, 'อัปโหลดรูปแรก');
+  const firstUrl = first.avatarUrl ?? '';
+  uploaded(firstUrl);
+  expect(shape.test(firstUrl), 'avatarUrl ต้องเป็น URL สาธารณะของไฟล์ JPEG ในโฟลเดอร์ของ qa-agent2').toBe(true);
 
-    // ขั้นที่ 3: เปิด URL โดยไม่ล็อกอินต้องได้ไฟล์ JPEG (API แปลงทุกรูปเป็น JPEG บรรทัด 56 ; ไบต์แรก FF D8 FF)
-    const firstFile = await files.open(firstUrl);
-    expect(firstFile.status, 'เปิด URL ของรูปแรก').toBe(200);
-    expect([...firstFile.body.subarray(0, 3)], 'ไฟล์ต้องเป็น JPEG').toEqual([0xff, 0xd8, 0xff]);
+  // ขั้นที่ 3: เปิด URL โดยไม่ล็อกอินต้องได้ไฟล์ JPEG (API แปลงทุกรูปเป็น JPEG บรรทัด 56 ; ไบต์แรก FF D8 FF)
+  const firstFile = await files.open(firstUrl);
+  expect(firstFile.status, 'เปิด URL ของรูปแรก').toBe(200);
+  expect([...firstFile.body.subarray(0, 3)], 'ไฟล์ต้องเป็น JPEG').toEqual([0xff, 0xd8, 0xff]);
 
-    // ขั้นที่ 4: อัปโหลดรูปที่ 2 ต้องได้ URL ใหม่ (uuid ใหม่ทุกครั้ง) และไฟล์รูปแรกต้องถูกลบ (storeAvatar ลบไฟล์เดิมหลังบันทึก)
-    const second = await expectJsonQuiet<AuthUser>(await agent2Auth.uploadAvatar({ file: PNG_ORANGE() }), 201, 'อัปโหลดรูปที่ 2');
-    const secondUrl = second.avatarUrl ?? '';
-    uploaded(secondUrl);
-    expect(shape.test(secondUrl), 'avatarUrl ของรูปที่ 2 ต้องเป็นไฟล์ในโฟลเดอร์ของ qa-agent2').toBe(true);
-    expect(secondUrl !== firstUrl, 'รูปที่ 2 ต้องได้ URL ใหม่').toBe(true);
-    expect((await files.open(secondUrl)).status, 'เปิด URL ของรูปที่ 2').toBe(200);
-    expect((await files.open(firstUrl)).ok, 'ไฟล์รูปแรกต้องถูกลบออกจาก bucket แล้ว').toBe(false);
+  // ขั้นที่ 4: อัปโหลดรูปที่ 2 ต้องได้ URL ใหม่ (uuid ใหม่ทุกครั้ง) และไฟล์รูปแรกต้องถูกลบ (storeAvatar ลบไฟล์เดิมหลังบันทึก)
+  const second = await expectJsonQuiet<AuthUser>(await agent2Auth.uploadAvatar({ file: PNG_ORANGE() }), 201, 'อัปโหลดรูปที่ 2');
+  const secondUrl = second.avatarUrl ?? '';
+  uploaded(secondUrl);
+  expect(shape.test(secondUrl), 'avatarUrl ของรูปที่ 2 ต้องเป็นไฟล์ในโฟลเดอร์ของ qa-agent2').toBe(true);
+  expect(secondUrl !== firstUrl, 'รูปที่ 2 ต้องได้ URL ใหม่').toBe(true);
+  expect((await files.open(secondUrl)).status, 'เปิด URL ของรูปที่ 2').toBe(200);
+  expect(GONE, 'ไฟล์รูปแรกต้องถูกลบออกจาก bucket แล้ว (รหัส 400 หรือ 404)').toContain((await files.open(firstUrl)).status);
 
-    // ขั้นที่ 5: ล้างรูป ต้องได้ 200 avatarUrl = null และ POST /auth/sync ก็ต้องได้ null
-    const cleared = await expectJsonQuiet<AuthUser>(await agent2Auth.clearAvatar(), 200, 'DELETE /auth/profile/avatar');
-    expect(cleared.avatarUrl === null, 'DELETE ต้องตอบ avatarUrl = null').toBe(true);
-    expect((await expectJsonQuiet<AuthUser>(await agent2Auth.sync(), 201, 'POST /auth/sync')).avatarUrl === null, 'หลังล้าง sync ต้องได้ avatarUrl = null').toBe(true);
+  // ขั้นที่ 5: ล้างรูป ต้องได้ 200 avatarUrl = null และ POST /auth/sync ก็ต้องได้ null
+  const cleared = await expectJsonQuiet<AuthUser>(await agent2Auth.clearAvatar(), 200, 'DELETE /auth/profile/avatar');
+  expect(cleared.avatarUrl === null, 'DELETE ต้องตอบ avatarUrl = null').toBe(true);
+  expect((await expectJsonQuiet<AuthUser>(await agent2Auth.sync(), 201, 'POST /auth/sync')).avatarUrl === null, 'หลังล้าง sync ต้องได้ avatarUrl = null').toBe(true);
 
-    // ขั้นที่ 6: ไฟล์รูปที่ 2 ต้องถูกลบด้วย
-    expect((await files.open(secondUrl)).ok, 'ไฟล์รูปที่ 2 ต้องถูกลบออกจาก bucket แล้ว').toBe(false);
-  } finally {
-    await context.dispose();
-  }
+  // ขั้นที่ 6: ไฟล์รูปที่ 2 ต้องถูกลบด้วย
+  expect(GONE, 'ไฟล์รูปที่ 2 ต้องถูกลบออกจาก bucket แล้ว (รหัส 400 หรือ 404)').toContain((await files.open(secondUrl)).status);
 });

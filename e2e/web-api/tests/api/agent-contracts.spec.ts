@@ -335,7 +335,10 @@ test.describe('a contract that does not exist', () => {
         //   ข้อนั้นจะยังผ่าน ข้อนี้จึงตรวจขั้นต่ำที่ต้องจริงเสมอ: คำขอไปที่สัญญาที่ไม่มีจริงต้องถูกปฏิเสธ (ไม่ใช่ 2xx)
         // ขั้นที่ 1: ส่งคำขอเดียวกันไปที่สัญญาที่ไม่มีจริง   ขั้นที่ 2: รหัสตอบกลับต้องตั้งแต่ 400 ขึ้นไป
         const response = await write.call(agent, NO_SUCH_ID);
-        expect(response.status(), `${response.url()} ตอบว่า: ${(await response.text()).slice(0, 300)}`).toBeGreaterThanOrEqual(400);
+        // ใส่ที่อยู่และเนื้อคำตอบในข้อความเฉพาะตอนไม่ผ่าน (รายงาน HTML บันทึกข้อความของทุกการตรวจ ดู expectJson ใน src/support/http.ts)
+        //   ตอนนี้ไม่มีแถวไหนตั้ง knownBug บรรทัดนี้จึงยังไม่เคยถูกรันหลังแก้ 3 พ.ย. 2026
+        if (response.status() < 400) expect(response.status(), `${response.url()} ตอบว่า: ${(await response.text()).slice(0, 300)}`).toBeGreaterThanOrEqual(400);
+        expect(response.status(), 'คำขอไปที่สัญญาที่ไม่มีจริงต้องถูกปฏิเสธ (รหัส 400 ขึ้นไป)').toBeGreaterThanOrEqual(400);
       });
     }
   }

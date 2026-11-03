@@ -4,10 +4,17 @@ import type { ApiErrorBody } from '../api/types';
 /**
  * ตรวจรหัสตอบกลับ แล้วคืนเนื้อคำตอบที่แปลงจาก JSON
  * ถ้ารหัสไม่ตรง ข้อความที่เทสแสดงจะมีที่อยู่ที่เรียกและเนื้อคำตอบของ API ติดมาด้วย จะได้รู้สาเหตุโดยไม่ต้องรันซ้ำ
+ * ทำไมสร้างข้อความเฉพาะตอนรหัสไม่ตรง: Playwright บันทึกข้อความของทุกการตรวจเป็นขั้นในรายงาน HTML แม้การตรวจจะผ่าน
+ *   ถ้าใส่ข้อความทุกครั้ง รายงานจะมีที่อยู่ (รวมคำค้น) และเนื้อคำตอบ 500 ตัวอักษรของทุกคำขอ
+ *   (ห้องทดลอง 3 พ.ย. 2026: รายงานของ npm test 1 รอบมีขั้นแบบนี้ 692 ขั้น)
+ *   ตอนรหัสตรง การตรวจด้านล่างไม่มีข้อความ ขั้นในรายงานจึงไม่มีที่อยู่และเนื้อคำตอบ (นับในห้องทดลองหลังแก้ได้ 0 ขั้นในข้อที่ผ่าน)
  */
 export async function expectJson<T>(response: APIResponse, status: number): Promise<T> {
   const text = await response.text();
-  expect(response.status(), `${response.url()} ตอบว่า: ${text.slice(0, 500)}`).toBe(status);
+  if (response.status() !== status) {
+    expect(response.status(), `${response.url()} ตอบว่า: ${text.slice(0, 500)}`).toBe(status);
+  }
+  expect(response.status()).toBe(status);
   return JSON.parse(text) as T;
 }
 

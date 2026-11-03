@@ -133,8 +133,11 @@ export async function findTargets(owner: TargetReaders): Promise<CrossAgentTarge
 export async function expectSameAsNonexistent(foreign: APIResponse, nonexistent: APIResponse, what: string): Promise<void> {
   const foreignText = await foreign.text();
   const nonexistentText = await nonexistent.text();
-  expect(foreign.status(), `${what}: ${foreign.url()} ตอบว่า ${foreignText.slice(0, 300)}`).toBe(404);
-  expect(nonexistent.status(), `${what} (id ที่ไม่มีจริง): ${nonexistentText.slice(0, 300)}`).toBe(404);
+  // ใส่ที่อยู่และเนื้อคำตอบในข้อความเฉพาะตอนรหัสไม่ใช่ 404 (เหตุผลเดียวกับ expectJson ใน src/support/http.ts: รายงาน HTML บันทึกข้อความของทุกการตรวจ)
+  if (foreign.status() !== 404) expect(foreign.status(), `${what}: ${foreign.url()} ตอบว่า ${foreignText.slice(0, 300)}`).toBe(404);
+  if (nonexistent.status() !== 404) expect(nonexistent.status(), `${what} (id ที่ไม่มีจริง): ${nonexistentText.slice(0, 300)}`).toBe(404);
+  expect(foreign.status(), `${what}: นายหน้าอีกคนต้องได้ 404`).toBe(404);
+  expect(nonexistent.status(), `${what} (id ที่ไม่มีจริง) ต้องได้ 404`).toBe(404);
   const body = JSON.parse(foreignText) as { message?: unknown };
   expect(String(body.message ?? ''), `${what}: 404 นี้มาจากเส้นทางที่ไม่มีอยู่ ไม่ใช่การตรวจเจ้าของ`).not.toMatch(/^Cannot [A-Z]+ \//);
   expect(body, `${what}: ข้อความต้องเหมือน id ที่ไม่มีจริง`).toEqual(JSON.parse(nonexistentText));
