@@ -7,12 +7,14 @@ import { TenantsApi } from '../api/tenants.api';
 import { LeadViewingsApi } from '../api/viewings.api';
 import { expectJson } from './http';
 import { MAX_PAGE_SIZE } from './pagination';
+import { QA_ROOM_FAMILY } from '../write/qa-dataset';
 
 /**
  * ตัวช่วยของเทสข้ามนายหน้า (tests/api/cross-agent.spec.ts และ tests/write/cross-agent.write.spec.ts)
  *
  * เป้าหมายคือข้อมูลของ qa-agent ที่ติดป้าย E2E- (ข้อมูลที่ทีมตกลงให้เทสใช้ ฉบับที่ 8, 2 พ.ย. 2026)
  *   ลีดถาวร E2E-QA-LEAD-1 (tests/write/agent-leads.write.spec.ts) และข้อมูลของเทสวงจรเช่าห้อง (E2E-LC-<รหัสรอบ>)
+ *   ห้องถาวร E2E-QA-ROOM-1 ของเทสลิงก์แชร์อยู่ในรายการห้องที่ตรวจ แต่ไม่ถูกเลือกเป็นห้องเป้าหมายของการสั่งแก้ (roomId)
  * ทุกฟังก์ชันในไฟล์นี้อ่านอย่างเดียวด้วยบัญชี qa-agent และไม่ผูกกับ id ตายตัว
  * ที่มาของตัวกรองตามนายหน้า (develop bc77a8b): ทุกเส้นทาง /agent/* ค้นด้วย created_by_user_id ของผู้ล็อกอิน
  *   ของนายหน้าอีกคนจึงได้ 404 ข้อความเดียวกับ id ที่ไม่มีจริง เช่น requireLead ใน agent-leads.service.ts บรรทัด 335-339
@@ -101,7 +103,9 @@ export async function findTargets(owner: TargetReaders): Promise<CrossAgentTarge
     openLeadId: newest(leads.filter((lead) => lead.status !== 'booked').map((lead) => lead.id)),
     bookedLeadId: newest(leads.filter((lead) => lead.status === 'booked').map((lead) => lead.id)),
     roomIds: rooms.map((room) => room.id),
-    roomId: newest(rooms.map((room) => room.id)),
+    // ไม่ใช้ห้องถาวรของเทสลิงก์แชร์เป็นเป้าของการสั่งแก้ ถ้าระบบกันข้ามนายหน้าพัง PATCH ของ qa-agent2 จะเขียนทับห้องนั้น
+    //   (ห้องลบไม่ได้ และเทสลิงก์แชร์เทียบหน้าแชร์กับค่าที่ใส่ตอนสร้าง) ห้องนี้ยังอยู่ใน roomIds สำหรับเทสอ่านที่ตรวจรายการ
+    roomId: newest(rooms.filter((room) => !(room.listingTitle ?? '').startsWith(QA_ROOM_FAMILY)).map((room) => room.id)),
     tenantIds: tenants.map((tenant) => tenant.id),
     tenantId: newest(tenants.map((tenant) => tenant.id)),
     contractIds: contracts.map((contract) => contract.id),

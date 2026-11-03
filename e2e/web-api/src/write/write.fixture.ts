@@ -9,7 +9,7 @@ import { ContractsApi } from '../api/contracts.api';
 import { LeadMatchingApi } from '../api/lead-matching.api';
 import { ListingsApi } from '../api/listings.api';
 import { AgentRoomsApi } from '../api/rooms.api';
-import { RoomShareLinksApi } from '../api/share-links.api';
+import { PublicRoomShareApi, RoomShareLinksApi } from '../api/share-links.api';
 import { TenantsApi } from '../api/tenants.api';
 import { LeadViewingsApi } from '../api/viewings.api';
 import { env } from '../config/env';
@@ -22,6 +22,7 @@ import { assertEnvFileStorageIsLocal, assertWriteSetupDone } from './write-guard
  *   writer    = ผู้เรียกที่ล็อกอินด้วย qa-agent (เทสลีด) ใช้ได้ทั้งใน beforeAll, afterAll และตัวเทส (ขอบเขต worker)
  *   crossAgent = qa-agent (owner) กับ qa-agent2 (intruder) ของเทสข้ามนายหน้า (ขอบเขต worker)
  *   agent2Auth = เส้นทาง /auth ของ qa-agent2 สำหรับเทสรูปโปรไฟล์ (ขอบเขต worker)
+ *   shareWriter = qa-agent (ห้อง รายการห้อง ลิงก์แชร์) กับผู้เปิดหน้าแชร์สาธารณะที่ไม่ล็อกอิน สำหรับเทสลิงก์แชร์ห้อง (ขอบเขต worker)
  *   lifecycle = ผู้เรียก 3 บทบาทของเทสวงจรเช่าห้อง: qa-agent, qa-e2e-tenant และ qa-e2e-landlord (ขอบเขต worker)
  *               qa-e2e-tenant กับ qa-e2e-landlord ต้องตั้ง E2E_QA_E2E_TENANT_UUID กับ E2E_QA_E2E_LANDLORD_UUID (เทสข้ามก่อนถึง fixture ถ้าไม่ได้ตั้ง)
  *               และถ้า TEAM_DB_WRITES_AGREED เป็น false ตรวจ SUPABASE_URL ใน .env.api ก่อนสร้างผู้เรียก (assertEnvFileStorageIsLocal)
@@ -57,6 +58,15 @@ export interface CrossAgentApis {
   lifecycle: LifecycleAgentApi;
 }
 
+/** ผู้เรียกของเทสลิงก์แชร์ห้อง (tests/write/share-links.write.spec.ts) */
+export interface ShareWriterSession {
+  listings: ListingsApi;
+  rooms: AgentRoomsApi;
+  shareLinks: RoomShareLinksApi;
+  /** เปิดหน้าแชร์สาธารณะโดยไม่ส่งบัตรผ่าน (คืนผลที่ไม่มี URL) */
+  publicShares: PublicRoomShareApi;
+}
+
 /** owner = qa-agent (เจ้าของข้อมูล ใช้อ่านก่อนกับหลัง) ; intruder = qa-agent2 (ส่งคำขอที่ต้องถูกปฏิเสธ) */
 export interface CrossAgentSession {
   owner: CrossAgentApis;
@@ -84,6 +94,7 @@ interface WriteWorkerFixtures {
   lifecycle: LifecycleSession;
   crossAgent: CrossAgentSession;
   agent2Auth: AuthApi;
+  shareWriter: ShareWriterSession;
   /** รหัสรอบที่ write-global-setup ตั้ง */
   runId: string;
 }
@@ -155,6 +166,23 @@ export const test = base.extend<object, WriteWorkerFixtures>({
       const context = await contextFor(playwright, tokenOf(qaAgent2));
       await use(new AuthApi(new ApiClient(context)));
       await context.dispose();
+    },
+    { scope: 'worker' },
+  ],
+
+  shareWriter: [
+    async ({ playwright, runId }, use) => {
+      void runId;
+      const agentContext = await contextFor(playwright, tokenOf(qaAccounts.agent));
+      const client = new ApiClient(agentContext);
+      await use({
+        listings: new ListingsApi(client),
+        rooms: new AgentRoomsApi(client),
+        shareLinks: new RoomShareLinksApi(client),
+        // ผู้เปิดหน้าแชร์ไม่ส่งบัตรผ่าน (หน้าแชร์ไม่มี guard: room-share-links.controller.ts บรรทัด 48-58)
+        publicShares: new PublicRoomShareApi(env.apiBaseUrl),
+      });
+      await agentContext.dispose();
     },
     { scope: 'worker' },
   ],
