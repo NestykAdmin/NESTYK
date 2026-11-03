@@ -90,8 +90,8 @@ import {
   roleRequiresAuth,
   setPendingRole,
 } from '../lib/auth/role-gate';
-import { roleHomePath } from '../lib/app-routes';
-import { loginHref, useInitialRouteRole, useRoleRouteSync } from '../lib/web-routes';
+import { type AppRouteState, roleHomePath, stateToRoute } from '../lib/app-routes';
+import { loginHref, useAppRouteSync, useInitialRouteState } from '../lib/web-routes';
 import {
   MOCK_LISTINGS,
   MOCK_SERVICE_TICKETS,
@@ -162,19 +162,25 @@ export function AppHomeScreen() {
   const { theme } = useMobileTheme();
   const router = useRouter();
   const { ready, isAuthenticated, session, displayName, initials, signOut, refreshProfile } = useAuth();
-  // Web: the path picks the role ("/" guest, "/agent", ...). Mobile: EXPO_PUBLIC_DEFAULT_ROLE as before.
-  const initialRole = useInitialRouteRole(APP_CONFIG.defaultRole);
+  // Web: the URL picks the page ("/" guest, "/agent/rooms", ...; route plan R1–R2). Mobile: null, so
+  // EXPO_PUBLIC_DEFAULT_ROLE and the role's first tab as before.
+  const initialRoute = useInitialRouteState();
+  const initialRole = initialRoute?.role ?? APP_CONFIG.defaultRole;
   const [activeRole, setActiveRole] = useState<UserRole>(initialRole);
-  const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => calendarDateKey(new Date()));
-  const [calendarMonth, setCalendarMonth] = useState(() => calendarDateKey(new Date()).slice(0, 7) + '-01');
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(
+    () => initialRoute?.calendarDate ?? calendarDateKey(new Date()),
+  );
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => (initialRoute?.calendarDate ?? calendarDateKey(new Date())).slice(0, 7) + '-01',
+  );
   const [calendarReloadToken, setCalendarReloadToken] = useState(0);
-  const [activeTab, setActiveTab] = useState<MobileAppTab>(() => getDefaultTabForRole(initialRole));
+  const [activeTab, setActiveTab] = useState<MobileAppTab>(() => initialRoute?.tab ?? getDefaultTabForRole(initialRole));
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [partyInbox, setPartyInbox] = useState(false);
+  const [partyInbox, setPartyInbox] = useState(() => !!initialRoute?.partyInbox);
   const [selectedPartyRoom, setSelectedPartyRoom] = useState<PartyContractRoom | null>(null);
-  const [contractHistory, setContractHistory] = useState(false);
-  const [billHistory, setBillHistory] = useState(false);
+  const [contractHistory, setContractHistory] = useState(() => initialRoute?.partyInbox === 'tenants');
+  const [billHistory, setBillHistory] = useState(() => !!initialRoute?.billHistory);
   const [selectedBillRoom, setSelectedBillRoom] = useState<{ property: string; room: string | null } | null>(null);
   const [openedPartyContract, setOpenedPartyContract] = useState<PartyContract | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -209,7 +215,7 @@ export function AppHomeScreen() {
   const pendingRefresh = useRef<number | null>(null);
   const [leadsReloadToken, setLeadsReloadToken] = useState(0);
   const [roomsReloadToken, setRoomsReloadToken] = useState(0);
-  const [creatingTenant, setCreatingTenant] = useState(false);
+  const [creatingTenant, setCreatingTenant] = useState(() => !!initialRoute?.creatingTenant);
   const [createTenantBusy, setCreateTenantBusy] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<AgentTenant | null>(null);
   const createTenantBackRef = useRef<(() => boolean) | null>(null);
@@ -604,15 +610,53 @@ export function AppHomeScreen() {
     }
   }, [ready, isAuthenticated, activeRole, router]);
 
-  // Web: the path and the role move together (route plan R1). Mobile: no-op.
-  const applyRouteRole = useCallback((role: UserRole) => {
-    setPartyInbox(false);
+  // Web: the shell and the URL move together (route plan R1–R2). Mobile: no-op.
+  // A URL from outside (link, address bar, back/forward) opens its page with a clean state, like a menu tap.
+  const applyRoute = useCallback((route: AppRouteState) => {
+    setDrawerOpen(false);
+    setPartyInbox(!!route.partyInbox);
+    setContractHistory(route.partyInbox === 'tenants');
     setSelectedPartyRoom(null);
     setOpenedPartyContract(null);
-    setActiveRole(role);
-    setActiveTab(getDefaultTabForRole(role));
+    setBillHistory(!!route.billHistory);
+    setSelectedBillRoom(null);
+    setLeadsWorkFilter(null);
+    setClientsWorkFilter(null);
+    setSecondaryReturnTab(null);
+    setLeadEdit(null);
+    setMatchRoomId(null);
+    setMatchRoomPreview(null);
+    setCreatingTenant(!!route.creatingTenant);
+    if (route.tab === 'calendar') {
+      const date = route.calendarDate ?? calendarDateKey(new Date());
+      setCalendarSelectedDate(date);
+      setCalendarMonth(date.slice(0, 7) + '-01');
+    }
+    setActiveRole(route.role);
+    setActiveTab(route.tab);
   }, []);
-  useRoleRouteSync(activeRole, applyRouteRole);
+  // Pages without a path yet (R3: lead, tenant, contract, bill room) leave the URL on the list they came from.
+  const routeDetailOpen =
+    !!leadEdit ||
+    isTenantDetail ||
+    !!tenantEntry ||
+    !!selectedBillRoom ||
+    !!selectedPartyRoom ||
+    !!openedPartyContract ||
+    (activeRole === 'tenant' && partyInbox && contractHistory);
+  const routeHref =
+    Platform.OS === 'web'
+      ? stateToRoute({
+          role: activeRole,
+          tab: activeTab,
+          creatingTenant,
+          partyInbox: partyInbox ? (activeRole === 'landlord' && contractHistory ? 'tenants' : 'contracts') : null,
+          calendarDate: calendarSelectedDate,
+          billHistory,
+          detailOpen: routeDetailOpen,
+        })
+      : null;
+  useAppRouteSync(routeHref, activeRole, applyRoute);
 
   const accentColor =
     tokens.colors.roles[activeRole as keyof typeof tokens.colors.roles] || tokens.colors.accent;

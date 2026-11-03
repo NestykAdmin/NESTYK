@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'expo-router';
+import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
 import type { UserRole } from '@nestyk/types';
-import { loginPathFor, parseAppPath, postLoginPath, roleHomePath } from './app-routes';
+import {
+  type AppRouteState,
+  isParentRoute,
+  loginPathFor,
+  normalizeHref,
+  postLoginPath,
+  routeEntryKey,
+  routeToState,
+} from './app-routes';
 
 /**
- * Web side of the route helpers (route plan R1, rules 1, 7, 17–21). The path owns the role:
- * "/" is guest, "/agent" agent, "/tenant" tenant, "/landlord" landlord. The app shell stays mounted in the root
- * layout, so role changes go through router.push and the browser back button returns without a reload.
+ * Web side of the route helpers (route plan R1–R2, rules 1, 7, 17–21). The URL owns the page: "/" is guest,
+ * "/agent/rooms" the agent's rooms, and so on. The app shell stays mounted in the root layout, so moving between
+ * pages is router.push / router.replace and the browser back button returns without a reload.
  */
 const LAST_ROLE_KEY = 'nestyk.web.lastRole';
 
-function currentLocation(): { pathname: string; full: string } {
+function currentLocation(): string {
   try {
     const { pathname, search } = window.location;
-    return { pathname, full: `${pathname}${search}` };
+    return `${pathname}${search}`;
   } catch {
-    return { pathname: '/', full: '/' };
+    return '/';
   }
 }
 
@@ -36,55 +44,103 @@ function rememberRole(role: UserRole): void {
   }
 }
 
-/** The role of a path, following an old-link redirect; anything else is guest. */
-function roleOfPath(pathname: string): UserRole {
-  let parsed = parseAppPath(pathname);
-  if (parsed.kind === 'redirect') parsed = parseAppPath(parsed.to);
-  return parsed.kind === 'app' ? parsed.role : 'guest';
+/** The URL from the router (not window.location, which can lag one step behind a redirect). */
+function useRouterUrl(): { pathname: string; query: Record<string, unknown> } {
+  const pathname = usePathname();
+  // Global params also carry the catch-all segments of app/[...path].tsx as "path"; that is not a query key.
+  const { path: _segments, ...query } = useGlobalSearchParams() as Record<string, unknown>;
+  return { pathname, query };
+}
+
+/** The page the shell opens on. EXPO_PUBLIC_DEFAULT_ROLE is not used on web (rule 13). */
+export function useInitialRouteState(): AppRouteState | null {
+  const { pathname, query } = useRouterUrl();
+  const [route] = useState<AppRouteState | null>(() => routeToState(pathname, query)?.state ?? null);
+  return route;
+}
+
+/** The pages this tab has seen (entry keys) and where it is now, to tell back/forward from a new page. */
+interface SeenStack {
+  list: string[];
+  index: number;
+}
+
+function trackUrl(stack: SeenStack, key: string): void {
+  if (stack.list[stack.index] === key) return;
+  if (stack.index > 0 && stack.list[stack.index - 1] === key) {
+    stack.index -= 1;
+    return;
+  }
+  if (stack.list[stack.index + 1] === key) {
+    stack.index += 1;
+    return;
+  }
+  stack.list = [...stack.list.slice(0, stack.index + 1), key];
+  stack.index = stack.list.length - 1;
 }
 
 /**
- * The role of the path the shell opens on, read from the router (not window.location, which can lag one step behind
- * a redirect). EXPO_PUBLIC_DEFAULT_ROLE is not used on web (rule 13).
+ * Keeps the shell and the URL together.
+ * - URL changed from outside (link, typed address, back/forward): the shell opens that page (`applyRoute`).
+ *   A URL written another way (old link, "/agent/more", unknown page, bad date) is replaced by its canonical one.
+ * - The shell moved (menu, button, in-app back): a new page is router.push; a filter (date) is router.replace;
+ *   going back up to the page we just came from is a browser back, so history does not fill with loops.
+ * `routeHref` null = the shell shows a page without a path yet (R3 detail): the URL is left as it is.
  */
-export function useInitialRouteRole(_fallback: UserRole): UserRole {
-  const pathname = usePathname();
-  const [role] = useState<UserRole>(() => roleOfPath(pathname));
-  return role;
-}
-
-/**
- * Keeps the role and the path together: a new path (link, back/forward) sets the role, a role picked in the app
- * moves to that role's path. Paths that are not app paths (login, register) are left alone.
- */
-export function useRoleRouteSync(activeRole: UserRole, applyRole: (role: UserRole) => void): void {
-  const pathname = usePathname();
+export function useAppRouteSync(
+  routeHref: string | null,
+  activeRole: UserRole,
+  applyRoute: (route: AppRouteState) => void,
+): void {
   const router = useRouter();
-  const parsed = parseAppPath(pathname);
-  const pathRole = parsed.kind === 'app' ? parsed.role : null;
+  const { pathname, query } = useRouterUrl();
+  const urlHref = normalizeHref(pathname, query);
+  const target = routeToState(pathname, query);
+  const synced = useRef<string | null>(target?.href ?? null);
+  const stack = useRef<SeenStack>({ list: target ? [routeEntryKey(target.href)] : [], index: 0 });
 
   useEffect(() => {
-    if (pathRole && pathRole !== activeRole) applyRole(pathRole);
-    // Only a new path should move the role here; the next effect handles role changes.
+    if (!target) return;
+    if (target.href !== synced.current) {
+      trackUrl(stack.current, routeEntryKey(target.href));
+      synced.current = target.href;
+      applyRoute(target.state);
+    }
+    if (target.href !== urlHref) router.replace(target.href as never);
+    // Only a new URL should move the shell here; the next effect handles shell moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathRole]);
+  }, [urlHref]);
 
-  const firstRun = useRef(true);
   useEffect(() => {
-    rememberRole(activeRole);
-    // On the first render the role already comes from the path; only a later role change moves the path.
-    if (firstRun.current) {
-      firstRun.current = false;
+    if (!routeHref || routeHref === synced.current) return;
+    const from = synced.current;
+    const key = routeEntryKey(routeHref);
+    const seen = stack.current;
+    synced.current = routeHref;
+    if (from && routeEntryKey(from) === key) {
+      seen.list[seen.index] = key;
+      router.replace(routeHref as never);
       return;
     }
-    if (pathRole && pathRole !== activeRole) router.push(roleHomePath(activeRole) as never);
+    if (from && seen.index > 0 && seen.list[seen.index - 1] === key && isParentRoute(routeHref, from)) {
+      seen.index -= 1;
+      window.history.back();
+      return;
+    }
+    seen.list = [...seen.list.slice(0, seen.index + 1), key];
+    seen.index = seen.list.length - 1;
+    router.push(routeHref as never);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeHref]);
+
+  useEffect(() => {
+    rememberRole(activeRole);
   }, [activeRole]);
 }
 
 /** "/login?next=<where the user was>" (or the given in-app path). */
 export function loginHref(nextPath?: string | null): string {
-  return loginPathFor(nextPath ?? currentLocation().full);
+  return loginPathFor(nextPath ?? currentLocation());
 }
 
 /** After sign-in: a safe `next` the account may open, else the remembered role, else agent → landlord → tenant (Q5). */

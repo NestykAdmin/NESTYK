@@ -10,7 +10,10 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'app-rout
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('app-routes must stay dependency free'); }, mod, mod.exports);
-const { parseAppPath, roleHomePath, safeNextPath, loginPathFor, pickLandingRole, postLoginPath } = mod.exports;
+const {
+  parseAppPath, roleHomePath, safeNextPath, loginPathFor, pickLandingRole, postLoginPath,
+  stateToRoute, routeToState, routeEntryKey, isParentRoute, normalizeHref, parseQuery,
+} = mod.exports;
 
 test('"/" is guest; each role owns its path; the rest of the path is kept for later steps', () => {
   assert.deepEqual(parseAppPath('/'), { kind: 'app', role: 'guest', rest: [] });
@@ -78,4 +81,97 @@ test('after login: next when the account may open it, else the landing role home
   assert.equal(postLoginPath('https://evil.example', agent), '/agent');
   assert.equal(postLoginPath(undefined, ['guest', 'tenant', 'agent'], 'tenant'), '/tenant');
   assert.equal(postLoginPath(undefined, ['guest']), '/');
+});
+
+// ---- R2: tab paths (route plan 3.1–3.4) ----
+
+const R2_PAGES = [
+  ['/', { role: 'guest', tab: 'home' }],
+  ['/search', { role: 'guest', tab: 'search' }],
+  ['/services', { role: 'guest', tab: 'services' }],
+  ['/agent', { role: 'agent', tab: 'dashboard' }],
+  ['/agent/rooms', { role: 'agent', tab: 'listingRoom' }],
+  ['/agent/rooms/new', { role: 'agent', tab: 'createListing' }],
+  ['/agent/leads', { role: 'agent', tab: 'listingLead' }],
+  ['/agent/leads/new', { role: 'agent', tab: 'createLead' }],
+  ['/agent/clients', { role: 'agent', tab: 'clients' }],
+  ['/agent/clients/new', { role: 'agent', tab: 'clients', creatingTenant: true }],
+  ['/agent/contracts', { role: 'agent', tab: 'contracts' }],
+  ['/agent/calendar?date=2026-11-03', { role: 'agent', tab: 'calendar', calendarDate: '2026-11-03' }],
+  ['/agent/contacts', { role: 'agent', tab: 'contact' }],
+  ['/agent/services', { role: 'agent', tab: 'services' }],
+  ['/tenant', { role: 'tenant', tab: 'dashboard' }],
+  ['/tenant/home', { role: 'tenant', tab: 'living' }],
+  ['/tenant/contracts', { role: 'tenant', tab: 'dashboard', partyInbox: 'contracts' }],
+  ['/tenant/bills', { role: 'tenant', tab: 'bills' }],
+  ['/tenant/bills?history=1', { role: 'tenant', tab: 'bills', billHistory: true }],
+  ['/tenant/services', { role: 'tenant', tab: 'services' }],
+  ['/landlord', { role: 'landlord', tab: 'dashboard' }],
+  ['/landlord/contracts', { role: 'landlord', tab: 'dashboard', partyInbox: 'contracts' }],
+  ['/landlord/tenants', { role: 'landlord', tab: 'dashboard', partyInbox: 'tenants' }],
+  ['/landlord/income', { role: 'landlord', tab: 'income' }],
+  ['/landlord/services', { role: 'landlord', tab: 'services' }],
+  ['/admin', { role: 'admin', tab: 'dashboard' }],
+];
+
+function open(href) {
+  const [p, search = ''] = href.split('?');
+  return routeToState(p, parseQuery(search));
+}
+
+test('R2: every page in the table opens its state, and that state gives the same URL back', () => {
+  for (const [href, state] of R2_PAGES) {
+    const got = open(href);
+    assert.deepEqual(got.state, state, href);
+    assert.equal(got.href, href, href);
+    assert.equal(stateToRoute(state), href, href);
+  }
+});
+
+test('R2: the tab under an open contract inbox does not change its URL', () => {
+  assert.equal(stateToRoute({ role: 'landlord', tab: 'income', partyInbox: 'contracts' }), '/landlord/contracts');
+  assert.equal(stateToRoute({ role: 'tenant', tab: 'bills', partyInbox: 'contracts', billHistory: true }), '/tenant/contracts');
+});
+
+test('R2: odd URLs land on a real page with one canonical URL', () => {
+  assert.deepEqual(open('/agent/more'), { state: { role: 'agent', tab: 'dashboard' }, href: '/agent' });
+  assert.equal(open('/agent/nope/1').href, '/agent');
+  assert.equal(open('/tenant/xyz').href, '/tenant');
+  assert.equal(open('/Agent/Rooms/').href, '/agent/rooms');
+  assert.equal(open('/owner/income').href, '/landlord/income');
+  assert.equal(open('/agent/rooms?utm=x').href, '/agent/rooms');
+  // A bad or missing date is dropped (the shell then shows today).
+  for (const d of ['2026-02-30', '2026-13-01', 'x', '']) assert.equal(open(`/agent/calendar?date=${d}`).href, '/agent/calendar', d);
+  assert.equal(open('/tenant/bills?history=yes').href, '/tenant/bills');
+  assert.equal(open('/agent/leads?date=2026-11-03').href, '/agent/leads');
+  for (const p of ['/login', '/foo']) assert.equal(open(p), null, p);
+});
+
+test('R2: detail pages (R3) and tabs without a path give no URL, so the address bar stays on the list', () => {
+  assert.equal(stateToRoute({ role: 'agent', tab: 'leadDetail' }), null);
+  assert.equal(stateToRoute({ role: 'agent', tab: 'clients', detailOpen: true }), null);
+  assert.equal(stateToRoute({ role: 'agent', tab: 'more' }), null);
+  assert.equal(stateToRoute({ role: 'agent', tab: 'clients', creatingTenant: false }), '/agent/clients');
+  assert.equal(stateToRoute({ role: 'agent', tab: 'listingRoom', creatingTenant: true }), '/agent/rooms');
+  assert.equal(stateToRoute({ role: 'tenant', tab: 'dashboard', partyInbox: 'tenants' }), null);
+  assert.equal(stateToRoute({ role: 'admin', tab: 'tickets' }), null);
+  assert.equal(stateToRoute({ role: 'guest', tab: 'menu' }), null);
+});
+
+test('R2: filters replace the history entry, other changes push a new one', () => {
+  assert.equal(routeEntryKey('/agent/calendar?date=2026-11-03'), '/agent/calendar');
+  assert.equal(routeEntryKey('/agent/clients?filter=renewal&view=all'), '/agent/clients');
+  assert.equal(routeEntryKey('/tenant/bills?history=1'), '/tenant/bills?history=1');
+  assert.ok(isParentRoute('/agent/rooms', '/agent/rooms/new'));
+  assert.ok(isParentRoute('/tenant/bills', '/tenant/bills?history=1'));
+  assert.ok(isParentRoute('/landlord', '/landlord/tenants'));
+  assert.ok(!isParentRoute('/agent/leads', '/agent/rooms/new'));
+  assert.ok(!isParentRoute('/agent/rooms/new', '/agent/rooms'));
+});
+
+test('R2: router params are written one way (keys sorted, catch-all arrays read once)', () => {
+  assert.equal(normalizeHref('/agent/calendar', { date: '2026-11-03' }), '/agent/calendar?date=2026-11-03');
+  assert.equal(normalizeHref('/x', { b: '2', a: ['1', '9'] }), '/x?a=1&b=2');
+  assert.equal(normalizeHref('', {}), '/');
+  assert.deepEqual(parseQuery('?a=1&a=2&b=%E0%B8%81&c'), { a: '1', b: 'ก', c: '' });
 });
