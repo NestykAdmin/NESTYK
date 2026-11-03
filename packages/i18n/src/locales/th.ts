@@ -1959,6 +1959,7 @@ export const th: TranslationSchema = {
         expand: 'ขยายเมนู',
         skip: 'ข้ามไปยังเนื้อหา',
         close: 'ปิด',
+        breadcrumb: 'ตำแหน่งหน้า',
         refresh: 'รีเฟรช',
         readAll: 'อ่านทั้งหมดแล้ว',
         brandTag: 'พื้นที่ทำงานนายหน้า',

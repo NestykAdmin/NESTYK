@@ -242,6 +242,9 @@ UPDATE public.master_roles
 | `qa-agent@nestyk.test` | guest, agent | guest, agent |
 | `qa-admin@nestyk.test` | guest, admin | guest, admin |
 | `qa-agent2@nestyk.test` | guest, agent | guest, agent (นายหน้าคนที่ 2 เพิ่ม 2 พ.ย. 2026) |
+| `qa-e2e-tenant@nestyk.test` | guest, tenant | guest, tenant (เทสวงจรเช่าห้อง แทน qa-tenant เพิ่ม 3 พ.ย. 2026) |
+| `qa-e2e-landlord@nestyk.test` | guest, owner (แถว id 2) | guest, landlord (เทสวงจรเช่าห้อง แทน qa-landlord เพิ่ม 3 พ.ย. 2026) |
+| `admin@nestyk.test` | ทุก role ใน `master_roles` | ทุก role ใน `master_roles` ยกเว้น `owner` (super admin เพิ่ม 3 พ.ย. 2026 role ใหม่ที่เพิ่มทีหลังได้เมื่อรันสคริปต์ซ้ำ) |
 
 - รหัสผ่านทุกบัญชีเท่ากัน มาจาก `TEST_USER_PASSWORD` ใน `.env.api` ถ้ามี `#` ต้องครอบด้วย `"..."`
 - หยุดทันทีถ้าไม่มี `ALLOW_TEST_USERS=true` (อ่านจาก `.env.api` หรือตัวแปรใน shell), ขาด `DATABASE_URL`/`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`, รหัสผ่านสั้นกว่า 8 ตัว หรือโดเมนไม่มีจุด ห้ามตั้ง `ALLOW_TEST_USERS=true` ในไฟล์ที่ชี้ prod

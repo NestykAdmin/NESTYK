@@ -1958,6 +1958,7 @@ export const ja: TranslationSchema = {
         expand: 'メニューを展開',
         skip: 'コンテンツへ移動',
         close: '閉じる',
+        breadcrumb: 'パンくずリスト',
         refresh: '更新',
         readAll: 'すべて既読にする',
         brandTag: 'エージェントワークスペース',

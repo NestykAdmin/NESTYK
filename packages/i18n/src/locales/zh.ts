@@ -1956,6 +1956,7 @@ export const zh: TranslationSchema = {
         expand: '展开导航',
         skip: '跳至内容',
         close: '关闭',
+        breadcrumb: '面包屑导航',
         refresh: '刷新',
         readAll: '全部标为已读',
         brandTag: '中介工作区',

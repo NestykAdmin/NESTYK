@@ -1959,6 +1959,7 @@ export const en: TranslationSchema = {
         expand: 'Expand navigation',
         skip: 'Skip to content',
         close: 'Close',
+        breadcrumb: 'Breadcrumb',
         refresh: 'Refresh',
         readAll: 'Mark all as read',
         brandTag: 'AGENT WORKSPACE',

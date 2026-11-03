@@ -1965,6 +1965,8 @@ export interface TranslationSchema {
         close: string;
         refresh: string;
         readAll: string;
+        /** Accessible name of the page breadcrumb (deep pages). */
+        breadcrumb: string;
         brandTag: string;
       };
       webOverview: {
