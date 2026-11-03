@@ -1,7 +1,7 @@
 import type { APIResponse } from '@playwright/test';
 import type { AgreementDefaultsKind } from '../../src/api/contracts.api';
 import type { AgreementTemplate, AgreementType, AuthUser, Lead, NextDocumentNumber, OwnerUserOption, Paginated } from '../../src/api/types';
-import { qaAccounts } from '../../src/config/qa-accounts';
+import { qaAccounts, qaDevToken, qaE2eLandlord, qaSkipReason, type QaAccount } from '../../src/config/qa-accounts';
 import { expect, test, type ApiSession } from '../../src/fixtures/api.fixture';
 import { expectError, expectJson } from '../../src/support/http';
 import { MAX_PAGE_SIZE, isDescending } from '../../src/support/pagination';
@@ -14,7 +14,7 @@ import { letterLandlords, MAX_QUERY_LENGTH, OWNER_SEARCH_LIMIT, searchOwners, ST
  *   - ล็อกอินแบบนักพัฒนาได้ (ดู auth.spec.ts) ผู้เรียกคือ qa-agent (fixture agent)
  *     เทสการค้นเจ้าของห้อง (owner-users) ต้องมีหนังสือจองของ qa-agent ที่กรอกอีเมลเจ้าของห้อง ไม่อย่างนั้นข้อที่ต้องค้นเจอจะข้าม
  *     ต้องใช้ API ตั้งแต่ develop accb616 (R1: ค้นเฉพาะหนังสือจองของนายหน้าผู้เรียก) ถ้าเป็นรุ่นก่อนนั้น ข้อค้นด้วย % จะเจอบัญชีเจ้าของห้องทั้งระบบและไม่ผ่าน
- *     ถ้าอีเมลเจ้าของห้องที่ใช้เป็นเป้าคือ qa-landlord ข้อค้นด้วยอีเมลจะเทียบ id ด้วย (ต้องตั้ง uuid ของ qa-landlord ไม่อย่างนั้นข้อนั้นข้าม)
+ *     ถ้าอีเมลเจ้าของห้องที่ใช้เป็นเป้าคือ qa-e2e-landlord หรือ qa-landlord ข้อค้นด้วยอีเมลจะเทียบ id ด้วย (ต้องตั้ง uuid ของบัญชีนั้น ไม่อย่างนั้นข้อนั้นข้าม)
  *     ชื่อบทบาท owner เปลี่ยนเป็น landlord ตั้งแต่ develop 84087e2 (supabase/migrations/20261016100000_rename_owner_role_to_landlord.sql)
  *   - ฐานข้อมูลมีประเภทสัญญาและแม่แบบ (ข้อมูลตั้งต้นของทีมอยู่ที่ supabase/seed/masters.sql: master_agreement_types บรรทัด 33-37
  *     และ agreement_templates บรรทัด 44-55 ที่ develop 9644dd9) และ qa-agent มีลีดที่ยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย
@@ -122,14 +122,14 @@ function bangkokYear(date = new Date()): number {
 }
 
 /**
- * บัญชีเจ้าของห้องที่เทสใช้เป็นเป้าการค้น: qa-landlord จาก POST /auth/sync ของบัญชีนั้นเอง พร้อมยืนยันว่ามีบทบาท landlord
+ * บัญชีเจ้าของห้องที่เทสใช้เป็นเป้าการค้น (qa-e2e-landlord หรือ qa-landlord) จาก POST /auth/sync ของบัญชีนั้นเอง พร้อมยืนยันว่ามีบทบาท landlord
  *   (global-setup ยืนยันแล้วว่าบัญชีมีอยู่ sync จึงไม่สร้างผู้ใช้ใหม่) ผู้ค้นยังเป็น qa-agent เพราะเส้นทางค้นรับเฉพาะบทบาท agent
  */
 async function landlordAccount(landlord: ApiSession): Promise<AuthUser> {
   const me = await expectJson<AuthUser>(await landlord.auth.sync(), 201);
-  expect(me.roles, 'qa-landlord ต้องมีบทบาท landlord (ฐานข้อมูลต้องขึ้น migration rename_owner_role_to_landlord แล้ว)').toContain('landlord');
+  expect(me.roles, 'บัญชีเจ้าของห้องต้องมีบทบาท landlord (ฐานข้อมูลต้องขึ้น migration rename_owner_role_to_landlord แล้ว)').toContain('landlord');
   // API ตัด % _ และ \ ออกจากคำค้น ถ้าอีเมลมีอักขระเหล่านี้ การค้นด้วยอีเมลจะไม่เจอบัญชีนี้ เทสข้อค้นบัญชีจึงใช้ไม่ได้
-  expect(me.email, 'อีเมลของ qa-landlord ต้องไม่มี % _ หรือ \\').not.toMatch(/[%_\\]/);
+  expect(me.email, 'อีเมลของบัญชีเจ้าของห้องต้องไม่มี % _ หรือ \\').not.toMatch(/[%_\\]/);
   return me;
 }
 
@@ -396,16 +396,26 @@ test.describe('GET /agent/contracts/owner-users', () => {
   //   ไม่ค้นด้วยเลขบัตรแล้ว และไม่กรองตามบทบาทของบัญชีแล้ว (เดิมกรองบทบาท landlord จึงเคยมีเทสใน roles.spec.ts)
   // ค่าที่คาด: เจ้าของห้องจากหนังสือจองของ qa-agent อ่านผ่าน GET /agent/contracts (src/support/reservation-letters.ts)
   //   ถ้า qa-agent ยังไม่มีหนังสือจองที่กรอกอีเมลเจ้าของห้อง ข้อที่ต้องค้นเจอจะข้ามพร้อมเหตุผล
-  //   (บน dev 3 พ.ย. 2026 รันได้จริง: qa-agent มีหนังสือจองที่ใช้อีเมลเจ้าของห้องอื่นที่ไม่ใช่ qa-landlord ข้อค้นด้วยอีเมลจึงเทียบ id ไม่ได้)
+  //   (บน dev 3 พ.ย. 2026 รันได้จริง: qa-agent มีหนังสือจองที่ใช้อีเมลเจ้าของห้องอื่นที่ไม่ใช่ qa-landlord ข้อค้นด้วยอีเมลจึงเทียบ id ไม่ได้
+  //   หลังเทสวงจรเช่าห้องรันบน dev ด้วย qa-e2e-landlord ครั้งแรก ข้อนี้จะเทียบ id กับ qa-e2e-landlord ได้)
   // ข้อควรระวัง: คำตอบมีข้อมูลส่วนตัวของเจ้าของห้อง เทสจึงตรวจเป็นจริง/เท็จหรือจำนวน และไม่ใส่คำค้นในข้อความของการตรวจ
   //   ถ้าไม่ผ่าน Playwright จะพิมพ์แค่ true/false หรือตัวเลข ทุกคำขอเรียกผ่าน searchOwners ซึ่งไม่พิมพ์ที่อยู่ (มีคำค้น) และเนื้อคำตอบ
+  //   ข้อยกเว้นเดียว: ข้อความของการเทียบ id ใส่อีเมลของบัญชี QA (qa-e2e-landlord หรือ qa-landlord) ซึ่งไม่ใช่ข้อมูลของคนจริง
   // ห้ามรันพร้อมชุดเขียน: ข้อค้นด้วย % อ่านหนังสือจองก่อนแล้วจึงค้น ถ้ามีหนังสือจองใหม่ระหว่าง 2 คำขอนี้ จำนวนจะไม่ตรง
 
   /** เหตุผลที่ข้อซึ่งต้องค้นเจอข้าม */
   const NO_LETTER = 'qa-agent ยังไม่มีหนังสือจองที่กรอกอีเมลเจ้าของห้อง (รันเทสวงจรเช่าห้องก่อน)';
 
   /**
-   * เป้าการค้น: เจ้าของห้อง 1 อีเมลจากหนังสือจองของ qa-agent เลือกอีเมลของ qa-landlord ก่อน (เทียบ id ได้)
+   * บัญชีเจ้าของห้องที่ชุดเทสรู้จัก (เทียบ id ได้) เรียงตามลำดับที่เลือกเป็นเป้าก่อน (บัญชีที่ตั้ง uuid มาก่อน ดู searchTarget)
+   *   qa-e2e-landlord: หนังสือจองของเทสวงจรเช่าห้องใช้อีเมลนี้ตั้งแต่ 3 พ.ย. 2026
+   *   qa-landlord: หนังสือจองของเทสวงจรเช่าห้องก่อนหน้านั้น (มีในห้องทดลอง ; บน dev ไม่มี เพราะรอบแรก 2 พ.ย. 2026 ได้ 409 ที่ขั้น 6 ก่อนบันทึกหนังสือจอง)
+   */
+  const KNOWN_LANDLORDS: readonly QaAccount[] = [qaE2eLandlord, qaAccounts.landlord];
+  const knownLandlord = (email: string) => KNOWN_LANDLORDS.find((account) => account.email.toLowerCase() === email.toLowerCase());
+
+  /**
+   * เป้าการค้น: เจ้าของห้อง 1 อีเมลจากหนังสือจองของ qa-agent เลือกอีเมลของบัญชีใน KNOWN_LANDLORDS ก่อน (เทียบ id ได้ บัญชีที่ตั้ง uuid มาก่อน)
    * ข้ามอีเมลที่มี % _ \ (API ตัดอักขระเหล่านี้ออกจากคำค้น) หรือยาวเกิน 80 ตัว (API ไม่ค้นให้)
    */
   async function searchTarget(agent: ApiSession): Promise<{ landlord: LetterLandlord; all: Map<string, LetterLandlord> }> {
@@ -413,7 +423,10 @@ test.describe('GET /agent/contracts/owner-users', () => {
     test.skip(all.size === 0, NO_LETTER);
     const usable = [...all.values()].filter((l) => !STRIPPED_FROM_QUERY.test(l.email) && l.email.length <= MAX_QUERY_LENGTH);
     test.skip(usable.length === 0, 'อีเมลเจ้าของห้องในหนังสือจองของ qa-agent มี % _ \\ หรือยาวเกิน 80 ตัวทุกอีเมล จึงใช้เป็นคำค้นไม่ได้');
-    const landlord = usable.find((l) => l.email.toLowerCase() === qaAccounts.landlord.email.toLowerCase()) ?? usable[0];
+    //   เลือกเฉพาะบัญชีที่ตั้ง uuid ก่อน (เทียบ id ได้) ถ้าไม่มีจึงใช้บัญชีที่รู้จักแต่ไม่ได้ตั้ง uuid (ข้อค้นด้วยอีเมลจะข้ามพร้อมเหตุผล)
+    const ordered = [...KNOWN_LANDLORDS.filter((account) => account.uuid !== null), ...KNOWN_LANDLORDS.filter((account) => account.uuid === null)];
+    const known = ordered.map((account) => usable.find((l) => l.email.toLowerCase() === account.email.toLowerCase()));
+    const landlord = known.find((l) => l !== undefined) ?? usable[0];
     return { landlord, all };
   }
 
@@ -431,7 +444,7 @@ test.describe('GET /agent/contracts/owner-users', () => {
     }
   });
 
-  test("finds a landlord from the agent's own reservation letters by email, once", async ({ agent, qa }) => {
+  test("finds a landlord from the agent's own reservation letters by email, once", async ({ agent, apiAs }) => {
     // ขั้นที่ 1: หาเป้าการค้นจากหนังสือจองของ qa-agent (ข้ามถ้ายังไม่มี)
     const { landlord } = await searchTarget(agent);
 
@@ -445,13 +458,17 @@ test.describe('GET /agent/contracts/owner-users', () => {
     const phoneOk = rows[0].phone === '' ? landlord.hasBlankPhone : landlord.phones.includes(rows[0].phone);
     expect(phoneOk, 'เบอร์ในผลค้นต้องเป็นเบอร์ที่กรอกในหนังสือจองที่ใช้อีเมลนี้').toBe(true);
 
-    // ขั้นที่ 5: id = owner_user_id ของสัญญา (บรรทัด 3158 และ 3189) ถ้าเป็นอีเมลของ qa-landlord ต้องเป็น id ของบัญชีนี้
+    // ขั้นที่ 5: id = owner_user_id ของสัญญา (บรรทัด 3158 และ 3189) ถ้าเป็นอีเมลของบัญชีใน KNOWN_LANDLORDS ต้องเป็น id ของบัญชีนั้น
     //   เพราะตอนสร้างหนังสือจอง ensurePartyLogin ผูกอีเมลนี้กับบัญชีที่มีอยู่ ส่วนอีเมลอื่นอาจยังไม่มีบัญชี (null)
-    if (landlord.email.toLowerCase() === qaAccounts.landlord.email.toLowerCase()) {
-      const me = await landlordAccount(await qa('landlord'));
-      expect(rows[0].id, 'id ต้องเป็นของ qa-landlord').toBe(me.id);
+    const account = knownLandlord(landlord.email);
+    if (account !== undefined) {
+      test.skip(account.uuid === null, qaSkipReason(account));
+      const me = await landlordAccount(await apiAs(`Bearer ${qaDevToken(account)}`));
+      expect(rows[0].id, `id ต้องเป็นของ ${account.email}`).toBe(me.id);
     } else {
       expect(rows[0].id === null || Number.isInteger(rows[0].id), 'id ต้องเป็นตัวเลขหรือ null').toBe(true);
+      // เป้าไม่ใช่บัญชี QA จึงเทียบ id กับบัญชีจริงไม่ได้ ถ้า API คืน owner_user_id ผิดคน ข้อนี้ยังผ่าน
+      test.info().annotations.push({ type: 'ไม่ได้ตรวจ', description: 'id ของผลค้น: เป้าไม่ใช่บัญชี QA ที่รู้จัก (qa-e2e-landlord หรือ qa-landlord)' });
     }
   });
 

@@ -13,7 +13,7 @@ import { RoomShareLinksApi } from '../api/share-links.api';
 import { TenantsApi } from '../api/tenants.api';
 import { LeadViewingsApi } from '../api/viewings.api';
 import { env } from '../config/env';
-import { qaAccounts, qaAgent2, qaDevToken, type QaAccount } from '../config/qa-accounts';
+import { qaAccounts, qaAgent2, qaDevToken, qaE2eLandlord, qaE2eTenant, type QaAccount } from '../config/qa-accounts';
 import { assertEnvFileStorageIsLocal, assertWriteSetupDone } from './write-guard';
 
 /**
@@ -22,8 +22,8 @@ import { assertEnvFileStorageIsLocal, assertWriteSetupDone } from './write-guard
  *   writer    = ผู้เรียกที่ล็อกอินด้วย qa-agent (เทสลีด) ใช้ได้ทั้งใน beforeAll, afterAll และตัวเทส (ขอบเขต worker)
  *   crossAgent = qa-agent (owner) กับ qa-agent2 (intruder) ของเทสข้ามนายหน้า (ขอบเขต worker)
  *   agent2Auth = เส้นทาง /auth ของ qa-agent2 สำหรับเทสรูปโปรไฟล์ (ขอบเขต worker)
- *   lifecycle = ผู้เรียก 3 บทบาทของเทสวงจรเช่าห้อง: qa-agent, qa-tenant และ qa-landlord (ขอบเขต worker)
- *               qa-tenant กับ qa-landlord ต้องตั้ง E2E_QA_TENANT_UUID กับ E2E_QA_LANDLORD_UUID (เทสข้ามก่อนถึง fixture ถ้าไม่ได้ตั้ง)
+ *   lifecycle = ผู้เรียก 3 บทบาทของเทสวงจรเช่าห้อง: qa-agent, qa-e2e-tenant และ qa-e2e-landlord (ขอบเขต worker)
+ *               qa-e2e-tenant กับ qa-e2e-landlord ต้องตั้ง E2E_QA_E2E_TENANT_UUID กับ E2E_QA_E2E_LANDLORD_UUID (เทสข้ามก่อนถึง fixture ถ้าไม่ได้ตั้ง)
  *               และถ้า TEAM_DB_WRITES_AGREED เป็น false ตรวจ SUPABASE_URL ใน .env.api ก่อนสร้างผู้เรียก (assertEnvFileStorageIsLocal)
  *   ตรวจตัวกันก่อนสร้างผู้เรียกทุกตัว ถ้าไม่ผ่าน เทสหยุดก่อนส่งคำขอ
  */
@@ -126,7 +126,7 @@ export const test = base.extend<object, WriteWorkerFixtures>({
       // เทสนี้อัปโหลดไฟล์ ถ้าค่าคงที่เป็น false ต้องให้ที่เก็บไฟล์อยู่เครื่องนี้ (ตรวจก่อนสร้างผู้เรียก ตอนนี้ข้ามเพราะทีมตกลงแล้ว)
       assertEnvFileStorageIsLocal();
       // qaDevToken หยุดพร้อมชื่อตัวแปรถ้ายังไม่ได้ตั้ง uuid ของบัญชีนั้น จึงอ่านบัตรผ่านครบทั้ง 3 ก่อนสร้างตัวส่งคำขอ
-      const tokens = [tokenOf(qaAccounts.agent), tokenOf(qaAccounts.tenant), tokenOf(qaAccounts.landlord)];
+      const tokens = [tokenOf(qaAccounts.agent), tokenOf(qaE2eTenant), tokenOf(qaE2eLandlord)];
       const contexts = await Promise.all(tokens.map((token) => contextFor(playwright, token)));
       const [agent, tenant, landlord] = contexts.map((context) => new ApiClient(context));
       await use({ agent: new LifecycleAgentApi(agent), tenant: new LifecyclePartyApi(tenant), landlord: new LifecyclePartyApi(landlord) });

@@ -1,5 +1,5 @@
 import type { APIResponse } from '@playwright/test';
-import { qaAccounts } from '../../src/config/qa-accounts';
+import { qaE2eLandlord, qaE2eTenant } from '../../src/config/qa-accounts';
 import { expectCodedError, expectJson } from '../../src/support/http';
 import {
   bangkokDate,
@@ -18,14 +18,16 @@ import {
 import { expect, test, type LifecycleSession } from '../../src/write/write.fixture';
 
 /**
- * เทสวงจรเช่าห้องครบวงจรผ่าน API (end-to-end) ด้วย 3 บัญชี: qa-agent, qa-tenant และ qa-landlord
+ * เทสวงจรเช่าห้องครบวงจรผ่าน API (end-to-end) ด้วย 3 บัญชี: qa-agent, qa-e2e-tenant และ qa-e2e-landlord
+ *   คู่สัญญาเป็นบัญชีที่ทีมสร้างให้เทสนี้โดยเฉพาะ (qaE2eTenant, qaE2eLandlord ใน src/config/qa-accounts.ts) ไม่ใช่ qa-tenant/qa-landlord
+ *   ที่ทีมใช้ทดสอบในแอป (รอบแรกบน dev 2 พ.ย. 2026 ใช้ qa-tenant แล้วได้ 409 TENANT_EMAIL_IN_USE เพราะบัญชีผูกกับผู้เช่าคนอื่นอยู่แล้ว)
  *
  * ลำดับ (ยืนยันโดยเดินทีละขั้นในห้องทดลองกับ API ที่ develop bc77a8b และที่เก็บไฟล์จำลอง 2 พ.ย. 2026)
  *   ห้อง > ลีด > นัดดูห้อง > ข้อเสนอ > ผู้เช่า > หนังสือแต่งตั้งนายหน้า > หนังสือจอง > สัญญาเช่า > มัดจำ
  *   > ส่งมอบห้อง > บิลค่าเช่า > แจ้งย้ายออก > ส่งคืนห้อง > คืนมัดจำ
  *
  * สิ่งที่ต้องมีก่อนรัน (README หัวข้อ "เทสที่เขียนข้อมูล")
- *   - E2E_ALLOW_WRITES=yes npm run test:write และตั้ง E2E_QA_AGENT_UUID, E2E_QA_TENANT_UUID, E2E_QA_LANDLORD_UUID
+ *   - E2E_ALLOW_WRITES=yes npm run test:write และตั้ง E2E_QA_AGENT_UUID, E2E_QA_E2E_TENANT_UUID, E2E_QA_E2E_LANDLORD_UUID
  *   - ทีมตกลงเรื่องข้อมูล E2E- ในฐานข้อมูลและ Storage ของ dev แล้ว (TEAM_DB_WRITES_AGREED = true ตั้งแต่ 2 พ.ย. 2026)
  *     ถ้าเปลี่ยนกลับเป็น false ต้องตั้ง E2E_WRITE_TARGET=own-db และ API ต้องต่อฐานข้อมูลของ QA เอง
  *   - API ต้องต่อที่เก็บไฟล์ (Supabase Storage) ได้ เพราะเกือบทุกขั้นอัปโหลดหรือสร้าง PDF
@@ -42,17 +44,20 @@ import { expect, test, type LifecycleSession } from '../../src/write/write.fixtu
  *   ไฟล์ใน Storage: 33 ไฟล์ ประมาณ 1.9 MB ต่อรอบ (นับจาก log ของที่เก็บไฟล์จำลอง) เทสอัปโหลดเอง 11 ไฟล์
  *     (annotation "อัปโหลด") ที่เหลือ API สร้างเอง: ลายเซ็น 11, PDF ร่าง 3, PDF ฉบับจริง 3, ใบแจ้งหนี้ ใบเสร็จ และใบยืนยันค่านายหน้า
  *   บิล: เพราะวันเริ่มย้อนหลัง 1 เดือน จึงได้ 2 ใบ เดือนแรกยอด 0 (หักเงินจองแล้ว ระบบตั้งเป็น paid) และเดือนนี้ยอดเต็ม
- *   ตัวนับก่อนกับหลังรัน: สัญญาที่ qa-tenant และ qa-landlord เห็นต้องเพิ่มรอบละ 2 (จองกับเช่า) พอดี
- *   รันซ้ำได้: ทุกรอบสร้างชุดใหม่ ผู้เช่าทุกรอบใช้อีเมลของ qa-tenant กับเลขบัตรเดียวกัน (ลองในห้องทดลอง 3 รอบติดกัน ผ่านทุกรอบ)
+ *   ตัวนับก่อนกับหลังรัน: สัญญาที่ qa-e2e-tenant และ qa-e2e-landlord เห็นต้องเพิ่มรอบละ 2 (จองกับเช่า) พอดี
+ *   รันซ้ำได้: ทุกรอบสร้างชุดใหม่ ผู้เช่าทุกรอบใช้อีเมลของ qa-e2e-tenant กับเลขบัตรเดียวกัน
+ *     API ยอมให้อีเมลเดียวผูกกับผู้เช่าของหลายลีดเมื่อเลขบัตรตรงกัน (assertTenantEmailNotShared กับ sameTenantPerson
+ *     ใน party-login.ts บรรทัด 98-105 และ 116-139 ที่ develop accb616) ถ้าเปลี่ยน TEST_THAI_ID รอบถัดไปจะได้ 409 TENANT_EMAIL_IN_USE
+ *     (ลองในห้องทดลองกับ qa-tenant 3 รอบติดกันที่ bc77a8b และกับ qa-e2e-tenant 3 รอบติดกันที่ accb616 ผ่านทุกรอบ)
  *
  * ข้อมูลที่ 1 รอบแก้ (ตัวนับแถวไม่เห็น เพราะนับแค่จำนวน)
- *   - แถว users ของ qa-tenant และ qa-landlord: ตอนสร้างหนังสือจอง API ผูกคู่สัญญากับบัญชีด้วยอีเมล (ensurePartyLogin
+ *   - แถว users ของ qa-e2e-tenant และ qa-e2e-landlord: ตอนสร้างหนังสือจอง API ผูกคู่สัญญากับบัญชีด้วยอีเมล (ensurePartyLogin
  *     ใน agent-contracts.service.ts บรรทัด 3776 และ 3788 ที่ develop accb616) และเติมชื่อ นามสกุล เลขบัตร สัญชาติ และเบอร์
  *     เฉพาะช่องที่บัญชียังว่าง (party-login.ts บรรทัด 197-206 ที่ accb616 นามสกุลเติมเฉพาะเมื่อเติมชื่อด้วย) เช่น E2E-LC-<รหัสรอบ> Tenant
  *     (ก่อน accb616 เขียนทับทุกรอบ) และเพิ่มบทบาท tenant หรือ landlord ถ้ายังไม่มี (บรรทัด 209-218)
  *   - ลีดของรอบได้ booking_released_at ตอนแจ้งย้ายออก (agent-contracts.service.ts บรรทัด 2261-2264)
  *   - หลังจบรอบ ถ้ามี API ตัวใดตัวหนึ่งที่ต่อฐานข้อมูลเดียวกันเปิดอยู่ตอน 00:05 (บนฐานข้อมูล dev รวม API ของทีม) งานตั้งเวลาปิดสัญญาเช่าของรอบนี้ (persistEndedLeases ใน tenant-billing.scheduler.ts
- *     บรรทัด 12-17 ซึ่งเป็นผู้เรียกเดียว) ถ้าไม่เปิด สัญญาค้างเป็น active ในบัญชีของ qa-tenant จนกว่าจะเปิด API ข้ามเวลานั้น
+ *     บรรทัด 12-17 ซึ่งเป็นผู้เรียกเดียว) ถ้าไม่เปิด สัญญาค้างเป็น active ในบัญชีของ qa-e2e-tenant จนกว่าจะเปิด API ข้ามเวลานั้น
  *     งาน 08:00 อาจเขียนการเตือนของสัญญาเพิ่ม (ยังไม่ได้ตรวจว่ากี่แถว)
  *
  * วันเริ่มสัญญาย้อนหลัง 1 เดือน (oneMonthBack) เพื่อให้บิลค่าเช่าเดือนนี้ถึงรอบตอนรัน จะได้เทสการส่งสลิปค่าเช่า
@@ -65,7 +70,7 @@ import { expect, test, type LifecycleSession } from '../../src/write/write.fixtu
 test.describe.configure({ mode: 'serial' });
 
 // ข้อตกลงของชุดเทส: บัญชีที่ไม่ได้ตั้ง uuid ให้ข้ามพร้อมเหตุผล (ตรวจก่อนสร้าง fixture จึงไม่ส่งคำขอใด ๆ)
-const missing = [qaAccounts.tenant, qaAccounts.landlord].filter((account) => account.uuid === null).map((account) => account.uuidVariable);
+const missing = [qaE2eTenant, qaE2eLandlord].filter((account) => account.uuid === null).map((account) => account.uuidVariable);
 test.skip(missing.length > 0, `ยังไม่ได้ตั้ง ${missing.join(', ')}`);
 
 /** id ที่รอบนี้สร้าง เก็บไว้แสดงใน annotation ทุกครั้ง แม้เทสไม่ผ่านกลางทาง */
@@ -131,7 +136,7 @@ async function myContracts(response: Promise<APIResponse>): Promise<{ id: number
 /**
  * ป้ายที่ขึ้นต้นชื่อโครงการของทุกรอบ (lifecycleLabel + " Tower") ใช้แยกสัญญาของเทสออกจากสัญญาที่ทีมผูกกับบัญชี qa-*
  * ทำไมต้องตรวจ: ขั้น 10 เรียก GET /bills/mine และ /bills/received ซึ่งออกบิลให้ทุกสัญญาของบัญชีนั้น ไม่ใช่แค่ของรอบนี้
- *   ข้อตกลงกับทีม (ฉบับที่ 8, 2 พ.ย. 2026) ครอบเฉพาะข้อมูล E2E- จึงหยุดก่อนเขียนถ้าบัญชี qa-tenant หรือ qa-landlord มีสัญญาอื่น
+ *   ข้อตกลงกับทีม (ฉบับที่ 8, 2 พ.ย. 2026) ครอบเฉพาะข้อมูล E2E- จึงหยุดก่อนเขียนถ้าบัญชี qa-e2e-tenant หรือ qa-e2e-landlord มีสัญญาอื่น
  */
 const RUN_PROPERTY_PREFIX = 'E2E-LC-';
 
@@ -162,7 +167,7 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
   const foreign = [...tenantExisting, ...landlordExisting].filter((contract) => !(contract.property ?? '').startsWith(RUN_PROPERTY_PREFIX));
   expect(
     [...new Set(foreign.map((contract) => contract.id))],
-    'qa-tenant หรือ qa-landlord มีสัญญาที่ไม่ใช่ของเทส (id ตามนี้) ให้ถามทีมก่อนรัน เพราะขั้น 10 จะออกบิลให้สัญญาเหล่านี้ด้วย',
+    'qa-e2e-tenant หรือ qa-e2e-landlord มีสัญญาที่ไม่ใช่ของเทส (id ตามนี้) ให้ถามทีมก่อนรัน เพราะขั้น 10 จะออกบิลให้สัญญาเหล่านี้ด้วย',
   ).toEqual([]);
   const tenantBefore = tenantExisting.map((contract) => contract.id);
   const landlordBefore = landlordExisting.map((contract) => contract.id);
@@ -241,7 +246,7 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       expect(saved?.status).toBe('confirmed');
     });
 
-    await test.step('4. ผู้เช่า: ผูกกับอีเมลของ qa-tenant แล้วลีดเป็น booked', async () => {
+    await test.step('4. ผู้เช่า: ผูกกับอีเมลของ qa-e2e-tenant แล้วลีดเป็น booked', async () => {
       created.tenantId = (
         await expectJson<IdBody>(
           await agent.createTenant({
@@ -249,7 +254,7 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
             rentRoomId: created.roomId,
             firstName: `${label} Tenant`,
             phone: TEST_PHONE,
-            email: qaAccounts.tenant.email,
+            email: qaE2eTenant.email,
             identityNumber: TEST_THAI_ID,
             nationality: 'Thai',
           }),
@@ -278,7 +283,7 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
         200,
       );
       expect(defaults.termFrom, 'วันเริ่มเช่าในหนังสือจองมาจากข้อเสนอ').toBe(startDate);
-      const letter = { ...defaults, landlordEmail: qaAccounts.landlord.email, landlordPhone: TEST_PHONE, paymentMethod: 'transfer' };
+      const letter = { ...defaults, landlordEmail: qaE2eLandlord.email, landlordPhone: TEST_PHONE, paymentMethod: 'transfer' };
       const reservation = await expectJson<IdBody>(
         await agent.createContract({
           leadId: created.leadId,
@@ -294,7 +299,7 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       const id = reservation.id;
       created.reservationId = id;
       await expectJson(await agent.preview(id, 'reservation'), 200);
-      expect(await myContractIds(tenant.contracts()), 'qa-tenant เห็นหนังสือจองในบัญชีของตัวเอง').toContain(id);
+      expect(await myContractIds(tenant.contracts()), 'qa-e2e-tenant เห็นหนังสือจองในบัญชีของตัวเอง').toContain(id);
       await expectJson(await tenant.reservationSlip(id, upload(png(label, 'reservation-slip'))), 200);
       await expectJson(
         await agent.financialDocument(id, 'receipt', { receivedBy: 'landlord', paymentMethod: 'transfer', paymentDetails: `${label} bank transfer` }),
@@ -402,7 +407,7 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       const paid = (await expectJson<BillView[]>(await tenant.myBills(), 200)).find((bill) => bill.id === due!.id);
       expect(paid?.status).toBe('paid');
       const received = (await expectJson<BillView[]>(await landlord.receivedBills(), 200)).find((bill) => bill.id === due!.id);
-      expect(received?.status, 'qa-landlord เห็นบิลเดียวกันว่าชำระแล้ว').toBe('paid');
+      expect(received?.status, 'qa-e2e-landlord เห็นบิลเดียวกันว่าชำระแล้ว').toBe('paid');
     });
 
     await test.step('11. แจ้งย้ายออกวันนี้: สัญญายัง active และมีวันสิ้นสุด', async () => {
@@ -441,7 +446,7 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       expect(Number(seen.refundAmount)).toBe(refund);
     });
 
-    await test.step('14. ตัวนับหลังรัน: qa-tenant และ qa-landlord เห็นสัญญาเพิ่ม 2 ฉบับพอดี', async () => {
+    await test.step('14. ตัวนับหลังรัน: qa-e2e-tenant และ qa-e2e-landlord เห็นสัญญาเพิ่ม 2 ฉบับพอดี', async () => {
       const expected = [created.reservationId!, created.leaseId!];
       const tenantAfter = await myContractIds(tenant.contracts());
       const landlordAfter = await myContractIds(landlord.contracts());

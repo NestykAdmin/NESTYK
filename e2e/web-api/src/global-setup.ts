@@ -1,6 +1,17 @@
 import { request, type APIRequestContext } from '@playwright/test';
 import { env } from './config/env';
-import { allQaAccounts, malformedQaUuidVariables, qaAccounts, qaAgent2, qaDevToken, QA_ROLES, type QaAccount } from './config/qa-accounts';
+import {
+  allQaAccounts,
+  malformedQaUuidVariables,
+  qaAccounts,
+  qaAgent2,
+  qaDevToken,
+  qaE2eLandlord,
+  qaE2eTenant,
+  QA_ROLES,
+  requestedQaAccounts,
+  type QaAccount,
+} from './config/qa-accounts';
 
 /**
  * ทำงาน 1 ครั้งก่อนเริ่มเทสทั้งชุด: ตรวจว่าระบบพร้อมให้เทส
@@ -136,7 +147,8 @@ async function checkQaAccounts(api: APIRequestContext): Promise<void> {
     );
   }
 
-  // รวม qa-agent2 ในการตรวจ uuid ซ้ำและการยืนยันบัญชีด้วย แต่บรรทัดสรุป 5 บัญชีเดิมนับเฉพาะบทบาท (ไม่เปลี่ยนข้อความเดิม)
+  // รวมบัญชีที่ทีมสร้างตามคำขอ (qa-agent2, qa-e2e-tenant, qa-e2e-landlord) ในการตรวจ uuid ซ้ำและการยืนยันบัญชีด้วย
+  //   แต่บรรทัดสรุป 5 บัญชีเดิมนับเฉพาะบทบาท (ไม่เปลี่ยนข้อความเดิม)
   const configured = allQaAccounts().filter((account) => account.uuid !== null);
   const uuids = configured.map((account) => account.uuid!.toLowerCase());
   // รวมทุกตัวแปรที่ใช้ uuid เดียวกัน (ทั้งตัวแรกและตัวที่ซ้ำ) เพราะไม่รู้ว่าตัวไหนคัดลอกผิด
@@ -144,7 +156,7 @@ async function checkQaAccounts(api: APIRequestContext): Promise<void> {
   if (duplicated.length > 0) {
     throw new Error(
       `${duplicated.map((account) => account.uuidVariable).join(', ')} ใช้ uuid ซ้ำกัน\n` +
-        'วิธีแก้: แต่ละบัญชีต้องใช้ UID ของตัวเอง (qa-<บทบาท>@... และ qa-agent2@...) ตรวจการคัดลอกอีกครั้ง',
+        'วิธีแก้: แต่ละบัญชีต้องใช้ UID ของตัวเอง (qa-<บทบาท>@..., qa-agent2@..., qa-e2e-tenant@... และ qa-e2e-landlord@...) ตรวจการคัดลอกอีกครั้ง',
     );
   }
 
@@ -164,12 +176,24 @@ async function checkQaAccounts(api: APIRequestContext): Promise<void> {
     `[บัญชี QA] นายหน้าคนที่ 2 (${qaAgent2.email}): ` +
       (qaAgent2.uuid === null ? `ไม่ได้ตั้ง ${qaAgent2.uuidVariable} (เทสข้ามนายหน้าจะข้าม)` : 'ตรวจแล้ว'),
   );
+  console.log(
+    '[บัญชี QA] คู่สัญญาของเทสวงจรเช่าห้อง: ' +
+      [qaE2eTenant, qaE2eLandlord]
+        .map((account) => `${account.email} ${account.uuid === null ? `ไม่ได้ตั้ง ${account.uuidVariable}` : 'ตรวจแล้ว'}`)
+        .join(' ; ') +
+      ([qaE2eTenant, qaE2eLandlord].some((account) => account.uuid === null) ? ' (เทสวงจรเช่าห้องจะข้าม)' : ''),
+  );
 }
 
 async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promise<void> {
-  // ที่มาของบัญชีและบทบาทที่คาด: 5 บัญชีตามบทบาทมาจาก migration ส่วน qa-agent2 ทีมสร้างให้เองตามคำขอ
-  const isAgent2 = account.uuidVariable === qaAgent2.uuidVariable;
-  const source = isAgent2 ? 'บัญชีที่ทีมสร้างตามคำขอฉบับที่ 8 (2 พ.ย. 2026)' : 'migration 20261019100000_link_qa_accounts.sql';
+  // ที่มาของบัญชีและบทบาทที่คาด: 5 บัญชีตามบทบาทมาจาก migration ส่วนบัญชีใน requestedQaAccounts ทีมสร้างให้เองตามคำขอ
+  //   (qa-agent2 ฉบับที่ 8 วันที่ 2 พ.ย. 2026 ; qa-e2e-tenant กับ qa-e2e-landlord ฉบับที่ 10 ส่งวันที่ 3 พ.ย. 2026)
+  const requested = requestedQaAccounts.some((other) => other.uuidVariable === account.uuidVariable);
+  const source = requested
+    ? account.uuidVariable === qaAgent2.uuidVariable
+      ? 'บัญชีที่ทีมสร้างตามคำขอฉบับที่ 8 (2 พ.ย. 2026)'
+      : 'บัญชีที่ทีมสร้างตามคำขอฉบับที่ 10 (ส่ง 3 พ.ย. 2026)'
+    : 'migration 20261019100000_link_qa_accounts.sql';
   const headers = { Authorization: `Bearer ${qaDevToken(account)}` };
 
   // ขั้นที่ 1: ยืนยันว่าบัญชีมีในตาราง users แล้ว ด้วยคำขอแบบอ่านอย่างเดียว
@@ -180,7 +204,7 @@ async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promi
     throw new Error(
       `บัญชี ${account.email} (${account.uuidVariable}) ยังไม่มีในตาราง users ของฐานข้อมูลที่ API ใช้\n` +
         'สาเหตุที่เป็นไปได้: (1) uuid ที่ตั้งไม่ใช่ UID ของบัญชีนี้ ' +
-        (isAgent2
+        (requested
           ? '(2) ทีมสร้างล็อกอินแล้วแต่ยังไม่ได้ผูกโปรไฟล์ในตาราง users กับบทบาท (ทำแบบเดียวกับ migration 20261019100000_link_qa_accounts.sql)\n'
           : '(2) ทีมยังไม่ได้ขึ้น migration 20261019100000_link_qa_accounts.sql หรือสร้างล็อกอินหลังจาก migration นั้นรันไปแล้ว ' +
             '(หัวไฟล์ migration บอกวิธีให้ทีมผูกบัญชีที่สร้างทีหลัง)\n') +

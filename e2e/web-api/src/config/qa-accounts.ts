@@ -2,8 +2,9 @@
  * บัญชี QA แยกบทบาทของทีม (qa-<role>@nestyk.test) ที่เทสใช้เมื่อต้องล็อกอิน
  *   - qa-agent เป็นผู้เรียกหลัก (fixture agent ใน src/fixtures/api.fixture.ts) เทสของกลุ่ม agent/* อ่านลีดและห้องของบัญชีนี้
  *   - qa-tenant และ qa-landlord ใช้กับเส้นทางที่รับเฉพาะบทบาทนั้น (bills/mine/*, bills/received/*, contracts/mine*)
- *     และ qa-landlord เป็นอีเมลเจ้าของห้องที่เทสวงจรเช่าห้องกรอกในหนังสือจอง (ข้อค้นใน GET /agent/contracts/owner-users เทียบ id กับบัญชีนี้)
- *   - ทุกบัญชีใช้กับเทสสิทธิ์ตามบทบาท (401/403) ใน roles.spec.ts
+ *     แบบอ่านอย่างเดียว หรือส่งคำขอที่ระบบปฏิเสธก่อนเขียน
+ *   - qa-e2e-tenant และ qa-e2e-landlord (ดู qaE2eTenant, qaE2eLandlord ด้านล่าง) เป็นคู่สัญญาของเทสวงจรเช่าห้องเท่านั้น
+ *   - ทั้ง 5 บัญชีตามบทบาทใช้กับเทสสิทธิ์ตามบทบาท (401/403) ใน roles.spec.ts
  *
  * ที่มา: supabase/migrations/20261019100000_link_qa_accounts.sql บรรทัด 23-27 (ในไฟล์ migration) ที่ develop a09e6d2
  *   migration นี้ไม่สร้างบัญชีล็อกอิน ทีมสร้างบัญชีไว้ใน Supabase Authentication เอง แล้ว migration ผูกบัญชีกับตาราง users
@@ -80,9 +81,36 @@ export const qaAgent2: QaAccount = {
   roles: ROLES_OF.agent,
 };
 
-/** บัญชี QA ทุกบัญชีที่ global-setup ตรวจ: 5 บัญชีตามบทบาท และนายหน้าคนที่ 2 */
+/**
+ * คู่สัญญาของเทสวงจรเช่าห้อง (tests/write/rental-lifecycle.write.spec.ts): ผู้เช่า qa-e2e-tenant และเจ้าของห้อง qa-e2e-landlord
+ *   ทีมสร้างให้ตามคำขอฉบับที่ 10 (ส่ง 3 พ.ย. 2026) บทบาท guest + tenant และ guest + landlord
+ *   ทำไมแยกจาก qa-tenant/qa-landlord: ทีมใช้ 2 บัญชีเดิมทดสอบในแอปด้วย รอบแรกบน dev (2 พ.ย. 2026) จึงได้ 409 TENANT_EMAIL_IN_USE
+ *     เพราะ qa-tenant ผูกกับผู้เช่าคนอื่นอยู่แล้ว และเทสนับสัญญาในบัญชี ถ้ามีคนใช้บัญชีระหว่างรัน ผลจะเพี้ยน
+ *   ทีมรับว่าจะไม่ใช้ 2 บัญชีนี้ทดสอบเอง ตั้ง uuid ด้วย E2E_QA_E2E_TENANT_UUID และ E2E_QA_E2E_LANDLORD_UUID ถ้าไม่ได้ตั้ง เทสวงจรเช่าข้าม
+ *   ไม่อยู่ใน QA_ROLES ด้วยเหตุผลเดียวกับ qaAgent2
+ */
+export const qaE2eTenant: QaAccount = {
+  role: 'tenant',
+  uuidVariable: 'E2E_QA_E2E_TENANT_UUID',
+  uuid: process.env.E2E_QA_E2E_TENANT_UUID?.trim() || null,
+  email: `qa-e2e-tenant@${process.env.E2E_QA_EMAIL_DOMAIN?.trim().toLowerCase() || 'nestyk.test'}`,
+  roles: ROLES_OF.tenant,
+};
+
+export const qaE2eLandlord: QaAccount = {
+  role: 'landlord',
+  uuidVariable: 'E2E_QA_E2E_LANDLORD_UUID',
+  uuid: process.env.E2E_QA_E2E_LANDLORD_UUID?.trim() || null,
+  email: `qa-e2e-landlord@${process.env.E2E_QA_EMAIL_DOMAIN?.trim().toLowerCase() || 'nestyk.test'}`,
+  roles: ROLES_OF.landlord,
+};
+
+/** บัญชีที่ทีมสร้างให้ตามคำขอ (ไม่ได้มาจาก migration): นายหน้าคนที่ 2 และคู่สัญญาของเทสวงจรเช่าห้อง */
+export const requestedQaAccounts: readonly QaAccount[] = [qaAgent2, qaE2eTenant, qaE2eLandlord];
+
+/** บัญชี QA ทุกบัญชีที่ global-setup ตรวจ: 5 บัญชีตามบทบาท และบัญชีที่ทีมสร้างตามคำขอ */
 export function allQaAccounts(): QaAccount[] {
-  return [...QA_ROLES.map((role) => qaAccounts[role]), qaAgent2];
+  return [...QA_ROLES.map((role) => qaAccounts[role]), ...requestedQaAccounts];
 }
 
 /**

@@ -112,7 +112,7 @@ export class LifecycleAgentApi {
     this.client.postMultipart(`agent/contracts/${id}/deposit-settlement/refund`, { received, transfer });
 }
 
-/** ผู้เรียกฝั่งคู่สัญญา (qa-tenant หรือ qa-landlord) ผ่าน /contracts/mine และ /bills */
+/** ผู้เรียกฝั่งคู่สัญญา (qa-e2e-tenant หรือ qa-e2e-landlord) ผ่าน /contracts/mine และ /bills */
 export class LifecyclePartyApi {
   constructor(private readonly client: ApiClient) {}
 
