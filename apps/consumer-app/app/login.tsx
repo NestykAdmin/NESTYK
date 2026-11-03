@@ -14,7 +14,7 @@ import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import Svg, { Path } from "react-native-svg";
 import { Eye, EyeSlash, LockKey, ArrowRight } from "phosphor-react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { localizedError, useLocale } from "@nestyk/i18n";
 import {
@@ -32,6 +32,7 @@ import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
 import { socialLoginProvider } from "../lib/auth/google-oauth";
 import { requestGuestBrowse } from "../lib/auth/role-gate";
 import { APP_CONFIG } from "../lib/config";
+import { postLoginHref } from "../lib/web-routes";
 
 function GoogleMark() {
   return (
@@ -68,7 +69,8 @@ export default function LoginScreen() {
   const { theme, isDark } = useMobileTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signIn, signInWithGoogle, signInWithFacebook, isAuthenticated, sessionExpired, dismissSessionExpired } = useAuth();
+  const { signIn, signInWithGoogle, signInWithFacebook, isAuthenticated, session, sessionExpired, dismissSessionExpired } = useAuth();
+  const { next } = useLocalSearchParams<{ next?: string }>();
 
   const [email, setEmail] = useState(
     DEV_AUTH_CONFIG.enabled ? DEV_AUTH_CONFIG.email : "",
@@ -90,9 +92,10 @@ export default function LoginScreen() {
 
   React.useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/");
+      // Web: back to `next` or the landing role's page (route plan R1, Q5). Mobile: "/" as before.
+      router.replace(postLoginHref(next, session?.roles) as never);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, next, session?.roles]);
 
   const onSubmit = async () => {
     if (loading) return;
@@ -105,7 +108,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signIn(email, password);
-      router.replace("/");
+      // Web leaves through the effect above once the session (and its roles) is in; mobile goes home now.
+      if (Platform.OS !== "web") router.replace("/");
     } catch (e) {
       setError(localizedError(e, t.mobile.auth.invalidCredentials, locale));
     } finally {

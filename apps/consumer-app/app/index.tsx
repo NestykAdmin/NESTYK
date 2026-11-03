@@ -90,6 +90,8 @@ import {
   roleRequiresAuth,
   setPendingRole,
 } from '../lib/auth/role-gate';
+import { roleHomePath } from '../lib/app-routes';
+import { loginHref, useInitialRouteRole, useRoleRouteSync } from '../lib/web-routes';
 import {
   MOCK_LISTINGS,
   MOCK_SERVICE_TICKETS,
@@ -151,18 +153,22 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
   }
 }
 
-export default function AppHomeScreen() {
+/**
+ * The app shell for every role. Mobile: this is the "/" route. Web: the root layout keeps it mounted for every app
+ * path (route plan R1, rule 21) and the "/" route renders nothing (see IndexRoute below).
+ */
+export function AppHomeScreen() {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const router = useRouter();
   const { ready, isAuthenticated, session, displayName, initials, signOut, refreshProfile } = useAuth();
-  const [activeRole, setActiveRole] = useState<UserRole>(APP_CONFIG.defaultRole);
+  // Web: the path picks the role ("/" guest, "/agent", ...). Mobile: EXPO_PUBLIC_DEFAULT_ROLE as before.
+  const initialRole = useInitialRouteRole(APP_CONFIG.defaultRole);
+  const [activeRole, setActiveRole] = useState<UserRole>(initialRole);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => calendarDateKey(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => calendarDateKey(new Date()).slice(0, 7) + '-01');
   const [calendarReloadToken, setCalendarReloadToken] = useState(0);
-  const [activeTab, setActiveTab] = useState<MobileAppTab>(() =>
-    getDefaultTabForRole(APP_CONFIG.defaultRole),
-  );
+  const [activeTab, setActiveTab] = useState<MobileAppTab>(() => getDefaultTabForRole(initialRole));
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [partyInbox, setPartyInbox] = useState(false);
@@ -563,7 +569,7 @@ export default function AppHomeScreen() {
     if (roleRequiresAuth(role) && !isAuthenticated) {
       setPendingRole(role);
       setDrawerOpen(false);
-      router.push('/login');
+      router.push(loginHref(roleHomePath(role)) as never);
       return;
     }
     setPartyInbox(false);
@@ -593,9 +599,20 @@ export default function AppHomeScreen() {
     }
 
     if (roleRequiresAuth(activeRole)) {
-      router.replace('/login');
+      // Web: /login?next=<this page>, so signing in comes back here (route plan rule 7). Mobile: /login.
+      router.replace(loginHref() as never);
     }
   }, [ready, isAuthenticated, activeRole, router]);
+
+  // Web: the path and the role move together (route plan R1). Mobile: no-op.
+  const applyRouteRole = useCallback((role: UserRole) => {
+    setPartyInbox(false);
+    setSelectedPartyRoom(null);
+    setOpenedPartyContract(null);
+    setActiveRole(role);
+    setActiveTab(getDefaultTabForRole(role));
+  }, []);
+  useRoleRouteSync(activeRole, applyRouteRole);
 
   const accentColor =
     tokens.colors.roles[activeRole as keyof typeof tokens.colors.roles] || tokens.colors.accent;
@@ -1828,3 +1845,8 @@ const styles = StyleSheet.create({
     color: tokens.colors.primary,
   },
 });
+
+/** Route "/". Mobile renders the app shell here. Web renders nothing: the root layout hosts the shell (WebAppHost). */
+export default function IndexRoute() {
+  return Platform.OS === 'web' ? null : <AppHomeScreen />;
+}
