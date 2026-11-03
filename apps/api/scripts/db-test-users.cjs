@@ -36,6 +36,8 @@ const ACCOUNTS = [
   { key: 'self-owner', label: 'Self Owner', roles: (cat) => (cat.isNew ? ['guest', SELF_OWNER_ROLE] : null) },
   { key: 'agent', label: 'Agent', roles: () => ['guest', 'agent'] },
   { key: 'admin', label: 'Admin', roles: () => ['guest', 'admin'] },
+  // Second agent login (append-only: the phone 09900000NN comes from the list position, so keep new rows at the end).
+  { key: 'agent2', label: 'Agent 2', roles: () => ['guest', 'agent'] },
 ];
 
 function env(name) {

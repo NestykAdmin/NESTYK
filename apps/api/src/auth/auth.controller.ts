@@ -5,6 +5,8 @@ import {
   Delete,
   Patch,
   Post,
+  UploadedFile,
+  UseInterceptors,
   Req,
   UnauthorizedException,
   UseGuards,
@@ -12,10 +14,19 @@ import {
 import { AuthService } from './auth.service';
 import { AuthGuard, JwtIdentity } from './guards/auth.guard';
 import { CurrentUser, AuthRequestUser } from './decorators/current-user.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { DevRegistrationGuard } from './guards/dev-registration.guard';
+import { MAX_PROFILE_AVATAR_BYTES } from './profile-avatar-storage.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('dev/register')
+  @UseGuards(DevRegistrationGuard)
+  async registerForTesting(@Body() body: unknown) {
+    return this.authService.registerForTesting(body);
+  }
 
   @Post('sync')
   @UseGuards(AuthGuard)
@@ -59,6 +70,24 @@ export class AuthController {
       throw new BadRequestException('avatarUrl is required');
     }
     return this.authService.updateAvatar(user.id, body.avatarUrl);
+  }
+
+  @Post('profile/avatar/upload')
+  @UseGuards(AuthGuard)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PROFILE_AVATAR_BYTES, files: 1, fields: 0 } }))
+  async uploadAvatar(
+    @CurrentUser() user: AuthRequestUser,
+    @UploadedFile() file: { buffer: Buffer; size: number } | undefined,
+  ) {
+    this.requireUser(user);
+    return this.authService.uploadAvatar(user.id, file);
+  }
+
+  @Delete('profile/avatar')
+  @UseGuards(AuthGuard)
+  async clearAvatar(@CurrentUser() user: AuthRequestUser) {
+    this.requireUser(user);
+    return this.authService.clearAvatar(user.id);
   }
 
   @Post('dev/roles')

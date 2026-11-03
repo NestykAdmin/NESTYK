@@ -8,7 +8,7 @@ import {
 } from "@nestyk/ui/native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import type { UserRole } from "@nestyk/types";
-import type { AgentWorkspaceProps } from "./AgentWorkspace.types";
+import type { AgentWorkspaceProps, WorkspaceNavItem } from "./AgentWorkspace.types";
 import {
   AGENT_WEB_PRIMARY,
   AGENT_WEB_MORE,
@@ -28,6 +28,15 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   >("activity");
   const accountRef = useRef<HTMLDetailsElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const [profileFirst, setProfileFirst] = React.useState("");
+  const [profileLast, setProfileLast] = React.useState("");
+  const [profilePhone, setProfilePhone] = React.useState("");
+  const [profilePhoto, setProfilePhoto] = React.useState<File | null>(null);
+  const [profileRemove, setProfileRemove] = React.useState(false);
+  const [profileSaving, setProfileSaving] = React.useState(false);
+  const [profileError, setProfileError] = React.useState<string | null>(null);
+  const [profilePreview, setProfilePreview] = React.useState<string | null>(null);
   const copy = t.agent.dashboard.webWorkspace;
   const parent = agentWebParent(props.activeTab);
 
@@ -71,8 +80,73 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   };
   const menuLabel = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
     item.labelKey ? t.agent.dashboard[item.labelKey] : t.mobile.tabs[item.tab];
+  const shellRole = props.activeRole ?? "agent";
+  const openProfile = () => {
+    const parts = props.userName.trim().split(/\s+/).filter(Boolean);
+    setProfileFirst(parts[0] ?? "");
+    setProfileLast(parts.slice(1).join(" "));
+    setProfilePhone(props.userPhone ?? "");
+    setProfilePhoto(null);
+    setProfileRemove(false);
+    setProfilePreview(props.avatarUrl ?? null);
+    setProfileError(null);
+    setProfileOpen(true);
+  };
+  const saveProfile = async () => {
+    if (!props.onSaveProfile || profileSaving) return;
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      if (profileRemove) await props.onRemoveAvatar?.();
+      else if (profilePhoto && props.onUploadAvatar) {
+        await props.onUploadAvatar({
+          uri: URL.createObjectURL(profilePhoto),
+          name: profilePhoto.name,
+          mimeType: profilePhoto.type || "image/jpeg",
+          file: profilePhoto,
+        });
+      }
+      await props.onSaveProfile({
+        firstName: profileFirst.trim(),
+        lastName: profileLast.trim(),
+        phone: profilePhone.trim() ? profilePhone.trim() : null,
+      });
+      setProfileOpen(false);
+      accountRef.current?.removeAttribute("open");
+    } catch (cause) {
+      setProfileError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+  const workspaceLabel = props.workspaceLabel ?? t.agent.dashboard.workspaceLabel;
+  const customCurrent = props.navSections
+    ?.flatMap((section) => section.items)
+    .find((item) => item.active);
   const currentMenu = [...AGENT_WEB_PRIMARY, ...AGENT_WEB_MORE].find(
     (item) => item.tab === props.activeTab,
+  );
+  const itemColor = (active: boolean) =>
+    active ? (isDark ? "#f4cd76" : "#795719") : theme.textSecondary;
+  const customItem = (item: WorkspaceNavItem) => (
+    <button
+      key={item.id}
+      type="button"
+      className={`aw-nav-item ${item.active ? "is-active" : ""}`}
+      aria-current={item.active ? "page" : undefined}
+      disabled={props.navigationDisabled || item.disabled}
+      title={item.title ?? item.label}
+      onClick={() => {
+        if (props.navigationDisabled || item.disabled) return;
+        accountRef.current?.removeAttribute("open");
+        item.onPress();
+      }}
+    >
+      <MobileIcon name={item.icon} size={20} color={itemColor(Boolean(item.active))} />
+      <span className="aw-nav-label">{item.label}</span>
+      {item.badge ? <span className="aw-soon aw-nav-label">{item.badge}</span> : null}
+      {item.active ? <span className="aw-active-dot" /> : null}
+    </button>
   );
   const navItem = (item: (typeof AGENT_WEB_PRIMARY)[number]) => (
     <button
@@ -87,13 +161,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       <MobileIcon
         name={item.icon}
         size={20}
-        color={
-          parent === item.tab
-            ? isDark
-              ? "#f4cd76"
-              : "#795719"
-            : theme.textSecondary
-        }
+        color={itemColor(parent === item.tab)}
       />
       <span className="aw-nav-label">{menuLabel(item)}</span>
       {parent === item.tab ? <span className="aw-active-dot" /> : null}
@@ -135,43 +203,57 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
             <div className="aw-logo-compact">
               <MobileNestykLogo variant="markSecondary" height={32} />
             </div>
-            <span className="aw-workspace-label">{copy.brandTag}</span>
+            <span className="aw-workspace-label">{props.brandTag ?? copy.brandTag}</span>
           </button>
           <div className="aw-sidebar-scroll">
-            <p className="aw-nav-caption">{copy.main}</p>
-            <nav className="aw-nav" aria-label={copy.main}>
-              {AGENT_WEB_PRIMARY.map(navItem)}
-            </nav>
-            <div className="aw-nav-divider" />
-            <p className="aw-nav-caption">{t.mobile.tabs.more}</p>
-            <nav className="aw-nav" aria-label={t.mobile.tabs.more}>
-              {AGENT_WEB_MORE.map(navItem)}
-            </nav>
-            <div className="aw-nav-divider" />
-            <p className="aw-nav-caption">{t.agent.dashboard.financeSection}</p>
-            <nav
-              className="aw-nav"
-              aria-label={t.agent.dashboard.financeSection}
-            >
-              <button
-                type="button"
-                className="aw-nav-item"
-                disabled
-                title={`${t.agent.dashboard.openCommission} · ${t.agent.dashboard.comingSoon}`}
-              >
-                <MobileIcon
-                  name="wallet"
-                  size={20}
-                  color={theme.textSecondary}
-                />
-                <span className="aw-nav-label">
-                  {t.mobile.drawerMenu.commission}
-                </span>
-                <span className="aw-soon aw-nav-label">
-                  {t.agent.dashboard.comingSoon}
-                </span>
-              </button>
-            </nav>
+            {props.navSections ? (
+              props.navSections.map((section, index) => (
+                <React.Fragment key={section.id}>
+                  {index > 0 ? <div className="aw-nav-divider" /> : null}
+                  <p className="aw-nav-caption">{section.caption}</p>
+                  <nav className="aw-nav" aria-label={section.caption}>
+                    {section.items.map(customItem)}
+                  </nav>
+                </React.Fragment>
+              ))
+            ) : (
+              <>
+                <p className="aw-nav-caption">{copy.main}</p>
+                <nav className="aw-nav" aria-label={copy.main}>
+                  {AGENT_WEB_PRIMARY.map(navItem)}
+                </nav>
+                <div className="aw-nav-divider" />
+                <p className="aw-nav-caption">{t.mobile.tabs.more}</p>
+                <nav className="aw-nav" aria-label={t.mobile.tabs.more}>
+                  {AGENT_WEB_MORE.map(navItem)}
+                </nav>
+                <div className="aw-nav-divider" />
+                <p className="aw-nav-caption">{t.agent.dashboard.financeSection}</p>
+                <nav
+                  className="aw-nav"
+                  aria-label={t.agent.dashboard.financeSection}
+                >
+                  <button
+                    type="button"
+                    className="aw-nav-item"
+                    disabled
+                    title={`${t.agent.dashboard.openCommission} · ${t.agent.dashboard.comingSoon}`}
+                  >
+                    <MobileIcon
+                      name="wallet"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                    <span className="aw-nav-label">
+                      {t.mobile.drawerMenu.commission}
+                    </span>
+                    <span className="aw-soon aw-nav-label">
+                      {t.agent.dashboard.comingSoon}
+                    </span>
+                  </button>
+                </nav>
+              </>
+            )}
           </div>
           <button
             type="button"
@@ -192,16 +274,18 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         <div className="aw-workspace">
           <header className="aw-topbar">
             <div className="aw-breadcrumb">
-              <span>{t.agent.dashboard.workspaceLabel}</span>
+              <span>{workspaceLabel}</span>
               <MobileIcon
                 name="chevron-right"
                 size={14}
                 color={theme.textSecondary}
               />
               <strong>
-                {currentMenu
-                  ? menuLabel(currentMenu)
-                  : t.mobile.tabs[props.activeTab]}
+                {customCurrent
+                  ? customCurrent.label
+                  : currentMenu
+                    ? menuLabel(currentMenu)
+                    : t.mobile.tabs[props.activeTab]}
               </strong>
             </div>
             <div className="aw-topbar-actions">
@@ -230,10 +314,14 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               <div className="aw-topbar-divider" />
               <details className="aw-account" ref={accountRef}>
                 <summary aria-label={copy.account}>
-                  <span className="aw-avatar">{props.initials}</span>
+                  {props.avatarUrl ? (
+                    <img className="aw-avatar aw-avatar-photo" src={props.avatarUrl} alt="" />
+                  ) : (
+                    <span className="aw-avatar">{props.initials}</span>
+                  )}
                   <span className="aw-account-name">
                     {props.userName}
-                    <small>{t.roles.agent}</small>
+                    <small>{t.roles[shellRole]}</small>
                   </span>
                   <MobileIcon
                     name="chevron-down"
@@ -246,10 +334,86 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                     <strong>{props.userName}</strong>
                     <span>{props.userEmail}</span>
                   </div>
+                  {shellRole === "agent" && props.onSaveProfile && profileOpen ? (
+                    <form
+                      className="aw-profile-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        return saveProfile();
+                      }}
+                    >
+                      <div className="aw-photo">
+                        <label className="aw-photo-hit">
+                          <span className="aw-photo-sr">{t.mobile.account.changePhoto}</span>
+                          {profilePreview ? (
+                            <img className="aw-photo-face" src={profilePreview} alt="" />
+                          ) : (
+                            <span className="aw-photo-face" aria-hidden="true">{props.initials}</span>
+                          )}
+                          <span className="aw-photo-badge" aria-hidden="true">
+                            <MobileIcon name="camera" size={14} color="#211E1E" />
+                          </span>
+                          <input
+                            className="aw-photo-file"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0] ?? null;
+                              setProfilePhoto(file);
+                              setProfileRemove(false);
+                              setProfilePreview(file ? URL.createObjectURL(file) : props.avatarUrl ?? null);
+                            }}
+                          />
+                        </label>
+                        <div className="aw-photo-copy">
+                          <span className="aw-photo-title">{t.mobile.account.changePhoto}</span>
+                          <span className="aw-photo-hint">{t.mobile.account.chooseFromLibrary}</span>
+                          {profilePreview ? (
+                            <button
+                              type="button"
+                              className="aw-photo-remove"
+                              onClick={() => {
+                                setProfilePhoto(null);
+                                setProfileRemove(true);
+                                setProfilePreview(null);
+                              }}
+                            >
+                              {t.mobile.account.removePhoto}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                      <label>
+                        {t.mobile.account.firstName}
+                        <input value={profileFirst} onChange={(event) => setProfileFirst(event.target.value)} autoComplete="given-name" />
+                      </label>
+                      <label>
+                        {t.mobile.account.lastName}
+                        <input value={profileLast} onChange={(event) => setProfileLast(event.target.value)} autoComplete="family-name" />
+                      </label>
+                      <label>
+                        {t.mobile.account.phone}
+                        <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} autoComplete="tel" inputMode="tel" />
+                      </label>
+                      {profileError ? <p className="aw-profile-error" role="alert">{profileError}</p> : null}
+                      <button type="submit" className="aw-button aw-button-primary" disabled={profileSaving}>
+                        {profileSaving ? t.common.loading : t.common.save}
+                      </button>
+                      <button type="button" className="aw-button aw-button-secondary" disabled={profileSaving} onClick={() => setProfileOpen(false)}>
+                        {t.common.cancel}
+                      </button>
+                    </form>
+                  ) : null}
+                  {shellRole === "agent" && props.onSaveProfile && !profileOpen ? (
+                    <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
+                      {t.mobile.account.editProfile}
+                    </button>
+                  ) : null}
+                  {profileOpen ? null : <>
                   <label>
                     {t.mobile.profile.switchRole}
                     <AgentSelect
-                      value="agent"
+                      value={shellRole}
                       disabled={props.navigationDisabled}
                       onChange={(e) => {
                         accountRef.current?.removeAttribute("open");
@@ -298,6 +462,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   >
                     {t.common.signOut}
                   </button>
+                  </>}
                 </div>
               </details>
             </div>

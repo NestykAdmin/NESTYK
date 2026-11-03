@@ -13,7 +13,7 @@ import {
 import { MobileButton } from '../components/MobileButton';
 import { MobileNestykLogo } from '../components/MobileNestykLogo';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
-import { MobileProfileEditBody } from '../components/MobileProfileEditBody';
+import { MobileProfileEditBody, ProfilePhotoFile, ProfileSaveInput } from '../components/MobileProfileEditBody';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -50,7 +50,11 @@ export interface MobileProfileDrawerProps {
   userName: string;
   userEmail: string;
   userPhone?: string;
+  avatarUri?: string | null;
   initials: string;
+  onSaveProfile?: (input: ProfileSaveInput) => Promise<void>;
+  onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
+  onRemoveAvatar?: () => Promise<void>;
   activeRole: UserRole;
   onRoleChange: (role: UserRole) => void;
   onSignOut?: () => void;
@@ -104,6 +108,10 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   userName,
   userEmail,
   userPhone,
+  avatarUri,
+  onSaveProfile,
+  onUploadAvatar,
+  onRemoveAvatar,
   initials,
   activeRole,
   onRoleChange,
@@ -422,7 +430,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                   <View style={[styles.profileDecorRing, styles.profileDecorRingMd, { borderColor: decorRingColor }]} />
                   <View style={[styles.profileDecorRing, styles.profileDecorRingSm, { borderColor: decorRingColor }]} />
                 </View>
-                <MobileProfileAvatar initials={initials} size="md" />
+                <MobileProfileAvatar initials={initials} imageUri={avatarUri} size="md" />
                 <View style={styles.profileText}>
                   <Text style={[styles.profileName, { color: theme.textHeading }]}>{userName}</Text>
                   <Text style={[styles.profileSub, { color: theme.textSecondary }]}>
@@ -548,6 +556,10 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                     name={userName}
                     email={userEmail}
                     phone={userPhone}
+                    avatarUri={avatarUri}
+                    onSave={onSaveProfile}
+                    onUploadAvatar={onUploadAvatar}
+                    onRemoveAvatar={onRemoveAvatar}
                   />
                 ) : settingsView === 'language' ? (
                   <MobileLanguagePickerBody onSelect={() => closeSubView()} />
@@ -559,7 +571,11 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                       initials,
                       email: userEmail,
                       phone: userPhone,
+                      avatarUri,
                     }}
+                    onSaveProfile={onSaveProfile}
+                    onUploadAvatar={onUploadAvatar}
+                    onRemoveAvatar={onRemoveAvatar}
                     appVersion="0.1.0"
                     onSignOut={handleSignOut}
                     signOutLabel={signOutLabel}

@@ -1,9 +1,32 @@
 import type React from "react";
-import type { MobileAppTab, MobileNotificationItem } from "@nestyk/ui/native";
+import type { AppIconName, MobileAppTab, MobileNotificationItem } from "@nestyk/ui/native";
 import type { UserRole } from "@nestyk/types";
+
+export interface WorkspaceNavItem {
+  id: string;
+  icon: AppIconName;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  badge?: string;
+  title?: string;
+  onPress: () => void;
+}
+
+export interface WorkspaceNavSection {
+  id: string;
+  caption: string;
+  items: WorkspaceNavItem[];
+}
 
 export interface AgentWorkspaceProps {
   enabled: boolean;
+  /** Shown in the account menu. Defaults to the agent workspace. */
+  activeRole?: UserRole;
+  brandTag?: string;
+  workspaceLabel?: string;
+  /** When set, replaces the agent sidebar. The agent menu stays the default. */
+  navSections?: WorkspaceNavSection[];
   activeTab: MobileAppTab;
   navigationDisabled?: boolean;
   onRefresh?: () => void;
@@ -13,6 +36,11 @@ export interface AgentWorkspaceProps {
   onSignOut: () => void;
   userName: string;
   userEmail: string;
+  userPhone?: string;
+  avatarUrl?: string | null;
+  onSaveProfile?: (input: { firstName: string; lastName: string; phone: string | null }) => Promise<void>;
+  onUploadAvatar?: (photo: { uri: string; name: string; mimeType: string; file?: Blob }) => Promise<string>;
+  onRemoveAvatar?: () => Promise<void>;
   initials: string;
   notificationCount: number;
   notificationsOpen: boolean;
