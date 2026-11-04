@@ -2,6 +2,8 @@ import type React from "react";
 import type { AppIconName, MobileAppTab, MobileNotificationItem } from "@nestyk/ui/native";
 import type { UserRole } from "@nestyk/types";
 
+export type AgentWebCreateKind = "room" | "lead" | "tenant";
+
 export interface WorkspaceNavItem {
   id: string;
   icon: AppIconName;
@@ -32,6 +34,10 @@ export interface AgentWorkspaceProps {
   onRefresh?: () => void;
   refreshing?: boolean;
   onNavigate: (tab: MobileAppTab) => void;
+  /** Agent "+ Create" menu and the sidebar create links (add room, create lead, create tenant). Omit to hide them. */
+  onCreate?: (kind: AgentWebCreateKind) => void;
+  /** A create flow open inside the current tab (today only "tenant" inside Tenants), so the sidebar marks it. */
+  creating?: AgentWebCreateKind | null;
   onRoleChange: (role: UserRole) => void;
   /** Roles the signed-in account holds; the role switcher lists only these (plus the active role). Omitted = every role. */
   allowedRoles?: readonly string[];

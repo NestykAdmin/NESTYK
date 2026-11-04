@@ -30,7 +30,7 @@ function load(filename) {
     if (name === 'react-native-webview') return { WebView: () => null };
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
-    return load([base, `${base}.ts`, `${base}.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));
+    return load([base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));
   };
   new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true, target: ts.ScriptTarget.ES2022 },
@@ -61,18 +61,68 @@ function openAccountMenu(input) {
   return render(input);
 }
 
-test('sidebar provides the four main destinations and the same four More shortcuts', () => {
+test('sidebar groups: Menu (Listing and Tenants open sub-pages), More, Finance and Workspace; coming-soon items stay disabled', () => {
   state = [];
   const calls = [];
   const tree = render(props({ onNavigate: tab => calls.push(tab), activeTab: 'createLead' }));
-  const buttons = byClass(tree, 'aw-nav-item').filter(node => !node.props.disabled);
-  buttons.forEach(button => button.props.onClick());
-  // Contacts, services and contracts archive are "coming soon" (meeting 2 Nov 2026): shown but not clickable
-  assert.deepEqual(calls, ['dashboard', 'listingRoom', 'listingLead', 'clients', 'calendar']);
-  const soon = byClass(tree, 'aw-nav-item').filter(node => node.props.disabled).map(node => node.props.title);
-  assert.deepEqual(soon, ['Contacts · Coming soon', 'Services · Coming soon', 'Contracts archive · Coming soon', 'Commission · Coming soon']);
-  assert.equal(buttons.find(node => node.props['aria-current'] === 'page').props.title, 'Leads');
-  assert.equal(tree.filter(node => node?.type === 'nav').length, 3);
+  const items = byClass(tree, 'aw-nav-item');
+  items.filter(node => !node.props.disabled).forEach(node => node.props.onClick());
+  // Listing and Tenants toggle their sub-pages instead of navigating while the sidebar is open
+  assert.deepEqual(calls, ['dashboard', 'listingLead', 'calendar']);
+  const soon = items.filter(node => node.props.disabled).map(node => node.props.title);
+  assert.deepEqual(soon, ['Contacts · Coming soon', 'Services · Coming soon', 'Contracts archive · Coming soon', 'Commission · Coming soon', 'Team · Coming soon']);
+  assert.equal(items.find(node => node.props['aria-current'] === 'page').props.title, 'Leads');
+  assert.equal(tree.filter(node => node?.type === 'nav').length, 4);
+  assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Create Lead');
+});
+
+test('the group of the current page opens with its sub-pages and the create links use onCreate', () => {
+  state = [];
+  const calls = [];
+  const input = props({ activeTab: 'listingRoom', onNavigate: tab => calls.push(tab), onCreate: kind => calls.push(`create:${kind}`) });
+  let tree = render(input);
+  const subs = byClass(tree, 'aw-nav-subitem');
+  assert.deepEqual(subs.map(node => node.props.children), ['Room Listings', 'Add listing']);
+  assert.equal(subs[0].props['aria-current'], 'page');
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Room Listings');
+  subs.forEach(node => node.props.onClick());
+  assert.deepEqual(calls, ['listingRoom', 'create:room']);
+  // Opening Tenants shows the list and "Create tenant"
+  byClass(tree, 'aw-nav-item').find(node => node.props.title === 'Tenants').props.onClick();
+  tree = render(input);
+  assert.deepEqual(byClass(tree, 'aw-nav-subitem').map(node => node.props.children), ['Room Listings', 'Add listing', 'All tenants', 'Create tenant']);
+  state = [];
+  tree = render(props({ activeTab: 'clients', creating: 'tenant', onCreate() {} }));
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Create tenant');
+  assert.equal(byClass(tree, 'aw-nav-subitem').find(node => node.props['aria-current'] === 'page').props.children, 'Create tenant');
+});
+
+test('collapsed sidebar: a group icon goes straight to its first page', () => {
+  state = [];
+  const calls = [];
+  const input = props({ onNavigate: tab => calls.push(tab) });
+  byClass(render(input), 'aw-collapse')[0].props.onClick();
+  const tree = render(input);
+  byClass(tree, 'aw-nav-item').find(node => node.props.title === 'Listing').props.onClick();
+  byClass(tree, 'aw-nav-item').find(node => node.props.title === 'Tenants').props.onClick();
+  assert.deepEqual(calls, ['listingRoom', 'clients']);
+  assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
+});
+
+test('the + Create menu lists add room, create lead and create tenant for the agent only', () => {
+  state = [];
+  const calls = [];
+  const input = props({ onCreate: kind => calls.push(kind) });
+  const trigger = render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Create');
+  assert.ok(trigger);
+  trigger.props.onClick();
+  const menu = render(input).filter(node => node?.props?.className === 'awu-menu-item' && ['Add listing', 'New lead', 'Create tenant'].includes(node.props.children[1]?.props?.children));
+  assert.equal(menu.length, 3);
+  menu.forEach(node => node.props.onClick());
+  assert.deepEqual(calls, ['room', 'lead', 'tenant']);
+  state = [];
+  assert.equal(render(props({ activeRole: 'landlord' })).some(node => node?.type === 'button' && node.props['aria-label'] === 'Create'), false);
 });
 
 test('collapse state persists across page changes and busy forms disable navigation', () => {
@@ -116,10 +166,12 @@ test('workspace labels exist in all four central locales', () => {
     locale = language;
     state = [];
     const tree = render(props());
-    const copy = load(`${root}/packages/i18n/src/locales/${language}.ts`)[language].agent.dashboard.webWorkspace;
-    assert.ok(copy);
-    assert.ok(tree.includes(copy.brandTag));
-    assert.ok(tree.includes(copy.collapse));
+    const t = load(`${root}/packages/i18n/src/locales/${language}.ts`)[language];
+    const copy = t.agent.dashboard.webWorkspace;
+    for (const key of ['menu', 'create', 'team', 'switchWorkspace', 'addWorkspace', 'manageWorkspace', 'collapse', 'expand']) assert.ok(copy[key], `${language}.${key}`);
+    assert.ok(tree.includes(t.agent.dashboard.workspaceLabel));
+    assert.ok(tree.includes(copy.menu));
+    assert.equal(byClass(tree, 'aw-collapse')[0].props['aria-label'], copy.collapse);
   }
   locale = 'en';
 });
@@ -198,12 +250,11 @@ test('Manage account groups edit profile, change password and delete account beh
   const closed = render(input);
   assert.ok(button(closed, 'Manage account'));
   for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.equal(button(closed, label), undefined);
-  assert.ok(closed.some((node) => node?.type === 'option'));
+  assert.equal(closed.some((node) => node?.type === 'select'), false);
 
   const opened = openAccountMenu(input);
   assert.equal(button(opened, 'Manage account'), undefined);
   for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.ok(button(opened, label));
-  assert.equal(opened.some((node) => node?.type === 'option'), false);
 
   button(opened, 'Cancel').props.onClick();
   assert.ok(button(render(input), 'Manage account'));
@@ -238,14 +289,14 @@ test('a custom sidebar replaces the agent menu and ignores disabled items', () =
       },
     ],
   }));
-  assert.ok(tree.includes('LANDLORD WORKSPACE'));
+  assert.ok(tree.includes('Landlord'));
   assert.ok(tree.includes('Landlord workspace'));
   assert.ok(tree.includes('Soon'));
   assert.equal(tree.filter(node => node?.type === 'nav').length, 2);
   assert.equal(byClass(tree, 'aw-nav-item').find(node => node.props['aria-current'] === 'page').props.title, 'Overview');
   byClass(tree, 'aw-nav-item').forEach(node => node.props.onClick());
   assert.deepEqual(calls, ['dashboard', 'contracts']);
-  assert.equal(tree.find(node => node?.type === 'select').props.value, 'landlord');
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Overview');
   assert.ok(!tree.includes('Commission'));
 });
 
@@ -280,15 +331,39 @@ test('desktop shell is used for the Agent, Landlord and Tenant roles on web', ()
   assert.match(source, /isDesktopWeb \|\| \['createListing'/);
 });
 
-test('the role switcher lists only the roles the account holds, plus the active role', () => {
+test('the workspace switcher lists only the roles the account holds, plus the active role', () => {
   const ROLE_VALUES = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+  const listed = (input) => {
+    state = [];
+    render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Switch workspace').props.onClick();
+    return render(input).filter(node => node?.props?.role === 'menuitemradio').map(node => node.props['data-testid'].split('.').pop()).filter(role => ROLE_VALUES.includes(role));
+  };
+  assert.deepEqual(listed(props({ allowedRoles: ['guest', 'agent'] })), ['guest', 'agent']);
+  assert.deepEqual(listed(props({ activeRole: 'landlord', allowedRoles: ['agent'] })), ['landlord', 'agent']);
+  assert.deepEqual(listed(props()), ['guest', 'tenant', 'landlord', 'agent', 'admin']);
+});
+
+test('choosing another workspace changes role; add and manage workspace are coming soon', () => {
+  const roles = [];
+  const input = props({ allowedRoles: ['agent', 'tenant'], onRoleChange: role => roles.push(role) });
   state = [];
-  const options = render(props({ allowedRoles: ['guest', 'agent'] })).filter(node => node?.type === 'option' && ROLE_VALUES.includes(node.props.value)).map(node => node.props.value);
-  assert.deepEqual(options, ['guest', 'agent']);
-  state = [];
-  const landlordShell = render(props({ activeRole: 'landlord', allowedRoles: ['agent'] })).filter(node => node?.type === 'option' && ROLE_VALUES.includes(node.props.value)).map(node => node.props.value);
-  assert.deepEqual(landlordShell, ['landlord', 'agent']);
-  state = [];
-  const everyRole = render(props()).filter(node => node?.type === 'option' && ROLE_VALUES.includes(node.props.value)).map(node => node.props.value);
-  assert.deepEqual(everyRole, ['guest', 'tenant', 'landlord', 'agent', 'admin']);
+  render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Switch workspace').props.onClick();
+  const tree = render(input);
+  const items = tree.filter(node => node?.props?.className === 'awu-menu-item');
+  const byId = id => items.find(node => node.props['data-testid'] === `shell.workspace.${id}`);
+  assert.equal(byId('agent').props['aria-checked'], true);
+  byId('agent').props.onClick();
+  byId('tenant').props.onClick();
+  assert.deepEqual(roles, ['tenant']);
+  assert.equal(items.filter(node => node.props.disabled).length, 2);
+  assert.ok(tree.includes('Coming soon'));
+});
+
+
+test('top-level pages show their title only in the top bar; deep pages keep it beside the back button', () => {
+  const { AgentSectionHeader } = load(path.join(__dirname, 'agent-web/AgentSectionHeader.web.tsx'));
+  const top = nodes(AgentSectionHeader({ title: 'Leads' }));
+  assert.equal(top.some(node => node?.type === 'h1' || node?.type === 'h2'), false);
+  const deep = nodes(AgentSectionHeader({ title: 'Lead details', leading: 'back', onBackPress() {} }));
+  assert.equal(deep.find(node => node?.type === 'h2').props.children, 'Lead details');
 });

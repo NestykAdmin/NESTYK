@@ -4,6 +4,7 @@ import {
   MobileIcon,
   MobileNestykLogo,
   useMobileTheme,
+  type AppIconName,
   type MobileModePageProps,
 } from "@nestyk/ui/native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
@@ -16,17 +17,53 @@ import {
   agentWebParent,
 } from "./navigation";
 import "./agent-workspace.css";
-import { AgentSelect } from "./AgentSelect";
+import { WebMenu } from "./ui";
 import { passwordIsStrong } from "../../lib/auth/password-rules";
 import { hcaptchaSiteKey } from "../../lib/auth/hcaptcha-site-key";
 import { HcaptchaField } from "../../components/HcaptchaField";
 
 const ROLES: UserRole[] = ["guest", "tenant", "landlord", "agent", "admin"];
+/** Role colour shows only as a small dot (design W1); same values as tokens.colors.roles. */
+const ROLE_DOT: Record<UserRole, string> = {
+  guest: "#F8B615",
+  tenant: "#00C68D",
+  landlord: "#0055DA",
+  agent: "#FF0052",
+  admin: "#0F172A",
+} as Record<UserRole, string>;
+const ROLE_ICON: Record<UserRole, AppIconName> = {
+  guest: "search",
+  tenant: "home",
+  landlord: "key",
+  agent: "handshake",
+  admin: "shield",
+} as Record<UserRole, AppIconName>;
+
+/** Small inline icons the app icon set does not have (web only). */
+function PanelIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M9 4v16" />
+      <path d={collapsed ? "m13.5 10 2 2-2 2" : "m16 10-2 2 2 2"} />
+    </svg>
+  );
+}
+function RefreshIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+      <path d="M20 4v5h-5" />
+    </svg>
+  );
+}
 
 export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t, locale, setLocale } = useLocale();
   const { theme, isDark, setThemeMode } = useMobileTheme();
   const [collapsed, setCollapsed] = React.useState(false);
+  /** Sidebar groups the user opened/closed; unset = open while it holds the current page. */
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [notificationTab, setNotificationTab] = React.useState<
     "activity" | "messages"
   >("activity");
@@ -283,6 +320,92 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     </button>
   );
 
+  const listingOpen = expanded.listing ?? parent === "listingRoom";
+  const tenantsOpen = expanded.tenants ?? parent === "clients";
+  const toggleGroup = (id: "listing" | "tenants", open: boolean, first: () => void) => {
+    if (collapsed) {
+      first();
+      return;
+    }
+    setExpanded({ ...expanded, [id]: !open });
+  };
+  const subItem = (id: string, label: string, active: boolean, onPress: () => void) => (
+    <button
+      key={id}
+      type="button"
+      className={`aw-nav-subitem ${active ? "is-active" : ""}`}
+      aria-current={active ? "page" : undefined}
+      disabled={props.navigationDisabled}
+      onClick={() => {
+        accountRef.current?.removeAttribute("open");
+        onPress();
+      }}
+    >
+      {label}
+    </button>
+  );
+  const groupItem = (
+    id: "listing" | "tenants",
+    icon: AppIconName,
+    label: string,
+    tab: "listingRoom" | "clients",
+    open: boolean,
+    subs: React.ReactNode,
+  ) => (
+    <React.Fragment key={id}>
+      <button
+        type="button"
+        className={`aw-nav-item ${parent === tab ? "is-active" : ""}`}
+        aria-expanded={collapsed ? undefined : open}
+        disabled={props.navigationDisabled}
+        title={label}
+        onClick={() => toggleGroup(id, open, () => navigate(tab))}
+      >
+        <MobileIcon name={icon} size={20} color={itemColor(parent === tab)} />
+        <span className="aw-nav-label">{label}</span>
+        <span className="aw-nav-chev" aria-hidden="true">
+          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+        </span>
+      </button>
+      {open && !collapsed ? <div className="aw-nav-sub">{subs}</div> : null}
+    </React.Fragment>
+  );
+  const soonItem = (key: string, icon: AppIconName, label: string) => (
+    <button
+      key={key}
+      type="button"
+      className="aw-nav-item"
+      disabled
+      title={`${label} · ${t.agent.dashboard.comingSoon}`}
+    >
+      <MobileIcon name={icon} size={20} color={theme.textSecondary} />
+      <span className="aw-nav-label">{label}</span>
+      <span className="aw-soon aw-nav-label">{t.agent.dashboard.comingSoon}</span>
+    </button>
+  );
+  const creatingTenant = props.creating === "tenant";
+  const agentTitle = () => {
+    switch (props.activeTab) {
+      case "listingRoom":
+        return t.mobile.drawerMenu.listingRoom;
+      case "createListing":
+        return t.agent.dashboard.addListing;
+      case "listingLead":
+        return t.mobile.drawerMenu.listingLead;
+      case "clients":
+        return creatingTenant ? t.agent.tenants.create : t.mobile.drawerMenu.clients;
+      default:
+        return currentMenu ? menuLabel(currentMenu) : t.mobile.tabs[props.activeTab];
+    }
+  };
+  const pageTitle =
+    (customCurrent ? customCurrent.label : props.navSections ? t.mobile.tabs[props.activeTab] : agentTitle()) ||
+    workspaceLabel;
+  const switchRoles = ROLES.filter(
+    (role) => !props.allowedRoles || props.allowedRoles.includes(role) || role === shellRole,
+  );
+  const create = props.onCreate;
+
   return (
       <div
         className={`aw-shell ${collapsed ? "aw-collapsed" : ""}`}
@@ -290,7 +413,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         lang={locale}
         style={
           {
-            "--aw-bg": theme.background,
+            "--aw-bg": isDark ? theme.background : "#F3F5F8",
             "--aw-surface": theme.surface,
             "--aw-ink": theme.screenTitle,
             "--aw-muted": theme.textSecondary,
@@ -301,25 +424,147 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         <a className="aw-skip-link" href="#agent-web-main">
           {copy.skip}
         </a>
-        <aside className="aw-sidebar" aria-label={t.mobile.profile.navigation}>
-          <button
-            className="aw-brand"
-            type="button"
-            onClick={() => navigate("dashboard")}
-            disabled={props.navigationDisabled}
-            aria-label={`NESTYK ${t.mobile.tabs.dashboard}`}
-          >
-            <div className="aw-logo-wide">
-              <MobileNestykLogo
-                variant={isDark ? "wordmarkOnDark" : "wordmark"}
-                height={32}
+        <header className="aw-topbar">
+          <div className="aw-logo-cell">
+            <button
+              className="aw-brand"
+              type="button"
+              onClick={() => navigate("dashboard")}
+              disabled={props.navigationDisabled}
+              aria-label={`NESTYK ${t.mobile.tabs.dashboard}`}
+            >
+              <div className="aw-logo-wide">
+                <MobileNestykLogo variant={isDark ? "wordmarkOnDark" : "wordmark"} height={30} />
+              </div>
+              <div className="aw-logo-compact">
+                <MobileNestykLogo variant="markSecondary" height={32} />
+              </div>
+            </button>
+          </div>
+          <div className="aw-topbar-main">
+            <button
+              type="button"
+              className="aw-collapse"
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label={collapsed ? copy.expand : copy.collapse}
+              aria-expanded={!collapsed}
+              title={collapsed ? copy.expand : copy.collapse}
+            >
+              <PanelIcon collapsed={collapsed} />
+            </button>
+            <h1 className="aw-title">{pageTitle}</h1>
+            <div className="aw-topbar-actions">
+              {create ? (
+                <WebMenu
+                  label={copy.create}
+                  testID="shell.create"
+                  triggerClassName="aw-button aw-button-primary aw-create"
+                  trigger={
+                    <>
+                      <MobileIcon name="plus" size={17} color="#382b12" />
+                      <span>{copy.create}</span>
+                    </>
+                  }
+                  items={[
+                    { key: "room", icon: "buildings", label: t.agent.dashboard.addListing, disabled: props.navigationDisabled, onSelect: () => create("room") },
+                    { key: "lead", icon: "clipboard", label: t.agent.dashboard.newLead, disabled: props.navigationDisabled, onSelect: () => create("lead") },
+                    { key: "tenant", icon: "user-plus", label: t.agent.tenants.create, disabled: props.navigationDisabled, onSelect: () => create("tenant") },
+                  ]}
+                />
+              ) : null}
+              {props.onRefresh ? (
+                <button
+                  type="button"
+                  className="aw-icon-button aw-refresh"
+                  disabled={props.refreshing}
+                  aria-busy={props.refreshing}
+                  aria-label={copy.refresh}
+                  title={copy.refresh}
+                  onClick={props.onRefresh}
+                >
+                  <RefreshIcon />
+                </button>
+              ) : null}
+              <WebMenu
+                label={t.mobile.settings.language}
+                testID="shell.language"
+                triggerClassName="aw-lang"
+                trigger={
+                  <>
+                    <MobileIcon name="globe" size={17} color={theme.screenTitle} />
+                    <span>{locale.toUpperCase()}</span>
+                    <MobileIcon name="chevron-down" size={13} color={theme.textSecondary} />
+                  </>
+                }
+                items={Object.entries(t.mobile.settings.languageNames).map(([key, label]) => ({
+                  key,
+                  label,
+                  checked: key === locale,
+                  onSelect: () => setLocale(key as SupportedLocale),
+                }))}
               />
+              <button
+                type="button"
+                className="aw-icon-button aw-theme-button"
+                aria-label={t.mobile.settings.darkMode}
+                aria-pressed={isDark}
+                title={t.mobile.settings.darkMode}
+                onClick={() => setThemeMode(isDark ? "light" : "dark")}
+              >
+                <MobileIcon name="moon" size={18} color={theme.screenTitle} />
+              </button>
+              <button
+                className="aw-icon-button aw-notification-button"
+                type="button"
+                onClick={props.onNotificationsOpen}
+                aria-label={`${t.mobile.notifications.title}${props.notificationCount ? ` (${props.notificationCount})` : ""}`}
+              >
+                <MobileIcon name="bell" size={21} color={theme.screenTitle} />
+                {props.notificationCount > 0 ? <span className="aw-notification-dot" /> : null}
+              </button>
             </div>
-            <div className="aw-logo-compact">
-              <MobileNestykLogo variant="markSecondary" height={32} />
-            </div>
-            <span className="aw-workspace-label">{props.brandTag ?? copy.brandTag}</span>
-          </button>
+          </div>
+        </header>
+        <aside className="aw-sidebar" aria-label={t.mobile.profile.navigation}>
+          <div className="aw-switch">
+            <WebMenu
+              label={copy.switchWorkspace}
+              testID="shell.workspace"
+              align="start"
+              triggerClassName="aw-switcher"
+              trigger={
+                <>
+                  <span className="aw-switch-tile" aria-hidden="true">
+                    <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color="#583C0A" />
+                    <span className="aw-switch-dot" style={{ background: ROLE_DOT[shellRole] }} />
+                  </span>
+                  <span className="aw-switch-copy">
+                    <strong>{t.roles[shellRole]}</strong>
+                    <small>{workspaceLabel}</small>
+                  </span>
+                  <span className="aw-switch-chev" aria-hidden="true">
+                    <MobileIcon name="chevron-down" size={14} color={theme.textSecondary} />
+                  </span>
+                </>
+              }
+              items={[
+                ...switchRoles.map((role) => ({
+                  key: role,
+                  label: t.roles[role],
+                  icon: ROLE_ICON[role] ?? ("user" as AppIconName),
+                  checked: role === shellRole,
+                  disabled: props.navigationDisabled,
+                  testID: `shell.workspace.${role}`,
+                  onSelect: () => {
+                    accountRef.current?.removeAttribute("open");
+                    if (role !== shellRole) props.onRoleChange(role);
+                  },
+                })),
+                { key: "add", label: copy.addWorkspace, icon: "plus" as AppIconName, disabled: true, badge: t.agent.dashboard.comingSoon },
+                { key: "manage", label: copy.manageWorkspace, icon: "gear" as AppIconName, disabled: true, badge: t.agent.dashboard.comingSoon },
+              ]}
+            />
+          </div>
           <div className="aw-sidebar-scroll">
             {props.navSections ? (
               props.navSections.map((section, index) => (
@@ -333,9 +578,18 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               ))
             ) : (
               <>
-                <p className="aw-nav-caption">{copy.main}</p>
-                <nav className="aw-nav" aria-label={copy.main}>
-                  {AGENT_WEB_PRIMARY.map(navItem)}
+                <p className="aw-nav-caption">{copy.menu}</p>
+                <nav className="aw-nav" aria-label={copy.menu}>
+                  {navItem(AGENT_WEB_PRIMARY[0])}
+                  {groupItem("listing", "buildings", t.mobile.drawerMenu.listing, "listingRoom", listingOpen, [
+                    subItem("rooms", t.mobile.drawerMenu.listingRoom, props.activeTab === "listingRoom", () => navigate("listingRoom")),
+                    subItem("add", t.agent.dashboard.addListing, props.activeTab === "createListing", () => (create ? create("room") : navigate("createListing"))),
+                  ])}
+                  {navItem(AGENT_WEB_PRIMARY[2])}
+                  {groupItem("tenants", "handshake", t.mobile.drawerMenu.clients, "clients", tenantsOpen, [
+                    subItem("list", t.agent.tenants.list.tabAll, parent === "clients" && !creatingTenant, () => navigate("clients")),
+                    ...(create ? [subItem("create", t.agent.tenants.create, creatingTenant, () => create("tenant"))] : []),
+                  ])}
                 </nav>
                 <div className="aw-nav-divider" />
                 <p className="aw-nav-caption">{t.mobile.tabs.more}</p>
@@ -344,347 +598,226 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                 </nav>
                 <div className="aw-nav-divider" />
                 <p className="aw-nav-caption">{t.agent.dashboard.financeSection}</p>
-                <nav
-                  className="aw-nav"
-                  aria-label={t.agent.dashboard.financeSection}
-                >
-                  <button
-                    type="button"
-                    className="aw-nav-item"
-                    disabled
-                    title={`${t.agent.dashboard.openCommission} · ${t.agent.dashboard.comingSoon}`}
-                  >
-                    <MobileIcon
-                      name="wallet"
-                      size={20}
-                      color={theme.textSecondary}
-                    />
-                    <span className="aw-nav-label">
-                      {t.mobile.drawerMenu.commission}
-                    </span>
-                    <span className="aw-soon aw-nav-label">
-                      {t.agent.dashboard.comingSoon}
-                    </span>
-                  </button>
+                <nav className="aw-nav" aria-label={t.agent.dashboard.financeSection}>
+                  {soonItem("commission", "wallet", t.mobile.drawerMenu.commission)}
+                </nav>
+                <div className="aw-nav-divider" />
+                <p className="aw-nav-caption">{copy.main}</p>
+                <nav className="aw-nav" aria-label={copy.main}>
+                  {soonItem("team", "users", copy.team)}
                 </nav>
               </>
             )}
           </div>
-          <button
-            type="button"
-            className="aw-collapse"
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? copy.expand : copy.collapse}
-            aria-expanded={!collapsed}
-          >
-            <MobileIcon
-              name={collapsed ? "chevron-right" : "chevron-left"}
-              color={theme.textSecondary}
-              size={18}
-            />
-            <span className="aw-nav-label">{copy.collapse}</span>
-          </button>
+          <details className="aw-account" ref={accountRef}>
+                  <summary aria-label={copy.account}>
+                    {props.avatarUrl ? (
+                      <img className="aw-avatar aw-avatar-photo" src={props.avatarUrl} alt="" />
+                    ) : (
+                      <span className="aw-avatar">{props.initials}</span>
+                    )}
+                    <span className="aw-account-text">
+                      <strong>{props.userName}</strong>
+                      <small>{props.userEmail || t.roles[shellRole]}</small>
+                    </span>
+                    <span className="aw-account-chev">
+                      <MobileIcon name="chevron-down" size={14} color={theme.textSecondary} />
+                    </span>
+                  </summary>
+                  <div className={passwordOpen ? "aw-account-popover aw-account-popover-password" : "aw-account-popover"}>
+                    <div className="aw-account-info">
+                      <strong>{props.userName}</strong>
+                      <span>{props.userEmail}</span>
+                    </div>
+                    {shellRole === "agent" && props.onSaveProfile && profileOpen ? (
+                      <form
+                        className="aw-profile-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          return saveProfile();
+                        }}
+                      >
+                        <div className="aw-photo">
+                          <label className="aw-photo-hit">
+                            <span className="aw-photo-sr">{t.mobile.account.changePhoto}</span>
+                            {profilePreview ? (
+                              <img className="aw-photo-face" src={profilePreview} alt="" />
+                            ) : (
+                              <span className="aw-photo-face" aria-hidden="true">{props.initials}</span>
+                            )}
+                            <span className="aw-photo-badge" aria-hidden="true">
+                              <MobileIcon name="camera" size={14} color="#211E1E" />
+                            </span>
+                            <input
+                              className="aw-photo-file"
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0] ?? null;
+                                setProfilePhoto(file);
+                                setProfileRemove(false);
+                                setProfilePreview(file ? URL.createObjectURL(file) : props.avatarUrl ?? null);
+                              }}
+                            />
+                          </label>
+                          <div className="aw-photo-copy">
+                            <span className="aw-photo-title">{t.mobile.account.changePhoto}</span>
+                            <span className="aw-photo-hint">{t.mobile.account.chooseFromLibrary}</span>
+                            {profilePreview ? (
+                              <button
+                                type="button"
+                                className="aw-photo-remove"
+                                onClick={() => {
+                                  setProfilePhoto(null);
+                                  setProfileRemove(true);
+                                  setProfilePreview(null);
+                                }}
+                              >
+                                {t.mobile.account.removePhoto}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                        <label>
+                          {t.mobile.account.firstName}
+                          <input value={profileFirst} onChange={(event) => setProfileFirst(event.target.value)} autoComplete="given-name" />
+                        </label>
+                        <label>
+                          {t.mobile.account.lastName}
+                          <input value={profileLast} onChange={(event) => setProfileLast(event.target.value)} autoComplete="family-name" />
+                        </label>
+                        <label>
+                          {t.mobile.account.phone}
+                          <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} autoComplete="tel" inputMode="tel" />
+                        </label>
+                        {profileError ? <p className="aw-profile-error" role="alert">{profileError}</p> : null}
+                        <button type="submit" className="aw-button aw-button-primary" disabled={profileSaving}>
+                          {profileSaving ? t.common.loading : t.common.save}
+                        </button>
+                        <button type="button" className="aw-button aw-button-secondary" disabled={profileSaving} onClick={() => setProfileOpen(false)}>
+                          {t.common.cancel}
+                        </button>
+                      </form>
+                    ) : null}
+                    {props.onChangePassword && passwordOpen ? (
+                      <form
+                        className="aw-profile-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          return savePassword();
+                        }}
+                      >
+                        <p className="aw-photo-hint">{t.mobile.auth.passwordRules}</p>
+                        <label>
+                          {t.mobile.account.password.current}
+                          <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" />
+                        </label>
+                        <label>
+                          {t.mobile.account.password.new}
+                          <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" />
+                        </label>
+                        <label>
+                          {t.mobile.account.password.confirm}
+                          <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
+                        </label>
+                        {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                        {passwordError ? <p className="aw-profile-error" role="alert">{passwordError}</p> : null}
+                        <button type="submit" className="aw-button aw-button-primary" disabled={passwordSaving}>
+                          {passwordSaving ? t.common.loading : t.mobile.account.password.submit}
+                        </button>
+                        <button type="button" className="aw-button aw-button-secondary" disabled={passwordSaving} onClick={() => setPasswordOpen(false)}>
+                          {t.common.cancel}
+                        </button>
+                      </form>
+                    ) : null}
+                    {hasAccountActions && !profileOpen && !passwordOpen && !deleteOpen ? (
+                      accountMenuOpen ? (
+                        <>
+                        {canEditProfile ? (
+                          <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
+                            {t.mobile.account.editProfile}
+                          </button>
+                        ) : null}
+                        {props.onChangePassword ? (
+                          <button type="button" className="aw-button aw-button-secondary" onClick={() => { setPasswordError(null); setPasswordOpen(true); }}>
+                            {t.mobile.account.changePassword}
+                          </button>
+                        ) : null}
+                        {canDeleteAccount ? (
+                          <button type="button" className="aw-button aw-button-secondary" onClick={() => {
+                            setDeleteError(null);
+                            setDeleteBlocked(null);
+                            setDeleteOpen(true);
+                            void props.onLoadAccountDeletion!().then((preview) => {
+                              setDeleteBlocked(preview.blocked ? preview.reasons : []);
+                              setDeleteScheduled(preview.scheduledFor);
+                              setDeleteNowAvailable(preview.deleteNowAvailable === true);
+                              setDeletePending(null);
+                            }).catch((cause: unknown) => {
+                              setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+                            });
+                          }}>
+                            {t.mobile.account.deleteAccount}
+                          </button>
+                        ) : null}
+                        <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(false)}>
+                          {t.common.cancel}
+                        </button>
+                        </>
+                      ) : (
+                        <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(true)}>
+                          {t.mobile.account.manageAccount}
+                        </button>
+                      )
+                    ) : null}
+                    {profileOpen || passwordOpen ? null : <>
+                    {deleteOpen ? (
+                      <div className="aw-profile-form">
+                        <p className="aw-photo-hint">{t.mobile.account.deleteAccountBody}</p>
+                        {deleteBlocked && deleteBlocked.length > 0 ? (
+                          <>
+                            <p className="aw-profile-error">{t.mobile.account.deleteAccountBlocked}</p>
+                            {deleteBlocked.map((reason) => (
+                              <p key={reason} className="aw-profile-error">{t.mobile.account.deleteAccountReasons[reason as 'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit']}</p>
+                            ))}
+                          </>
+                        ) : null}
+                        {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
+                        {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
+                        {!deleteBlocked?.length && !deleteScheduled ? (
+                          <>
+                            {deleteNowAvailable ? <button type="button" className="aw-button aw-button-primary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('now')}>{t.mobile.account.deleteAccountNow}</button> : null}
+                            <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('later')}>{t.mobile.account.deleteAccountLater}</button>
+                          </>
+                        ) : null}
+                        {deleteScheduled && props.onCancelAccountDeletion ? (
+                          <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => {
+                            setDeleteError(null);
+                            setDeletePasswordStep(false);
+                            setDeletePending("cancel");
+                          }}>{t.mobile.account.deleteAccountCancel}</button>
+                        ) : null}
+                        <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => { setDeleteOpen(false); setDeletePending(null); }}>
+                          {t.common.cancel}
+                        </button>
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="aw-signout"
+                      disabled={props.navigationDisabled}
+                      onClick={props.onSignOut}
+                    >
+                      {t.common.signOut}
+                    </button>
+                    </>}
+                  </div>
+                </details>
         </aside>
 
-        <div className="aw-workspace">
-          <header className="aw-topbar">
-            <div className="aw-breadcrumb">
-              <span>{workspaceLabel}</span>
-              <MobileIcon
-                name="chevron-right"
-                size={14}
-                color={theme.textSecondary}
-              />
-              <strong>
-                {customCurrent
-                  ? customCurrent.label
-                  : currentMenu
-                    ? menuLabel(currentMenu)
-                    : t.mobile.tabs[props.activeTab]}
-              </strong>
-            </div>
-            <div className="aw-topbar-actions">
-              {props.onRefresh ? (
-                <button
-                  type="button"
-                  className="aw-button aw-button-secondary aw-refresh"
-                  disabled={props.refreshing}
-                  aria-busy={props.refreshing}
-                  onClick={props.onRefresh}
-                >
-                  {props.refreshing ? t.common.loading : copy.refresh}
-                </button>
-              ) : null}
-              <button
-                className="aw-icon-button aw-notification-button"
-                type="button"
-                onClick={props.onNotificationsOpen}
-                aria-label={`${t.mobile.notifications.title}${props.notificationCount ? ` (${props.notificationCount})` : ""}`}
-              >
-                <MobileIcon name="bell" size={21} color={theme.screenTitle} />
-                {props.notificationCount > 0 ? (
-                  <span className="aw-notification-dot" />
-                ) : null}
-              </button>
-              <div className="aw-topbar-divider" />
-              <details className="aw-account" ref={accountRef}>
-                <summary aria-label={copy.account}>
-                  {props.avatarUrl ? (
-                    <img className="aw-avatar aw-avatar-photo" src={props.avatarUrl} alt="" />
-                  ) : (
-                    <span className="aw-avatar">{props.initials}</span>
-                  )}
-                  <span className="aw-account-name">
-                    {props.userName}
-                    <small>{t.roles[shellRole]}</small>
-                  </span>
-                  <MobileIcon
-                    name="chevron-down"
-                    size={14}
-                    color={theme.textSecondary}
-                  />
-                </summary>
-                <div className={passwordOpen ? "aw-account-popover aw-account-popover-password" : "aw-account-popover"}>
-                  <div className="aw-account-info">
-                    <strong>{props.userName}</strong>
-                    <span>{props.userEmail}</span>
-                  </div>
-                  {shellRole === "agent" && props.onSaveProfile && profileOpen ? (
-                    <form
-                      className="aw-profile-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        return saveProfile();
-                      }}
-                    >
-                      <div className="aw-photo">
-                        <label className="aw-photo-hit">
-                          <span className="aw-photo-sr">{t.mobile.account.changePhoto}</span>
-                          {profilePreview ? (
-                            <img className="aw-photo-face" src={profilePreview} alt="" />
-                          ) : (
-                            <span className="aw-photo-face" aria-hidden="true">{props.initials}</span>
-                          )}
-                          <span className="aw-photo-badge" aria-hidden="true">
-                            <MobileIcon name="camera" size={14} color="#211E1E" />
-                          </span>
-                          <input
-                            className="aw-photo-file"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(event) => {
-                              const file = event.target.files?.[0] ?? null;
-                              setProfilePhoto(file);
-                              setProfileRemove(false);
-                              setProfilePreview(file ? URL.createObjectURL(file) : props.avatarUrl ?? null);
-                            }}
-                          />
-                        </label>
-                        <div className="aw-photo-copy">
-                          <span className="aw-photo-title">{t.mobile.account.changePhoto}</span>
-                          <span className="aw-photo-hint">{t.mobile.account.chooseFromLibrary}</span>
-                          {profilePreview ? (
-                            <button
-                              type="button"
-                              className="aw-photo-remove"
-                              onClick={() => {
-                                setProfilePhoto(null);
-                                setProfileRemove(true);
-                                setProfilePreview(null);
-                              }}
-                            >
-                              {t.mobile.account.removePhoto}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                      <label>
-                        {t.mobile.account.firstName}
-                        <input value={profileFirst} onChange={(event) => setProfileFirst(event.target.value)} autoComplete="given-name" />
-                      </label>
-                      <label>
-                        {t.mobile.account.lastName}
-                        <input value={profileLast} onChange={(event) => setProfileLast(event.target.value)} autoComplete="family-name" />
-                      </label>
-                      <label>
-                        {t.mobile.account.phone}
-                        <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} autoComplete="tel" inputMode="tel" />
-                      </label>
-                      {profileError ? <p className="aw-profile-error" role="alert">{profileError}</p> : null}
-                      <button type="submit" className="aw-button aw-button-primary" disabled={profileSaving}>
-                        {profileSaving ? t.common.loading : t.common.save}
-                      </button>
-                      <button type="button" className="aw-button aw-button-secondary" disabled={profileSaving} onClick={() => setProfileOpen(false)}>
-                        {t.common.cancel}
-                      </button>
-                    </form>
-                  ) : null}
-                  {props.onChangePassword && passwordOpen ? (
-                    <form
-                      className="aw-profile-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        return savePassword();
-                      }}
-                    >
-                      <p className="aw-photo-hint">{t.mobile.auth.passwordRules}</p>
-                      <label>
-                        {t.mobile.account.password.current}
-                        <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" />
-                      </label>
-                      <label>
-                        {t.mobile.account.password.new}
-                        <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" />
-                      </label>
-                      <label>
-                        {t.mobile.account.password.confirm}
-                        <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
-                      </label>
-                      {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
-                      {passwordError ? <p className="aw-profile-error" role="alert">{passwordError}</p> : null}
-                      <button type="submit" className="aw-button aw-button-primary" disabled={passwordSaving}>
-                        {passwordSaving ? t.common.loading : t.mobile.account.password.submit}
-                      </button>
-                      <button type="button" className="aw-button aw-button-secondary" disabled={passwordSaving} onClick={() => setPasswordOpen(false)}>
-                        {t.common.cancel}
-                      </button>
-                    </form>
-                  ) : null}
-                  {hasAccountActions && !profileOpen && !passwordOpen && !deleteOpen ? (
-                    accountMenuOpen ? (
-                      <>
-                      {canEditProfile ? (
-                        <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
-                          {t.mobile.account.editProfile}
-                        </button>
-                      ) : null}
-                      {props.onChangePassword ? (
-                        <button type="button" className="aw-button aw-button-secondary" onClick={() => { setPasswordError(null); setPasswordOpen(true); }}>
-                          {t.mobile.account.changePassword}
-                        </button>
-                      ) : null}
-                      {canDeleteAccount ? (
-                        <button type="button" className="aw-button aw-button-secondary" onClick={() => {
-                          setDeleteError(null);
-                          setDeleteBlocked(null);
-                          setDeleteOpen(true);
-                          void props.onLoadAccountDeletion!().then((preview) => {
-                            setDeleteBlocked(preview.blocked ? preview.reasons : []);
-                            setDeleteScheduled(preview.scheduledFor);
-                            setDeleteNowAvailable(preview.deleteNowAvailable === true);
-                            setDeletePending(null);
-                          }).catch((cause: unknown) => {
-                            setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
-                          });
-                        }}>
-                          {t.mobile.account.deleteAccount}
-                        </button>
-                      ) : null}
-                      <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(false)}>
-                        {t.common.cancel}
-                      </button>
-                      </>
-                    ) : (
-                      <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(true)}>
-                        {t.mobile.account.manageAccount}
-                      </button>
-                    )
-                  ) : null}
-                  {profileOpen || passwordOpen ? null : <>
-                  {accountMenuOpen || deleteOpen ? null : <>
-                  <label>
-                    {t.mobile.profile.switchRole}
-                    <AgentSelect
-                      value={shellRole}
-                      disabled={props.navigationDisabled}
-                      onChange={(e) => {
-                        accountRef.current?.removeAttribute("open");
-                        props.onRoleChange(e.target.value as UserRole);
-                      }}
-                    >
-                      {ROLES.filter((role) => !props.allowedRoles || props.allowedRoles.includes(role) || role === shellRole).map((role) => (
-                        <option key={role} value={role}>
-                          {t.roles[role]}
-                        </option>
-                      ))}
-                    </AgentSelect>
-                  </label>
-                  <label>
-                    {t.mobile.settings.language}
-                    <AgentSelect
-                      value={locale}
-                      onChange={(e) =>
-                        setLocale(e.target.value as SupportedLocale)
-                      }
-                    >
-                      {Object.entries(t.mobile.settings.languageNames).map(
-                        ([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ),
-                      )}
-                    </AgentSelect>
-                  </label>
-                  <label className="aw-theme-toggle">
-                    <span>{t.mobile.settings.darkMode}</span>
-                    <input
-                      type="checkbox"
-                      checked={isDark}
-                      onChange={(e) =>
-                        setThemeMode(e.target.checked ? "dark" : "light")
-                      }
-                    />
-                  </label>
-                  </>}
-                  {deleteOpen ? (
-                    <div className="aw-profile-form">
-                      <p className="aw-photo-hint">{t.mobile.account.deleteAccountBody}</p>
-                      {deleteBlocked && deleteBlocked.length > 0 ? (
-                        <>
-                          <p className="aw-profile-error">{t.mobile.account.deleteAccountBlocked}</p>
-                          {deleteBlocked.map((reason) => (
-                            <p key={reason} className="aw-profile-error">{t.mobile.account.deleteAccountReasons[reason as 'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit']}</p>
-                          ))}
-                        </>
-                      ) : null}
-                      {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
-                      {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
-                      {!deleteBlocked?.length && !deleteScheduled ? (
-                        <>
-                          {deleteNowAvailable ? <button type="button" className="aw-button aw-button-primary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('now')}>{t.mobile.account.deleteAccountNow}</button> : null}
-                          <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('later')}>{t.mobile.account.deleteAccountLater}</button>
-                        </>
-                      ) : null}
-                      {deleteScheduled && props.onCancelAccountDeletion ? (
-                        <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => {
-                          setDeleteError(null);
-                          setDeletePasswordStep(false);
-                          setDeletePending("cancel");
-                        }}>{t.mobile.account.deleteAccountCancel}</button>
-                      ) : null}
-                      <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => { setDeleteOpen(false); setDeletePending(null); }}>
-                        {t.common.cancel}
-                      </button>
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="aw-signout"
-                    disabled={props.navigationDisabled}
-                    onClick={props.onSignOut}
-                  >
-                    {t.common.signOut}
-                  </button>
-                  </>}
-                </div>
-              </details>
-            </div>
-          </header>
           <main id="agent-web-main" className="aw-main" tabIndex={-1}>
             {props.children}
           </main>
-        </div>
         {complete ? (
           <div className="aw-complete" role="dialog" aria-modal="true" aria-labelledby="aw-complete-title">
             <div className="aw-complete-card">

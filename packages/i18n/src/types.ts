@@ -2007,6 +2007,12 @@ export interface TranslationSchema {
         readAll: string;
         /** Accessible name of the page breadcrumb (deep pages). */
         breadcrumb: string;
+        menu: string;
+        create: string;
+        team: string;
+        switchWorkspace: string;
+        addWorkspace: string;
+        manageWorkspace: string;
         brandTag: string;
       };
       webOverview: {

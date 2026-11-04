@@ -406,6 +406,16 @@ export function AppHomeScreen() {
     setActiveTab('createLead');
   }, [activeTab]);
 
+  /** Web "+ Create" menu and sidebar links (agent web shell). Mobile never calls this. */
+  const openWebCreate = (kind: 'room' | 'lead' | 'tenant') => {
+    if (kind === 'room') openCreateListing();
+    else if (kind === 'lead') openCreateLead();
+    else {
+      handleTabPress('clients');
+      setCreatingTenant(true);
+    }
+  };
+
   const goBackFromSecondary = useCallback(() => {
     const fallback: MobileAppTab =
       activeTab === 'createLead'
@@ -1634,6 +1644,8 @@ export function AppHomeScreen() {
         onRefresh={onPageRefresh}
         refreshing={pageRefreshing}
         onNavigate={handleTabPress}
+        onCreate={isAgentWeb ? openWebCreate : undefined}
+        creating={creatingTenant ? 'tenant' : null}
         onRoleChange={handleRoleChange}
         allowedRoles={isAuthenticated ? session?.roles : undefined}
         notificationsEmptyLabel={t.agent.dashboard.comingSoon}
