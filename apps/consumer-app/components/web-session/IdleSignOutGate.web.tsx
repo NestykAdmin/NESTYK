@@ -40,6 +40,8 @@ export function IdleSignOutGate() {
   const { t } = useLocale();
   const copy = t.webSession;
   const [warning, setWarning] = useState(false);
+  const warningShown = useRef(false);
+  warningShown.current = warning;
   const [now, setNow] = useState(() => Date.now());
   const lastWrite = useRef(0);
   const signingOut = useRef(false);
@@ -90,6 +92,10 @@ export function IdleSignOutGate() {
     if (!ready || !isAuthenticated) return;
     if (check()) return;
     const onActivity = () => {
+      // While "Are you still there?" shows, moving the mouse or pressing Tab to reach its buttons is not an answer:
+      // only "Stay signed in" keeps the session, and "Sign out" signs out (QA web test 4 Nov 2026, item 3: the box
+      // closed on the first mouse move, so "Sign out" could never be clicked and the user stayed signed in).
+      if (warningShown.current) return;
       // Mouse moves fire many times a second: look at the clock only when a write is due.
       if (Date.now() - lastWrite.current < ACTIVITY_WRITE_MS) return;
       if (!check()) touch();

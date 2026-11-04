@@ -146,3 +146,12 @@ test('signed in (maybe as another account): this device signs out before the lin
   assert.deepEqual(page.calls, [['sign-out'], ['verify', 'abc123'], ['save', 'Abcdefg1']]);
   assert.equal(page.done(), true);
 });
+
+test('QA 4 Nov 2026 item 4/7: a link without a token (no reset session) shows the link message, not "Auth session missing!"', async () => {
+  const missing = Object.assign(new Error('Auth session missing!'), { code: 'RECOVERY_SESSION_MISSING' });
+  const page = screen({ pkceLink: true, save: async () => { throw missing; } });
+  await page.saveNewPassword('Abcdefg1');
+  assert.ok(page.texts().includes(copy.resetLinkInvalid));
+  assert.ok(!page.texts().includes('Auth session missing!'));
+  assert.equal(page.done(), false);
+});

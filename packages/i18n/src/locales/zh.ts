@@ -351,7 +351,7 @@ export const zh: TranslationSchema = {
       signupUnavailable: "此版本暂未开放注册。",
       resetUnavailable: "此版本暂未开放密码找回。",
       resetTitle: '忘记密码',
-      resetSend: '发送验证码',
+      resetSend: '发送链接',
       resetLinkSent: '如果该邮箱有账号，我们已发送设置新密码的链接。可以在任何设备上打开，链接只能使用一次。',
       resetLinkInvalid: '此链接已过期或已被使用，密码未更改。请点“返回登录”，再点“忘记密码？”获取新链接。',
       resetNewTitle: '设置新密码',

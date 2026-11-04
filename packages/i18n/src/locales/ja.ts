@@ -352,7 +352,7 @@ export const ja: TranslationSchema = {
       signupUnavailable: "このバージョンでは新規登録はまだ利用できません。",
       resetUnavailable: "このバージョンではパスワードの再設定はまだ利用できません。",
       resetTitle: 'パスワードを忘れた',
-      resetSend: 'コードを送る',
+      resetSend: 'リンクを送る',
       resetLinkSent: 'このメールアドレスのアカウントがあれば、パスワード再設定のリンクを送りました。どの端末でも開けます。リンクは1回だけ使えます。',
       resetLinkInvalid: 'このリンクは期限切れか、すでに使われているため、パスワードは変更されていません。「ログインに戻る」から「パスワードをお忘れですか？」を押して新しいリンクを受け取ってください。',
       resetNewTitle: '新しいパスワードを設定',

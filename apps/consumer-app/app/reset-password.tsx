@@ -9,6 +9,7 @@ import { AccountCompleteModal, MobileButton, MobileInput, MobileNestykLogo, toke
 import { useAuth } from '../lib/auth/AuthContext';
 import { openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
 import { passwordIsStrong } from '../lib/auth/password-rules';
+import { RECOVERY_SESSION_MISSING } from '../lib/auth/reset-password';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
@@ -113,7 +114,9 @@ export default function ResetPasswordScreen() {
       await saveResetPassword(password);
       setStep('done');
     } catch (e) {
-      setError(localizedError(e, copy.registrationFailed, locale));
+      // No reset session (a link without a token, a bad ?code=): the same message as a used or expired link.
+      const missing = (e as { code?: unknown } | null)?.code === RECOVERY_SESSION_MISSING;
+      setError(missing ? copy.resetLinkInvalid : localizedError(e, copy.registrationFailed, locale));
     } finally {
       setLoading(false);
     }

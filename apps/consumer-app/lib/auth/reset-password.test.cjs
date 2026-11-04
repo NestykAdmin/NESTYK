@@ -9,7 +9,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'reset-pa
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('unexpected import'); }, mod, mod.exports);
-const { requestPasswordReset, verifyRecoveryLink, recoveryTokenHash, saveResetPassword } = mod.exports;
+const { requestPasswordReset, verifyRecoveryLink, recoveryTokenHash, saveResetPassword, RECOVERY_SESSION_MISSING } = mod.exports;
 
 function client(overrides = {}) {
   const calls = [];
@@ -91,4 +91,12 @@ test('a rejected new password does not sign anyone out', async () => {
   const auth = client({ updateError: { message: 'Password is too weak' } });
   await assert.rejects(() => saveResetPassword(auth, 'weak'));
   assert.deepEqual(auth.calls.map((call) => call[0]), ['update']);
+});
+
+test('no reset session (a link without a token, a bad ?code=) is reported as RECOVERY_SESSION_MISSING, not shown raw', async () => {
+  const missing = client({ updateError: { name: 'AuthSessionMissingError', message: 'Auth session missing!' } });
+  await assert.rejects(() => saveResetPassword(missing, 'Abcdefg1'), (e) => e.code === RECOVERY_SESSION_MISSING);
+  assert.deepEqual(missing.calls.map((call) => call[0]), ['update'], 'nobody is signed out');
+  const weak = client({ updateError: { message: 'Password is too weak' } });
+  await assert.rejects(() => saveResetPassword(weak, 'weak'), (e) => e.code === undefined && e.message === 'Password is too weak');
 });

@@ -352,7 +352,7 @@ export const en: TranslationSchema = {
       signupUnavailable: "Registration is not available in this version yet.",
       resetUnavailable: "Password recovery is not available in this version yet.",
       resetTitle: 'Forgot password',
-      resetSend: 'Send code',
+      resetSend: 'Send link',
       resetLinkSent: 'If this email has an account, we sent it a link to set a new password. You can open it on any device. The link works once.',
       resetLinkInvalid: 'This link has expired or was already used, so your password was not changed. Tap "Back to login", then "Forgot password?" to get a new link.',
       resetNewTitle: 'Set a new password',
