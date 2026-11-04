@@ -1,6 +1,8 @@
 import { AMENITIES_FACILITY_GROUP_LABELS, AMENITIES_FACILITY_LABELS } from '../amenities-catalog-labels';
 import { TranslationSchema } from '../types';
 import { contractsTh } from './contracts/th';
+import { legalTh } from './legal/th';
+import { webSessionTh } from './web-session/th';
 
 export const th: TranslationSchema = {
   common: {
@@ -2127,6 +2129,8 @@ export const th: TranslationSchema = {
 
   },
   contracts: contractsTh,
+  legal: legalTh,
+  webSession: webSessionTh,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.th,
     facilities: { ...AMENITIES_FACILITY_LABELS.th, air_conditioner: 'แอร์', wifi: 'ไวไฟ', parking: 'ที่จอดรถ', swimming_pool: 'สระว่ายน้ำ', elevator: 'ลิฟต์', security: 'รปภ.' },

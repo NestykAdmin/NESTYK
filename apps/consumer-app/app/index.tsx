@@ -19,6 +19,7 @@ import { TenantNextBillCard } from '../components/TenantNextBillCard';
 import { OwnerConfirmedRent } from '../components/OwnerConfirmedRent';
 import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
 import { AgentWorkspace, AgentWorkspacePage } from '../components/agent-web/AgentWorkspace';
+import { GuestPublicFooter } from '../components/legal/GuestPublicFooter';
 import {
   LANDLORD_WEB_MENU,
   landlordWebActiveId,
@@ -163,11 +164,17 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
  * The app shell for every role. Mobile: this is the "/" route. Web: the root layout keeps it mounted for every app
  * path (route plan R1, rule 21) and the "/" route renders nothing (see IndexRoute below).
  */
+/**
+ * Where "Sign out" lands. Web (Mos 4 Nov 2026): the guest home "/", like any public site. Mobile (frozen): the
+ * sign-in screen as before. A session that ran out still goes to /login with the "session expired" notice.
+ */
+const AFTER_SIGN_OUT_PATH = Platform.OS === 'web' ? '/' : '/login';
+
 export function AppHomeScreen() {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const router = useRouter();
-  const { ready, isAuthenticated, session, displayName, initials, signOut, refreshProfile } = useAuth();
+  const { ready, isAuthenticated, session, displayName, initials, signOut, signOutEverywhere, refreshProfile } = useAuth();
   // Web: the URL picks the page ("/" guest, "/agent/rooms", ...; route plan R1–R2). Mobile: null, so
   // EXPO_PUBLIC_DEFAULT_ROLE and the role's first tab as before.
   const initialRoute = useInitialRouteState();
@@ -1558,7 +1565,7 @@ export function AppHomeScreen() {
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
-      router.replace('/login');
+      router.replace(AFTER_SIGN_OUT_PATH);
     } catch {
       setPartyInbox(false);
       setSelectedPartyRoom(null);
@@ -1566,8 +1573,20 @@ export function AppHomeScreen() {
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
-      router.replace('/login');
+      router.replace(AFTER_SIGN_OUT_PATH);
     }
+  };
+
+  /** Web account menu: "Sign out of all devices". Throws if Supabase cannot be reached (the dialog shows it). */
+  const handleSignOutEverywhere = async () => {
+    await signOutEverywhere();
+    setDrawerOpen(false);
+    setPartyInbox(false);
+    setSelectedPartyRoom(null);
+    setOpenedPartyContract(null);
+    setActiveRole('guest');
+    setActiveTab(getDefaultTabForRole('guest'));
+    router.replace(AFTER_SIGN_OUT_PATH);
   };
 
   const handleRequireAuth = () => {
@@ -1650,6 +1669,7 @@ export function AppHomeScreen() {
         allowedRoles={isAuthenticated ? session?.roles : undefined}
         notificationsEmptyLabel={t.agent.dashboard.comingSoon}
         onSignOut={handleAuthAction}
+        onSignOutEverywhere={isAuthenticated ? handleSignOutEverywhere : undefined}
         userName={profileName}
         userEmail={profileEmail}
         userPhone={profilePhone}
@@ -1859,6 +1879,9 @@ export function AppHomeScreen() {
           ) : (
             renderTabBody()
           )}
+          {activeRole === 'guest' && (activeTab === 'home' || activeTab === 'search' || activeTab === 'services') ? (
+            <GuestPublicFooter />
+          ) : null}
         </React.Fragment>
       </Page>
       </AgentWorkspace>

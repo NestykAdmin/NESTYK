@@ -30,6 +30,7 @@ import {
 import { useAuth } from "../lib/auth/AuthContext";
 import { hcaptchaSiteKey } from "../lib/auth/hcaptcha-site-key";
 import { HcaptchaField } from "../components/HcaptchaField";
+import { AuthLegalFooter } from "../components/legal/AuthLegalFooter";
 import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
 import { socialLoginProvider } from "../lib/auth/google-oauth";
 import { requestGuestBrowse } from "../lib/auth/role-gate";
@@ -483,6 +484,7 @@ export default function LoginScreen() {
                 />
               </TouchableOpacity>
             ) : null}
+            <AuthLegalFooter testID="login.footer" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

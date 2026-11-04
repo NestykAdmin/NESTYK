@@ -1,7 +1,9 @@
 import type { ContractCopy } from './locales/contracts/th';
+import type { LegalCopy } from './locales/legal/th';
+import type { WebSessionCopy } from './locales/web-session/th';
 
 export type SupportedLocale = 'th' | 'en' | 'zh' | 'ja';
-export type { ContractCopy };
+export type { ContractCopy, LegalCopy, WebSessionCopy };
 
 export interface TranslationSchema {
   common: {
@@ -2131,6 +2133,10 @@ export interface TranslationSchema {
     };
   };
   contracts: ContractCopy;
+  /** Web footers and the /privacy, /terms pages (nestyk-web-footer-plan.md). */
+  legal: LegalCopy;
+  /** Web: sign out of all devices, idle sign out. */
+  webSession: WebSessionCopy;
   masters: {
     facilities: Record<string, string>;
     facilityGroups: Record<string, string>;

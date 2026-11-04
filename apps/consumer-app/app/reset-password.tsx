@@ -11,6 +11,7 @@ import { openedPasswordResetLink } from '../lib/auth/supabase';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
+import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 
 type Step = 'email' | 'sent' | 'code' | 'password' | 'done';
 
@@ -180,6 +181,7 @@ export default function ResetPasswordScreen() {
                 </MobileButton>
               ) : null}
             </View>
+            <AuthLegalFooter testID="resetPassword.footer" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

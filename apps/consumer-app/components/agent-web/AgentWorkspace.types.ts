@@ -42,6 +42,8 @@ export interface AgentWorkspaceProps {
   /** Roles the signed-in account holds; the role switcher lists only these (plus the active role). Omitted = every role. */
   allowedRoles?: readonly string[];
   onSignOut: () => void;
+  /** "Sign out of all devices" (web account menu). Rejects when it could not reach Supabase; the menu shows the error. */
+  onSignOutEverywhere?: () => Promise<void>;
   userName: string;
   userEmail: string;
   userPhone?: string;

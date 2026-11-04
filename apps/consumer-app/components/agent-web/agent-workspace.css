@@ -502,6 +502,15 @@
   border-radius: 7px;
   color: #c13c35 !important;
 }
+/* "Sign out of all devices": quieter than the main sign out, under it. */
+.aw-signout-all {
+  border-color: transparent;
+  color: var(--aw-text-secondary, #64748b) !important;
+  font-size: 12px;
+}
+.aw-signout-all:hover:not(:disabled) {
+  color: #c13c35 !important;
+}
 .aw-main {
   min-height: 0;
   flex: 1;
@@ -1145,6 +1154,10 @@
 .aw-collapsed .aw-switch .awu-menu-list {
   right: auto;
   min-width: 240px;
+}
+/* Collapsed rail: the menu wrapper is full width, so centre the role button in it like the nav icons. */
+.aw-collapsed .aw-switch .awu-menu {
+  justify-content: center;
 }
 
 /* Menu groups */

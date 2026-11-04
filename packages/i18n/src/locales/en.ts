@@ -1,6 +1,8 @@
 import { AMENITIES_FACILITY_GROUP_LABELS, AMENITIES_FACILITY_LABELS } from '../amenities-catalog-labels';
 import { TranslationSchema } from '../types';
 import { contractsEn } from './contracts/en';
+import { legalEn } from './legal/en';
+import { webSessionEn } from './web-session/en';
 
 export const en: TranslationSchema = {
   common: {
@@ -2126,6 +2128,8 @@ export const en: TranslationSchema = {
     },
   },
   contracts: contractsEn,
+  legal: legalEn,
+  webSession: webSessionEn,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.en,
     facilities: { ...AMENITIES_FACILITY_LABELS.en, air_conditioner: 'Air con', wifi: 'Wi‑Fi', parking: 'Parking', swimming_pool: 'Pool', elevator: 'Elevator', security: 'Security' },

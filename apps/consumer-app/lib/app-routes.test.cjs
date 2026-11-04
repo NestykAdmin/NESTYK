@@ -38,6 +38,15 @@ test('auth screens and unknown paths are not app paths', () => {
   for (const p of ['/agents', '/foo', '/agentx/leads']) assert.deepEqual(parseAppPath(p), { kind: 'notFound' }, p);
 });
 
+test('privacy and terms are public document pages: not app paths, never a next target (footer plan F-Q1)', () => {
+  assert.deepEqual(parseAppPath('/privacy'), { kind: 'legal', page: 'privacy' });
+  assert.deepEqual(parseAppPath('/Terms/'), { kind: 'legal', page: 'terms' });
+  for (const p of ['/privacy/x', '/terms-of-use', '/agent/privacy']) assert.notEqual(parseAppPath(p).kind, 'legal', p);
+  assert.equal(safeNextPath('/privacy'), null);
+  assert.equal(safeNextPath('/terms?x=1'), null);
+  assert.equal(loginPathFor('/terms'), '/login');
+});
+
 test('role home paths go back through the parser to the same role', () => {
   for (const role of ['guest', 'agent', 'tenant', 'landlord', 'admin']) {
     assert.equal(parseAppPath(roleHomePath(role)).role, role);

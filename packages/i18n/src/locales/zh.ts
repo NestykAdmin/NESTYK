@@ -1,6 +1,8 @@
 import { AMENITIES_FACILITY_GROUP_LABELS, AMENITIES_FACILITY_LABELS } from '../amenities-catalog-labels';
 import { TranslationSchema } from '../types';
 import { contractsZh } from './contracts/zh';
+import { legalZh } from './legal/zh';
+import { webSessionZh } from './web-session/zh';
 
 export const zh: TranslationSchema = {
   common: {
@@ -2124,6 +2126,8 @@ export const zh: TranslationSchema = {
 
   },
   contracts: contractsZh,
+  legal: legalZh,
+  webSession: webSessionZh,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.zh,
     facilities: { ...AMENITIES_FACILITY_LABELS.zh, air_conditioner: '空调', wifi: '无线网', parking: '停车', swimming_pool: '泳池', elevator: '电梯', security: '安保' },

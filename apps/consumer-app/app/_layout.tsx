@@ -11,6 +11,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import WebAppHost from '../components/web-routes/WebAppHost';
+import { IdleSignOutGate } from '../components/web-session/IdleSignOutGate';
 import { loadPreferredLocale, savePreferredLocale } from '../lib/locale-storage';
 import { Mitr_400Regular, Mitr_500Medium } from '@expo-google-fonts/mitr';
 import {
@@ -110,6 +111,8 @@ export default function Layout() {
                 <Slot />
                 {/* Web only: the app shell stays mounted across paths (route plan R1). Mobile: renders nothing. */}
                 <WebAppHost />
+                {/* Web only: 8 hours with no input signs this device out (lib/auth/idle-rules.ts). Mobile: nothing. */}
+                <IdleSignOutGate />
               </BootstrapGate>
             </GestureHandlerRootView>
           </AuthProvider>

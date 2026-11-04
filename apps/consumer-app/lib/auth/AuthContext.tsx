@@ -22,6 +22,8 @@ import {
   saveAuthSession,
   StoredAuthSession,
 } from './session-storage';
+import { markAuthEvent, subscribeCrossTab } from './cross-tab';
+import { requestGuestBrowse } from './role-gate';
 
 export type AuthUserResponse = {
   id: number;
@@ -51,7 +53,12 @@ type AuthContextValue = {
   verifyRecoveryCode: (email: string, token: string) => Promise<void>;
   saveResetPassword: (newPassword: string) => Promise<void>;
   enterAfterPasswordReset: () => Promise<void>;
+  /** Signs out this device only; other phones and browsers stay signed in (Mos 4 Nov 2026). */
   signOut: () => Promise<void>;
+  /** Signs out every device and browser of this account. Throws (and stays signed in) if Supabase cannot be reached. */
+  signOutEverywhere: () => Promise<void>;
+  /** Web idle limit reached: signs out this device and shows the "session expired" notice on the sign-in screen. */
+  signOutIdle: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   /** The login ran out (or was ended elsewhere): the sign-in screen shows a notice until the next sign-in. */
   sessionExpired: boolean;
@@ -112,7 +119,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const expire = createSessionExpiry({
       isSignedIn: () => !signingOutRef.current && sessionRef.current?.mode === 'supabase',
-      clearStored: clearAuthSession,
+      clearStored: async () => {
+        markAuthEvent('expired'); // web: other tabs go to /login with the notice too (no-op on mobile)
+        await clearAuthSession();
+      },
       client: getSupabaseClient,
       onExpired: () => {
         sessionRef.current = null; // before the next render, so later 401s do nothing
@@ -125,6 +135,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     return () => setSessionExpiredHandler(null);
   }, []);
+
+  // Web: another tab of this browser signed in or out (lib/auth/cross-tab-rules.ts). Mobile: never fires.
+  useEffect(
+    () =>
+      subscribeCrossTab(
+        (action, raw) => {
+          if (action.kind === 'signOut') {
+            sessionRef.current = null;
+            if (action.reason === 'signedOut') {
+              requestGuestBrowse(); // the home shell then opens "/" like a sign out in this tab
+              setSessionExpired(false);
+            } else {
+              setSessionExpired(true); // the home shell sends a signed-in page to /login?next=
+            }
+            setSession(null);
+          } else if (action.kind === 'adopt' && raw) {
+            try {
+              const next = JSON.parse(raw) as StoredAuthSession;
+              sessionRef.current = next;
+              setSession(next);
+              setSessionExpired(false);
+            } catch {
+              // Unreadable copy: keep this tab as it is.
+            }
+          } else if (action.kind === 'reload' && typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        },
+        () => sessionRef.current?.userId ?? null,
+      ),
+    [],
+  );
 
   const refreshProfile = useCallback(async () => {
     if (!session?.accessToken) return;
@@ -155,6 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else if (result.kind === 'cached') {
           await applySession(result.session);
         } else {
+          if (stored) markAuthEvent(result.kind === 'expired' ? 'expired' : 'signedOut');
           await clearAuthSession();
           setSession(null);
           if (result.kind === 'expired') setSessionExpired(true);
@@ -265,26 +308,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = useCallback(() => signInWithOAuth(startGoogleSignIn), [signInWithOAuth]);
   const signInWithFacebook = useCallback(() => signInWithOAuth(startFacebookSignIn), [signInWithOAuth]);
 
-  const signOut = useCallback(async () => {
+  /**
+   * scope 'local' = this device only (auth-js defaults to 'global', which signed every device out: review
+   * nestyk-web-auth-session-check-20261104). 'global' is the separate "sign out of all devices" action.
+   */
+  const endSession = useCallback(async (scope: 'local' | 'global', reason: 'signedOut' | 'expired') => {
     // A request failing while signing out must not show "session expired".
     signingOutRef.current = true;
     try {
       const supabase = getSupabaseClient();
       if (supabase && session?.mode === 'supabase') {
-        try {
-          await supabase.auth.signOut();
-        } catch {
-          // ignore
+        if (scope === 'global') {
+          // Must reach Supabase, or the other devices stay signed in: report it and keep this one signed in.
+          const { error } = await supabase.auth.signOut({ scope: 'global' });
+          if (error) throw error;
+        } else {
+          try {
+            await supabase.auth.signOut({ scope: 'local' });
+          } catch {
+            // The local session is removed even when the server call fails.
+          }
         }
       }
+      markAuthEvent(reason); // web: other tabs follow (guest home, or /login for expired); no-op on mobile
       await clearAuthSession();
       sessionRef.current = null;
       setSession(null);
-      setSessionExpired(false);
+      setSessionExpired(reason === 'expired');
     } finally {
       signingOutRef.current = false;
     }
   }, [session?.mode]);
+
+  const signOut = useCallback(() => endSession('local', 'signedOut'), [endSession]);
+  const signOutEverywhere = useCallback(() => endSession('global', 'signedOut'), [endSession]);
+  const signOutIdle = useCallback(() => endSession('local', 'expired'), [endSession]);
 
   const saveSignupProfile = useCallback(async (
     accessToken: string,
@@ -444,11 +502,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveResetPassword,
       enterAfterPasswordReset,
       signOut,
+      signOutEverywhere,
+      signOutIdle,
       refreshProfile,
       sessionExpired,
       dismissSessionExpired,
     };
-  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryCode, saveResetPassword, enterAfterPasswordReset, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
+  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryCode, saveResetPassword, enterAfterPasswordReset, signOut, signOutEverywhere, signOutIdle, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

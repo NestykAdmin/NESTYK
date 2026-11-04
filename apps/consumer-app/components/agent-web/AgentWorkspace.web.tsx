@@ -17,7 +17,8 @@ import {
   agentWebParent,
 } from "./navigation";
 import "./agent-workspace.css";
-import { WebMenu } from "./ui";
+import { WebDialog, WebMenu } from "./ui";
+import { AgentWorkspaceFooter } from "./AgentWorkspaceFooter";
 import { passwordIsStrong } from "../../lib/auth/password-rules";
 import { hcaptchaSiteKey } from "../../lib/auth/hcaptcha-site-key";
 import { HcaptchaField } from "../../components/HcaptchaField";
@@ -88,6 +89,10 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [captchaToken, setCaptchaToken] = React.useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = React.useState(0);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  // "Sign out of all devices" (Mos 4 Nov 2026): confirm first, keep the dialog open with the error if it fails.
+  const [signOutAllOpen, setSignOutAllOpen] = React.useState(false);
+  const [signOutAllBusy, setSignOutAllBusy] = React.useState(false);
+  const [signOutAllError, setSignOutAllError] = React.useState<string | null>(null);
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
   const [deleteNowAvailable, setDeleteNowAvailable] = React.useState(false);
   const [deleteBlocked, setDeleteBlocked] = React.useState<string[] | null>(null);
@@ -810,6 +815,20 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                     >
                       {t.common.signOut}
                     </button>
+                    {props.onSignOutEverywhere ? (
+                      <button
+                        type="button"
+                        className="aw-signout aw-signout-all"
+                        disabled={props.navigationDisabled}
+                        data-testid="account.signOutAll"
+                        onClick={() => {
+                          setSignOutAllError(null);
+                          setSignOutAllOpen(true);
+                        }}
+                      >
+                        {t.webSession.signOutAll}
+                      </button>
+                    ) : null}
                     </>}
                   </div>
                 </details>
@@ -818,6 +837,46 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           <main id="agent-web-main" className="aw-main" tabIndex={-1}>
             {props.children}
           </main>
+        <WebDialog
+          open={signOutAllOpen}
+          title={t.webSession.signOutAllTitle}
+          description={t.webSession.signOutAllBody}
+          size="sm"
+          testID="account.signOutAllDialog"
+          onClose={() => {
+            if (!signOutAllBusy) setSignOutAllOpen(false);
+          }}
+          footer={
+            <>
+              <button type="button" className="aw-button aw-button-secondary" disabled={signOutAllBusy} onClick={() => setSignOutAllOpen(false)}>
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                className="aw-button aw-button-primary"
+                disabled={signOutAllBusy}
+                data-testid="account.signOutAllConfirm"
+                onClick={async () => {
+                  if (!props.onSignOutEverywhere) return;
+                  setSignOutAllBusy(true);
+                  setSignOutAllError(null);
+                  try {
+                    await props.onSignOutEverywhere();
+                    setSignOutAllOpen(false);
+                  } catch {
+                    setSignOutAllError(t.webSession.signOutAllFailed);
+                  } finally {
+                    setSignOutAllBusy(false);
+                  }
+                }}
+              >
+                {t.webSession.signOutAllConfirm}
+              </button>
+            </>
+          }
+        >
+          {signOutAllError ? <p className="aw-profile-error" role="alert">{signOutAllError}</p> : null}
+        </WebDialog>
         {complete ? (
           <div className="aw-complete" role="dialog" aria-modal="true" aria-labelledby="aw-complete-title">
             <div className="aw-complete-card">
@@ -1064,6 +1123,10 @@ export function AgentWorkspacePage({
       <div className={`aw-page-content ${scrollable ? "aw-page-scroll" : "aw-page-fixed"}`}>
         <WebContentContainer fill>
           <div className="aw-page-body">{children}</div>
+          {/* F1 footer (footer plan): scrolls with the page; left out on forms with a fixed action bar. */}
+          {scrollable && !bottomBar ? (
+            <AgentWorkspaceFooter page={typeof window === "undefined" ? undefined : window.location.pathname} />
+          ) : null}
         </WebContentContainer>
       </div>
       {bottomBar ? <div className="aw-page-bottom">{bottomBar}</div> : null}

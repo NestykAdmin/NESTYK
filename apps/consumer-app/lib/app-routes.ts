@@ -17,6 +17,10 @@ export const ROLE_PATH: Record<Exclude<UserRole, 'guest'>, string> = {
 /** Screens that are their own route files (expo-router renders them, the app shell stays out). */
 export const AUTH_PATHS = ['/login', '/register', '/reset-password'] as const;
 
+/** Public document pages (footer plan F-Q1, Mos 4 Nov 2026): own route files, open without login, never a `next`. */
+export const LEGAL_PATHS = ['/privacy', '/terms'] as const;
+export type LegalPath = (typeof LEGAL_PATHS)[number];
+
 /** Guest paths below "/" that belong to the guest shell. */
 const GUEST_SEGMENTS = new Set(['search', 'services']);
 
@@ -27,6 +31,7 @@ export type ParsedAppPath =
   | { kind: 'app'; role: UserRole; rest: string[] }
   | { kind: 'redirect'; to: string }
   | { kind: 'auth' }
+  | { kind: 'legal'; page: 'privacy' | 'terms' }
   | { kind: 'notFound' };
 
 function segmentsOf(pathname: string): string[] {
@@ -37,7 +42,9 @@ function segmentsOf(pathname: string): string[] {
 export function parseAppPath(pathname: string): ParsedAppPath {
   const raw = typeof pathname === 'string' && pathname.startsWith('/') ? pathname : '/';
   const clean = raw.length > 1 ? raw.replace(/\/+$/, '') : raw;
-  if ((AUTH_PATHS as readonly string[]).includes(clean.toLowerCase())) return { kind: 'auth' };
+  const lower = clean.toLowerCase();
+  if ((AUTH_PATHS as readonly string[]).includes(lower)) return { kind: 'auth' };
+  if ((LEGAL_PATHS as readonly string[]).includes(lower)) return { kind: 'legal', page: lower.slice(1) as 'privacy' | 'terms' };
   const segments = segmentsOf(clean);
   if (segments.length === 0) return { kind: 'app', role: 'guest', rest: [] };
   const [head, ...rest] = segments;
@@ -66,7 +73,7 @@ export function safeNextPath(next: unknown): string | null {
   if (/^\/[^?#]*:/.test(value) || /[\u0000-\u001f]/.test(value)) return null;
   const pathOnly = value.split(/[?#]/)[0];
   const parsed = parseAppPath(pathOnly);
-  if (parsed.kind === 'auth' || parsed.kind === 'notFound') return null;
+  if (parsed.kind === 'auth' || parsed.kind === 'legal' || parsed.kind === 'notFound') return null;
   return value;
 }
 

@@ -13,6 +13,8 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
+import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
+import { ConsentLabel } from '../components/legal/ConsentLabel';
 import { PhoneField } from '../components/PhoneField';
 import { phoneDraftToE164, type PhoneDraft } from '../lib/phone';
 
@@ -236,7 +238,7 @@ export default function RegisterScreen() {
                     accessibilityState={{ checked: acceptedTerms, disabled: loading }} disabled={loading}
                     activeOpacity={0.7} onPress={() => setAcceptedTerms(!acceptedTerms)} style={styles.testRegistration}>
                     <SelectionCheck selected={acceptedTerms} variant="row" />
-                    <Text style={[styles.body, styles.testRegistrationLabel, { color: theme.textHeading }]}>{copy.acceptTerms}</Text>
+                    <ConsentLabel fallback={copy.acceptTerms} linkColor={theme.textHeading} style={[styles.body, styles.testRegistrationLabel, { color: theme.textHeading }]} />
                   </TouchableOpacity>
                   {showTestRegistration ? (
                     <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={copy.testRegistration}
@@ -314,6 +316,7 @@ export default function RegisterScreen() {
                 {copy.backToLogin}
               </MobileButton>
             </View>
+            <AuthLegalFooter testID="register.footer" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
