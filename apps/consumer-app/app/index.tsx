@@ -46,7 +46,7 @@ import { AgentMoreToolsBody } from '../components/AgentMoreToolsBody';
 import { AgentRoomDetailModal, type RoomSharePreview } from '../components/AgentRoomDetailModal';
 import type { LeadRoomMatch } from '../lib/lead-match-preview';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, BackHandler, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, BackHandler, Platform, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -169,10 +169,16 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
  * sign-in screen as before. A session that ran out still goes to /login with the "session expired" notice.
  */
 const AFTER_SIGN_OUT_PATH = Platform.OS === 'web' ? '/' : '/login';
+/**
+ * Web width where the desktop shell (sidebar + top bar) starts. Narrower web — a phone browser — shows the mobile
+ * app's own screens and bottom tabs (Mos 4 Nov 2026). Mobile apps never read this.
+ */
+const WEB_SHELL_MIN_WIDTH = 768;
 
 export function AppHomeScreen() {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const router = useRouter();
   const { ready, isAuthenticated, session, displayName, initials, signOut, signOutEverywhere, refreshProfile } = useAuth();
   // Web: the URL picks the page ("/" guest, "/agent/rooms", ...; route plan R1–R2). Mobile: null, so
@@ -699,10 +705,17 @@ export function AppHomeScreen() {
   const headingText = { color: theme.textHeading };
   const secondaryText = { color: theme.textSecondary };
 
-  const isAgentWeb = Platform.OS === 'web' && activeRole === 'agent';
-  const isLandlordWeb = Platform.OS === 'web' && activeRole === 'landlord';
-  const isTenantWeb = Platform.OS === 'web' && activeRole === 'tenant';
+  /** Web narrower than a tablet shows the same screens as the mobile app; the desktop shell starts at WEB_SHELL_MIN_WIDTH. */
+  const isWideWeb = Platform.OS === 'web' && windowWidth >= WEB_SHELL_MIN_WIDTH;
+  const isAgentWeb = isWideWeb && activeRole === 'agent';
+  const isLandlordWeb = isWideWeb && activeRole === 'landlord';
+  const isTenantWeb = isWideWeb && activeRole === 'tenant';
   const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb;
+  // Widening the browser past WEB_SHELL_MIN_WIDTH swaps in the desktop shell; close the app drawer so it does not
+  // pop back open when the window is narrowed again.
+  useEffect(() => {
+    if (isDesktopWeb) setDrawerOpen(false);
+  }, [isDesktopWeb]);
   const Page = isDesktopWeb ? AgentWorkspacePage : MobileModePage;
   const AgentHeader = isAgentWeb ? AgentSectionHeader : MobileSectionHeader;
   const SectionHeader = isDesktopWeb ? AgentSectionHeader : MobileSectionHeader;
@@ -1049,7 +1062,7 @@ export function AppHomeScreen() {
           </View>
         );
       }
-      if (Platform.OS === 'web') {
+      if (isAgentWeb) {
         return (
           <AgentOverview
             snapshot={agentDashboardSnapshot}

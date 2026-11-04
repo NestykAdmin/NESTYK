@@ -2012,6 +2012,10 @@ export const en: TranslationSchema = {
         manageWorkspace: 'Manage workspace',
         refresh: 'Refresh',
         readAll: 'Mark all as read',
+        theme: 'Theme',
+        themeLight: 'Light',
+        themeDark: 'Dark',
+        themeSystem: 'Match device',
         brandTag: 'AGENT WORKSPACE',
       },
       webOverview: {

@@ -300,10 +300,10 @@ test('a custom sidebar replaces the agent menu and ignores disabled items', () =
   assert.ok(!tree.includes('Commission'));
 });
 
-test('desktop shell is used for the Agent, Landlord and Tenant roles on web', () => {
+test('desktop shell is used for the Agent, Landlord and Tenant roles on wide web; phone-width web uses the app screens', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const names = ['isAgentWeb', 'isLandlordWeb', 'isTenantWeb', 'isDesktopWeb', 'Page', 'AgentHeader'];
+  const names = ['isWideWeb', 'isAgentWeb', 'isLandlordWeb', 'isTenantWeb', 'isDesktopWeb', 'Page', 'AgentHeader'];
   const expressions = new Map();
   function visit(node) {
     if (ts.isVariableDeclaration(node) && names.includes(node.name.getText(ast))) expressions.set(node.name.getText(ast), node.initializer.getText(ast));
@@ -311,19 +311,27 @@ test('desktop shell is used for the Agent, Landlord and Tenant roles on web', ()
   }
   visit(ast);
   assert.equal(expressions.size, names.length);
-  const select = new Function('Platform', 'activeRole', 'AgentWorkspacePage', 'MobileModePage', 'AgentSectionHeader', 'MobileSectionHeader', `${[...expressions].map(([name, expression]) => `const ${name} = ${expression};`).join('\n')} return [${names.join(', ')}];`);
+  const minWidth = Number(source.match(/const WEB_SHELL_MIN_WIDTH = (\d+);/)[1]);
+  assert.equal(minWidth, 768);
+  const select = new Function('Platform', 'activeRole', 'windowWidth', 'WEB_SHELL_MIN_WIDTH', 'AgentWorkspacePage', 'MobileModePage', 'AgentSectionHeader', 'MobileSectionHeader', `${[...expressions].map(([name, expression]) => `const ${name} = ${expression};`).join('\n')} return [${names.join(', ')}];`);
   for (const platform of ['web', 'ios', 'android']) {
-    for (const role of ['guest', 'tenant', 'landlord', 'agent', 'admin']) {
-      const agent = platform === 'web' && role === 'agent';
-      const landlord = platform === 'web' && role === 'landlord';
-      const tenant = platform === 'web' && role === 'tenant';
-      const desktop = agent || landlord || tenant;
-      assert.deepEqual(
-        select({ OS: platform }, role, 'WebPage', 'NativePage', 'WebHeader', 'NativeHeader'),
-        [agent, landlord, tenant, desktop, desktop ? 'WebPage' : 'NativePage', agent ? 'WebHeader' : 'NativeHeader'],
-      );
+    for (const width of [375, 767, 768, 1440]) {
+      for (const role of ['guest', 'tenant', 'landlord', 'agent', 'admin']) {
+        const wide = platform === 'web' && width >= 768;
+        const agent = wide && role === 'agent';
+        const landlord = wide && role === 'landlord';
+        const tenant = wide && role === 'tenant';
+        const desktop = agent || landlord || tenant;
+        assert.deepEqual(
+          select({ OS: platform }, role, width, minWidth, 'WebPage', 'NativePage', 'WebHeader', 'NativeHeader'),
+          [wide, agent, landlord, tenant, desktop, desktop ? 'WebPage' : 'NativePage', agent ? 'WebHeader' : 'NativeHeader'],
+        );
+      }
     }
   }
+  assert.match(source, /const \{ width: windowWidth \} = useWindowDimensions\(\);/);
+  assert.match(source, /if \(isAgentWeb\) \{\s*return \(\s*<AgentOverview/);
+  assert.match(source, /if \(isDesktopWeb\) setDrawerOpen\(false\);/, 'the app drawer closes when the desktop shell takes over');
   assert.match(source, /enabled=\{isDesktopWeb\}/);
   assert.match(source, /navSections=\{isLandlordWeb \? landlordNavSections : isTenantWeb \? tenantNavSections : undefined\}/);
   assert.match(source, /visible=\{!isDesktopWeb && drawerOpen\}/);
@@ -366,4 +374,60 @@ test('top-level pages show their title only in the top bar; deep pages keep it b
   assert.equal(top.some(node => node?.type === 'h1' || node?.type === 'h2'), false);
   const deep = nodes(AgentSectionHeader({ title: 'Lead details', leading: 'back', onBackPress() {} }));
   assert.equal(deep.find(node => node?.type === 'h2').props.children, 'Lead details');
+});
+
+test('refresh is not in the top bar; the page toolbar shows it on scrolling pages only', () => {
+  state = [];
+  const tree = render(props({ onRefresh() {}, refreshing: false }));
+  assert.equal(byClass(tree, 'aw-refresh').length, 0);
+  assert.equal(tree.some(node => node?.props?.['aria-label'] === 'Refresh'), false);
+  const { AgentWorkspacePage } = load(path.join(__dirname, 'agent-web/AgentWorkspace.web.tsx'));
+  let calls = 0;
+  const page = nodes(AgentWorkspacePage({ header: 'Heading', children: 'Body', onRefresh: () => calls++, refreshing: false }));
+  const refresh = page.find(node => node?.props?.['data-testid'] === 'page.refresh');
+  assert.ok(refresh);
+  refresh.props.onClick();
+  assert.equal(calls, 1);
+  assert.ok(page.includes('Heading'));
+  const busy = nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, refreshing: true })).find(node => node?.props?.['data-testid'] === 'page.refresh');
+  assert.equal(busy.props.disabled, true);
+  assert.equal(nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, scrollable: false })).some(node => node?.props?.['data-testid'] === 'page.refresh'), false);
+  assert.equal(nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, bottomBar: 'Save' })).some(node => node?.props?.['data-testid'] === 'page.refresh'), false);
+});
+
+test('theme menu offers light, dark and match device, and remembers the choice in this browser', () => {
+  const stored = {};
+  global.window = { localStorage: { getItem: key => stored[key] ?? null, setItem: (key, value) => { stored[key] = value; } } };
+  try {
+    state = [];
+    const input = props();
+    const trigger = render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Theme: Light');
+    assert.ok(trigger, 'light is the default');
+    trigger.props.onClick();
+    const items = render(input).filter(node => node?.props?.className === 'awu-menu-item');
+    const labels = items.map(node => node.props.children[1]?.props?.children);
+    assert.ok(['Light', 'Dark', 'Match device'].every(label => labels.includes(label)));
+    items.find(node => node.props.children[1]?.props?.children === 'Match device').props.onClick();
+    assert.equal(stored['nestyk.web.theme'], 'system');
+    assert.ok(render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Theme: Match device'));
+    state = [];
+    assert.ok(render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Theme: Match device'), 'read back after reload');
+  } finally {
+    delete global.window;
+  }
+  for (const language of ['en', 'th', 'ja', 'zh']) {
+    const copy = load(`${root}/packages/i18n/src/locales/${language}.ts`)[language].agent.dashboard.webWorkspace;
+    for (const key of ['theme', 'themeLight', 'themeDark', 'themeSystem']) assert.ok(copy[key], `${language}.${key}`);
+  }
+});
+
+test('the shell keeps one sidebar toggle (collapse/expand); phone widths use the app screens instead of a drawer', () => {
+  state = [];
+  const input = props();
+  const toggle = byClass(render(input), 'aw-collapse')[0];
+  assert.equal(toggle.props['aria-label'], 'Collapse navigation');
+  toggle.props.onClick();
+  assert.equal(byClass(render(input), 'aw-collapsed').length, 1);
+  const css = fs.readFileSync(path.resolve(__dirname, 'agent-web/agent-workspace.css'), 'utf8');
+  assert.doesNotMatch(css, /aw-mnav|max-width: 760px/);
 });

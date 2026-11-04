@@ -2011,6 +2011,10 @@ export const ja: TranslationSchema = {
         manageWorkspace: 'ワークスペースを管理',
         refresh: '更新',
         readAll: 'すべて既読にする',
+        theme: 'テーマ',
+        themeLight: 'ライト',
+        themeDark: 'ダーク',
+        themeSystem: 'デバイスに合わせる',
         brandTag: 'エージェントワークスペース',
       },
       webOverview: {

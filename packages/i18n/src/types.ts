@@ -2009,6 +2009,10 @@ export interface TranslationSchema {
         close: string;
         refresh: string;
         readAll: string;
+        theme: string;
+        themeLight: string;
+        themeDark: string;
+        themeSystem: string;
         /** Accessible name of the page breadcrumb (deep pages). */
         breadcrumb: string;
         menu: string;

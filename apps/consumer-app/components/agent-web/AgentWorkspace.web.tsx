@@ -50,6 +50,42 @@ function PanelIcon({ collapsed }: { collapsed: boolean }) {
     </svg>
   );
 }
+function SunIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+    </svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+    </svg>
+  );
+}
+function MonitorIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+    </svg>
+  );
+}
+
+/** Web-only theme choice (4 Nov 2026): "system" follows the device; stored in this browser only. */
+type WebThemePref = "light" | "dark" | "system";
+const THEME_PREF_KEY = "nestyk.web.theme";
+function readThemePref(): WebThemePref {
+  try {
+    const value = typeof window === "undefined" ? null : window.localStorage.getItem(THEME_PREF_KEY);
+    return value === "dark" || value === "system" ? value : "light";
+  } catch {
+    return "light";
+  }
+}
+
 function RefreshIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -63,6 +99,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t, locale, setLocale } = useLocale();
   const { theme, isDark, setThemeMode } = useMobileTheme();
   const [collapsed, setCollapsed] = React.useState(false);
+  const [themePref, setThemePref] = React.useState<WebThemePref>(readThemePref);
   /** Sidebar groups the user opened/closed; unset = open while it holds the current page. */
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [notificationTab, setNotificationTab] = React.useState<
@@ -168,6 +205,21 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     else if (dialog?.open) dialog.close();
   }, [props.enabled, props.notificationsOpen]);
 
+  useEffect(() => {
+    if (!props.enabled) return;
+    if (themePref !== "system") {
+      setThemeMode(themePref);
+      return;
+    }
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => setThemeMode(media.matches ? "dark" : "light");
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [props.enabled, themePref, setThemeMode]);
+
+
   if (!props.enabled)
     return <>{props.children}</>;
 
@@ -175,6 +227,19 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     accountRef.current?.removeAttribute("open");
     props.onNavigate(tab);
   };
+  const chooseTheme = (pref: WebThemePref) => {
+    setThemePref(pref);
+    try {
+      window.localStorage.setItem(THEME_PREF_KEY, pref);
+    } catch {
+      // private mode: keep the choice for this visit only
+    }
+  };
+  const themeOptions: { key: WebThemePref; label: string }[] = [
+    { key: "light", label: copy.themeLight },
+    { key: "dark", label: copy.themeDark },
+    { key: "system", label: copy.themeSystem },
+  ];
   const menuLabel = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
     item.labelKey ? t.agent.dashboard[item.labelKey] : t.mobile.tabs[item.tab];
   const shellRole = props.activeRole ?? "agent";
@@ -413,7 +478,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
 
   return (
       <div
-        className={`aw-shell ${collapsed ? "aw-collapsed" : ""}`}
+        className={`aw-shell${collapsed ? " aw-collapsed" : ""}`}
         data-theme={theme.mode}
         lang={locale}
         style={
@@ -450,6 +515,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
             <button
               type="button"
               className="aw-collapse"
+              data-testid="shell.sidebarToggle"
               onClick={() => setCollapsed(!collapsed)}
               aria-label={collapsed ? copy.expand : copy.collapse}
               aria-expanded={!collapsed}
@@ -463,11 +529,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                 <WebMenu
                   label={copy.create}
                   testID="shell.create"
-                  triggerClassName="aw-button aw-button-primary aw-create"
+                  triggerClassName="aw-create"
                   trigger={
                     <>
-                      <MobileIcon name="plus" size={17} color="#382b12" />
-                      <span>{copy.create}</span>
+                      <MobileIcon name="plus" size={17} color={isDark ? "#211E1E" : "#FFFFFF"} />
+                      <span className="aw-create-label">{copy.create}</span>
                     </>
                   }
                   items={[
@@ -476,19 +542,6 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                     { key: "tenant", icon: "user-plus", label: t.agent.tenants.create, disabled: props.navigationDisabled, onSelect: () => create("tenant") },
                   ]}
                 />
-              ) : null}
-              {props.onRefresh ? (
-                <button
-                  type="button"
-                  className="aw-icon-button aw-refresh"
-                  disabled={props.refreshing}
-                  aria-busy={props.refreshing}
-                  aria-label={copy.refresh}
-                  title={copy.refresh}
-                  onClick={props.onRefresh}
-                >
-                  <RefreshIcon />
-                </button>
               ) : null}
               <WebMenu
                 label={t.mobile.settings.language}
@@ -508,16 +561,19 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   onSelect: () => setLocale(key as SupportedLocale),
                 }))}
               />
-              <button
-                type="button"
-                className="aw-icon-button aw-theme-button"
-                aria-label={t.mobile.settings.darkMode}
-                aria-pressed={isDark}
-                title={t.mobile.settings.darkMode}
-                onClick={() => setThemeMode(isDark ? "light" : "dark")}
-              >
-                <MobileIcon name="moon" size={18} color={theme.screenTitle} />
-              </button>
+              <WebMenu
+                label={`${copy.theme}: ${themeOptions.find((option) => option.key === themePref)?.label ?? ""}`}
+                testID="shell.theme"
+                triggerClassName="aw-icon-button aw-theme-button"
+                trigger={themePref === "system" ? <MonitorIcon /> : themePref === "dark" ? <MoonIcon /> : <SunIcon />}
+                items={themeOptions.map((option) => ({
+                  key: option.key,
+                  label: option.label,
+                  checked: option.key === themePref,
+                  testID: `shell.theme.${option.key}`,
+                  onSelect: () => chooseTheme(option.key),
+                }))}
+              />
               <button
                 className="aw-icon-button aw-notification-button"
                 type="button"
@@ -1112,12 +1168,46 @@ export function AgentWorkspacePage({
   children,
   bottomBar,
   scrollable = true,
+  onRefresh,
+  refreshing,
 }: MobileModePageProps) {
+  const { t } = useLocale();
+  const refreshLabel = t.agent.dashboard.webWorkspace.refresh;
+  // Refresh lives in the page's own toolbar (decision D4), not in the top bar; forms with a fixed action bar leave it out.
+  const tools =
+    onRefresh && scrollable && !bottomBar ? (
+      <div className="aw-page-tools">
+        <button
+          type="button"
+          className="aw-page-refresh"
+          disabled={refreshing}
+          aria-busy={refreshing}
+          onClick={onRefresh}
+          data-testid="page.refresh"
+        >
+          <RefreshIcon />
+          <span>{refreshLabel}</span>
+        </button>
+      </div>
+    ) : null;
   return (
     <div className="aw-page">
       {header ? (
         <div className="aw-page-header">
-          <WebContentContainer>{header}</WebContentContainer>
+          <WebContentContainer>
+            {tools ? (
+              <div className="aw-page-header-row">
+                <div className="aw-page-header-main">{header}</div>
+                {tools}
+              </div>
+            ) : (
+              header
+            )}
+          </WebContentContainer>
+        </div>
+      ) : tools ? (
+        <div className="aw-page-toolbar">
+          <WebContentContainer>{tools}</WebContentContainer>
         </div>
       ) : null}
       <div className={`aw-page-content ${scrollable ? "aw-page-scroll" : "aw-page-fixed"}`}>

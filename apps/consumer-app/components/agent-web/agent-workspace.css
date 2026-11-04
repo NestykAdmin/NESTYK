@@ -1,5 +1,5 @@
 .aw-shell {
-  --aw-brand: #f4bd42;
+  --aw-brand: #f8b615;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   width: 100%;
@@ -108,14 +108,15 @@
   border-right: 1px solid var(--aw-border);
 }
 .aw-brand {
-  min-height: 112px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 24px 28px;
+  gap: 0;
+  min-height: 0;
+  padding: 4px;
   border: 0;
+  border-radius: 10px;
   background: transparent;
   text-align: left;
 }
@@ -193,17 +194,23 @@
   border-radius: 4px;
   padding: 2px 5px;
 }
+/* Top bar menu button (design W1: round, no border). Narrow screens: opens the sidebar drawer. */
 .aw-collapse {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  min-height: 62px;
-  padding: 16px 30px;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  padding: 0;
   border: 0;
-  border-top: 1px solid var(--aw-border);
+  border-radius: 50%;
   background: transparent;
   color: var(--aw-muted) !important;
-  font-size: 12px !important;
+}
+.aw-collapse:hover {
+  background: var(--aw-bg);
+  color: var(--aw-ink) !important;
 }
 .aw-workspace {
   display: flex;
@@ -212,13 +219,14 @@
   min-height: 0;
 }
 .aw-topbar {
-  height: 76px;
+  grid-area: top;
+  height: 70px;
   flex-shrink: 0;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  gap: 16px;
-  padding: 0 36px;
+  gap: 0;
+  padding: 0 24px 0 0;
   background: var(--aw-surface);
   border-bottom: 1px solid var(--aw-border);
   position: relative;
@@ -756,11 +764,6 @@
 .aw-collapsed .aw-logo-compact {
   display: block;
 }
-.aw-collapsed .aw-brand {
-  padding: 20px;
-  min-height: 112px;
-  align-items: center;
-}
 .aw-collapsed .aw-sidebar-scroll {
   padding: 12px;
 }
@@ -768,15 +771,11 @@
   justify-content: center;
   padding: 12px;
 }
-.aw-collapsed .aw-collapse {
-  padding: 16px;
-  justify-content: center;
-}
 .aw-shell[data-theme="dark"] .aw-nav-item:hover:not(:disabled) {
   background: #ffffff0d;
 }
 .aw-shell[data-theme="dark"] .aw-nav-item.is-active {
-  background: #f4bd4224;
+  background: #f8b61524;
   color: #f4cd76;
 }
 @media (max-width: 1100px) {
@@ -785,9 +784,6 @@
   }
   .aw-collapsed {
     grid-template-columns: 80px minmax(0, 1fr);
-  }
-  .aw-topbar {
-    padding: 0 24px;
   }
   .aw-main {
     padding: 16px 0;
@@ -806,69 +802,6 @@
   .aw-breadcrumb > svg,
   .aw-breadcrumb > div {
     display: none;
-  }
-}
-@media (max-width: 760px) {
-  .aw-shell {
-    grid-template-columns: 72px minmax(0, 1fr);
-  }
-  .aw-sidebar .aw-nav-label,
-  .aw-workspace-label,
-  .aw-nav-caption,
-  .aw-active-dot,
-  .aw-collapse {
-    display: none;
-  }
-  .aw-brand {
-    padding: 16px 10px;
-    align-items: center;
-    min-height: 88px;
-    overflow: hidden;
-  }
-  .aw-logo-wide {
-    display: none;
-  }
-  .aw-logo-compact {
-    display: block;
-  }
-  .aw-sidebar-scroll {
-    padding: 8px;
-  }
-  .aw-nav-item {
-    justify-content: center;
-    padding: 12px;
-  }
-  .aw-nav-divider {
-    margin: 18px 8px;
-  }
-  .aw-topbar {
-    height: 64px;
-    padding: 0 12px;
-    gap: 8px;
-  }
-  .aw-topbar-actions {
-    gap: 8px;
-  }
-  .aw-account-name,
-  .aw-topbar-divider {
-    display: none;
-  }
-  .aw-main {
-    padding: 8px 0;
-  }
-  .aw-page-title h1,
-  .aw-page-title h2 {
-    font-size: 20px;
-  }
-  .aw-page-heading {
-    gap: 12px;
-  }
-  .aw-page-actions {
-    gap: 6px;
-  }
-  .aw-notifications {
-    margin: 12px;
-    height: calc(100dvh - 24px);
   }
 }
 .aw-notification-heading {
@@ -959,13 +892,6 @@
   --aw-side: 80px;
   grid-template-columns: var(--aw-side) minmax(0, 1fr);
 }
-.aw-shell .aw-topbar {
-  grid-area: top;
-  height: 70px;
-  padding: 0 24px 0 0;
-  justify-content: flex-start;
-  gap: 0;
-}
 .aw-logo-cell {
   width: var(--aw-side);
   height: 100%;
@@ -978,14 +904,6 @@
   justify-content: center;
   padding: 0;
 }
-.aw-shell .aw-brand {
-  min-height: 0;
-  padding: 4px;
-  flex-direction: row;
-  align-items: center;
-  gap: 0;
-  border-radius: 10px;
-}
 .aw-topbar-main {
   flex: 1;
   min-width: 0;
@@ -993,23 +911,6 @@
   align-items: center;
   gap: 14px;
   padding-left: 16px;
-}
-.aw-shell .aw-collapse {
-  width: 40px;
-  height: 40px;
-  min-height: 0;
-  padding: 0;
-  flex-shrink: 0;
-  justify-content: center;
-  gap: 0;
-  border: 1px solid var(--aw-border);
-  border-radius: 10px;
-  background: var(--aw-surface);
-  color: var(--aw-muted) !important;
-}
-.aw-shell .aw-collapse:hover {
-  background: var(--aw-bg);
-  color: var(--aw-ink) !important;
 }
 .aw-title {
   margin: 0;
@@ -1025,8 +926,41 @@
   margin-left: auto;
   gap: 8px;
 }
+/* + Create (design W1): dark pill, so it never competes with the page's yellow primary button */
 .aw-shell .aw-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 40px;
+  padding: 0 14px 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: #211e1e;
+  color: #ffffff !important;
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: 14px;
+}
+.aw-shell .aw-create:hover {
+  background: #3a3535;
+}
+.aw-shell[data-theme="dark"] .aw-create {
+  background: #f3f5f8;
+  color: #211e1e !important;
+}
+.aw-shell[data-theme="dark"] .aw-create:hover {
+  background: #ffffff;
+}
+/* Top bar icon buttons (design W1): round, no border; the language button is the only outlined one */
+.aw-shell .aw-topbar .aw-icon-button {
+  width: 42px;
+  height: 42px;
+  border-color: transparent;
+  border-radius: 50%;
+  background: transparent;
+}
+.aw-shell .aw-topbar .aw-icon-button:hover,
+.aw-shell .aw-topbar .aw-icon-button[aria-expanded="true"] {
+  background: var(--aw-bg);
 }
 .aw-lang {
   display: inline-flex;
@@ -1035,7 +969,7 @@
   height: 40px;
   padding: 0 12px;
   border: 1px solid var(--aw-border);
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--aw-surface);
   font-size: 13px;
   font-family: "NotoSansThai_600SemiBold", sans-serif;
@@ -1047,10 +981,6 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-}
-.aw-shell .aw-theme-button[aria-pressed="true"] {
-  background: #f4bd4224;
-  border-color: #f4bd4266;
 }
 .aw-shell .aw-sidebar {
   grid-area: side;
@@ -1248,13 +1178,13 @@
 }
 
 .aw-shell[data-theme="dark"] .aw-switch-tile {
-  background: #f4bd4224;
+  background: #f8b61524;
 }
 .aw-shell[data-theme="dark"] .aw-nav-subitem:hover:not(:disabled) {
   background: #ffffff0d;
 }
 .aw-shell[data-theme="dark"] .aw-nav-subitem.is-active {
-  background: #f4bd4224;
+  background: #f8b61524;
   color: #f4cd76 !important;
 }
 
@@ -1269,36 +1199,52 @@
     padding-right: 16px;
   }
 }
-@media (max-width: 760px) {
-  .aw-shell,
-  .aw-shell.aw-collapsed {
-    --aw-side: 72px;
-    grid-template-rows: 64px minmax(0, 1fr);
+/* Below 768px web shows the mobile app screens instead of this shell (app/index.tsx WEB_SHELL_MIN_WIDTH). */
+
+/* ===== Page toolbar: refresh moved out of the top bar (D4, 4 Nov 2026) ===== */
+.aw-page-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.aw-page-header-main {
+  flex: 1;
+  min-width: 0;
+}
+.aw-page-toolbar {
+  padding-top: 12px;
+}
+.aw-page-tools {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.aw-page-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--aw-border);
+  border-radius: 10px;
+  background: var(--aw-surface);
+  color: var(--aw-muted) !important;
+  font-size: 13px;
+}
+.aw-page-refresh:hover:not(:disabled) {
+  background: var(--aw-bg);
+  color: var(--aw-ink) !important;
+}
+.aw-page-refresh[aria-busy="true"] svg {
+  animation: aw-spin 0.9s linear infinite;
+}
+@keyframes aw-spin {
+  to {
+    transform: rotate(360deg);
   }
-  .aw-shell .aw-topbar {
-    height: 64px;
-    padding-right: 10px;
-  }
-  .aw-logo-cell {
-    justify-content: center;
-    padding: 0;
-  }
-  .aw-shell .aw-logo-wide {
-    display: none;
-  }
-  .aw-shell .aw-logo-compact {
-    display: block;
-  }
-  .aw-switch-copy,
-  .aw-switch-chev,
-  .aw-account-text,
-  .aw-account-chev,
-  .aw-nav-sub,
-  .aw-nav-chev,
-  .aw-lang > span {
-    display: none !important;
-  }
-  .aw-title {
-    font-size: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aw-page-refresh[aria-busy="true"] svg {
+    animation: none;
   }
 }

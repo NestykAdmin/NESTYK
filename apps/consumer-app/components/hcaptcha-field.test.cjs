@@ -81,3 +81,15 @@ test('the native widget forwards a solved token and clears it on expiration or e
   callbacks['error-callback']();
   assert.deepEqual(view.tokens, [token, null, token, null]);
 });
+
+test('hCaptcha always shows in English on web and in the app (Mos, 4 Nov 2026)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  for (const file of ['HcaptchaField.web.tsx', 'HcaptchaField.tsx']) {
+    const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+    const scriptUrls = source.match(/https:\/\/js\.hcaptcha\.com\/1\/api\.js\?[^'"\s]*/g) || [];
+    assert.ok(scriptUrls.length > 0, `${file}: script URL`);
+    for (const url of scriptUrls) assert.match(url, /[?&]hl=en(&|$)/, `${file}: ${url}`);
+    assert.match(source, /hl:\s*['"]en['"]/, `${file}: render option hl`);
+  }
+});

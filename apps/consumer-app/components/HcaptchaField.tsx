@@ -30,7 +30,7 @@ function widgetHtml(siteKey: string): string {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<script src="https://js.hcaptcha.com/1/api.js?onload=onHcaptchaLoad&render=explicit" async defer></script>
+<script src="https://js.hcaptcha.com/1/api.js?onload=onHcaptchaLoad&render=explicit&hl=en" async defer></script>
 <style>html,body{margin:0;background:transparent;}#box{display:flex;justify-content:center;}</style>
 </head>
 <body>
@@ -43,6 +43,7 @@ function post(token) {
 function onHcaptchaLoad() {
   hcaptcha.render('box', {
     sitekey: ${JSON.stringify(siteKey)},
+    hl: 'en',
     theme: 'light',
     callback: function (token) { post(token); },
     'expired-callback': function () { post(''); },

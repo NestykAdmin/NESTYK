@@ -2009,6 +2009,10 @@ export const zh: TranslationSchema = {
         manageWorkspace: '管理工作区',
         refresh: '刷新',
         readAll: '全部标为已读',
+        theme: '主题',
+        themeLight: '浅色',
+        themeDark: '深色',
+        themeSystem: '跟随设备',
         brandTag: '中介工作区',
       },
       webOverview: {
