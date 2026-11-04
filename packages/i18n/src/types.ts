@@ -2030,6 +2030,28 @@ export interface TranslationSchema {
         balance: string;
         loadFailed: string;
       };
+      /** Web shared states (A7): empty, no match, error, not found, no permission, offline, table selection and sort. */
+      webStates: {
+        emptyTitle: string;
+        emptyBody: string;
+        filteredTitle: string;
+        filteredBody: string;
+        clearFilters: string;
+        errorTitle: string;
+        errorBody: string;
+        retry: string;
+        notFoundTitle: string;
+        notFoundBody: string;
+        backToList: string;
+        forbiddenTitle: string;
+        forbiddenBody: string;
+        offlineTitle: string;
+        offlineBody: string;
+        selectAll: string;
+        selectRow: string;
+        selected: string;
+        sortBy: string;
+      };
       workspaceLabel: string;
       welcome: string;
       todayDate: string;
