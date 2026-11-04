@@ -3,7 +3,7 @@ import type { AuthUser } from '../../src/api/types';
 import { qaAgent2 } from '../../src/config/qa-accounts';
 import { expect, test } from '../../src/fixtures/api.fixture';
 import { expectErrorQuiet, expectJsonQuiet } from '../../src/support/http';
-import { GIF_TINY, MAX_AVATAR_BYTES, TEXT_AS_PNG } from '../../src/support/test-images';
+import { AVIF_TINY, GIF_TINY, MAX_AVATAR_BYTES, TEXT_AS_PNG } from '../../src/support/test-images';
 
 /**
  * POST /auth/profile/avatar/upload และ DELETE /auth/profile/avatar (เพิ่มใน develop accb616): คำขอที่ API ต้องปฏิเสธ
@@ -66,6 +66,7 @@ test.describe('profile photo upload rejects files that are not a usable photo', 
     ['a form without a file', {}, 400, 'Choose an image file'],
     ['a text file named .png', { file: TEXT_AS_PNG() }, 400, 'Use a valid JPEG, PNG or WebP image'],
     ['a GIF image', { file: GIF_TINY() }, 400, 'Use a valid JPEG, PNG or WebP image'],
+    ['an AVIF image', { file: AVIF_TINY() }, 400, 'Use a valid JPEG, PNG or WebP image'],
     ['a file in a field that is not named file', { photo: TEXT_AS_PNG() }, 400, 'Unexpected field - photo'],
     ['a file with an extra text field', { note: 'e2e', file: TEXT_AS_PNG() }, 400, 'Too many fields'],
     [

@@ -11,6 +11,7 @@
 - ไฟล์ `.env.api` ตั้ง `ALLOW_DEV_AUTH=true` (เทสล็อกอินด้วยบัญชี QA ของทีมแบบนักพัฒนา ไม่ใช้รหัสผ่าน)
 - ไฟล์ `.env.api` ตั้ง `ALLOW_DEV_ROLE_GRANT=true` สำหรับเทส `POST /auth/dev/roles` ใน `auth.spec.ts` (ส่งเฉพาะชื่อบทบาทที่ต้องถูกปฏิเสธ) ถ้าไม่ตั้ง API ตอบ 403 และข้อนั้นไม่ผ่าน
   - ถ้า API ปิดสวิตช์นี้ไว้ด้วยเหตุผลอื่น ไม่ต้องเปิดเพื่อให้เทสข้อนี้ผ่าน เพราะสวิตช์นี้ให้ผู้ใช้ทุกคนที่ล็อกอินได้ (ทั้ง dev token และ token ของ Supabase) ขอหรือถอนบทบาทของบัญชีตัวเองได้ รวมบทบาท admin (`POST` และ `DELETE /auth/dev/roles` ใน `apps/api/src/auth/auth.service.ts:166-216` กับ `apps/api/src/auth/guards/auth.guard.ts:63-100`)
+- ถ้าเปิด API ต่อฐานข้อมูลของทีมค้างข้ามเที่ยงคืน ให้ตั้ง `DISABLE_SCHEDULED_JOBS=true` ใน `.env.api` เพราะงานตั้งเวลา 00:10 น. (เพิ่มใน `0f99388`) จะลบบัญชีทุกบัญชีที่ถึงกำหนดลบในฐานข้อมูลของทีม ไม่ใช่เฉพาะบัญชี QA (`apps/api/src/auth/account-deletion.scheduler.ts`, `common/scheduled-jobs.ts`) และงาน 00:05 น. ยังออกบิลเหมือนเดิม
 - บัญชี QA แยกบทบาทของทีม `qa-guest`, `qa-tenant`, `qa-landlord`, `qa-agent`, `qa-admin` (`@nestyk.test`) มีในฐานข้อมูลที่ API ใช้ เทสที่ต้องล็อกอินใช้บัญชีเหล่านี้ (เทส 401 ใช้ผู้เรียกที่ไม่ล็อกอินหรือบัตรผ่านที่ใช้ไม่ได้)
   - `qa-agent` เป็นผู้เรียกหลัก (fixture `agent` ของเทสกลุ่ม `agent/*` เกือบทั้งหมด) **ต้องตั้ง uuid ทุกครั้ง** ถ้าไม่ตั้ง global-setup หยุดทั้งชุด
     บัญชีนี้ต้องมีลีดที่สถานะไม่ใช่ lost และยังไม่เป็นผู้เช่าอย่างน้อย 1 ราย และห้องอย่างน้อย 2 ห้อง
@@ -289,7 +290,7 @@ E2E_ALLOW_WRITES=yes npm run test:write
   - **ไม่มีข้อที่สมัครสำเร็จ** บัญชีที่สร้างอยู่ใน Supabase Auth ยืนยันอีเมลแล้ว และ API ไม่มีเส้นทางลบ การสมัครสำเร็จลองเฉพาะในห้องทดลองของ QA
   - ยังไม่ได้เทส: อีเมลยาวเกิน 255 ตัว (ถ้าการตรวจความยาวหาย คำขอนี้อาจสร้างบัญชีจริง), รหัสผ่าน 1024 ตัวที่ API รับ (Supabase Auth อาจมีเพดานต่ำกว่า อนุมาน) และอีเมลที่ผ่านรูปแบบแต่ Supabase ปฏิเสธ (`REGISTRATION_FAILED`)
 - `tests/api/profile-avatar.spec.ts` (`POST /auth/profile/avatar/upload` และ `DELETE /auth/profile/avatar`, 11 ข้อ)
-  - 401 เมื่อไม่ส่งบัตรผ่าน หรือบัตรผ่านของคนที่ไม่มีบัญชี ; qa-agent2 ส่งไฟล์ที่ API ต้องปฏิเสธ 7 แบบ (ไม่มีเนื้อคำขอ, ฟอร์มไม่มีไฟล์, ไฟล์ข้อความ, GIF, ชื่อช่องไม่ใช่ `file`, มีช่องข้อความ, 5 MB + 1 ไบต์) แล้วตรวจว่ารูปของ qa-agent2 ไม่เปลี่ยน
+  - 401 เมื่อไม่ส่งบัตรผ่าน หรือบัตรผ่านของคนที่ไม่มีบัญชี ; qa-agent2 ส่งไฟล์ที่ API ต้องปฏิเสธ 8 แบบ (ไม่มีเนื้อคำขอ, ฟอร์มไม่มีไฟล์, ไฟล์ข้อความ, GIF, AVIF, ชื่อช่องไม่ใช่ `file`, มีช่องข้อความ, 5 MB + 1 ไบต์) แล้วตรวจว่ารูปของ qa-agent2 ไม่เปลี่ยน
   - กับโค้ดตอนนี้ทุกข้อถูกปฏิเสธก่อนแตะ Storage ข้อที่ทดสอบ multer ส่งไฟล์ข้อความ ไม่ใช่ภาพ จึงไม่มีอะไรถูกเก็บแม้ multer จะเลิกปฏิเสธ
   - **ข้อยกเว้น: ข้อไฟล์ข้อความและข้อ GIF ทดสอบการตรวจภาพเอง ถ้าการตรวจภาพของ API หาย `npm test` จะทำให้ API สร้าง bucket `profile-avatars` แบบสาธารณะ (ถ้ายังไม่มี) อัปไฟล์ และตั้งรูปให้ qa-agent2 จริง** (ลองในห้องทดลองด้วยตัวกลายพันธุ์ที่รับ GIF) ถ้า 2 ข้อนี้ไม่ผ่าน ให้แจ้งทีมเรื่อง bucket และล้างรูปของ qa-agent2 ก่อนรันรอบถัดไป ไม่อย่างนั้น `profile-avatar.write.spec.ts` จะหยุดที่ขั้นแรก
 - `tests/write/profile-avatar.write.spec.ts` (รูปโปรไฟล์ 1 ข้อ ต้องตั้ง `E2E_ALLOW_AVATAR_WRITES=yes` พร้อม `E2E_ALLOW_WRITES=yes` ใส่หน้าคำสั่งทุกครั้งเหมือนกัน ห้าม `export`)
@@ -302,6 +303,18 @@ E2E_ALLOW_WRITES=yes npm run test:write
   - 2 ไฟล์อ่าน 28 ข้อ: เปิดเส้นทางสมัครและตั้ง `E2E_ALLOW_REGISTER_PROBES=yes` ผ่าน 27 ข้าม 1 (ข้อ "ปิดแล้วตอบ 404") ; เปิดแต่ไม่ตั้งตัวแปร: `auth-register.spec.ts` ผ่าน 6 ข้าม 11 ; ปิดเส้นทางสมัคร: ผ่าน 12 ข้าม 16 (Playwright นับข้อ known-bug ที่ไม่ผ่านตามคาดเป็นผ่าน)
   - ไฟล์เขียน 1 ข้อ: ตั้ง `E2E_ALLOW_AVATAR_WRITES=yes` ผ่าน (annotation "ไฟล์ที่อัป" 2 path) ; ไม่ตั้ง = ข้าม
   - ตัวกลายพันธุ์ 8 ตัวถูกจับทุกตัว: ไม่ตรวจหัวข้อของ proxy (4 ข้อ), ไม่ตรวจ Origin, ไม่ตรวจรหัสผ่านสั้น, เพดานชื่อ 254 (ตัวคุม 255), รับ GIF (ข้อ GIF ไม่ผ่าน และ API ตั้งรูปให้ qa-agent2 จริง ตามข้อยกเว้นข้างบน), รับช่องข้อความ (ไม่มีอะไรถูกเก็บ), ไม่ลบไฟล์เก่า และ DELETE ไม่ล้างรูป (2 ตัวหลังจับได้เฉพาะไฟล์เขียน) หลังเปลี่ยนเป็นตัวตรวจแบบเงียบ (`expectJsonQuiet`, `expectErrorQuiet`) ผลรันของ Z5 กับ Z6 รอบซ้ำไม่มี URL ของ Storage หรือเนื้อคำตอบ (รอบก่อนเปลี่ยน Z5 พิมพ์ URL ออกมา) ส่วนอีเมลของบัญชี QA ยังพิมพ์ตามปกติจากบรรทัด `[บัญชี QA]` ของ global-setup
+
+เส้นทางลบบัญชี (`tests/api/account-deletion.spec.ts`, อ่านอย่างเดียว, qa/e2e `01d0523` = รวม `pre/dev/review 0f99388`)
+
+- 3 เส้นทางที่เทส: `GET /auth/account/deletion` (ดูสถานะการลบ), `DELETE /auth/account` (ลบทันที), `POST /auth/account/deletion` (นัดลบ 30 วัน) ทั้งหมดใช้ `AuthGuard` ไม่จำกัดบทบาท
+- **ไม่เทส** `DELETE /auth/account/deletion` (ยกเลิกนัด: `UPDATE` แถว `users` ทุกครั้งแม้ไม่ได้นัดไว้ `auth.service.ts:309-312`) และ `POST /auth/password-changed` (ส่งอีเมลจริงถ้ามี mailer `password-changed-email.ts`) เพราะ 2 เส้นทางนี้เขียนหรือส่งอีเมลเสมอเมื่อบัญชีมีอยู่
+- ทุกข้อถูกปฏิเสธก่อนเขียน หรือเป็น GET ที่ยืนยันจากโค้ดว่าไม่เขียน:
+  - ไม่ส่งบัตรผ่าน: `AuthGuard` ตอบ 401 "Missing Bearer token" (ทั้ง 3 เส้นทาง)
+  - `GET` ด้วยบัตรผ่านของคนที่ไม่มีบัญชี: `requireUser` ตอบ 401 "Call POST /auth/sync first"
+  - `DELETE /auth/account` และ `POST /auth/account/deletion`: บัตรผ่านแบบนักพัฒนาไม่มี `amr` `RecentAuthGuard` จึงตอบ 401 `REAUTH_REQUIRED` ก่อนถึง service ที่เขียน (ตรวจทั้งคนที่ไม่มีบัญชี และบัญชีจริง qa-agent2)
+  - `GET` ด้วยบัญชี QA ทั้ง 6 บัญชี: 200 ตรวจรูปแบบ 4 ช่อง (`blocked`, `reasons`, `scheduledFor`, `deleteNowAvailable`) ไม่เทียบค่าจริงเพราะขึ้นกับข้อมูลสดของทีม ถ้าบัญชี QA มีนัดลบ (`scheduledFor` ไม่ว่าง) จะติด annotation "ไม่ได้ตรวจ" ให้ตรวจกับทีม
+- ข้อ `RecentAuthGuard`: `AuthGuard` รับบัตรผ่านแบบนักพัฒนาที่มีส่วนเกิน 3 ส่วน (`auth.guard.ts` ตรวจแค่ `parts.length < 3`) ส่วน `RecentAuthGuard` อ่าน `amr` จากส่วนกลางของ JWT จึงประกอบบัตรผ่านที่มี `amr` เองได้ เทสข้อนี้ส่งด้วยบัตรผ่านของ**คนที่ไม่มีบัญชีเท่านั้น** ตรวจว่ายังได้ 401 และไม่มี `scheduledFor` แล้วบันทึก annotation ว่าไปหยุดที่ `RecentAuthGuard` (`REAUTH_REQUIRED`) หรือถูกข้ามไปหยุดที่ `requireUser` ("Call POST /auth/sync first") ถ้าเป็นอย่างหลัง = ด่านยืนยันตัวตนซ้ำถูกข้าม ต้องแจ้งทีม อีเมลในบัตรผ่านต้องไม่มีจุด (`jwtPayload` แยกทั้ง token ด้วย `.` ต้องได้ 3 ส่วน) ไม่อย่างนั้น amr ไม่ถูกอ่านและได้ `REAUTH_REQUIRED` เสมอ (ลองใน `recent-auth.ts` ของห้องทดลองระดับ unit ด้วยอีเมลไม่มีจุดแล้ว amr ที่ประกอบเองผ่านจริง ยังไม่ได้รันกับ API บน dev)
+- รูปโปรไฟล์: เพิ่มข้อ AVIF ใน `profile-avatar.spec.ts` (`AVIF_TINY` ใน `test-images.ts`) HEIF/AVIF ถูกแก้ให้ปฏิเสธแล้วใน `01d0523` โค้ดรับเฉพาะ jpeg, png, webp (`profile-avatar-storage.service.ts:53`) AVIF จึงได้ 400 "Use a valid JPEG, PNG or WebP image" (sharp รายงาน AVIF เป็น format `heif`) ยังไม่มีไฟล์ HEIC เพราะ sharp 0.34.5 ในห้องทดลอง build HEIC (hevc) ไม่ได้
 
 ## ยังไม่ครอบคลุม
 

@@ -344,3 +344,16 @@ export interface LeadViewing {
   note: string | null;
   createdAt: string;
 }
+
+/** เหตุที่กันการลบบัญชี (ACCOUNT_DELETE_BLOCKERS ใน apps/api/src/auth/account-deletion.ts บรรทัด 2 ที่ qa/e2e 01d0523) */
+export const ACCOUNT_DELETE_BLOCKERS = ['open_contract', 'open_agent_contract', 'unpaid_bill', 'bill_awaiting_review', 'unrefunded_deposit'] as const;
+
+/** GET /auth/account/deletion (deletionPreview ใน auth.service.ts บรรทัด 280-295 ที่ 01d0523) */
+export interface AccountDeletionPreview {
+  blocked: boolean;
+  reasons: string[];
+  /** วันที่บัญชีจะถูกลบ (ISO) หรือ null ถ้าไม่ได้นัดลบ */
+  scheduledFor: string | null;
+  /** true เฉพาะเมื่อ API ตั้ง ALLOW_IMMEDIATE_ACCOUNT_DELETION=true (account-deletion.ts บรรทัด 23-25) */
+  deleteNowAvailable: boolean;
+}

@@ -19,6 +19,11 @@ export const PNG_ORANGE = () =>
 /** GIF 2x2 พิกเซล (43 ไบต์) API ไม่รับ GIF */
 export const GIF_TINY = () => file('e2e-tiny.gif', 'image/gif', 'R0lGODlhAgACAIAAAExpcQAAACH5BAUAAAAALAAAAAACAAIAAAICjFMAOw==');
 
+/** AVIF 4x3 พิกเซล สีพื้น (277 ไบต์ สร้างด้วย sharp 0.34.5 ในห้องทดลอง 4 พ.ย. 2026 sharp รายงาน metadata.format เป็น 'heif')
+ *   API รับเฉพาะ jpeg, png, webp (profile-avatar-storage.service.ts บรรทัด 53 ที่ qa/e2e 01d0523) AVIF จึงถูกปฏิเสธ 400 */
+export const AVIF_TINY = () =>
+  file('e2e-tiny.avif', 'image/avif', 'AAAAHGZ0eXBhdmlmAAAAAG1pZjFhdmlmbWlhZgAAANZtZXRhAAAAAAAAACFoZGxyAAAAAAAAAABwaWN0AAAAAAAAAAAAAAAAAAAAAA5waXRtAAAAAAABAAAAImlsb2MAAAAAREAAAQABAAAAAAD6AAEAAAAAAAAAGwAAACNpaW5mAAAAAAABAAAAFWluZmUCAAAAAAEAAGF2MDEAAAAAVmlwcnAAAAA4aXBjbwAAAAxhdjFDgSACAAAAABRpc3BlAAAAAAAAAAQAAAADAAAAEHBpeGkAAAAAAwgICAAAABZpcG1hAAAAAAAAAAEAAQOBAgMAAAAjbWRhdBIACgg4BHmEBDQaQDINGAAAAEAAsBGAvTgJzw==');
+
 /** ไฟล์ข้อความที่ตั้งชื่อและชนิดว่าเป็น PNG (API ดูชนิดจากเนื้อไฟล์ ไม่ดูชื่อหรือชนิดที่ส่งมา) */
 export const TEXT_AS_PNG = () => ({ name: 'e2e-not-an-image.png', mimeType: 'image/png', buffer: Buffer.from('e2e: this is not an image') });
 

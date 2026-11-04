@@ -64,4 +64,29 @@ export class AuthApi {
   clearAvatar(): Promise<APIResponse> {
     return this.client.delete('auth/profile/avatar');
   }
+
+  // ---- ลบบัญชี (ที่มา: auth.controller.ts บรรทัด 96-115 และ auth.service.ts บรรทัด 280-307, 347-352 ที่ qa/e2e 01d0523) ----
+  //   ไม่มีเมธอดของ DELETE /auth/account/deletion (ยกเลิกนัด: เขียนแถว users ทุกครั้ง บรรทัด 309-312)
+  //   และ POST /auth/password-changed (ส่งอีเมลจริง) โดยตั้งใจ ชุดเทสห้ามเรียก 2 เส้นทางนี้ (Aof 4 พ.ย. 2026)
+
+  /** GET /auth/account/deletion : ดูว่าลบบัญชีได้ไหม อ่านอย่างเดียว (deletionPreview ใช้ SELECT 3 คำสั่งกับ findOne บรรทัด 280-295, 401-452) */
+  deletionPreview(): Promise<APIResponse> {
+    return this.client.get('auth/account/deletion');
+  }
+
+  /**
+   * DELETE /auth/account : ลบบัญชีทันที (Supabase Auth, ตาราง users, Storage และส่งอีเมล: deleteAccount บรรทัด 354-398)
+   * ข้อควรระวัง: ใช้ได้เฉพาะคำขอที่ RecentAuthGuard ต้องปฏิเสธ (dev token ไม่มี amr จึงได้ 401 REAUTH_REQUIRED: guards/recent-auth.guard.ts)
+   */
+  deleteAccountNow(): Promise<APIResponse> {
+    return this.client.delete('auth/account');
+  }
+
+  /**
+   * POST /auth/account/deletion : นัดลบบัญชีอีก 30 วัน (เขียน users.deletion_* แล้วส่งอีเมล: scheduleAccountDeletion บรรทัด 297-307)
+   * ข้อควรระวัง: ใช้ได้เฉพาะคำขอที่ RecentAuthGuard ต้องปฏิเสธ แบบเดียวกับ deleteAccountNow
+   */
+  scheduleDeletion(): Promise<APIResponse> {
+    return this.client.post('auth/account/deletion');
+  }
 }
