@@ -1,0 +1,115 @@
+/* Web toast + confirm (plan step 2, A6 · E3: bottom right, success 4 s, errors stay). WebNotifier.web.tsx */
+.wn-toasts {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+  font-family: "NotoSansThai_400Regular", sans-serif;
+}
+.wn-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 10px 12px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--aw-border, #e5e7eb);
+  border-left-width: 4px;
+  background: var(--aw-surface, #ffffff);
+  color: var(--aw-ink, #1a2b48);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  animation: wn-in 160ms ease-out;
+  box-sizing: border-box;
+}
+.wn-success { border-left-color: #1f6b43; }
+.wn-error { border-left-color: #b42318; }
+.wn-info { border-left-color: #f8b615; }
+.wn-toast-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.wn-success .wn-toast-icon { background: #eaf5ee; }
+.wn-error .wn-toast-icon { background: #fdecea; }
+.wn-info .wn-toast-icon { background: #fff3cc; }
+.wn-toast-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+  overflow-wrap: anywhere;
+}
+.wn-toast-text strong {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+}
+.wn-toast-text span {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--aw-muted, #64748b);
+  white-space: pre-line;
+}
+.wn-toast-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.wn-toast-close:hover { background: rgba(100, 116, 139, 0.14); }
+.wn-toast-close:focus-visible { outline: 2px solid #b98112; outline-offset: 2px; }
+
+/* Confirm dialog buttons (WebDialog footer) */
+.wn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.wn-btn:focus-visible { outline: 2px solid #b98112; outline-offset: 2px; }
+.wn-btn-primary { background: #f8b615; color: #211e1e; }
+.wn-btn-primary:hover { background: #eab134; }
+.wn-btn-secondary { background: var(--aw-surface, #ffffff); color: var(--aw-ink, #1a2b48); border-color: var(--aw-border, #e5e7eb); }
+.wn-btn-danger { background: #dc2626; color: #ffffff; }
+.wn-btn-danger:hover { background: #b91c1c; }
+
+/* Phone-width web shows the app screens with a bottom tab bar: full-width toasts above it. */
+@media (max-width: 767px) {
+  .wn-toasts {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@keyframes wn-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wn-toast { animation: none; }
+}
