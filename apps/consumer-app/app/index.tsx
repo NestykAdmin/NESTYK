@@ -183,14 +183,10 @@ export function AppHomeScreen() {
   const [activeTab, setActiveTab] = useState<MobileAppTab>(() => initialRoute?.tab ?? getDefaultTabForRole(initialRole));
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-<<<<<<< HEAD
-  const [partyInbox, setPartyInbox] = useState(() => !!initialRoute?.partyInbox);
-=======
   const [passwordCaptchaToken, setPasswordCaptchaToken] = useState<string | null>(null);
   const [passwordCaptchaKey, setPasswordCaptchaKey] = useState(0);
   const passwordCaptchaRequired = hcaptchaSiteKey().length > 0;
-  const [partyInbox, setPartyInbox] = useState(false);
->>>>>>> pre/dev/review
+  const [partyInbox, setPartyInbox] = useState(() => !!initialRoute?.partyInbox);
   const [selectedPartyRoom, setSelectedPartyRoom] = useState<PartyContractRoom | null>(null);
   const [contractHistory, setContractHistory] = useState(() => initialRoute?.partyInbox === 'tenants');
   const [billHistory, setBillHistory] = useState(() => !!initialRoute?.billHistory);

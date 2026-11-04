@@ -116,14 +116,9 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-<<<<<<< HEAD
-      await signIn(email, password);
+      await signIn(email, password, captchaToken ?? undefined);
       // Web leaves through the effect above once the session (and its roles) is in; mobile goes home now.
       if (Platform.OS !== "web") router.replace("/");
-=======
-      await signIn(email, password, captchaToken ?? undefined);
-      router.replace("/");
->>>>>>> pre/dev/review
     } catch (e) {
       setError(localizedError(e, t.mobile.auth.invalidCredentials, locale));
     } finally {
