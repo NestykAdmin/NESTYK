@@ -175,6 +175,23 @@ test('list and detail scope records to the current agent and exclude private ent
   await assert.rejects(() => service.view(9, 1), e => e.getStatus() === 404);
   assert.ok(calls.some(c => c[0] === 'where' && c[2].agentId === 7)); assert.ok(calls.some(c => c[0] === 'where' && c[2].agentId === 9));
 });
+test('a closed contract carries its end reason code (agent list and party inbox), so the app can show a used booking letter', async () => {
+  const calls = []; const qb = {};
+  for (const key of ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy']) qb[key] = (...args) => { calls.push([key, ...args]); return qb; };
+  qb.getMany = async () => [
+    { id: 1, status: 'terminated', end_reason_id: 11, end_reason: { id: 11, code: 'reservation_fulfilled' }, rent_room: { property: { name: 'Test' } }, tenant: { name: 'A' } },
+    { id: 2, status: 'active', end_reason_id: null, end_reason: null, rent_room: { property: { name: 'Test' } }, tenant: { name: 'A' } },
+  ];
+  const service = new AgentContractsService({ getRepository: () => ({ createQueryBuilder: () => qb }) });
+  const [ended, open] = await service.list(7);
+  assert.equal(ended.endReasonCode, 'reservation_fulfilled');
+  assert.equal(open.endReasonCode, null);
+  const joined = () => calls.some(c => c[0] === 'leftJoinAndSelect' && c[1] === 'c.end_reason');
+  assert.ok(joined(), 'the agent list joins the end reason');
+  calls.length = 0;
+  service.inboxQuery();
+  assert.ok(joined(), 'the parties\' inbox joins the end reason');
+});
 test('HTTP endpoints require authentication and agent role', async t => {
   const previous = process.env.ALLOW_DEV_AUTH; process.env.ALLOW_DEV_AUTH = 'true';
   t.after(() => { if (previous === undefined) delete process.env.ALLOW_DEV_AUTH; else process.env.ALLOW_DEV_AUTH = previous; });

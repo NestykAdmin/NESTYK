@@ -7,6 +7,8 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { i18nMock, contractsTh, fillTemplate, leadFormat } = require('./test-i18n.cjs');
 const loaded = { exports: {} };
+const statusHelper = { exports: {} };
+new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, '../lib/contract-status.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(require, statusHelper, statusHelper.exports);
 const mockRequire = name => {
   if (name === 'react') return React;
   if (name === 'react-native') return {
@@ -18,6 +20,7 @@ const mockRequire = name => {
   };
   if (name === '@nestyk/i18n') return i18nMock();
   if (name === '../lib/lead-format') return leadFormat;
+  if (name === '../lib/contract-status') return statusHelper.exports;
   throw new Error(`Unexpected dependency: ${name}`);
 };
 new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, 'BookingInvoiceListCard.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText)(mockRequire, loaded, loaded.exports);
@@ -41,4 +44,11 @@ test('list card shows invoice number, linked booking, room, amount and correct p
   assert.match(render({ reservationPayment: { ...booking.reservationPayment, status: 'submitted' } }), /ส่งสลิปแล้ว · รอตรวจสอบ/);
   assert.match(render({ reservationPayment: { ...booking.reservationPayment, status: 'paid' } }), /ชำระแล้ว/);
   assert.match(render({ status: 'cancelled' }), /หนังสือจองปิดแล้ว/);
+});
+
+test('the booking invoice of a letter its lease took over says it is used', () => {
+  const used = render({ status: 'terminated', endReasonCode: 'reservation_fulfilled', reservationPayment: { ...booking.reservationPayment, status: 'paid' } });
+  assert.match(used, new RegExp(contractsTh.payment.fulfilled));
+  assert.doesNotMatch(used, new RegExp(contractsTh.payment.closed));
+  assert.match(render({ status: 'terminated', endReasonCode: 'landlord_withdrew' }), new RegExp(contractsTh.payment.closed));
 });

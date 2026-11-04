@@ -7,4 +7,5 @@ export interface AgentOverviewProps {
   snapshot: AgentDashboardSnapshot;
   onNavigate: (link: AgentDashboardDeepLink) => void;
   onRefresh?: () => void;
+  deletionScheduledFor?: string | null;
 }

@@ -48,6 +48,8 @@ export const contractsEn: ContractCopy = {
       expired: 'Ended',
       terminated: 'Terminated',
     },
+    /** A booking letter its lease has taken over (terminated with reservation_fulfilled). */
+    statusFulfilled: 'Used',
     parties: {
       owner: 'Landlord',
       tenant: 'Tenant',
@@ -336,6 +338,8 @@ export const contractsEn: ContractCopy = {
     paidHint: 'The agent confirmed the payment and issued a receipt',
     submittedHint: 'Slip sent, waiting for the agent to verify the payment',
     closed: 'Reservation letter closed',
+    /** A booking letter its lease has taken over: the booking fee is the first month's rent. */
+    fulfilled: "Used: taken off the first month's rent",
     viewInvoice: 'View reservation invoice',
     createInvoice: 'Create reservation invoice',
     noInvoice: 'No reservation invoice yet',

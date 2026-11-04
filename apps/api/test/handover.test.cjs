@@ -24,7 +24,10 @@ const { LeaseContractEntity } = require('../src/entities/lease-contract.entity.t
 const { AgentInvoiceEntity } = require('../src/entities/agent-invoice.entity.ts');
 const { AgreementSignatureEntity } = require('../src/entities/agreement-signature.entity.ts');
 const { HandoverRecordEntity, HandoverItemEntity, HandoverPhotoEntity } = require('../src/entities/handover.entity.ts');
+const { MasterContractEndReasonEntity } = require('../src/entities/master-contract-end-reason.entity.ts');
 
+// The end reason the migration adds for a booking letter its lease has taken over (id 11).
+const FULFILLED_REASON = { id: 11, code: 'reservation_fulfilled', applicable_status: 'terminated', requires_note: false, is_active: true };
 // Agent 7 made lease 11 for tenant user 8 and landlord user 9.
 const GENERATED = '7/11/generated/lease_agreement/v1/lease.pdf';
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9]);
@@ -57,13 +60,14 @@ const clone = (value) => structuredClone(value);
  * In-memory lease 11 with its deposit invoice, handover tables and signatures. Each transaction works on a copy and
  * keeps it only when the callback succeeds (a rollback). Unique indexes of the migration answer 23505 like Postgres.
  */
-function harness({ lease = {}, receipt = true, deposit = true, others = [] } = {}) {
+function harness({ lease = {}, receipt = true, deposit = true, others = [], reasons = [FULFILLED_REASON] } = {}) {
   const row = leaseRow(lease);
   let tables = {
     invoices: deposit ? [{ id: 50, lease_contract_id: 11, invoice_kind: 'deposit', receipt_pdf_path: receipt ? '7/receipts/r.pdf' : null }] : [],
     records: [], items: [], photos: [], signatures: [],
     // Step 28 (B4): the other deals' leases of the same room.
     leases: others.map((other) => leaseRow({ id: 20, lead_id: 5, tenant_id: 4, ...other })),
+    reasons: structuredClone(reasons),
   };
   let nextId = 100;
   const events = [];
@@ -83,7 +87,8 @@ function harness({ lease = {}, receipt = true, deposit = true, others = [] } = {
 
   const tableOf = (t, entity) => (entity === HandoverRecordEntity ? t.records : entity === HandoverItemEntity ? t.items
     : entity === HandoverPhotoEntity ? t.photos : entity === AgreementSignatureEntity ? t.signatures
-    : entity === AgentInvoiceEntity ? t.invoices : entity === LeaseContractEntity ? t.leases : null);
+    : entity === AgentInvoiceEntity ? t.invoices : entity === LeaseContractEntity ? t.leases
+    : entity === MasterContractEndReasonEntity ? t.reasons : null);
   const unique = (t, entity, value) => {
     if (entity === HandoverRecordEntity && t.records.some((r) => r.agreement_id === value.agreement_id && r.kind === value.kind))
       throw Object.assign(new Error('duplicate key uq_handover_records_agreement_kind'), { code: '23505' });
@@ -141,7 +146,8 @@ function harness({ lease = {}, receipt = true, deposit = true, others = [] } = {
       }
     },
     update: async (entity, where, patch) => {
-      if (entity === LeaseContractEntity) {
+      // Lease 11 itself; an update of another agreement (the deal's booking letter) goes to its row in the table.
+      if (entity === LeaseContractEntity && (where.id === undefined || where.id === row.id)) {
         events.push(`update lease ${JSON.stringify(where)}`);
         txEvents.push(`tx${tx}:${events.at(-1)}`);
         const hit = matches(row, where);
@@ -510,4 +516,58 @@ test('D7: a lease waiting for its deposit cannot be handed over; the gate does n
   assert.equal((await harness({ lease: { status: 'awaiting_deposit' } }).handover.agentView(7, 11)).blockedReason, 'deposit_unpaid');
   // Received and waiting for the handover: open.
   assert.equal((await harness({ lease: { status: 'awaiting_handover' } }).handover.agentView(7, 11)).status, 'not_started');
+});
+
+// The booking letter of the deal (lead 1, room 3, tenant 2), finalised before the lease.
+const booking = (overrides = {}) => ({
+  id: 20, lead_id: 1, tenant_id: 2, rent_room_id: 3, contract_no: 'RS202600020', status: 'active',
+  agreement_type_code: 'reservation', agreement_type: { form_kind: 'reservation' },
+  template: { form_kind: 'reservation', document_template_key: 'reservation/mock-v2' },
+  start_date: '2098-12-01', end_date: null, end_reason_id: null, end_reason_note: null,
+  effective_end_date: null, end_recorded_at: null, end_recorded_by_user_id: null,
+  ...overrides,
+});
+
+test('the move-in handover that makes the lease active ends the deal\'s booking letter (reservation_fulfilled), in the same transaction', async () => {
+  const others = [
+    booking(),
+    // Another lead's booking letter of the same room, a cancelled one of this deal, and this deal's broker appointment.
+    booking({ id: 21, lead_id: 5, tenant_id: 4 }),
+    booking({ id: 22, status: 'cancelled' }),
+    booking({ id: 23, agreement_type_code: 'broker_appointment', agreement_type: { form_kind: 'broker_appointment' },
+      template: { form_kind: 'broker_appointment' } }),
+  ];
+  const h = await ready({ lease: { status: 'awaiting_handover' }, others });
+  const row = (id) => h.tables().leases.find((r) => r.id === id);
+  await h.handover.signOnSite(7, 11, { party: 'owner', signaturePng: h.png, revision: 2 });
+  assert.equal(row(20).status, 'active', 'one signature does not end the booking letter');
+  await h.handover.partySign(8, 11, { party: 'tenant', signaturePng: h.png, revision: 2 });
+  assert.equal(h.row.status, 'active');
+  const ended = row(20);
+  assert.equal(ended.status, 'terminated');
+  assert.equal(ended.end_reason_id, 11);
+  assert.equal(ended.end_reason_note, null);
+  assert.equal(ended.effective_end_date, '2099-01-01', 'the handover date of the record');
+  assert.equal(ended.end_recorded_by_user_id, 7, 'the agent of the deal');
+  assert.ok(ended.end_recorded_at instanceof Date);
+  assert.equal(row(21).status, 'active');
+  assert.equal(row(22).status, 'cancelled');
+  assert.equal(row(23).status, 'active');
+});
+
+test('the booking letter ends on the handover date, or on its own date when the handover is dated before it', async () => {
+  const h = await ready({ lease: { status: 'awaiting_handover' }, others: [booking({ start_date: '2099-02-01' })] });
+  await h.handover.signOnSite(7, 11, { party: 'owner', signaturePng: h.png, revision: 2 });
+  await h.handover.signOnSite(7, 11, { party: 'tenant', signaturePng: h.png, revision: 2 });
+  const ended = h.tables().leases.find((r) => r.id === 20);
+  assert.equal(ended.status, 'terminated');
+  assert.equal(ended.effective_end_date, '2099-02-01', 'the end reason trigger refuses an end before the start');
+});
+
+test('without the end reason row (migration not applied) the handover still completes and the booking letter is left as it is', async () => {
+  const h = await ready({ lease: { status: 'awaiting_handover' }, others: [booking()], reasons: [] });
+  await h.handover.signOnSite(7, 11, { party: 'owner', signaturePng: h.png, revision: 2 });
+  await h.handover.signOnSite(7, 11, { party: 'tenant', signaturePng: h.png, revision: 2 });
+  assert.equal(h.row.status, 'active');
+  assert.equal(h.tables().leases.find((r) => r.id === 20).status, 'active');
 });

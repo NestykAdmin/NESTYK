@@ -8,6 +8,7 @@ export function AgentOverview(props: AgentOverviewProps) {
     <MobileAgentDashboardBody
       snapshot={props.snapshot}
       onNavigate={props.onNavigate}
+      deletionScheduledFor={props.deletionScheduledFor}
     />
   );
 }

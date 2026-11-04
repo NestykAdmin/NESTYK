@@ -26,6 +26,8 @@ function load(filename) {
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale], setLocale() {} }) };
     if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader', isAgentComingSoonTab: load(`${root}/packages/ui/src/config/agentComingSoon.ts`).isAgentComingSoonTab };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
+    if (name === 'react-native') return { View: () => null, StyleSheet: { create: (styles) => styles } };
+    if (name === 'react-native-webview') return { WebView: () => null };
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
     return load([base, `${base}.ts`, `${base}.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));
@@ -50,6 +52,13 @@ function props(overrides = {}) {
 function render(input) {
   cursor = 0;
   return nodes(load(path.join(__dirname, 'agent-web/AgentWorkspace.web.tsx')).AgentWorkspace(input));
+}
+const button = (tree, label) => tree.find((node) => node?.type === 'button' && node.props.children === label);
+function openAccountMenu(input) {
+  const manage = button(render(input), 'Manage account');
+  assert.ok(manage);
+  manage.props.onClick();
+  return render(input);
 }
 
 test('sidebar provides the four main destinations and the same four More shortcuts', () => {
@@ -125,8 +134,8 @@ test('the agent account menu saves a profile and other roles do not get that edi
     onUploadAvatar: async () => 'https://cdn.example/a.jpg',
     onRemoveAvatar: async () => {},
   };
-  const open = render(props(editor));
-  const edit = open.find((node) => node?.type === 'button' && node.props.children === 'Edit Profile');
+  const open = openAccountMenu(props(editor));
+  const edit = button(open, 'Edit Profile');
   assert.ok(edit);
   edit.props.onClick();
   const formTree = render(props(editor));
@@ -138,6 +147,69 @@ test('the agent account menu saves a profile and other roles do not get that edi
   state = [];
   const landlord = render(props({ activeRole: 'landlord', onSaveProfile: async () => {} }));
   assert.equal(landlord.some((node) => node?.props?.children === 'Edit Profile'), false);
+});
+
+test('desktop account menu changes the password on every role', async () => {
+  state = [];
+  const saved = [];
+  const opened = [];
+  const menu = openAccountMenu(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  const open = button(menu, 'Change Password');
+  assert.ok(open);
+  open.props.onClick();
+  const formTree = render(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  const fields = formTree.filter((node) => node?.type === 'input' && node.props.type === 'password');
+  fields[0].props.onChange({ target: { value: 'old-secret' } });
+  fields[1].props.onChange({ target: { value: 'Newsecret1' } });
+  fields[2].props.onChange({ target: { value: 'Newsecret1' } });
+  const submitted = render(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  await submitted.find((node) => node?.type === 'form').props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, [{ currentPassword: 'old-secret', newPassword: 'Newsecret1' }]);
+  const done = render(props({
+    activeRole: 'landlord',
+    onNavigate: (tab) => opened.push(tab),
+    onChangePassword: async (input) => { saved.push(input); },
+  }));
+  assert.ok(done.includes('Your password has been updated.'));
+  done.find((node) => node?.type === 'button' && node.props.children === 'OK').props.onClick();
+  assert.deepEqual(opened, ['dashboard']);
+});
+
+test('Manage account groups edit profile, change password and delete account behind one button', () => {
+  state = [];
+  const input = props({
+    onSaveProfile: async () => {},
+    onChangePassword: async () => {},
+    onLoadAccountDeletion: async () => ({ blocked: false, reasons: [], scheduledFor: null }),
+    onDeleteAccount: async () => {},
+  });
+  const closed = render(input);
+  assert.ok(button(closed, 'Manage account'));
+  for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.equal(button(closed, label), undefined);
+  assert.ok(closed.some((node) => node?.type === 'option'));
+
+  const opened = openAccountMenu(input);
+  assert.equal(button(opened, 'Manage account'), undefined);
+  for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.ok(button(opened, label));
+  assert.equal(opened.some((node) => node?.type === 'option'), false);
+
+  button(opened, 'Cancel').props.onClick();
+  assert.ok(button(render(input), 'Manage account'));
+
+  state = [];
+  assert.equal(button(render(props()), 'Manage account'), undefined);
 });
 
 test('a custom sidebar replaces the agent menu and ignores disabled items', () => {

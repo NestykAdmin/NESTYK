@@ -48,6 +48,8 @@ export const contractsJa: ContractCopy = {
       expired: '終了',
       terminated: '契約終了',
     },
+    /** A booking letter its lease has taken over (terminated with reservation_fulfilled). */
+    statusFulfilled: '使用済み',
     parties: {
       owner: '貸主',
       tenant: '入居者',
@@ -336,6 +338,8 @@ export const contractsJa: ContractCopy = {
     paidHint: 'エージェントが入金を確認し、領収書を発行しました',
     submittedHint: '振込明細を送信しました。エージェントの入金確認待ちです',
     closed: '予約書はクローズされました',
+    /** A booking letter its lease has taken over: the booking fee is the first month's rent. */
+    fulfilled: '使用済み：初月家賃から差し引き済み',
     viewInvoice: '予約金の請求書を表示',
     createInvoice: '予約金の請求書を作成',
     noInvoice: '予約金の請求書はまだありません',

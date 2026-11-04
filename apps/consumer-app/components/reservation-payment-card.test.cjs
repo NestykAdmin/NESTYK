@@ -7,6 +7,8 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { i18nMock, contractsTh, fillTemplate, leadFormat } = require('./test-i18n.cjs');
 const loaded = { exports: {} };
+const statusHelper = { exports: {} };
+new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, '../lib/contract-status.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(require, statusHelper, statusHelper.exports);
 // D11: the agent's slip return control (tested on its own in slip-return-control.test.cjs).
 const returnControls = [];
 const mockRequire = name => {
@@ -19,6 +21,7 @@ const mockRequire = name => {
   };
   if (name === '@nestyk/i18n') return i18nMock();
   if (name === '../lib/lead-format') return leadFormat;
+  if (name === '../lib/contract-status') return statusHelper.exports;
   if (name === './SlipReturnControl') return { SlipReturnControl: (props) => { returnControls.push(props); return React.createElement('slip-return', { busy: String(props.busy) }); } };
   throw new Error(`Unexpected dependency: ${name}`);
 };
@@ -89,4 +92,18 @@ test('D11: the return control belongs to one slip: a newer slip gets a new contr
     busy: false, onOpen() {}, onReturnSlip() {} })).find((n) => n.props?.onReturn);
   assert.equal(control('2026-10-22T03:00:00.000Z').key, '2026-10-22T03:00:00.000Z');
   assert.notEqual(control('2026-10-22T05:00:00.000Z').key, control('2026-10-22T03:00:00.000Z').key);
+});
+
+test('a booking letter its lease took over says it is used (the fee is the first month\'s rent); other closed letters say closed', () => {
+  const used = render({ status: 'terminated', endReasonCode: 'reservation_fulfilled', receiptUrl: 'receipt.pdf',
+    reservationPayment: { ...base.reservationPayment, status: 'paid', receiptDocumentNo: 'REC-RS202600011' } }, { onUpload() {}, onIssueReceipt() {} });
+  assert.match(used, new RegExp(contractsTh.payment.fulfilled));
+  assert.doesNotMatch(used, new RegExp(contractsTh.payment.closed));
+  assert.match(used, /ดูใบเสร็จค่าจอง REC-RS202600011/);
+  assert.doesNotMatch(used, /อัปโหลดสลิป|ตรวจสอบการชำระและออกใบเสร็จ/);
+  for (const patch of [{ status: 'terminated', endReasonCode: 'landlord_withdrew' }, { status: 'cancelled' }]) {
+    const closed = render(patch);
+    assert.match(closed, new RegExp(contractsTh.payment.closed));
+    assert.doesNotMatch(closed, new RegExp(contractsTh.payment.fulfilled));
+  }
 });

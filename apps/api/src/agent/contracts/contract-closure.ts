@@ -15,6 +15,7 @@ import { AgreementSignInviteEntity } from "../../entities/agreement-sign-invite.
 import { asIsoDate, isIsoDate } from "./lease-term";
 import { bangkokToday } from "../../billing/rent-schedule";
 import { DEAL_CANCELLATION_REASONS } from "./deal-cancellation";
+import { RESERVATION_FULFILLED_REASON } from "./reservation-fulfilment";
 
 const ENDED = ["cancelled", "expired", "terminated"];
 
@@ -39,7 +40,9 @@ export async function contractEndReasons(db: DataSource): Promise<ContractEndRea
     where: { is_active: true }, order: { sort_order: "ASC", id: "ASC" },
   });
   // D5: the deal cancellation reasons belong to that flow (with who caused it and evidence), not to closing a lease.
-  return rows.filter(row => row.code !== "draft_cancelled" && !DEAL_CANCELLATION_REASONS.includes(row.code)).map(row => ({
+  // The move-in handover sets reservation_fulfilled on the booking letter itself.
+  return rows.filter(row => row.code !== "draft_cancelled" && row.code !== RESERVATION_FULFILLED_REASON
+    && !DEAL_CANCELLATION_REASONS.includes(row.code)).map(row => ({
     code: row.code, nameTh: row.name_th, nameEn: row.name_en,
     status: row.applicable_status, requiresNote: row.requires_note,
   }));
@@ -92,7 +95,8 @@ export async function closeLeaseContract(db: DataSource, agentId: number, id: nu
       throw new BadRequestException({ code: "USE_DEAL_CANCELLATION",
         message: "สัญญาเช่าที่ยังไม่ส่งมอบห้อง ให้ยกเลิกด้วย \"ยกเลิกดีล\" (ระบุฝ่ายที่เป็นเหตุและหลักฐาน)" });
     if (c.status !== "active") throw new BadRequestException("ปิดได้เฉพาะสัญญาที่มีผลใช้งาน");
-    if (!reason.is_active || reason.code === "draft_cancelled" || DEAL_CANCELLATION_REASONS.includes(reason.code))
+    if (!reason.is_active || reason.code === "draft_cancelled" || reason.code === RESERVATION_FULFILLED_REASON
+      || DEAL_CANCELLATION_REASONS.includes(reason.code))
       throw new BadRequestException("เหตุผลนี้ไม่รองรับการปิดสัญญาที่มีผลใช้งาน");
     if (reason.requires_note && !b.note) throw new BadRequestException("เหตุผลนี้ต้องระบุหมายเหตุ");
     const start = asIsoDate(c.start_date), end = asIsoDate(c.end_date);

@@ -1,3 +1,4 @@
+import { LEASE_STILL_HELD_SQL } from "../agent/contracts/agreement-hold";
 import {
   BadRequestException,
   ConflictException,
@@ -311,7 +312,7 @@ export class TenantBillingService {
       // One parameter, two types: a date column and a JSON text value (left uncast, Postgres refuses text < date).
       // AC-8.7: also the ended leases still waiting for a decision (their stay may be over now).
       .andWhere(`((c.status = 'active' AND (c.end_date < CAST(:today AS date) OR (c.data->'endsOn'->>'date') < CAST(:today AS text)))
-        OR (c.status = 'expired' AND (c.data->'undecided') IS NOT NULL))`, { today })
+        OR ${LEASE_STILL_HELD_SQL})`, { today })
       .orderBy("c.id", "ASC")
       .getRawMany<{ id: number }>();
     let changed = 0;

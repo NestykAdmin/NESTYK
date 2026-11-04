@@ -43,6 +43,11 @@ export interface AgentWorkspaceProps {
   onSaveProfile?: (input: { firstName: string; lastName: string; phone: string | null }) => Promise<void>;
   onUploadAvatar?: (photo: { uri: string; name: string; mimeType: string; file?: Blob }) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
+  onChangePassword?: (input: { currentPassword: string; newPassword: string; captchaToken?: string }) => Promise<void>;
+  onLoadAccountDeletion?: () => Promise<{ blocked: boolean; reasons: Array<'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit'>; scheduledFor: string | null; deleteNowAvailable?: boolean }>;
+  onDeleteAccount?: (proof: { password: string; captchaToken?: string }) => Promise<void>;
+  onScheduleAccountDeletion?: (proof: { password: string; captchaToken?: string }) => Promise<void>;
+  onCancelAccountDeletion?: () => Promise<void>;
   initials: string;
   notificationCount: number;
   /** Text for an empty notification list. Defaults to the generic "no data" text. */

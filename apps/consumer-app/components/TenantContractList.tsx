@@ -1,4 +1,5 @@
 import type { ContractParty } from "@nestyk/types";
+import { isFulfilledReservation } from "../lib/contract-status";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -192,7 +193,7 @@ export function TenantContractList({
   function badge(row: PartyContract) {
     return (
       <MobileStatusPill
-        label={copy.status[row.status]}
+        label={isFulfilledReservation(row) ? copy.status.fulfilled : copy.status[row.status]}
         tone={
           row.status === "active"
             ? "green"

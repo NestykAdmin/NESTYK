@@ -28,6 +28,8 @@ import {
   tokens,
 } from "@nestyk/ui/native";
 import { useAuth } from "../lib/auth/AuthContext";
+import { hcaptchaSiteKey } from "../lib/auth/hcaptcha-site-key";
+import { HcaptchaField } from "../components/HcaptchaField";
 import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
 import { socialLoginProvider } from "../lib/auth/google-oauth";
 import { requestGuestBrowse } from "../lib/auth/role-gate";
@@ -80,6 +82,9 @@ export default function LoginScreen() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
+  const captchaRequired = hcaptchaSiteKey().length > 0;
 
   // A typed or sign-in error replaces the "session expired" notice.
   const shownError = error ?? (sessionExpired ? t.mobile.auth.sessionExpired : null);
@@ -105,14 +110,25 @@ export default function LoginScreen() {
       setError(copy.requiredFields);
       return;
     }
+    if (captchaRequired && !captchaToken) {
+      setError(copy.captchaRequired);
+      return;
+    }
     setLoading(true);
     try {
+<<<<<<< HEAD
       await signIn(email, password);
       // Web leaves through the effect above once the session (and its roles) is in; mobile goes home now.
       if (Platform.OS !== "web") router.replace("/");
+=======
+      await signIn(email, password, captchaToken ?? undefined);
+      router.replace("/");
+>>>>>>> pre/dev/review
     } catch (e) {
       setError(localizedError(e, t.mobile.auth.invalidCredentials, locale));
     } finally {
+      setCaptchaToken(null);
+      setCaptchaKey(captchaKey + 1);
       setLoading(false);
     }
   };
@@ -323,7 +339,7 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 style={[styles.forgotButton, compact && styles.forgotButtonCompact]}
-                onPress={() => setNotice(copy.resetUnavailable)}
+                onPress={() => router.push("/reset-password")}
                 accessibilityRole="button"
                 activeOpacity={0.7}
               >
@@ -331,6 +347,8 @@ export default function LoginScreen() {
                   {copy.forgotPassword}
                 </Text>
               </TouchableOpacity>
+
+              {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
 
               {shownError ? (
                 <Text
@@ -616,7 +634,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
-  submitButton: { minHeight: 48, borderRadius: 14, marginTop: 2 },
+  submitButton: { minHeight: 48, borderRadius: 14, marginTop: 16 },
   submitButtonCompact: { minHeight: 44 },
   submitContent: { flexDirection: "row", gap: 8, alignItems: "center" },
   submitText: {

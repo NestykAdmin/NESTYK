@@ -23,7 +23,8 @@ import { HandoverItemEntity, HandoverPhotoEntity, HandoverRecordEntity } from ".
 import { LeaseContractEntity } from "../../entities/lease-contract.entity";
 import { AgentContractsService } from "./agent-contracts.service";
 import { ContractDocumentStorageService } from "./contract-document-storage.service";
-import { isIsoDate } from "./lease-term";
+import { asIsoDate, isIsoDate } from "./lease-term";
+import { endFulfilledReservations } from "./reservation-fulfilment";
 
 export const HANDOVER_MAX_ITEMS = 100;
 export const HANDOVER_MAX_PHOTOS = 30;
@@ -452,8 +453,11 @@ export class HandoverService {
         if (HANDOVER_SIGN_PARTIES.every((side) => signed.has(side))) {
           await manager.update(HandoverRecordEntity, { id: saved.id, completed_at: IsNull() }, { completed_at: now });
           // D7 (AC-6.3): moving in makes a lease that is waiting for handover active. Moving out does not.
-          if (kind === "move_in")
-            await manager.update(LeaseContractEntity, { id: c.id, status: "awaiting_handover" }, { status: "active" });
+          if (kind === "move_in") {
+            const moved = await manager.update(LeaseContractEntity, { id: c.id, status: "awaiting_handover" }, { status: "active" });
+            // The lease is in force: the deal's booking letter has done its job and ends with it.
+            if (moved.affected) await endFulfilledReservations(manager, c, asIsoDate(saved.handover_date) || bangkokToday(now), now);
+          }
         }
       }, kind);
     } catch (error) {
