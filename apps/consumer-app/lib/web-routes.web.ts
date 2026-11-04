@@ -6,6 +6,7 @@ import {
   isParentRoute,
   loginPathFor,
   normalizeHref,
+  pickLandingRole,
   postLoginPath,
   routeEntryKey,
   routeToState,
@@ -146,4 +147,9 @@ export function loginHref(nextPath?: string | null): string {
 /** After sign-in: a safe `next` the account may open, else the remembered role, else agent → landlord → tenant (Q5). */
 export function postLoginHref(next: unknown, roles: readonly string[] | null | undefined): string {
   return postLoginPath(next, roles, readLastRole());
+}
+
+/** The role a signed-in account goes to when the page it asked for belongs to a role it does not have (Q5 order). */
+export function landingRoleFor(roles: readonly string[] | null | undefined): UserRole {
+  return pickLandingRole(roles, readLastRole());
 }

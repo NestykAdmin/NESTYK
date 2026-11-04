@@ -6,12 +6,12 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 
-function setup({ confirmation = false, signupError, syncError, testSignupError, development = true } = {}) {
+function setup({ confirmation = false, signupError, syncError, testSignupError, development = true, roles = ['guest', 'tenant', 'landlord', 'agent', 'admin'] } = {}) {
   const calls = { signup: [], sync: [], saved: [], signout: [], testSignup: [], verify: [], resend: [], profile: [] };
   const credentials = { firstName: 'Mary Ann', lastName: 'Van Buren', email: `${randomUUID()}@example.test`, password: randomBytes(16).toString('hex') };
   const user = { id: randomUUID() };
   const session = { access_token: randomBytes(24).toString('hex') };
-  const profile = { id: 1, email: credentials.email, firstName: credentials.firstName, lastName: credentials.lastName, roles: ['guest', 'tenant', 'landlord', 'agent', 'admin'] };
+  const profile = { id: 1, email: credentials.email, firstName: credentials.firstName, lastName: credentials.lastName, roles };
   const supabase = { auth: {
     signUp: async body => { calls.signup.push(body); return { data: { user, session: confirmation ? null : session }, error: signupError ?? null }; },
     signInWithPassword: async () => ({ data: { user, session }, error: null }),
@@ -123,4 +123,27 @@ test('a production client refuses a requested test signup before making requests
   assert.deepEqual(calls.testSignup, []);
   assert.deepEqual(calls.signup, []);
   assert.deepEqual(calls.saved, []);
+});
+
+// QA web role URL bug (4 Nov 2026): signing in must not ask the API for admin unless a dev build opts in.
+async function signUpWithoutAdmin(env, development) {
+  const saved = process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT;
+  if (env === undefined) delete process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT; else process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT = env;
+  try {
+    const { auth, credentials, calls } = setup({ development, roles: ['guest', 'agent'] });
+    await auth.signUp(credentials.email, credentials.password, credentials.firstName, credentials.lastName);
+    return calls.sync;
+  } finally {
+    if (saved === undefined) delete process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT; else process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT = saved;
+  }
+}
+
+test('signing in does not ask for the admin role unless the build opts in', async () => {
+  assert.deepEqual(await signUpWithoutAdmin(undefined, true), ['/auth/sync'], 'not set: no request');
+  assert.deepEqual(await signUpWithoutAdmin('false', true), ['/auth/sync']);
+  assert.deepEqual(await signUpWithoutAdmin('true', false), ['/auth/sync'], 'a production build never asks, even when set');
+});
+
+test('a dev build that sets EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=true still asks for admin (local development)', async () => {
+  assert.deepEqual(await signUpWithoutAdmin('true', true), ['/auth/sync', '/auth/dev/roles']);
 });

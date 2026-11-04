@@ -103,13 +103,15 @@ test('saving the new password spends the link, then stores the password', async 
   assert.equal(page.done(), true);
 });
 
-test('a used or expired link is found at save, goes back to the email step and saves nothing', async () => {
+test('a used or expired link is found at save: nothing is saved, the page stays and shows the message', async () => {
   const page = screen({ tokenHash: 'used', verify: async () => { throw new Error('Email link is invalid or has expired'); } });
   await page.saveNewPassword();
-  assert.deepEqual(page.calls, [['verify', 'used']]);
-  assert.deepEqual(page.labels(), [copy.email]);
+  assert.deepEqual(page.calls, [['verify', 'used']], 'the new password is never sent');
+  assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword], 'still the new-password page, not the email step');
   assert.ok(page.texts().includes(copy.resetLinkInvalid));
-  assert.deepEqual(page.replaced, [[null, '', '/reset-password']]);
+  assert.equal(page.done(), false);
+  await page.saveNewPassword();
+  assert.deepEqual(page.calls, [['verify', 'used'], ['verify', 'used']], 'trying again checks the link again and still saves nothing');
 });
 
 test('a rejected password keeps the spent link sign-in: the retry does not check the link again', async () => {

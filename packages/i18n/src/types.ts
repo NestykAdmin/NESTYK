@@ -40,6 +40,15 @@ export interface TranslationSchema {
     servicesSubtitle: string;
   };
   mobile: {
+    roleHome: {
+      guestTitle: string;
+      guestDesc: string;
+      tenantTitle: string;
+      landlordTitle: string;
+      agentTitle: string;
+      adminTitle: string;
+      comingSoon: string;
+    };
     tabs: {
       home: string;
       search: string;

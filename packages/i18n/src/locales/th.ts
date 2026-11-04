@@ -39,6 +39,16 @@ export const th: TranslationSchema = {
     servicesSubtitle: 'ศูนย์บริการส่วนกลาง',
   },
   mobile: {
+    /** Home card per role (QA 4 Nov 2026: no made-up numbers; admin is not built yet). */
+    roleHome: {
+      guestTitle: 'ยินดีต้อนรับสู่ NESTYK',
+      guestDesc: 'ค้นหาห้องและนัดดูห้องใกล้คุณ',
+      tenantTitle: 'หน้าหลักผู้เช่า',
+      landlordTitle: 'หน้าหลักผู้ให้เช่า',
+      agentTitle: 'หน้าหลักนายหน้า',
+      adminTitle: 'หน้าหลักผู้ดูแลระบบ',
+      comingSoon: 'เร็ว ๆ นี้',
+    },
     tabs: {
       home: 'หน้าแรก',
       search: 'ค้นหา',
@@ -344,7 +354,7 @@ export const th: TranslationSchema = {
       resetTitle: 'ลืมรหัสผ่าน',
       resetSend: 'ส่งรหัส',
       resetLinkSent: 'ถ้าอีเมลนี้มีบัญชี เราส่งลิงก์ตั้งรหัสผ่านใหม่ไปแล้ว เปิดลิงก์จากเครื่องไหนก็ได้ ลิงก์ใช้ได้ครั้งเดียว',
-      resetLinkInvalid: 'ลิงก์นี้หมดอายุหรือถูกใช้ไปแล้ว กรอกอีเมลเพื่อขอลิงก์ใหม่',
+      resetLinkInvalid: 'ลิงก์นี้หมดอายุหรือถูกใช้ไปแล้ว รหัสผ่านยังไม่ถูกเปลี่ยน กด "กลับไปเข้าสู่ระบบ" แล้วกด "ลืมรหัสผ่าน?" เพื่อขอลิงก์ใหม่',
       resetNewTitle: 'ตั้งรหัสผ่านใหม่',
       resetNewSubtitle: 'ตั้งรหัสผ่านใหม่ แล้วเครื่องอื่นจะออกจากระบบ',
       resetDone: 'เปลี่ยนรหัสผ่านแล้ว ถ้าคุณขอจากแอป กลับไปเข้าสู่ระบบในแอปด้วยรหัสผ่านใหม่',

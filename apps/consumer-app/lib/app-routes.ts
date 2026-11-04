@@ -83,6 +83,15 @@ export function loginPathFor(nextPath?: string | null): string {
   return next && next !== '/' ? `/login?next=${encodeURIComponent(next)}` : '/login';
 }
 
+/**
+ * Whether a signed-in account may open a role's pages: guest pages are public, any other role must be one of the
+ * account's roles. A typed or linked URL of another role sends the account to its own home (QA web role URL bug,
+ * 4 Nov 2026). The API still refuses the data either way.
+ */
+export function canOpenRole(role: UserRole, roles: readonly string[] | null | undefined): boolean {
+  return role === 'guest' || (roles ?? []).includes(role);
+}
+
 /** Q5: the remembered role if the account still has it, else agent → landlord → tenant → guest. */
 export function pickLandingRole(roles: readonly string[] | null | undefined, lastRole?: string | null): UserRole {
   const have = new Set(roles ?? []);
@@ -96,7 +105,7 @@ export function postLoginPath(next: unknown, roles: readonly string[] | null | u
   if (target) {
     const parsed = parseAppPath(target.split(/[?#]/)[0]);
     if (parsed.kind === 'redirect') return parsed.to;
-    if (parsed.kind === 'app' && (parsed.role === 'guest' || (roles ?? []).includes(parsed.role))) return target;
+    if (parsed.kind === 'app' && canOpenRole(parsed.role, roles)) return target;
   }
   return roleHomePath(pickLandingRole(roles, lastRole));
 }

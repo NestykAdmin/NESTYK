@@ -11,7 +11,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'app-rout
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('app-routes must stay dependency free'); }, mod, mod.exports);
 const {
-  parseAppPath, roleHomePath, safeNextPath, loginPathFor, pickLandingRole, postLoginPath,
+  parseAppPath, roleHomePath, safeNextPath, loginPathFor, pickLandingRole, postLoginPath, canOpenRole,
   stateToRoute, routeToState, routeEntryKey, isParentRoute, normalizeHref, parseQuery,
 } = mod.exports;
 
@@ -79,6 +79,21 @@ test('Q5: the remembered role wins if the account has it, else agent, landlord, 
   assert.equal(pickLandingRole(['guest', 'admin'], 'admin'), 'guest');
   assert.equal(pickLandingRole(['guest'], 'agent'), 'guest');
   assert.equal(pickLandingRole(undefined, undefined), 'guest');
+});
+
+test('QA web role URL bug (4 Nov 2026): a role page opens only for an account with that role; guest pages for all', () => {
+  const tenant = ['guest', 'tenant'];
+  for (const role of ['agent', 'landlord', 'admin']) assert.equal(canOpenRole(role, tenant), false, role);
+  assert.equal(canOpenRole('tenant', tenant), true);
+  assert.equal(canOpenRole('guest', tenant), true);
+  assert.equal(canOpenRole('guest', null), true);
+  assert.equal(canOpenRole('admin', ['guest', 'agent']), false, 'a self-registered agent is not an admin');
+  assert.equal(canOpenRole('admin', ['guest', 'admin']), true);
+  // Where the refused page sends the tenant: its own home, also for /owner (an old /landlord link).
+  assert.equal(roleHomePath(pickLandingRole(tenant, 'agent')), '/tenant', 'a remembered role it does not have is ignored');
+  const owner = parseAppPath('/owner/contracts');
+  assert.equal(owner.kind, 'redirect');
+  assert.equal(canOpenRole(parseAppPath(owner.to).role, tenant), false);
 });
 
 test('after login: next when the account may open it, else the landing role home', () => {

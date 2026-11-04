@@ -75,7 +75,9 @@ async function syncProfile(accessToken?: string): Promise<AuthUserResponse> {
 
 async function ensureAdminRole(accessToken: string, roles: string[]): Promise<AuthUserResponse | null> {
   if (roles.includes('admin')) return null;
-  if (process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT === 'false') return null;
+  // Off unless a dev build opts in with EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=true (it used to be on unless set to false).
+  // The API also refuses outside NODE_ENV=development. Same switch as ensureAgentSession (lib/agent-session.ts).
+  if (!(typeof __DEV__ !== 'undefined' && __DEV__ && process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT === 'true')) return null;
   try {
     return await apiPost<AuthUserResponse>('/auth/dev/roles', { role: 'admin' }, accessToken);
   } catch {

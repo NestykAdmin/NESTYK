@@ -102,11 +102,9 @@ export default function ResetPasswordScreen() {
         try {
           await verifyRecoveryLink(openedRecoveryTokenHash);
         } catch {
-          // Expired, already used, or a newer link was sent.
-          setPassword('');
-          setConfirmation('');
+          // Expired, already used, or a newer link was sent: nothing is saved, and the page stays here with the
+          // message (QA 4 Nov 2026); "Back to login" then "Forgot password?" sends a new link.
           setError(copy.resetLinkInvalid);
-          setStep('email');
           return;
         }
         // Spent now: a retry after a rejected password reuses this sign-in instead of the link.

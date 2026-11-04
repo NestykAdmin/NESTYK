@@ -97,8 +97,8 @@ import {
   roleRequiresAuth,
   setPendingRole,
 } from '../lib/auth/role-gate';
-import { type AppRouteState, roleHomePath, stateToRoute } from '../lib/app-routes';
-import { loginHref, useAppRouteSync, useInitialRouteState } from '../lib/web-routes';
+import { type AppRouteState, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
+import { landingRoleFor, loginHref, useAppRouteSync, useInitialRouteState } from '../lib/web-routes';
 import {
   MOCK_LISTINGS,
   MOCK_SERVICE_TICKETS,
@@ -624,7 +624,7 @@ export function AppHomeScreen() {
 
     if (isAuthenticated) {
       const pending = consumePendingRole();
-      if (pending && roleRequiresAuth(pending)) {
+      if (pending && roleRequiresAuth(pending) && canOpenRole(pending, session?.roles)) {
         setActiveRole(pending);
         setActiveTab(getDefaultTabForRole(pending));
       }
@@ -643,9 +643,35 @@ export function AppHomeScreen() {
     }
   }, [ready, isAuthenticated, activeRole, router]);
 
+  // QA web role URL bug (4 Nov 2026): a signed-in account never stays on a role it does not have (a typed URL, an
+  // old link, a page opened before the saved sign-in loaded, a default role). It goes quietly to its own home.
+  // Web: replace, so the back button does not return to the refused page.
+  const signedInRoles = ready && isAuthenticated && session ? session.roles : null;
+  const signedInRolesRef = useRef<readonly string[] | null>(signedInRoles);
+  signedInRolesRef.current = signedInRoles;
+  useEffect(() => {
+    if (!signedInRoles || canOpenRole(activeRole, signedInRoles)) return;
+    const landing = landingRoleFor(signedInRoles);
+    if (Platform.OS === 'web') {
+      router.replace(roleHomePath(landing) as never);
+      return;
+    }
+    setPartyInbox(false);
+    setSelectedPartyRoom(null);
+    setOpenedPartyContract(null);
+    setActiveRole(landing);
+    setActiveTab(getDefaultTabForRole(landing));
+  }, [signedInRoles, activeRole, router]);
+
   // Web: the shell and the URL move together (route plan R1–R2). Mobile: no-op.
   // A URL from outside (link, address bar, back/forward) opens its page with a clean state, like a menu tap.
   const applyRoute = useCallback((route: AppRouteState) => {
+    // A role this account does not have: go to its own home instead, without showing that role's page even once.
+    const roles = signedInRolesRef.current;
+    if (roles && !canOpenRole(route.role, roles)) {
+      router.replace(roleHomePath(landingRoleFor(roles)) as never);
+      return;
+    }
     setDrawerOpen(false);
     setPartyInbox(!!route.partyInbox);
     setContractHistory(route.partyInbox === 'tenants');
@@ -667,7 +693,7 @@ export function AppHomeScreen() {
     }
     setActiveRole(route.role);
     setActiveTab(route.tab);
-  }, []);
+  }, [router]);
   // Pages without a path yet (R3: lead, tenant, contract, bill room) leave the URL on the list they came from.
   const routeDetailOpen =
     !!leadEdit ||
@@ -1084,12 +1110,14 @@ export function AppHomeScreen() {
         </View>
       );
     }
+    // QA (4 Nov 2026): the old card showed made-up numbers ("Pending tickets: 3", "24 co-broke listings") in English.
+    const home = t.mobile.roleHome;
     const summaries: Record<UserRole, { title: string; desc: string; badge: string }> = {
-      guest: { title: 'Welcome to NESTYK', desc: 'Browse rooms and schedule viewings nearby.', badge: 'Guest' },
-      tenant: { title: 'Tenant Dashboard', desc: '', badge: 'Active Lease' },
-      landlord: { title: 'Landlord Dashboard', desc: '', badge: 'Landlord' },
-      agent: { title: 'Agent Dashboard', desc: '24 co-broke listings · 45,000 THB commission', badge: 'Partner' },
-      admin: { title: 'Operations Dashboard', desc: 'Pending tickets: 3 · Inspections today: 2', badge: 'Ops' },
+      guest: { title: home.guestTitle, desc: home.guestDesc, badge: t.roles.guest },
+      tenant: { title: home.tenantTitle, desc: '', badge: t.roles.tenant },
+      landlord: { title: home.landlordTitle, desc: '', badge: t.roles.landlord },
+      agent: { title: home.agentTitle, desc: '', badge: t.roles.agent },
+      admin: { title: home.adminTitle, desc: home.comingSoon, badge: t.roles.admin },
     };
     const summary = summaries[activeRole];
     return (
@@ -1500,12 +1528,9 @@ export function AppHomeScreen() {
       throw Object.assign(new Error(), { code: 'SUPABASE_NOT_CONFIGURED' });
     }
     try {
+      // The "password changed" email comes from Supabase (Authentication → Emails → Password changed), for this and for
+      // a reset. The API's own notice was removed: users got the same news twice (4 Nov 2026).
       await changeAccountPassword(supabase, session.email, input.currentPassword, input.newPassword, input.captchaToken);
-      try {
-        await apiPost('/auth/password-changed', {});
-      } catch {
-        // The password is already changed. A failed notice must not look like the change failed.
-      }
     } finally {
       setPasswordCaptchaToken(null);
       setPasswordCaptchaKey(passwordCaptchaKey + 1);

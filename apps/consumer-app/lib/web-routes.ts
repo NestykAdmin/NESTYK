@@ -1,5 +1,5 @@
 import type { UserRole } from '@nestyk/types';
-import type { AppRouteState } from './app-routes';
+import { type AppRouteState, pickLandingRole } from './app-routes';
 
 /**
  * Mobile side of the web route helpers (route plan R1–R2, rule 18). Behaviour stays exactly as before:
@@ -22,4 +22,9 @@ export function loginHref(_nextPath?: string | null): string {
 
 export function postLoginHref(_next: unknown, _roles: readonly string[] | null | undefined): string {
   return '/';
+}
+
+/** The role a signed-in account goes to when its role is one it does not have (no remembered role on mobile). */
+export function landingRoleFor(roles: readonly string[] | null | undefined): UserRole {
+  return pickLandingRole(roles);
 }

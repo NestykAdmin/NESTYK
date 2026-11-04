@@ -39,6 +39,16 @@ export const zh: TranslationSchema = {
     servicesSubtitle: '综合服务中心',
   },
   mobile: {
+    /** Home card per role (QA 4 Nov 2026: no made-up numbers; admin is not built yet). */
+    roleHome: {
+      guestTitle: '欢迎来到 NESTYK',
+      guestDesc: '浏览房源并预约附近看房。',
+      tenantTitle: '租客首页',
+      landlordTitle: '房东首页',
+      agentTitle: '中介首页',
+      adminTitle: '管理员首页',
+      comingSoon: '即将推出',
+    },
     tabs: {
       home: '首页',
       search: '搜索',
@@ -343,7 +353,7 @@ export const zh: TranslationSchema = {
       resetTitle: '忘记密码',
       resetSend: '发送验证码',
       resetLinkSent: '如果该邮箱有账号，我们已发送设置新密码的链接。可以在任何设备上打开，链接只能使用一次。',
-      resetLinkInvalid: '此链接已过期或已被使用。请输入邮箱获取新链接。',
+      resetLinkInvalid: '此链接已过期或已被使用，密码未更改。请点“返回登录”，再点“忘记密码？”获取新链接。',
       resetNewTitle: '设置新密码',
       resetNewSubtitle: '设置新密码后，其他设备将退出登录。',
       resetDone: '密码已更改。如果你是在 App 中申请的，请回到 App 用新密码登录。',
