@@ -28,7 +28,9 @@ test('Agent website reuses the public website Maps key while native Maps configu
   assert.equal(config.ios.config.googleMapsApiKey, 'native-key');
   assert.equal(config.android.config.googleMaps.apiKey, 'native-key');
   const previous = evaluate(execFileSync('git', ['show', 'HEAD:apps/consumer-app/app.config.js'], { cwd: path.resolve(__dirname, '../../..'), encoding: 'utf8' }), env);
+  // Everything except the web key matches the committed config (the key itself is committed now, so drop it on both sides).
   delete config.extra.webGoogleMapsApiKey;
+  delete previous.extra.webGoogleMapsApiKey;
   assert.deepEqual(config, previous);
 });
 

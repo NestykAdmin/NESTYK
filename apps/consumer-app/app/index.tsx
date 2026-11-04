@@ -19,6 +19,7 @@ import { TenantNextBillCard } from '../components/TenantNextBillCard';
 import { OwnerConfirmedRent } from '../components/OwnerConfirmedRent';
 import { AgentLeadsScreen } from '../components/AgentLeadsScreen';
 import { AgentWorkspace, AgentWorkspacePage } from '../components/agent-web/AgentWorkspace';
+import { GuestPublicFooter } from '../components/legal/GuestPublicFooter';
 import {
   LANDLORD_WEB_MENU,
   landlordWebActiveId,
@@ -45,7 +46,7 @@ import { AgentMoreToolsBody } from '../components/AgentMoreToolsBody';
 import { AgentRoomDetailModal, type RoomSharePreview } from '../components/AgentRoomDetailModal';
 import type { LeadRoomMatch } from '../lib/lead-match-preview';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, BackHandler, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, BackHandler, Platform, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -68,6 +69,7 @@ import {
   MobileIcon,
   useMobileTheme,
   getDefaultTabForRole,
+  isAgentComingSoonTab,
   tokens,
 } from '@nestyk/ui/native';
 import { UserRole, CONTRACT_PARTY_ROLE, type AgentLead, type AgentTenant, type ContractParty, type PartyContract } from '@nestyk/types';
@@ -95,14 +97,17 @@ import {
   roleRequiresAuth,
   setPendingRole,
 } from '../lib/auth/role-gate';
+import { type AppRouteState, roleHomePath, stateToRoute } from '../lib/app-routes';
+import { loginHref, useAppRouteSync, useInitialRouteState } from '../lib/web-routes';
 import {
   MOCK_LISTINGS,
-  MOCK_ACTIVITY_NOTIFICATIONS,
-  MOCK_MESSAGE_NOTIFICATIONS,
   MOCK_SERVICE_TICKETS,
   type DemoNotification,
 } from '../lib/mock-data';
 import { localeTag } from '../lib/lead-format';
+
+/** Empty feed until notifications are connected to the API (the bell panel shows "coming soon"). */
+const NO_NOTIFICATIONS: DemoNotification[] = [];
 
 function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t']): string {
   switch (tab) {
@@ -155,27 +160,49 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
   }
 }
 
-export default function AppHomeScreen() {
+/**
+ * The app shell for every role. Mobile: this is the "/" route. Web: the root layout keeps it mounted for every app
+ * path (route plan R1, rule 21) and the "/" route renders nothing (see IndexRoute below).
+ */
+/**
+ * Where "Sign out" lands. Web (Mos 4 Nov 2026): the guest home "/", like any public site. Mobile (frozen): the
+ * sign-in screen as before. A session that ran out still goes to /login with the "session expired" notice.
+ */
+const AFTER_SIGN_OUT_PATH = Platform.OS === 'web' ? '/' : '/login';
+/**
+ * Web width where the desktop shell (sidebar + top bar) starts. Narrower web — a phone browser — shows the mobile
+ * app's own screens and bottom tabs (Mos 4 Nov 2026). Mobile apps never read this.
+ */
+const WEB_SHELL_MIN_WIDTH = 768;
+
+export function AppHomeScreen() {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const router = useRouter();
-  const { ready, isAuthenticated, session, displayName, initials, signOut, refreshProfile } = useAuth();
-  const [activeRole, setActiveRole] = useState<UserRole>(APP_CONFIG.defaultRole);
-  const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => calendarDateKey(new Date()));
-  const [calendarMonth, setCalendarMonth] = useState(() => calendarDateKey(new Date()).slice(0, 7) + '-01');
-  const [calendarReloadToken, setCalendarReloadToken] = useState(0);
-  const [activeTab, setActiveTab] = useState<MobileAppTab>(() =>
-    getDefaultTabForRole(APP_CONFIG.defaultRole),
+  const { ready, isAuthenticated, session, displayName, initials, signOut, signOutEverywhere, refreshProfile } = useAuth();
+  // Web: the URL picks the page ("/" guest, "/agent/rooms", ...; route plan R1–R2). Mobile: null, so
+  // EXPO_PUBLIC_DEFAULT_ROLE and the role's first tab as before.
+  const initialRoute = useInitialRouteState();
+  const initialRole = initialRoute?.role ?? APP_CONFIG.defaultRole;
+  const [activeRole, setActiveRole] = useState<UserRole>(initialRole);
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(
+    () => initialRoute?.calendarDate ?? calendarDateKey(new Date()),
   );
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => (initialRoute?.calendarDate ?? calendarDateKey(new Date())).slice(0, 7) + '-01',
+  );
+  const [calendarReloadToken, setCalendarReloadToken] = useState(0);
+  const [activeTab, setActiveTab] = useState<MobileAppTab>(() => initialRoute?.tab ?? getDefaultTabForRole(initialRole));
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [passwordCaptchaToken, setPasswordCaptchaToken] = useState<string | null>(null);
   const [passwordCaptchaKey, setPasswordCaptchaKey] = useState(0);
   const passwordCaptchaRequired = hcaptchaSiteKey().length > 0;
-  const [partyInbox, setPartyInbox] = useState(false);
+  const [partyInbox, setPartyInbox] = useState(() => !!initialRoute?.partyInbox);
   const [selectedPartyRoom, setSelectedPartyRoom] = useState<PartyContractRoom | null>(null);
-  const [contractHistory, setContractHistory] = useState(false);
-  const [billHistory, setBillHistory] = useState(false);
+  const [contractHistory, setContractHistory] = useState(() => initialRoute?.partyInbox === 'tenants');
+  const [billHistory, setBillHistory] = useState(() => !!initialRoute?.billHistory);
   const [selectedBillRoom, setSelectedBillRoom] = useState<{ property: string; room: string | null } | null>(null);
   const [openedPartyContract, setOpenedPartyContract] = useState<PartyContract | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -194,7 +221,8 @@ export default function AppHomeScreen() {
         time: time.format(new Date(at)),
         unread: unread && !notificationsRead,
       }));
-    return [show(MOCK_ACTIVITY_NOTIFICATIONS), show(MOCK_MESSAGE_NOTIFICATIONS)];
+    // Notifications are not connected to the API yet: show none instead of the demo feed ("coming soon", meeting 2 Nov 2026).
+    return [show(NO_NOTIFICATIONS), show(NO_NOTIFICATIONS)];
   }, [t, locale, notificationsRead]);
   const [createLeadBusy, setCreateLeadBusy] = useState(false);
   const [leadsWorkFilter, setLeadsWorkFilter] = useState<'lead_follow_up' | null>(null);
@@ -210,7 +238,7 @@ export default function AppHomeScreen() {
   const pendingRefresh = useRef<number | null>(null);
   const [leadsReloadToken, setLeadsReloadToken] = useState(0);
   const [roomsReloadToken, setRoomsReloadToken] = useState(0);
-  const [creatingTenant, setCreatingTenant] = useState(false);
+  const [creatingTenant, setCreatingTenant] = useState(() => !!initialRoute?.creatingTenant);
   const [createTenantBusy, setCreateTenantBusy] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<AgentTenant | null>(null);
   const createTenantBackRef = useRef<(() => boolean) | null>(null);
@@ -391,6 +419,16 @@ export default function AppHomeScreen() {
     setActiveTab('createLead');
   }, [activeTab]);
 
+  /** Web "+ Create" menu and sidebar links (agent web shell). Mobile never calls this. */
+  const openWebCreate = (kind: 'room' | 'lead' | 'tenant') => {
+    if (kind === 'room') openCreateListing();
+    else if (kind === 'lead') openCreateLead();
+    else {
+      handleTabPress('clients');
+      setCreatingTenant(true);
+    }
+  };
+
   const goBackFromSecondary = useCallback(() => {
     const fallback: MobileAppTab =
       activeTab === 'createLead'
@@ -570,7 +608,7 @@ export default function AppHomeScreen() {
     if (roleRequiresAuth(role) && !isAuthenticated) {
       setPendingRole(role);
       setDrawerOpen(false);
-      router.push('/login');
+      router.push(loginHref(roleHomePath(role)) as never);
       return;
     }
     setPartyInbox(false);
@@ -600,9 +638,58 @@ export default function AppHomeScreen() {
     }
 
     if (roleRequiresAuth(activeRole)) {
-      router.replace('/login');
+      // Web: /login?next=<this page>, so signing in comes back here (route plan rule 7). Mobile: /login.
+      router.replace(loginHref() as never);
     }
   }, [ready, isAuthenticated, activeRole, router]);
+
+  // Web: the shell and the URL move together (route plan R1–R2). Mobile: no-op.
+  // A URL from outside (link, address bar, back/forward) opens its page with a clean state, like a menu tap.
+  const applyRoute = useCallback((route: AppRouteState) => {
+    setDrawerOpen(false);
+    setPartyInbox(!!route.partyInbox);
+    setContractHistory(route.partyInbox === 'tenants');
+    setSelectedPartyRoom(null);
+    setOpenedPartyContract(null);
+    setBillHistory(!!route.billHistory);
+    setSelectedBillRoom(null);
+    setLeadsWorkFilter(null);
+    setClientsWorkFilter(null);
+    setSecondaryReturnTab(null);
+    setLeadEdit(null);
+    setMatchRoomId(null);
+    setMatchRoomPreview(null);
+    setCreatingTenant(!!route.creatingTenant);
+    if (route.tab === 'calendar') {
+      const date = route.calendarDate ?? calendarDateKey(new Date());
+      setCalendarSelectedDate(date);
+      setCalendarMonth(date.slice(0, 7) + '-01');
+    }
+    setActiveRole(route.role);
+    setActiveTab(route.tab);
+  }, []);
+  // Pages without a path yet (R3: lead, tenant, contract, bill room) leave the URL on the list they came from.
+  const routeDetailOpen =
+    !!leadEdit ||
+    isTenantDetail ||
+    !!tenantEntry ||
+    !!selectedBillRoom ||
+    !!selectedPartyRoom ||
+    !!openedPartyContract ||
+    (activeRole === 'tenant' && partyInbox && contractHistory);
+  const routeHref =
+    Platform.OS === 'web'
+      ? stateToRoute({
+          role: activeRole,
+          tab: activeTab,
+          creatingTenant,
+          partyInbox: partyInbox ? (activeRole === 'landlord' && contractHistory ? 'tenants' : 'contracts') : null,
+          calendarDate: calendarSelectedDate,
+          billHistory,
+          detailOpen: routeDetailOpen,
+        })
+      : null;
+  useAppRouteSync(routeHref, activeRole, applyRoute);
 
   const accentColor =
     tokens.colors.roles[activeRole as keyof typeof tokens.colors.roles] || tokens.colors.accent;
@@ -618,10 +705,17 @@ export default function AppHomeScreen() {
   const headingText = { color: theme.textHeading };
   const secondaryText = { color: theme.textSecondary };
 
-  const isAgentWeb = Platform.OS === 'web' && activeRole === 'agent';
-  const isLandlordWeb = Platform.OS === 'web' && activeRole === 'landlord';
-  const isTenantWeb = Platform.OS === 'web' && activeRole === 'tenant';
+  /** Web narrower than a tablet shows the same screens as the mobile app; the desktop shell starts at WEB_SHELL_MIN_WIDTH. */
+  const isWideWeb = Platform.OS === 'web' && windowWidth >= WEB_SHELL_MIN_WIDTH;
+  const isAgentWeb = isWideWeb && activeRole === 'agent';
+  const isLandlordWeb = isWideWeb && activeRole === 'landlord';
+  const isTenantWeb = isWideWeb && activeRole === 'tenant';
   const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb;
+  // Widening the browser past WEB_SHELL_MIN_WIDTH swaps in the desktop shell; close the app drawer so it does not
+  // pop back open when the window is narrowed again.
+  useEffect(() => {
+    if (isDesktopWeb) setDrawerOpen(false);
+  }, [isDesktopWeb]);
   const Page = isDesktopWeb ? AgentWorkspacePage : MobileModePage;
   const AgentHeader = isAgentWeb ? AgentSectionHeader : MobileSectionHeader;
   const SectionHeader = isDesktopWeb ? AgentSectionHeader : MobileSectionHeader;
@@ -831,13 +925,10 @@ export default function AppHomeScreen() {
           setActiveTab('clients');
           return;
         case 'viewServices':
-          setActiveTab('services');
-          return;
         case 'viewContacts':
-          setActiveTab('contact');
-          return;
         case 'viewContracts':
-          setActiveTab('contracts');
+          // Pages not ready yet (same "coming soon" as the More tab)
+          Alert.alert(t.agent.dashboard.comingSoon, t.agent.dashboard.unavailableSection);
           return;
         case 'viewListing':
           setActiveTab('listingRoom');
@@ -971,7 +1062,7 @@ export default function AppHomeScreen() {
           </View>
         );
       }
-      if (Platform.OS === 'web') {
+      if (isAgentWeb) {
         return (
           <AgentOverview
             snapshot={agentDashboardSnapshot}
@@ -1204,6 +1295,18 @@ export default function AppHomeScreen() {
 
     if (activeTab === 'more') {
       return <AgentMoreToolsBody onOpen={setActiveTab} />;
+    }
+
+    // Agent pages that are not ready (contacts, contracts archive, services): "coming soon" instead of mock content.
+    if (activeRole === 'agent' && isAgentComingSoonTab(activeTab)) {
+      return (
+        <View style={styles.bodyContainer}>
+          <View style={[styles.card, cardStyle]}>
+            <Text style={[styles.sectionHeader, headingText]}>{t.agent.dashboard.comingSoon}</Text>
+            <Text style={[styles.sectionDesc, secondaryText]}>{t.agent.dashboard.unavailableSection}</Text>
+          </View>
+        </View>
+      );
     }
 
     if (activeTab === 'contact') {
@@ -1475,7 +1578,7 @@ export default function AppHomeScreen() {
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
-      router.replace('/login');
+      router.replace(AFTER_SIGN_OUT_PATH);
     } catch {
       setPartyInbox(false);
       setSelectedPartyRoom(null);
@@ -1483,8 +1586,20 @@ export default function AppHomeScreen() {
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
-      router.replace('/login');
+      router.replace(AFTER_SIGN_OUT_PATH);
     }
+  };
+
+  /** Web account menu: "Sign out of all devices". Throws if Supabase cannot be reached (the dialog shows it). */
+  const handleSignOutEverywhere = async () => {
+    await signOutEverywhere();
+    setDrawerOpen(false);
+    setPartyInbox(false);
+    setSelectedPartyRoom(null);
+    setOpenedPartyContract(null);
+    setActiveRole('guest');
+    setActiveTab(getDefaultTabForRole('guest'));
+    router.replace(AFTER_SIGN_OUT_PATH);
   };
 
   const handleRequireAuth = () => {
@@ -1561,8 +1676,13 @@ export default function AppHomeScreen() {
         onRefresh={onPageRefresh}
         refreshing={pageRefreshing}
         onNavigate={handleTabPress}
+        onCreate={isAgentWeb ? openWebCreate : undefined}
+        creating={creatingTenant ? 'tenant' : null}
         onRoleChange={handleRoleChange}
+        allowedRoles={isAuthenticated ? session?.roles : undefined}
+        notificationsEmptyLabel={t.agent.dashboard.comingSoon}
         onSignOut={handleAuthAction}
+        onSignOutEverywhere={isAuthenticated ? handleSignOutEverywhere : undefined}
         userName={profileName}
         userEmail={profileEmail}
         userPhone={profilePhone}
@@ -1772,6 +1892,9 @@ export default function AppHomeScreen() {
           ) : (
             renderTabBody()
           )}
+          {activeRole === 'guest' && (activeTab === 'home' || activeTab === 'search' || activeTab === 'services') ? (
+            <GuestPublicFooter />
+          ) : null}
         </React.Fragment>
       </Page>
       </AgentWorkspace>
@@ -1802,6 +1925,7 @@ export default function AppHomeScreen() {
         onRoleChange={(role) => {
           handleRoleChange(role);
         }}
+        allowedRoles={isAuthenticated && session ? (session.roles as UserRole[]) : undefined}
         onSignOut={handleAuthAction}
         signOutLabel={isAuthenticated ? t.common.signOut : t.common.signIn}
         onMenuAction={(action) => {
@@ -1832,6 +1956,7 @@ export default function AppHomeScreen() {
         <MobileNotificationsBody
           activityItems={notifications}
           messageItems={messages}
+          emptyLabel={t.agent.dashboard.comingSoon}
           onBack={() => setNotificationsOpen(false)}
           onClearAll={() => {
             setNotificationsRead(true);
@@ -1908,3 +2033,8 @@ const styles = StyleSheet.create({
     color: tokens.colors.primary,
   },
 });
+
+/** Route "/". Mobile renders the app shell here. Web renders nothing: the root layout hosts the shell (WebAppHost). */
+export default function IndexRoute() {
+  return Platform.OS === 'web' ? null : <AppHomeScreen />;
+}

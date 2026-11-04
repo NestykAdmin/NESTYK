@@ -23,6 +23,12 @@ function codeFromBody(body: unknown): string | undefined {
 
 /** `code` of the ApiError thrown when a signed-in user's session can no longer be renewed. */
 export const SESSION_EXPIRED = 'SESSION_EXPIRED';
+/**
+ * 401 from RecentAuthGuard (apps/api/src/auth/guards/recent-auth.guard.ts): the token is fine but the password
+ * check is too old for this action (delete account). The user stays signed in and is asked for the password again
+ * (review b41a56f N2, Mos 4 Nov 2026).
+ */
+export const REAUTH_REQUIRED = 'REAUTH_REQUIRED';
 
 let onSessionExpired: (() => void) | null = null;
 
@@ -138,7 +144,7 @@ export async function apiRequest<T>(
   const auth = await authHeader(accessToken);
   let { res, parsed } = await send(auth.headers);
 
-  if (res.status === 401 && auth.supabase) {
+  if (res.status === 401 && auth.supabase && codeFromBody(parsed) !== REAUTH_REQUIRED) {
     // Every 401 in the API is thrown before anything is written, so sending the same request again
     // is safe. Checked 2026-10-21: apps/api/src/auth/guards/auth.guard.ts, auth/guards/roles.guard.ts,
     // auth/auth.controller.ts (requireUser), agent/listings/agent-listings.controller.ts.

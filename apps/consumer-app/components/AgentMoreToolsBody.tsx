@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import {
   getCardElevation,
+  isAgentComingSoonTab,
   MobileIcon,
   MobileStatusPill,
   tokens,
@@ -46,31 +47,39 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
       <View style={styles.grid}>
         {rows.map((row, index) => (
           <View key={index} style={styles.gridRow}>
-            {row.map((item) => (
-              <Pressable
-                key={item.tool}
-                onPress={() => onOpen(item.tool)}
-                accessibilityRole="button"
-                accessibilityLabel={`${item.label}, ${item.desc}`}
-                android_ripple={{ color: 'rgba(33,30,30,0.08)' }}
-                style={({ pressed }) => [
-                  styles.tile,
-                  card,
-                  cardShadow,
-                  pressed && Platform.OS === 'ios' ? styles.pressed : null,
-                ]}
-              >
-                <View style={[styles.iconBox, { backgroundColor: iconBg(item.highlight) }]}>
-                  <MobileIcon name={item.icon} size={22} color={iconColor(item.highlight)} />
-                </View>
-                <Text style={[styles.title, { color: theme.textHeading }]} numberOfLines={1}>
-                  {item.label}
-                </Text>
-                <Text style={[styles.desc, { color: theme.textSecondary }]} numberOfLines={2}>
-                  {item.desc}
-                </Text>
-              </Pressable>
-            ))}
+            {row.map((item) => {
+              const soon = isAgentComingSoonTab(item.tool);
+              return (
+                <Pressable
+                  key={item.tool}
+                  onPress={() => onOpen(item.tool)}
+                  disabled={soon}
+                  accessibilityRole="button"
+                  accessibilityLabel={soon ? `${item.label}, ${d.comingSoon}` : `${item.label}, ${item.desc}`}
+                  accessibilityState={{ disabled: soon }}
+                  android_ripple={soon ? undefined : { color: 'rgba(33,30,30,0.08)' }}
+                  style={({ pressed }) => [
+                    styles.tile,
+                    card,
+                    cardShadow,
+                    pressed && Platform.OS === 'ios' ? styles.pressed : null,
+                  ]}
+                >
+                  <View style={styles.tileTop}>
+                    <View style={[styles.iconBox, soon && styles.dimmed, { backgroundColor: iconBg(item.highlight) }]}>
+                      <MobileIcon name={item.icon} size={22} color={soon ? theme.textSecondary : iconColor(item.highlight)} />
+                    </View>
+                    {soon ? <MobileStatusPill label={d.comingSoon} tone="slate" /> : null}
+                  </View>
+                  <Text style={[styles.title, soon && styles.dimmed, { color: theme.textHeading }]} numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                  <Text style={[styles.desc, soon && styles.dimmed, { color: theme.textSecondary }]} numberOfLines={2}>
+                    {item.desc}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         ))}
       </View>
@@ -120,6 +129,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   pressed: { opacity: 0.7 },
+  tileTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: tokens.typography.native.bodyBold, fontSize: 15, lineHeight: 22, marginTop: 14 },
   desc: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18, marginTop: 2 },

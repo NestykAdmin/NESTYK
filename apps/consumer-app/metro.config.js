@@ -33,4 +33,7 @@ config.resolver.extraNodeModules = {
   ),
 };
 
-module.exports = config;
+// 4. Dev web: "/api/..." on :8081 goes to the API on this machine (scripts/dev-api-proxy.cjs).
+const { withDevApiProxy } = require('./scripts/dev-api-proxy.cjs');
+
+module.exports = withDevApiProxy(config);

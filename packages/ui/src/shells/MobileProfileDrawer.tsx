@@ -11,6 +11,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { MobileButton } from '../components/MobileButton';
+import { MobileStatusPill } from '../components/MobileStatusPill';
 import { MobileNestykLogo } from '../components/MobileNestykLogo';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
 import { MobileProfileEditBody, ProfilePhotoFile, ProfileSaveInput } from '../components/MobileProfileEditBody';
@@ -335,6 +336,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
     const hasChildren = Boolean(item.children?.length);
     const isExpanded = Boolean(expandedIds[item.id]);
     const isLeaf = !hasChildren && Boolean(item.action);
+    const soon = Boolean(item.comingSoon);
 
     return (
       <View key={item.id}>
@@ -345,19 +347,23 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
             !opts?.isLast && !isExpanded && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
           ]}
           onPress={() => handleMenuItemPress(item)}
+          disabled={soon}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={t.mobile.drawerMenu[item.labelKey]}
+          accessibilityLabel={soon ? `${t.mobile.drawerMenu[item.labelKey]}, ${t.agent.dashboard.comingSoon}` : t.mobile.drawerMenu[item.labelKey]}
+          accessibilityState={{ disabled: soon }}
         >
           <MobileIcon
             name={item.icon}
             size={opts?.nested ? 18 : 20}
-            color={opts?.nested ? theme.textSecondary : roleColor}
+            color={opts?.nested || soon ? theme.textSecondary : roleColor}
           />
-          <Text style={[styles.navLabel, { color: theme.textHeading }]}>
+          <Text style={[styles.navLabel, { color: soon ? theme.textSecondary : theme.textHeading }]}>
             {t.mobile.drawerMenu[item.labelKey]}
           </Text>
-          {hasChildren ? (
+          {soon ? (
+            <MobileStatusPill label={t.agent.dashboard.comingSoon} tone="slate" />
+          ) : hasChildren ? (
             <MobileIcon
               name={isExpanded ? 'chevron-down' : 'chevron-right'}
               size={18}
@@ -622,15 +628,21 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                             !isLast && { borderBottomWidth: 1, borderBottomColor: theme.border },
                           ]}
                           onPress={() => dispatchMenuAction(child.action)}
+                          disabled={Boolean(child.comingSoon)}
                           activeOpacity={0.75}
                           accessibilityRole="button"
-                          accessibilityLabel={t.mobile.drawerMenu[child.labelKey]}
+                          accessibilityLabel={child.comingSoon ? `${t.mobile.drawerMenu[child.labelKey]}, ${t.agent.dashboard.comingSoon}` : t.mobile.drawerMenu[child.labelKey]}
+                          accessibilityState={{ disabled: Boolean(child.comingSoon) }}
                         >
-                          <MobileIcon name={child.icon} size={20} color={roleColor} />
-                          <Text style={[styles.navLabel, { color: theme.textHeading }]}>
+                          <MobileIcon name={child.icon} size={20} color={child.comingSoon ? theme.textSecondary : roleColor} />
+                          <Text style={[styles.navLabel, { color: child.comingSoon ? theme.textSecondary : theme.textHeading }]}>
                             {t.mobile.drawerMenu[child.labelKey]}
                           </Text>
-                          <MobileIcon name="chevron-right" size={18} color={mutedIcon} />
+                          {child.comingSoon ? (
+                            <MobileStatusPill label={t.agent.dashboard.comingSoon} tone="slate" />
+                          ) : (
+                            <MobileIcon name="chevron-right" size={18} color={mutedIcon} />
+                          )}
                         </TouchableOpacity>
                       );
                     })}

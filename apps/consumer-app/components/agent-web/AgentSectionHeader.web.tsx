@@ -10,6 +10,7 @@ import { useLocale } from "@nestyk/i18n";
 export function AgentSectionHeader(props: MobileSectionHeaderProps) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
+  const deep = props.leading === "back" && !!props.onBackPress;
   return (
     <div className="aw-page-heading">
       <div className="aw-page-title">
@@ -29,9 +30,12 @@ export function AgentSectionHeader(props: MobileSectionHeaderProps) {
           </button>
         ) : null}
         <div className="aw-page-title-copy">
-          <div className="aw-page-title-line">
-            <h1>{props.title}</h1>
-          </div>
+          {/* Top-level pages: the title is in the shell top bar (design W1). Deep pages keep it next to the back button. */}
+          {deep ? (
+            <div className="aw-page-title-line">
+              <h2>{props.title}</h2>
+            </div>
+          ) : null}
           {props.workspaceLabel ? (
             <p>{props.workspaceLabel}</p>
           ) : null}

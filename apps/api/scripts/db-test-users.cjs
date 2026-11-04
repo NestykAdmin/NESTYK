@@ -6,7 +6,8 @@
 //   ALLOW_TEST_USERS=true (opt-in, keep it out of prod), TEST_USER_PASSWORD (8+ chars, shared by all QA logins)
 //   optional TEST_USER_EMAIL_DOMAIN (default nestyk.test; the API's email checks need a dot in the domain)
 // Safe to re-run: existing logins get the password reset to TEST_USER_PASSWORD and their roles set to exactly
-// the list below. Only qa-<role>@<domain> accounts are touched.
+// the list below. Only the accounts in ACCOUNTS are touched: qa-<key>@<domain>, or <local>@<domain> when a row
+// sets `local` (admin@<domain>).
 //
 // Role catalog transition (docs/ROLE-CHANGE-PLAN.md):
 //   legacy catalog = master_roles has 'owner' (meaning landlord) and no 'landlord'
@@ -38,6 +39,13 @@ const ACCOUNTS = [
   { key: 'admin', label: 'Admin', roles: () => ['guest', 'admin'] },
   // Second agent login (append-only: the phone 09900000NN comes from the list position, so keep new rows at the end).
   { key: 'agent2', label: 'Agent 2', roles: () => ['guest', 'agent'] },
+  // Rental-lifecycle E2E logins (3 Nov 2026), used instead of qa-tenant / qa-landlord so the cycle tests
+  // start from accounts no other test touches.
+  { key: 'e2e-tenant', label: 'E2E Tenant', roles: () => ['guest', 'tenant'] },
+  { key: 'e2e-landlord', label: 'E2E Landlord', roles: (cat) => ['guest', cat.isNew ? 'landlord' : 'owner'] },
+  // Super admin: every role in master_roles (re-run after a new role is added to give it that role too).
+  // Never 'owner' in the new catalog (retired code, see the header).
+  { key: 'super-admin', local: 'admin', label: 'Super Admin', roles: (cat) => cat.allRoles.filter((r) => !(cat.isNew && r === 'owner')) },
 ];
 
 function env(name) {
@@ -103,13 +111,16 @@ async function main() {
   try {
     const roleRows = (await db.query('SELECT id, name FROM public.master_roles')).rows;
     const roleId = new Map(roleRows.map((r) => [r.name, r.id]));
-    const cat = { isNew: roleId.has('landlord') };
+    const cat = {
+      isNew: roleId.has('landlord'),
+      allRoles: [...roleRows].sort((a, b) => a.id - b.id).map((r) => r.name),
+    };
     console.log(`Role catalog: ${cat.isNew ? 'new (landlord)' : "legacy ('owner' means landlord)"}`);
 
     const report = [];
     let failed = 0;
     for (const [i, acc] of ACCOUNTS.entries()) {
-      const email = `qa-${acc.key}@${domain}`;
+      const email = `${acc.local ?? `qa-${acc.key}`}@${domain}`;
       const wanted = acc.roles(cat);
       if (!wanted) {
         report.push({ email, roles: '-', result: `pending: needs role "${SELF_OWNER_ROLE}" (round 2 of docs/ROLE-CHANGE-PLAN.md)` });

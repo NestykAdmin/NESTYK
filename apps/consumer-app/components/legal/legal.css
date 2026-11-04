@@ -1,0 +1,244 @@
+/* Footer plan F3 + /privacy, /terms pages (design-drafts/v5 boards W20, W21). Web only. */
+
+.lg-auth-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: center;
+  margin: 12px auto 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.45);
+  color: #ffffff;
+  font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+}
+.lg-auth-footer a {
+  color: #ffffff;
+  text-decoration: none;
+}
+.lg-auth-footer a:hover,
+.lg-auth-footer a:focus-visible {
+  text-decoration: underline;
+}
+.lg-auth-footer a:focus-visible {
+  outline: 2px solid #f8b615;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.lg-item {
+  white-space: nowrap;
+}
+.lg-dot {
+  margin-right: 6px;
+  opacity: 0.6;
+}
+
+/* Document pages */
+/* Expo web loads each weight as its own family (NotoSansThai_600SemiBold), so headings name it directly. */
+.lg-main h1,
+.lg-main h2,
+.lg-toc-title,
+.lg-draft strong,
+.lg-toc-mobile summary {
+  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
+  font-weight: 400;
+}
+.lg-root {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: #f3f5f8;
+  color: #1a2b48;
+  font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
+  scroll-behavior: smooth;
+}
+.lg-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+.lg-brand {
+  display: inline-flex;
+}
+.lg-lang select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1a2b48;
+  font: inherit;
+  font-size: 13px;
+}
+.lg-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.lg-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 720px);
+  justify-content: center;
+  gap: 40px;
+  padding: 32px 24px 56px;
+}
+.lg-toc {
+  position: sticky;
+  top: 96px;
+  align-self: start;
+  font-size: 13px;
+}
+.lg-toc-title {
+  margin: 0 0 8px;
+  color: #64748b;
+}
+.lg-toc ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+.lg-toc a {
+  color: #1a2b48;
+  text-decoration: none;
+}
+.lg-toc a:hover {
+  text-decoration: underline;
+}
+.lg-main {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 32px 40px;
+  line-height: 1.75;
+}
+.lg-main h1 {
+  margin: 16px 0 4px;
+  font-size: 28px;
+  line-height: 1.3;
+}
+.lg-main h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.4;
+}
+.lg-draft {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff3cc;
+  color: #6b4a00;
+  font-size: 14px;
+}
+.lg-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+.lg-print {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1a2b48;
+  font: inherit;
+  cursor: pointer;
+}
+.lg-intro {
+  margin: 20px 0 8px;
+}
+.lg-section {
+  padding: 16px 0;
+  border-top: 1px solid #eef2f6;
+  scroll-margin-top: 80px;
+}
+.lg-section p {
+  margin: 0;
+  color: #334155;
+}
+.lg-other {
+  margin: 24px 0 0;
+  font-size: 14px;
+}
+.lg-other a,
+.lg-main a {
+  color: #1a2b48;
+}
+
+.lg-toc-mobile {
+  display: none;
+  margin: 8px 0 4px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.lg-toc-mobile summary {
+  cursor: pointer;
+  color: #64748b;
+}
+.lg-toc-mobile ol {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+@media (max-width: 900px) {
+  .lg-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px 12px 40px;
+  }
+  /* The side list would push the title a whole screen down: fold it into the page instead. */
+  .lg-toc {
+    display: none;
+  }
+  .lg-toc-mobile {
+    display: block;
+  }
+  .lg-main {
+    padding: 20px;
+  }
+}
+
+@media print {
+  .lg-root {
+    position: static;
+    overflow: visible;
+    background: #ffffff;
+  }
+  .lg-top,
+  .lg-toc,
+  .lg-toc-mobile,
+  .lg-print,
+  .lg-other,
+  .lg-root footer {
+    display: none;
+  }
+  .lg-layout {
+    display: block;
+    padding: 0;
+  }
+  .lg-main {
+    border: 0;
+    padding: 0;
+  }
+}

@@ -24,13 +24,13 @@ function load(filename) {
       return [state[index], value => { state[index] = value; }];
     } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale], setLocale() {} }) };
-    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader' };
+    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader', isAgentComingSoonTab: load(`${root}/packages/ui/src/config/agentComingSoon.ts`).isAgentComingSoonTab };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
     if (name === 'react-native') return { View: () => null, StyleSheet: { create: (styles) => styles } };
     if (name === 'react-native-webview') return { WebView: () => null };
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
-    return load([base, `${base}.ts`, `${base}.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));
+    return load([base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));
   };
   new Function('require', 'module', 'exports', ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true, target: ts.ScriptTarget.ES2022 },
@@ -61,15 +61,68 @@ function openAccountMenu(input) {
   return render(input);
 }
 
-test('sidebar provides the four main destinations and the same four More shortcuts', () => {
+test('sidebar groups: Menu (Listing and Tenants open sub-pages), More, Finance and Workspace; coming-soon items stay disabled', () => {
   state = [];
   const calls = [];
   const tree = render(props({ onNavigate: tab => calls.push(tab), activeTab: 'createLead' }));
-  const buttons = byClass(tree, 'aw-nav-item').filter(node => !node.props.disabled);
-  buttons.forEach(button => button.props.onClick());
-  assert.deepEqual(calls, ['dashboard', 'listingRoom', 'listingLead', 'clients', 'calendar', 'contact', 'services', 'contracts']);
-  assert.equal(buttons.find(node => node.props['aria-current'] === 'page').props.title, 'Leads');
-  assert.equal(tree.filter(node => node?.type === 'nav').length, 3);
+  const items = byClass(tree, 'aw-nav-item');
+  items.filter(node => !node.props.disabled).forEach(node => node.props.onClick());
+  // Listing and Tenants toggle their sub-pages instead of navigating while the sidebar is open
+  assert.deepEqual(calls, ['dashboard', 'listingLead', 'calendar']);
+  const soon = items.filter(node => node.props.disabled).map(node => node.props.title);
+  assert.deepEqual(soon, ['Contacts · Coming soon', 'Services · Coming soon', 'Contracts archive · Coming soon', 'Commission · Coming soon', 'Team · Coming soon']);
+  assert.equal(items.find(node => node.props['aria-current'] === 'page').props.title, 'Leads');
+  assert.equal(tree.filter(node => node?.type === 'nav').length, 4);
+  assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Create Lead');
+});
+
+test('the group of the current page opens with its sub-pages and the create links use onCreate', () => {
+  state = [];
+  const calls = [];
+  const input = props({ activeTab: 'listingRoom', onNavigate: tab => calls.push(tab), onCreate: kind => calls.push(`create:${kind}`) });
+  let tree = render(input);
+  const subs = byClass(tree, 'aw-nav-subitem');
+  assert.deepEqual(subs.map(node => node.props.children), ['Room Listings', 'Add listing']);
+  assert.equal(subs[0].props['aria-current'], 'page');
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Room Listings');
+  subs.forEach(node => node.props.onClick());
+  assert.deepEqual(calls, ['listingRoom', 'create:room']);
+  // Opening Tenants shows the list and "Create tenant"
+  byClass(tree, 'aw-nav-item').find(node => node.props.title === 'Tenants').props.onClick();
+  tree = render(input);
+  assert.deepEqual(byClass(tree, 'aw-nav-subitem').map(node => node.props.children), ['Room Listings', 'Add listing', 'All tenants', 'Create tenant']);
+  state = [];
+  tree = render(props({ activeTab: 'clients', creating: 'tenant', onCreate() {} }));
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Create tenant');
+  assert.equal(byClass(tree, 'aw-nav-subitem').find(node => node.props['aria-current'] === 'page').props.children, 'Create tenant');
+});
+
+test('collapsed sidebar: a group icon goes straight to its first page', () => {
+  state = [];
+  const calls = [];
+  const input = props({ onNavigate: tab => calls.push(tab) });
+  byClass(render(input), 'aw-collapse')[0].props.onClick();
+  const tree = render(input);
+  byClass(tree, 'aw-nav-item').find(node => node.props.title === 'Listing').props.onClick();
+  byClass(tree, 'aw-nav-item').find(node => node.props.title === 'Tenants').props.onClick();
+  assert.deepEqual(calls, ['listingRoom', 'clients']);
+  assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
+});
+
+test('the + Create menu lists add room, create lead and create tenant for the agent only', () => {
+  state = [];
+  const calls = [];
+  const input = props({ onCreate: kind => calls.push(kind) });
+  const trigger = render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Create');
+  assert.ok(trigger);
+  trigger.props.onClick();
+  const menu = render(input).filter(node => node?.props?.className === 'awu-menu-item' && ['Add listing', 'New lead', 'Create tenant'].includes(node.props.children[1]?.props?.children));
+  assert.equal(menu.length, 3);
+  menu.forEach(node => node.props.onClick());
+  assert.deepEqual(calls, ['room', 'lead', 'tenant']);
+  state = [];
+  assert.equal(render(props({ activeRole: 'landlord' })).some(node => node?.type === 'button' && node.props['aria-label'] === 'Create'), false);
 });
 
 test('collapse state persists across page changes and busy forms disable navigation', () => {
@@ -113,10 +166,12 @@ test('workspace labels exist in all four central locales', () => {
     locale = language;
     state = [];
     const tree = render(props());
-    const copy = load(`${root}/packages/i18n/src/locales/${language}.ts`)[language].agent.dashboard.webWorkspace;
-    assert.ok(copy);
-    assert.ok(tree.includes(copy.brandTag));
-    assert.ok(tree.includes(copy.collapse));
+    const t = load(`${root}/packages/i18n/src/locales/${language}.ts`)[language];
+    const copy = t.agent.dashboard.webWorkspace;
+    for (const key of ['menu', 'create', 'team', 'switchWorkspace', 'addWorkspace', 'manageWorkspace', 'collapse', 'expand']) assert.ok(copy[key], `${language}.${key}`);
+    assert.ok(tree.includes(t.agent.dashboard.workspaceLabel));
+    assert.ok(tree.includes(copy.menu));
+    assert.equal(byClass(tree, 'aw-collapse')[0].props['aria-label'], copy.collapse);
   }
   locale = 'en';
 });
@@ -195,12 +250,11 @@ test('Manage account groups edit profile, change password and delete account beh
   const closed = render(input);
   assert.ok(button(closed, 'Manage account'));
   for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.equal(button(closed, label), undefined);
-  assert.ok(closed.some((node) => node?.type === 'option'));
+  assert.equal(closed.some((node) => node?.type === 'select'), false);
 
   const opened = openAccountMenu(input);
   assert.equal(button(opened, 'Manage account'), undefined);
   for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.ok(button(opened, label));
-  assert.equal(opened.some((node) => node?.type === 'option'), false);
 
   button(opened, 'Cancel').props.onClick();
   assert.ok(button(render(input), 'Manage account'));
@@ -235,21 +289,21 @@ test('a custom sidebar replaces the agent menu and ignores disabled items', () =
       },
     ],
   }));
-  assert.ok(tree.includes('LANDLORD WORKSPACE'));
+  assert.ok(tree.includes('Landlord'));
   assert.ok(tree.includes('Landlord workspace'));
   assert.ok(tree.includes('Soon'));
   assert.equal(tree.filter(node => node?.type === 'nav').length, 2);
   assert.equal(byClass(tree, 'aw-nav-item').find(node => node.props['aria-current'] === 'page').props.title, 'Overview');
   byClass(tree, 'aw-nav-item').forEach(node => node.props.onClick());
   assert.deepEqual(calls, ['dashboard', 'contracts']);
-  assert.equal(tree.find(node => node?.type === 'select').props.value, 'landlord');
+  assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Overview');
   assert.ok(!tree.includes('Commission'));
 });
 
-test('desktop shell is used for the Agent, Landlord and Tenant roles on web', () => {
+test('desktop shell is used for the Agent, Landlord and Tenant roles on wide web; phone-width web uses the app screens', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const names = ['isAgentWeb', 'isLandlordWeb', 'isTenantWeb', 'isDesktopWeb', 'Page', 'AgentHeader'];
+  const names = ['isWideWeb', 'isAgentWeb', 'isLandlordWeb', 'isTenantWeb', 'isDesktopWeb', 'Page', 'AgentHeader'];
   const expressions = new Map();
   function visit(node) {
     if (ts.isVariableDeclaration(node) && names.includes(node.name.getText(ast))) expressions.set(node.name.getText(ast), node.initializer.getText(ast));
@@ -257,22 +311,123 @@ test('desktop shell is used for the Agent, Landlord and Tenant roles on web', ()
   }
   visit(ast);
   assert.equal(expressions.size, names.length);
-  const select = new Function('Platform', 'activeRole', 'AgentWorkspacePage', 'MobileModePage', 'AgentSectionHeader', 'MobileSectionHeader', `${[...expressions].map(([name, expression]) => `const ${name} = ${expression};`).join('\n')} return [${names.join(', ')}];`);
+  const minWidth = Number(source.match(/const WEB_SHELL_MIN_WIDTH = (\d+);/)[1]);
+  assert.equal(minWidth, 768);
+  const select = new Function('Platform', 'activeRole', 'windowWidth', 'WEB_SHELL_MIN_WIDTH', 'AgentWorkspacePage', 'MobileModePage', 'AgentSectionHeader', 'MobileSectionHeader', `${[...expressions].map(([name, expression]) => `const ${name} = ${expression};`).join('\n')} return [${names.join(', ')}];`);
   for (const platform of ['web', 'ios', 'android']) {
-    for (const role of ['guest', 'tenant', 'landlord', 'agent', 'admin']) {
-      const agent = platform === 'web' && role === 'agent';
-      const landlord = platform === 'web' && role === 'landlord';
-      const tenant = platform === 'web' && role === 'tenant';
-      const desktop = agent || landlord || tenant;
-      assert.deepEqual(
-        select({ OS: platform }, role, 'WebPage', 'NativePage', 'WebHeader', 'NativeHeader'),
-        [agent, landlord, tenant, desktop, desktop ? 'WebPage' : 'NativePage', agent ? 'WebHeader' : 'NativeHeader'],
-      );
+    for (const width of [375, 767, 768, 1440]) {
+      for (const role of ['guest', 'tenant', 'landlord', 'agent', 'admin']) {
+        const wide = platform === 'web' && width >= 768;
+        const agent = wide && role === 'agent';
+        const landlord = wide && role === 'landlord';
+        const tenant = wide && role === 'tenant';
+        const desktop = agent || landlord || tenant;
+        assert.deepEqual(
+          select({ OS: platform }, role, width, minWidth, 'WebPage', 'NativePage', 'WebHeader', 'NativeHeader'),
+          [wide, agent, landlord, tenant, desktop, desktop ? 'WebPage' : 'NativePage', agent ? 'WebHeader' : 'NativeHeader'],
+        );
+      }
     }
   }
+  assert.match(source, /const \{ width: windowWidth \} = useWindowDimensions\(\);/);
+  assert.match(source, /if \(isAgentWeb\) \{\s*return \(\s*<AgentOverview/);
+  assert.match(source, /if \(isDesktopWeb\) setDrawerOpen\(false\);/, 'the app drawer closes when the desktop shell takes over');
   assert.match(source, /enabled=\{isDesktopWeb\}/);
   assert.match(source, /navSections=\{isLandlordWeb \? landlordNavSections : isTenantWeb \? tenantNavSections : undefined\}/);
   assert.match(source, /visible=\{!isDesktopWeb && drawerOpen\}/);
   assert.match(source, /visible=\{!isDesktopWeb && notificationsOpen\}/);
   assert.match(source, /isDesktopWeb \|\| \['createListing'/);
+});
+
+test('the workspace switcher lists only the roles the account holds, plus the active role', () => {
+  const ROLE_VALUES = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+  const listed = (input) => {
+    state = [];
+    render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Switch workspace').props.onClick();
+    return render(input).filter(node => node?.props?.role === 'menuitemradio').map(node => node.props['data-testid'].split('.').pop()).filter(role => ROLE_VALUES.includes(role));
+  };
+  assert.deepEqual(listed(props({ allowedRoles: ['guest', 'agent'] })), ['guest', 'agent']);
+  assert.deepEqual(listed(props({ activeRole: 'landlord', allowedRoles: ['agent'] })), ['landlord', 'agent']);
+  assert.deepEqual(listed(props()), ['guest', 'tenant', 'landlord', 'agent', 'admin']);
+});
+
+test('choosing another workspace changes role; add and manage workspace are coming soon', () => {
+  const roles = [];
+  const input = props({ allowedRoles: ['agent', 'tenant'], onRoleChange: role => roles.push(role) });
+  state = [];
+  render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Switch workspace').props.onClick();
+  const tree = render(input);
+  const items = tree.filter(node => node?.props?.className === 'awu-menu-item');
+  const byId = id => items.find(node => node.props['data-testid'] === `shell.workspace.${id}`);
+  assert.equal(byId('agent').props['aria-checked'], true);
+  byId('agent').props.onClick();
+  byId('tenant').props.onClick();
+  assert.deepEqual(roles, ['tenant']);
+  assert.equal(items.filter(node => node.props.disabled).length, 2);
+  assert.ok(tree.includes('Coming soon'));
+});
+
+
+test('top-level pages show their title only in the top bar; deep pages keep it beside the back button', () => {
+  const { AgentSectionHeader } = load(path.join(__dirname, 'agent-web/AgentSectionHeader.web.tsx'));
+  const top = nodes(AgentSectionHeader({ title: 'Leads' }));
+  assert.equal(top.some(node => node?.type === 'h1' || node?.type === 'h2'), false);
+  const deep = nodes(AgentSectionHeader({ title: 'Lead details', leading: 'back', onBackPress() {} }));
+  assert.equal(deep.find(node => node?.type === 'h2').props.children, 'Lead details');
+});
+
+test('refresh is not in the top bar; the page toolbar shows it on scrolling pages only', () => {
+  state = [];
+  const tree = render(props({ onRefresh() {}, refreshing: false }));
+  assert.equal(byClass(tree, 'aw-refresh').length, 0);
+  assert.equal(tree.some(node => node?.props?.['aria-label'] === 'Refresh'), false);
+  const { AgentWorkspacePage } = load(path.join(__dirname, 'agent-web/AgentWorkspace.web.tsx'));
+  let calls = 0;
+  const page = nodes(AgentWorkspacePage({ header: 'Heading', children: 'Body', onRefresh: () => calls++, refreshing: false }));
+  const refresh = page.find(node => node?.props?.['data-testid'] === 'page.refresh');
+  assert.ok(refresh);
+  refresh.props.onClick();
+  assert.equal(calls, 1);
+  assert.ok(page.includes('Heading'));
+  const busy = nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, refreshing: true })).find(node => node?.props?.['data-testid'] === 'page.refresh');
+  assert.equal(busy.props.disabled, true);
+  assert.equal(nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, scrollable: false })).some(node => node?.props?.['data-testid'] === 'page.refresh'), false);
+  assert.equal(nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, bottomBar: 'Save' })).some(node => node?.props?.['data-testid'] === 'page.refresh'), false);
+});
+
+test('theme menu offers light, dark and match device, and remembers the choice in this browser', () => {
+  const stored = {};
+  global.window = { localStorage: { getItem: key => stored[key] ?? null, setItem: (key, value) => { stored[key] = value; } } };
+  try {
+    state = [];
+    const input = props();
+    const trigger = render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Theme: Light');
+    assert.ok(trigger, 'light is the default');
+    trigger.props.onClick();
+    const items = render(input).filter(node => node?.props?.className === 'awu-menu-item');
+    const labels = items.map(node => node.props.children[1]?.props?.children);
+    assert.ok(['Light', 'Dark', 'Match device'].every(label => labels.includes(label)));
+    items.find(node => node.props.children[1]?.props?.children === 'Match device').props.onClick();
+    assert.equal(stored['nestyk.web.theme'], 'system');
+    assert.ok(render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Theme: Match device'));
+    state = [];
+    assert.ok(render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Theme: Match device'), 'read back after reload');
+  } finally {
+    delete global.window;
+  }
+  for (const language of ['en', 'th', 'ja', 'zh']) {
+    const copy = load(`${root}/packages/i18n/src/locales/${language}.ts`)[language].agent.dashboard.webWorkspace;
+    for (const key of ['theme', 'themeLight', 'themeDark', 'themeSystem']) assert.ok(copy[key], `${language}.${key}`);
+  }
+});
+
+test('the shell keeps one sidebar toggle (collapse/expand); phone widths use the app screens instead of a drawer', () => {
+  state = [];
+  const input = props();
+  const toggle = byClass(render(input), 'aw-collapse')[0];
+  assert.equal(toggle.props['aria-label'], 'Collapse navigation');
+  toggle.props.onClick();
+  assert.equal(byClass(render(input), 'aw-collapsed').length, 1);
+  const css = fs.readFileSync(path.resolve(__dirname, 'agent-web/agent-workspace.css'), 'utf8');
+  assert.doesNotMatch(css, /aw-mnav|max-width: 760px/);
 });
