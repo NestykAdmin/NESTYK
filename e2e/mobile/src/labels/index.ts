@@ -11,7 +11,7 @@ import type { AppLanguage } from '../config/env';
 import { th } from './th';
 import { en } from './en';
 
-/** ผู้ให้บริการบัญชีภายนอกที่มีปุ่มบนหน้า login ที่มา: apps/consumer-app/app/login.tsx บรรทัด 372 (ที่ develop bc77a8b) */
+/** ผู้ให้บริการบัญชีภายนอกที่มีปุ่มบนหน้า login ที่มา: apps/consumer-app/app/login.tsx บรรทัด 382 (ที่ pre/dev/review 0f99388) */
 export const SOCIAL_PROVIDERS = ['Google', 'Facebook', 'Apple'] as const;
 export type SocialProvider = (typeof SOCIAL_PROVIDERS)[number];
 
@@ -42,8 +42,14 @@ export interface Labels {
     requiredFields: string;
     invalidCredentials: string;
     unavailable: string;
-    signupUnavailable: string;
-    resetUnavailable: string;
+    /** หัวข้อของหน้าสมัครสมาชิก (apps/consumer-app/app/register.tsx) */
+    registrationTitle: string;
+    /** หัวข้อของหน้ารีเซ็ตรหัสผ่าน (apps/consumer-app/app/reset-password.tsx) */
+    resetTitle: string;
+    /** ปุ่มส่งของหน้ารีเซ็ตรหัสผ่าน */
+    resetSend: string;
+    /** ปุ่มกลับหน้า login ของหน้ารีเซ็ตรหัสผ่าน (หน้าสมัครสมาชิกใช้ข้อความเดียวกัน) */
+    backToLogin: string;
   };
   settings: {
     language: string;

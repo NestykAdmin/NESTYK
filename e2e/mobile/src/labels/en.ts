@@ -24,8 +24,10 @@ export const en: Labels = {
     requiredFields: 'Enter your email and password.', // mobile.auth.requiredFields
     invalidCredentials: 'Invalid email or password', // mobile.auth.invalidCredentials
     unavailable: 'This sign-in option is not available yet. Please use email and password.', // mobile.auth.unavailable
-    signupUnavailable: 'Registration is not available in this version yet.', // mobile.auth.signupUnavailable
-    resetUnavailable: 'Password recovery is not available in this version yet.', // mobile.auth.resetUnavailable
+    registrationTitle: 'Create your account', // mobile.auth.registrationTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 307 ไม่ได้เทียบด้วยสคริปต์)
+    resetTitle: 'Forgot password', // mobile.auth.resetTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 342 ไม่ได้เทียบด้วยสคริปต์)
+    resetSend: 'Send code', // mobile.auth.resetSend (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 343 ไม่ได้เทียบด้วยสคริปต์)
+    backToLogin: 'Back to login', // mobile.auth.backToLogin (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 315 ไม่ได้เทียบด้วยสคริปต์)
   },
   settings: {
     language: 'Language', // mobile.settings.language

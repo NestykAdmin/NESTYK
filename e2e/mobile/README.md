@@ -14,6 +14,7 @@
 - แอป NESTYK (`com.nestyk.consumer`) ลงอยู่ในเครื่องจำลองนั้น ชุดเทสไม่ได้ build หรือลงแอปให้
 - แอปเป็น build โหมดนักพัฒนา (ตอน build ตั้ง `EXPO_PUBLIC_USE_DEV_AUTH=true` หรือ `EXPO_PUBLIC_APP_ENV=development`) ที่บทบาทตั้งต้นต้องล็อกอิน และยังไม่ได้ต่อ Supabase จริง
   ถ้า build ต่อ Supabase จริง และรันด้วย `E2E_APP_LANGUAGE=en` เทส "rejects an unknown account" จะแดงแบบหมดเวลา เพราะข้อความผิดพลาดจะมาจาก Supabase ส่วนรอบภาษาไทย แอปแสดงคำแปลแทนข้อความผิดพลาดที่ไม่มีตัวอักษรไทย (`packages/i18n/src/error-message.ts`) เทสข้อนี้จึงไม่ช่วยบอกว่า build ต่อ Supabase อยู่
+- build ต้องไม่มี site key ของ hCaptcha (`EXPO_PUBLIC_HCAPTCHA_SITE_KEY`) และไม่ตั้ง `EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true` (ตั้งแต่ pre/dev/review `0f99388` ถ้ามี site key หน้า login กับหน้ารีเซ็ตรหัสผ่านจะมีช่อง hCaptcha และเทสที่ส่งฟอร์มจะได้ `captchaRequired` ถ้าเปิด social login ปุ่ม Google กับ Facebook จะเริ่ม OAuth จริง ที่มาอยู่ในหัวไฟล์ `tests/login-form.spec.ts`)
 - ชุดหลักไม่ใช้ API และควรรันตอนที่ API ปิดอยู่: ใน build โหมดนักพัฒนา แอปเติมบัญชีนักพัฒนาไว้ในฟอร์มให้เอง ถ้าการแตะของเทสพลาดไปโดนปุ่มเข้าสู่ระบบตอนที่ API เปิดอยู่ แอปจะล็อกอินด้วยบัญชีนั้นจริง (เทสข้อนั้นจะแดง)
 - ชุด session ต้องเปิด API และต้องการ build ที่บทบาทตั้งต้นเป็น agent (รายละเอียดในหัวข้อ "ชุด session")
 
@@ -97,6 +98,8 @@ e2e/mobile/
 | --- | --- |
 | หน้าต้อนรับ | `preload.enter` |
 | หน้า login | `login.email`, `login.password`, `login.togglePassword`, `login.forgot`, `login.submit`, `login.google`, `login.facebook`, `login.apple`, `login.signup`, `login.language`, `login.error`, `login.notice` |
+| หน้าสมัครสมาชิก | `register.title`, `register.back` |
+| หน้ารีเซ็ตรหัสผ่าน | `resetPassword.title`, `resetPassword.email`, `resetPassword.send`, `resetPassword.back` |
 | แผ่นเลือกภาษา | `language.option.th`, `language.option.en`, `language.option.zh`, `language.option.ja` |
 | ส่วนหัวของหน้าที่ล็อกอินแล้ว | `header.menu`, `header.workspaceLabel` (ป้ายพื้นที่ทำงานใต้ชื่อหน้า) |
 | แถบแท็บล่าง (ทุกบทบาท ใช้ key ของแท็บในแอป) | `tab.<key>` เช่น `tab.dashboard`, `tab.listingRoom`, `tab.listingLead`, `tab.clients`, `tab.more`, `tab.home` |

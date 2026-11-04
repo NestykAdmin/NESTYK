@@ -4,7 +4,7 @@
  * รวมวิธีหาและวิธีสั่งงานชิ้นส่วนของหน้า login ไว้ที่นี่ที่เดียว ไฟล์เทสเรียกผ่านคลาสนี้
  * คลาสนี้ไม่ตรวจผล (ไม่มี expect) การตรวจอยู่ในไฟล์เทส เพื่อให้อ่านไฟล์เทสแล้วรู้ว่าแต่ละข้อคาดอะไร
  * คลาสนี้หาชิ้นส่วนได้ไม่ว่าแอปจะแสดงภาษาไหนในภาษาที่ชุดเทสรู้จัก เทสที่ต้องการรู้ว่าแอปแสดงภาษาอะไร ให้อ่านข้อความแล้วเทียบเอง
- * ที่มาของหน้าจอ: apps/consumer-app/app/login.tsx (อ่านที่ commit 0b7682c และตรวจเลขบรรทัดในไฟล์นี้ซ้ำที่ develop bc77a8b แล้วตรงทุกจุด)
+ * ที่มาของหน้าจอ: apps/consumer-app/app/login.tsx (อ่านที่ commit 0b7682c ตรวจเลขบรรทัดซ้ำที่ develop bc77a8b และปรับเลขบรรทัดเป็นของ pre/dev/review 0f99388 เมื่อ 4 พ.ย. 2026)
  */
 import { inEveryLanguage, type SocialProvider, socialLoginLabel } from '../labels/index';
 import { reportKeyboardForMissingCharacters } from '../support/keyboard';
@@ -16,7 +16,7 @@ const TEXT_FIELD = 'XCUIElementTypeTextField';
 const SECURE_TEXT_FIELD = 'XCUIElementTypeSecureTextField';
 const BUTTON = 'XCUIElementTypeButton';
 
-/** ปุ่ม go บนแป้นพิมพ์ของช่องรหัสผ่าน (login.tsx บรรทัด 280 ถึง 281: returnKeyType="go" เรียก onSubmit) */
+/** ปุ่ม go บนแป้นพิมพ์ของช่องรหัสผ่าน (login.tsx บรรทัด 288 ถึง 289 ที่ 0f99388: returnKeyType="go" เรียก onSubmit) */
 const KEYBOARD_GO = '\n';
 
 /**
@@ -57,7 +57,7 @@ export class LoginScreen {
   private readonly passwordToggle: ElementSpec = {
     description: 'ปุ่มแสดงหรือซ่อนรหัสผ่าน',
     testId: 'login.togglePassword',
-    // ชื่อกำกับของปุ่มนี้เปลี่ยนตามสถานะ (login.tsx บรรทัด 309 ถึง 311)
+    // ชื่อกำกับของปุ่มนี้เปลี่ยนตามสถานะ (login.tsx บรรทัด 317 ถึง 319 ที่ 0f99388)
     labels: [
       ...inEveryLanguage((labels) => labels.auth.showPassword),
       ...inEveryLanguage((labels) => labels.auth.hidePassword),
@@ -155,7 +155,7 @@ export class LoginScreen {
   // ---------- การสั่งงาน ----------
 
   // ทุกคำสั่งในส่วนนี้รอให้ชิ้นส่วนหยุดเคลื่อนที่ก่อน (waitUntilSteady หรือ tap ใน locators.ts)
-  // เพราะฟอร์มขยับขึ้นลงเมื่อแป้นพิมพ์เปิดหรือปิด (login.tsx บรรทัด 83 กับ 155 ถึง 178)
+  // เพราะฟอร์มขยับขึ้นลงเมื่อแป้นพิมพ์เปิดหรือปิด (ที่ bc77a8b: login.tsx บรรทัด 83 กับ 155 ถึง 178 ย่อส่วนหัว ดูหมายเหตุที่ tapLogin)
 
   /** ลบข้อความในช่องอีเมล (แป้นพิมพ์จะเปิดขึ้น เพราะตัวขับต้องแตะช่องก่อนลบ) */
   async clearEmail(): Promise<void> {
@@ -185,7 +185,7 @@ export class LoginScreen {
 
   /**
    * ส่งฟอร์มด้วยปุ่ม go บนแป้นพิมพ์ของช่องรหัสผ่าน
-   * แอปเรียกฟังก์ชันเดียวกับตอนกดปุ่มเข้าสู่ระบบ (login.tsx บรรทัด 281 กับ 346)
+   * แอปเรียกฟังก์ชันเดียวกับตอนกดปุ่มเข้าสู่ระบบ (login.tsx บรรทัด 289 กับ 356 ที่ 0f99388)
    */
   async submitFromKeyboard(): Promise<void> {
     await (await waitUntilSteady(this.passwordField)).addValue(KEYBOARD_GO);
@@ -193,7 +193,9 @@ export class LoginScreen {
 
   /**
    * แตะปุ่มเข้าสู่ระบบ
-   * ใช้ได้แม้แป้นพิมพ์เปิดอยู่: หน้านี้ย่อส่วนหัวเมื่อช่องกรอกถูกเลือก เพื่อให้ฟอร์มกับปุ่มนี้อยู่เหนือแป้นพิมพ์ (login.tsx บรรทัด 83 กับ 155 ถึง 178)
+   * ที่ bc77a8b หน้านี้ย่อส่วนหัวเมื่อช่องกรอกถูกเลือก เพื่อให้ฟอร์มกับปุ่มนี้อยู่เหนือแป้นพิมพ์ (login.tsx บรรทัด 83 กับ 155 ถึง 178)
+   * ที่ 0f99388 ไม่พบการย่อแบบนั้นแล้ว: focused ใช้แค่เปลี่ยนสีขอบช่อง (บรรทัด 247, 300) และ compact ขึ้นกับความสูงของจออย่างเดียว (บรรทัด 89)
+   *   ยังไม่ได้ยืนยันบนเครื่องจริงว่าปุ่มนี้ยังอยู่เหนือแป้นพิมพ์ ถ้าเทสที่แตะปุ่มนี้ตอนแป้นพิมพ์เปิดแดง ให้ดูภาพใน test-results/ ก่อน
    */
   async tapLogin(): Promise<void> {
     await tap(this.loginButton);

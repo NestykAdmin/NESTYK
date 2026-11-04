@@ -156,6 +156,19 @@ export async function isShown(spec: ElementSpec): Promise<boolean> {
 }
 
 /**
+ * ชิ้นส่วนนี้ยังอยู่ในโครงสร้างหน้าจอหรือไม่ ณ ตอนที่ถาม (ไม่รอ และไม่สนว่ามองเห็นหรือไม่)
+ * ใช้ตรวจว่าหน้าจอถูกถอดออกแล้ว: ชิ้นส่วนที่เลื่อนพ้นจอยังนับว่าอยู่ ต่างจาก isShown ที่นับเป็น false
+ */
+export async function isPresent(spec: ElementSpec): Promise<boolean> {
+  try {
+    return (await findElement(spec)) !== undefined;
+  } catch (error) {
+    if (isScreenChangingError(error)) return false;
+    throw error;
+  }
+}
+
+/**
  * รอจนผู้ใช้มองเห็นชิ้นส่วน (และกดได้ ถ้า mustBeEnabled) แล้วคืนชิ้นส่วนนั้น
  * ข้อผิดพลาดที่ไม่ใช่เรื่องหน้าจอกำลังเปลี่ยนจะถูกโยนต่อ: WebdriverIO จะถามซ้ำจนหมดเวลา แล้วรายงานข้อผิดพลาดนั้นแทนข้อความหมดเวลา
  */

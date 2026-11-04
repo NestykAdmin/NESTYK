@@ -24,8 +24,10 @@ export const th: Labels = {
     requiredFields: 'กรุณากรอกอีเมลและรหัสผ่าน', // mobile.auth.requiredFields
     invalidCredentials: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง', // mobile.auth.invalidCredentials
     unavailable: 'ยังไม่เปิดให้เข้าสู่ระบบด้วยช่องทางนี้ กรุณาใช้อีเมลและรหัสผ่าน', // mobile.auth.unavailable
-    signupUnavailable: 'ยังไม่เปิดให้สมัครสมาชิกในเวอร์ชันนี้', // mobile.auth.signupUnavailable
-    resetUnavailable: 'ยังไม่เปิดให้กู้คืนรหัสผ่านในเวอร์ชันนี้', // mobile.auth.resetUnavailable
+    registrationTitle: 'สร้างบัญชีของคุณ', // mobile.auth.registrationTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 307 ไม่ได้เทียบด้วยสคริปต์)
+    resetTitle: 'ลืมรหัสผ่าน', // mobile.auth.resetTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 342 ไม่ได้เทียบด้วยสคริปต์)
+    resetSend: 'ส่งรหัส', // mobile.auth.resetSend (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 343 ไม่ได้เทียบด้วยสคริปต์)
+    backToLogin: 'กลับไปเข้าสู่ระบบ', // mobile.auth.backToLogin (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 315 ไม่ได้เทียบด้วยสคริปต์)
   },
   settings: {
     language: 'ภาษา', // mobile.settings.language

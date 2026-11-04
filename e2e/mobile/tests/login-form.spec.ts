@@ -6,6 +6,11 @@
  *   - ไม่ใช้ API: ทุกเทสในไฟล์นี้จบที่การตรวจฝั่งแอป ไม่มีข้อไหนตั้งใจล็อกอินให้สำเร็จ ควรรันตอนที่ API ปิดอยู่ (ดูข้อควรระวังข้างล่าง)
  *   - แอปไม่ได้ต่อ Supabase จริง (ค่า EXPO_PUBLIC_SUPABASE_URL ยังเป็นค่าตัวอย่าง) แอปจึงตัดสินอีเมลกับรหัสผ่านเองโดยไม่เรียกเครือข่าย
  *     ที่มา: apps/consumer-app/lib/auth/AuthContext.tsx บรรทัด 157 ถึง 221 และ lib/auth/supabase.ts บรรทัด 8 ถึง 10 (ที่ develop bc77a8b)
+ *   - build ต้องไม่มี site key ของ hCaptcha (EXPO_PUBLIC_HCAPTCHA_SITE_KEY) ตั้งแต่ pre/dev/review 0f99388 ถ้ามี หน้า login กับหน้ารีเซ็ตรหัสผ่าน
+ *     จะมีช่อง hCaptcha และการส่งฟอร์มจะได้ข้อความ captchaRequired แทนผลจริง (login.tsx บรรทัด 85, 110 ถึง 112, 342, reset-password.tsx บรรทัด 34, 167 และ register.tsx บรรทัด 54, 250
+ *     ชื่อตัวแปรอยู่ที่ apps/consumer-app/lib/auth/hcaptcha-site-key.ts บรรทัด 3 ที่ 0f99388)
+ *   - build ต้องไม่ตั้ง EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true ถ้าตั้ง ปุ่ม Google กับ Facebook จะเริ่ม OAuth จริงแทนข้อความ unavailable
+ *     (login.tsx บรรทัด 395 ถึง 406 ที่ 0f99388)
  * ไฟล์นี้ไม่ตั้งใจสร้างหรือแก้ข้อมูลในระบบ เทสทุกข้อล้างข้อมูลที่แอปเก็บไว้ในเครื่องจำลองก่อนเปิดแอป
  *
  * ข้อควรระวังของไฟล์นี้: ใน build โหมดนักพัฒนา แอปเติมบัญชีนักพัฒนาไว้ใน 2 ช่องให้เอง
@@ -20,6 +25,8 @@ import { env } from '../src/config/env';
 import { openLoginScreen } from '../src/flows/open-login';
 import { labelsFor, SOCIAL_PROVIDERS } from '../src/labels/index';
 import type { LoginScreen } from '../src/screens/LoginScreen';
+import { RegisterScreen } from '../src/screens/RegisterScreen';
+import { ResetPasswordScreen } from '../src/screens/ResetPasswordScreen';
 import { readUntil } from '../src/support/wait';
 
 /**
@@ -62,7 +69,7 @@ describe('Login form', () => {
     const passwordLength = await login.passwordLength();
 
     // ขั้นที่ 3: เทียบกับโหมดของ build ที่ใช้เทส (ตั้งด้วย E2E_EXPECT_DEV_AUTH)
-    //   ที่มาของพฤติกรรม: login.tsx บรรทัด 71 ถึง 76
+    //   ที่มาของพฤติกรรม: login.tsx บรรทัด 75 ถึง 80 (ที่ 0f99388)
     if (env.expectDevAuth) {
       expect(email).toBe(env.devLoginEmail);
       expect(passwordLength).toBeGreaterThan(0);
@@ -71,7 +78,7 @@ describe('Login form', () => {
       expect(passwordLength).toBe(0);
     }
 
-    // ขั้นที่ 4: ไม่ว่าโหมดไหน ช่องรหัสผ่านต้องเริ่มแบบซ่อนตัวอักษร (login.tsx บรรทัด 62 กับ 274)
+    // ขั้นที่ 4: ไม่ว่าโหมดไหน ช่องรหัสผ่านต้องเริ่มแบบซ่อนตัวอักษร (login.tsx บรรทัด 66 กับ 282 ที่ 0f99388)
     expect(await login.passwordDisplay()).toBe('hidden');
   });
 
@@ -89,14 +96,14 @@ describe('Login form', () => {
     // ขั้นที่ 3: แตะปุ่มเข้าสู่ระบบ
     await login.tapLogin();
 
-    // ขั้นที่ 4: แอปบอกให้กรอก และผู้ใช้ยังอยู่ที่หน้า login (กฎอยู่ที่ login.tsx บรรทัด 100 ถึง 103)
+    // ขั้นที่ 4: แอปบอกให้กรอก และผู้ใช้ยังอยู่ที่หน้า login (กฎอยู่ที่ login.tsx บรรทัด 106 ถึง 109 ที่ 0f99388)
     expect(await login.waitForError([labels.auth.requiredFields])).toBe(labels.auth.requiredFields);
     expect(await login.isShown()).toBe(true);
   });
 
   it('asks for email and password when only the password is empty', async () => {
     // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วพิมพ์อีเมลของเทส และลบรหัสผ่าน
-    //   กฎของแอปตรวจ 2 ช่องแยกกัน (login.tsx บรรทัด 100: !email.trim() || !password) ข้อนี้ตรวจฝั่งรหัสผ่าน
+    //   กฎของแอปตรวจ 2 ช่องแยกกัน (login.tsx บรรทัด 106 ที่ 0f99388: !email.trim() || !password) ข้อนี้ตรวจฝั่งรหัสผ่าน
     const login = await openLoginScreen();
     await login.typeEmail(UNKNOWN_EMAIL);
     await login.clearPassword();
@@ -113,7 +120,7 @@ describe('Login form', () => {
 
   it('treats an email made of a single space as empty', async () => {
     // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วใส่ช่องว่าง 1 ตัวในช่องอีเมล และใส่รหัสผ่านของเทส
-    //   แอปตัดช่องว่างหัวท้ายของอีเมลก่อนตรวจ (login.tsx บรรทัด 100: !email.trim())
+    //   แอปตัดช่องว่างหัวท้ายของอีเมลก่อนตรวจ (login.tsx บรรทัด 106 ที่ 0f99388: !email.trim())
     const login = await openLoginScreen();
     await login.typeEmail(' ');
     await replacePrefilledPassword(login);
@@ -143,7 +150,7 @@ describe('Login form', () => {
 
     // ขั้นที่ 4: แอปต้องแจ้งว่าอีเมลหรือรหัสผ่านไม่ถูกต้องเป็นภาษาเดียวกับแอป (คำแปล mobile.auth.invalidCredentials) และผู้ใช้ยังอยู่ที่หน้า login
     //   ข้อนี้เคยเป็นบั๊ก MOB-001: แอปแสดงข้อความอังกฤษ "Invalid email or password" จาก AuthContext.tsx บรรทัด 220 แม้แอปตั้งเป็นภาษาไทย
-    //   ทีมแก้ใน commit f9b9bea: login.tsx บรรทัด 107 (บรรทัด 109 ที่ develop bc77a8b) ใช้ localizedError (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 29)
+    //   ทีมแก้ใน commit f9b9bea: login.tsx บรรทัด 107 (บรรทัด 109 ที่ develop bc77a8b และบรรทัด 119 ที่ 0f99388) ใช้ localizedError (packages/i18n/src/error-message.ts บรรทัด 26 ถึง 29)
     //   ซึ่งแสดงข้อความของข้อผิดพลาดเฉพาะเมื่อเขียนด้วยอักษรของภาษาที่แอปใช้ ไม่อย่างนั้นแสดงคำแปลนี้แทน 2 ภาษาที่ชุดเทสรันได้จึงตรวจคนละเรื่อง
     //   - ภาษาไทย (ค่าตั้งต้น): จับ MOB-001 ได้ แต่ข้อผิดพลาดทุกแบบที่ไม่มีตัวอักษรไทยจะออกมาเป็นคำแปลเดียวกัน จึงแยกไม่ออกว่าแอปปฏิเสธเพราะอะไร
     //   - ภาษาอังกฤษ: คำแปลตรงกับข้อความของบั๊ก จึงจับ MOB-001 ไม่ได้ แต่เห็นข้อความจริงของข้อผิดพลาด
@@ -165,7 +172,7 @@ describe('Login form', () => {
     expect(await login.passwordDisplay()).toBe('hidden');
     expect(await login.passwordToggleLabel()).toBe(labels.auth.showPassword);
 
-    // ขั้นที่ 3: แตะปุ่มตา แล้วช่องแสดงตัวอักษรที่พิมพ์ และปุ่มบอกว่ากดแล้วจะ "ซ่อน" (login.tsx บรรทัด 274 กับ 309 ถึง 311)
+    // ขั้นที่ 3: แตะปุ่มตา แล้วช่องแสดงตัวอักษรที่พิมพ์ และปุ่มบอกว่ากดแล้วจะ "ซ่อน" (login.tsx บรรทัด 282 กับ 317 ถึง 319 ที่ 0f99388)
     await login.togglePasswordVisibility();
     expect(await readUntil(() => login.passwordDisplay(), 'visible')).toBe('visible');
     expect(await login.visiblePasswordText()).toBe(TEST_PASSWORD);
@@ -177,34 +184,59 @@ describe('Login form', () => {
     expect(await login.passwordToggleLabel()).toBe(labels.auth.showPassword);
   });
 
-  it('tells the user that password recovery is not available yet', async () => {
+  it('opens the password reset page and goes back to login', async () => {
     // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วแตะ ลืมรหัสผ่าน?
+    //   ที่มา: login.tsx แตะแล้วเรียก router.push("/reset-password") (ตั้งแต่ pre/dev/review 0f99388 เดิมแจ้ง resetUnavailable)
     const login = await openLoginScreen();
     await login.tapForgotPassword();
 
-    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 325)
-    expect(await login.waitForNotice([labels.auth.resetUnavailable])).toBe(labels.auth.resetUnavailable);
-    expect(await login.isShown()).toBe(true);
+    // ขั้นที่ 2: แอปเปิดหน้ารีเซ็ตรหัสผ่าน หัวข้อตรงภาษาที่ชุดเทสสั่ง และมีช่องอีเมลกับปุ่มส่ง
+    //   ที่มา: apps/consumer-app/app/reset-password.tsx บรรทัด 24 ถึง 25, 51, 137 ถึง 144 และ 169 (ที่ 0f99388)
+    //   เทสนี้ไม่แตะปุ่มส่ง จึงไม่มีการขออีเมลรีเซ็ตรหัสผ่าน
+    const reset = new ResetPasswordScreen();
+    expect(await reset.titleText()).toBe(labels.auth.resetTitle);
+    //   ข้อจำกัด: ช่องอีเมลหาด้วยข้อความ "อีเมล" ชิ้นแรกที่เจอ ถ้าหน้า login ที่อยู่ข้างใต้ยังอยู่ในโครงสร้างหน้าจอ อาจได้ช่องของหน้า login แทน
+    //   ถ้าข้อนี้แดงหรือสงสัย ให้ดู XML ใน test-results/ ว่ามีช่องอีเมล 2 ช่องหรือไม่ จะหมดข้อจำกัดเมื่อแอปมี testID resetPassword.email
+    expect(await reset.isEmailFieldShown()).toBe(true);
+    expect(await reset.isSendButtonShown()).toBe(true);
+
+    // ขั้นที่ 3: แตะ กลับไปเข้าสู่ระบบ แล้วหน้ารีเซ็ตต้องหายไป และหน้า login ต้องกลับมา (reset-password.tsx บรรทัด 177 ถึง 181)
+    //   ตรวจว่าหัวข้อของหน้ารีเซ็ตหายไปก่อน เพราะหน้า login ที่อยู่ใต้หน้ารีเซ็ตอาจยังอยู่ในโครงสร้างหน้าจอ
+    //   ถ้าตรวจแค่ว่าเห็นหน้า login เทสจะผ่านได้แม้ปุ่มกลับไม่ทำอะไรเลย
+    await reset.tapBackToLogin();
+    expect(await readUntil(() => reset.isTitleShown(), false)).toBe(false);
+    // ไม่เห็นปุ่มเข้าสู่ระบบภายใน E2E_WAIT_MS = เทสไม่ผ่าน (waitUntilShown โยน error)
+    await login.waitUntilShown();
   });
 
-  it('tells the user that sign-up is not available yet', async () => {
+  it('opens the sign-up page and goes back to login', async () => {
     // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วแตะ สมัครสมาชิก
+    //   ที่มา: login.tsx บรรทัด 449 เรียก router.push('/register') (ตั้งแต่ pre/dev/review 0f99388 เดิมแจ้ง signupUnavailable)
     const login = await openLoginScreen();
     await login.tapSignUp();
 
-    // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 423)
-    expect(await login.waitForNotice([labels.auth.signupUnavailable])).toBe(labels.auth.signupUnavailable);
-    expect(await login.isShown()).toBe(true);
+    // ขั้นที่ 2: แอปเปิดหน้าสมัครสมาชิก หัวข้อตรงภาษาที่ชุดเทสสั่ง (register.tsx บรรทัด 188 ถึง 191 ที่ 0f99388)
+    //   เทสนี้ไม่กรอกฟอร์มและไม่แตะปุ่มสร้างบัญชี จึงไม่มีการสมัครจริง
+    const register = new RegisterScreen();
+    expect(await register.titleText()).toBe(labels.auth.registrationTitle);
+
+    // ขั้นที่ 3: เลื่อนลงไปแตะ กลับไปเข้าสู่ระบบ แล้วหน้าสมัครต้องหายไป และหน้า login ต้องกลับมา (register.tsx บรรทัด 313 ถึง 315)
+    //   ตรวจว่าหัวข้อของหน้าสมัครหายจากโครงสร้างหน้าจอก่อน ด้วยเหตุผลเดียวกับเทสหน้ารีเซ็ตรหัสผ่าน
+    //   ใช้ "หายจากโครงสร้างหน้าจอ" ไม่ใช่ "มองไม่เห็น" เพราะหลังเลื่อนจอ หัวข้อพ้นจอไปแล้วแม้ยังอยู่หน้าสมัคร
+    await register.tapBackToLogin();
+    expect(await readUntil(() => register.isTitlePresent(), false)).toBe(false);
+    // ไม่เห็นปุ่มเข้าสู่ระบบภายใน E2E_WAIT_MS = เทสไม่ผ่าน (waitUntilShown โยน error)
+    await login.waitUntilShown();
   });
 
-  // ปุ่มบัญชีภายนอกมี 3 ปุ่ม ใช้โค้ดเดียวกัน (login.tsx บรรทัด 371 ถึง 402) เทสแยกปุ่มละข้อ เพื่อให้รู้ว่าปุ่มไหนเสีย
+  // ปุ่มบัญชีภายนอกมี 3 ปุ่ม ใช้โค้ดเดียวกัน (login.tsx บรรทัด 382 ถึง 428 ที่ 0f99388) เทสแยกปุ่มละข้อ เพื่อให้รู้ว่าปุ่มไหนเสีย
   for (const provider of SOCIAL_PROVIDERS) {
     it(`tells the user that ${provider} sign-in is not available yet`, async () => {
       // ขั้นที่ 1: เปิดแอปใหม่ไปที่หน้า login แล้วแตะปุ่มของผู้ให้บริการ
       const login = await openLoginScreen();
       await login.tapSocial(provider);
 
-      // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 383)
+      // ขั้นที่ 2: แอปแจ้งว่ายังไม่เปิดใช้ และไม่พาไปหน้าอื่น (login.tsx บรรทัด 399 ที่ 0f99388)
       expect(await login.waitForNotice([labels.auth.unavailable])).toBe(labels.auth.unavailable);
       expect(await login.isShown()).toBe(true);
     });
