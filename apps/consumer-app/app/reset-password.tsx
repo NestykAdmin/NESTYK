@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
@@ -7,13 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { AccountCompleteModal, MobileButton, MobileInput, MobileNestykLogo, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
-import { openedPasswordResetLink } from '../lib/auth/supabase';
+import { openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 
-type Step = 'email' | 'sent' | 'code' | 'password' | 'done';
+type Step = 'checking' | 'email' | 'sent' | 'password' | 'done';
 
 export default function ResetPasswordScreen() {
   const { t, locale } = useLocale();
@@ -21,18 +21,17 @@ export default function ResetPasswordScreen() {
   const { theme } = useMobileTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { requestPasswordReset, verifyRecoveryCode, saveResetPassword, enterAfterPasswordReset, isAuthenticated } = useAuth();
-  const [step, setStep] = useState<Step>(openedPasswordResetLink ? 'password' : 'email');
+  const { ready, requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, isAuthenticated, signOut } = useAuth();
+  const [step, setStep] = useState<Step>(openedRecoveryTokenHash ? 'checking' : openedPasswordResetLink ? 'password' : 'email');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [resendIn, setResendIn] = useState(0);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
   const captchaRequired = hcaptchaSiteKey().length > 0;
+  const checkedLink = useRef(false);
   const resetCaptcha = () => {
     setCaptchaToken(null);
     setCaptchaKey(captchaKey + 1);
@@ -42,11 +41,28 @@ export default function ResetPasswordScreen() {
     if (isAuthenticated && step === 'email') router.replace('/');
   }, [isAuthenticated, router, step]);
 
+  // The reset email's link (`?token_hash=`) works on any device, and only once.
   useEffect(() => {
-    if (step !== 'code' || resendIn <= 0) return;
-    const timer = setTimeout(() => setResendIn((seconds) => seconds - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [step, resendIn]);
+    const tokenHash = openedRecoveryTokenHash;
+    if (!tokenHash || checkedLink.current) return;
+    // Drop the token from the address at once, so a refresh or a shared screenshot does not carry it
+    // (the token was read when the app loaded: lib/auth/supabase.ts).
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    // Wait for the saved sign-in to be restored, so we know whether this browser is signed in.
+    if (!ready) return;
+    checkedLink.current = true;
+    // Signed in (maybe as someone else): sign out this device first. Checking the link signs in the link's account,
+    // and the screen and the API token must never belong to two different people (review 513fbf0 R3, Mos 4 Nov 2026).
+    (isAuthenticated ? signOut() : Promise.resolve())
+      .then(() => verifyRecoveryLink(tokenHash))
+      .then(() => setStep('password'))
+      .catch(() => {
+        setError(copy.resetLinkInvalid);
+        setStep('email');
+      });
+  }, [ready, isAuthenticated, signOut, verifyRecoveryLink, copy.resetLinkInvalid]);
 
   const fieldStyle = { backgroundColor: theme.card, borderColor: theme.border, color: theme.textHeading };
   const title = step === 'password' || step === 'done' ? copy.resetNewTitle : copy.resetTitle;
@@ -73,24 +89,6 @@ export default function ResetPasswordScreen() {
     } catch (e) {
       resetCaptcha();
       setError(localizedError(e, copy.registrationFailed, locale));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkCode = async () => {
-    if (loading) return;
-    setError(null);
-    if (!/^\d{6}$/.test(code.trim())) {
-      setError(copy.otpInvalid);
-      return;
-    }
-    setLoading(true);
-    try {
-      await verifyRecoveryCode(email, code.trim());
-      setStep('password');
-    } catch (e) {
-      setError(localizedError(e, copy.otpInvalid, locale));
     } finally {
       setLoading(false);
     }
@@ -133,7 +131,7 @@ export default function ResetPasswordScreen() {
                 fontFamily: locale === 'en' ? tokens.typography.native.headingEn : tokens.typography.native.headingTh,
               }]}>{title}</Text>
               {step === 'sent' ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetLinkSent}</Text> : null}
-              {step === 'code' ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.emailConfirmationBody}</Text> : null}
+              {step === 'checking' ? <Text accessibilityLiveRegion="polite" style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetLinkChecking}</Text> : null}
               {step === 'password' ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetNewSubtitle}</Text> : null}
               {step === 'email' ? (
                 <View style={styles.field}>
@@ -141,13 +139,6 @@ export default function ResetPasswordScreen() {
                   <MobileInput accessibilityLabel={copy.email} value={email} onChangeText={setEmail}
                     keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email"
                     editable={!loading} style={fieldStyle} />
-                </View>
-              ) : null}
-              {step === 'code' ? (
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: theme.textHeading }]}>{copy.otpCode}</Text>
-                  <MobileInput accessibilityLabel={copy.otpCode} value={code} onChangeText={setCode}
-                    keyboardType="number-pad" maxLength={6} editable={!loading} style={fieldStyle} />
                 </View>
               ) : null}
               {step === 'password' ? (
@@ -165,16 +156,10 @@ export default function ResetPasswordScreen() {
                   </View>
                 </>
               ) : null}
-              {captchaRequired && (step === 'email' || step === 'code') ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+              {captchaRequired && step === 'email' ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
               {step === 'email' ? <MobileButton onPress={() => { void sendEmail(); }} isLoading={loading} disabled={loading}>{copy.resetSend}</MobileButton> : null}
-              {step === 'code' ? <MobileButton onPress={() => { void checkCode(); }} isLoading={loading} disabled={loading}>{copy.otpCode}</MobileButton> : null}
               {step === 'password' ? <MobileButton onPress={() => { void savePassword(); }} isLoading={loading} disabled={loading}>{copy.resetNewTitle}</MobileButton> : null}
-              {step === 'code' ? (
-                <MobileButton variant="outline" disabled={loading || resendIn > 0} onPress={() => { void sendEmail(); }}>
-                  {resendIn > 0 ? copy.resendWait.replace('{seconds}', String(resendIn)) : copy.resendCode}
-                </MobileButton>
-              ) : null}
               {step !== 'done' ? (
                 <MobileButton variant="outline" disabled={loading} onPress={() => router.replace('/login')}>
                   {copy.backToLogin}

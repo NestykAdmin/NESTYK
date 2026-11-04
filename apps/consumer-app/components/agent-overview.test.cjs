@@ -114,7 +114,8 @@ function renderDashboardBody(snapshot, platform) {
   const compiled = ts.transpileModule(`const render = ${initializer};`, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText;
   const desktop = () => null;
   const mobile = () => null;
-  const result = new Function('React', 'Platform', 'AgentOverview', 'MobileAgentDashboardBody', 'MobileBrandLoader', 'View', 'styles', 'activeRole', 'agentDashboardSnapshot', 'handleAgentDashboardNavigate', 'profileInitials', 'handlePageRefresh', `${compiled}; return render();`)(React, { OS: platform }, desktop, mobile, 'MobileBrandLoader', 'View', { bodyContainer: {} }, 'agent', snapshot, () => {}, 'AG', () => {});
+  // deletionScheduledFor: the account-deletion notice prop added by the delete-account work (b41a56f); none scheduled here.
+  const result = new Function('React', 'Platform', 'AgentOverview', 'MobileAgentDashboardBody', 'MobileBrandLoader', 'View', 'styles', 'activeRole', 'agentDashboardSnapshot', 'handleAgentDashboardNavigate', 'profileInitials', 'handlePageRefresh', 'deletionScheduledFor', `${compiled}; return render();`)(React, { OS: platform }, desktop, mobile, 'MobileBrandLoader', 'View', { bodyContainer: {} }, 'agent', snapshot, () => {}, 'AG', () => {}, null);
   return { result, desktop, mobile };
 }
 

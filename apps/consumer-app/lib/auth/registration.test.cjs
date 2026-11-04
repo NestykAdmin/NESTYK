@@ -35,7 +35,7 @@ function setup({ confirmation = false, signupError, syncError, testSignupError, 
     './role-gate': { requestGuestBrowse: () => {} },
     './google-oauth': { providerRedirectPending: () => false },
     './google-sign-in': { signInWithGoogle: async () => null, signInWithFacebook: async () => null },
-    './reset-password': { requestPasswordReset: async () => {}, verifyRecoveryCode: async () => {}, saveResetPassword: async () => {} },
+    './reset-password': { requestPasswordReset: async () => {}, verifyRecoveryLink: async () => {}, saveResetPassword: async () => {} },
     './supabase': { getSupabaseClient: () => supabase, isSupabaseConfigured: () => true },
     './session-storage': { saveAuthSession: async next => calls.saved.push(next), displayNameFrom: () => '', initialsFromName: () => '' },
   };
