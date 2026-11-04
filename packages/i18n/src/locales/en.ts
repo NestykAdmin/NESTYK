@@ -342,7 +342,6 @@ export const en: TranslationSchema = {
       resetTitle: 'Forgot password',
       resetSend: 'Send code',
       resetLinkSent: 'If this email has an account, we sent it a link to set a new password. You can open it on any device. The link works once.',
-      resetLinkChecking: 'Checking the link…',
       resetLinkInvalid: 'This link has expired or was already used. Enter your email to get a new one.',
       resetNewTitle: 'Set a new password',
       resetNewSubtitle: 'Choose a new password. Other devices will be signed out.',

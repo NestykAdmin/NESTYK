@@ -342,7 +342,6 @@ export const ja: TranslationSchema = {
       resetTitle: 'パスワードを忘れた',
       resetSend: 'コードを送る',
       resetLinkSent: 'このメールアドレスのアカウントがあれば、パスワード再設定のリンクを送りました。どの端末でも開けます。リンクは1回だけ使えます。',
-      resetLinkChecking: 'リンクを確認しています…',
       resetLinkInvalid: 'このリンクは期限切れか、すでに使われています。メールアドレスを入力して新しいリンクを受け取ってください。',
       resetNewTitle: '新しいパスワードを設定',
       resetNewSubtitle: '新しいパスワードを設定すると、他の端末はログアウトされます。',

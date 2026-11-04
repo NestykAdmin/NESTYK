@@ -12,7 +12,7 @@ import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
 
-type Step = 'checking' | 'email' | 'sent' | 'password' | 'done';
+type Step = 'email' | 'sent' | 'password' | 'done';
 
 export default function ResetPasswordScreen() {
   const { t, locale } = useLocale();
@@ -21,7 +21,7 @@ export default function ResetPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, isAuthenticated } = useAuth();
-  const [step, setStep] = useState<Step>(openedRecoveryTokenHash ? 'checking' : openedPasswordResetLink ? 'password' : 'email');
+  const [step, setStep] = useState<Step>(openedRecoveryTokenHash || openedPasswordResetLink ? 'password' : 'email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -30,7 +30,9 @@ export default function ResetPasswordScreen() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
   const captchaRequired = hcaptchaSiteKey().length > 0;
-  const checkedLink = useRef(false);
+  // The reset email's link (`?token_hash=`) works on any device. Supabase spends it once, so it is spent when the
+  // new password is saved, not when the page opens: the link can be opened again (refresh, another tab) until then.
+  const linkVerified = useRef(false);
   const resetCaptcha = () => {
     setCaptchaToken(null);
     setCaptchaKey(captchaKey + 1);
@@ -40,20 +42,10 @@ export default function ResetPasswordScreen() {
     if (isAuthenticated && step === 'email') router.replace('/');
   }, [isAuthenticated, router, step]);
 
-  // The reset email's link (`?token_hash=`) works on any device, and only once.
-  useEffect(() => {
-    const tokenHash = openedRecoveryTokenHash;
-    if (!tokenHash || checkedLink.current) return;
-    checkedLink.current = true;
-    // Drop the token from the address, so a refresh or a shared screenshot does not carry it.
+  /** Drops the token from the address once it is spent, so a refresh or a shared screenshot does not carry it. */
+  const forgetLinkInAddress = () => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
-    verifyRecoveryLink(tokenHash)
-      .then(() => setStep('password'))
-      .catch(() => {
-        setError(copy.resetLinkInvalid);
-        setStep('email');
-      });
-  }, [verifyRecoveryLink, copy.resetLinkInvalid]);
+  };
 
   const fieldStyle = { backgroundColor: theme.card, borderColor: theme.border, color: theme.textHeading };
   const title = step === 'password' || step === 'done' ? copy.resetNewTitle : copy.resetTitle;
@@ -98,6 +90,22 @@ export default function ResetPasswordScreen() {
     }
     setLoading(true);
     try {
+      if (openedRecoveryTokenHash && !linkVerified.current) {
+        try {
+          await verifyRecoveryLink(openedRecoveryTokenHash);
+        } catch {
+          // Expired, already used, or a newer link was sent.
+          forgetLinkInAddress();
+          setPassword('');
+          setConfirmation('');
+          setError(copy.resetLinkInvalid);
+          setStep('email');
+          return;
+        }
+        // Spent now: a retry after a rejected password reuses this sign-in instead of the link.
+        linkVerified.current = true;
+        forgetLinkInAddress();
+      }
       await saveResetPassword(password);
       setStep('done');
     } catch (e) {
@@ -122,7 +130,6 @@ export default function ResetPasswordScreen() {
                 fontFamily: locale === 'en' ? tokens.typography.native.headingEn : tokens.typography.native.headingTh,
               }]}>{title}</Text>
               {step === 'sent' ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetLinkSent}</Text> : null}
-              {step === 'checking' ? <Text accessibilityLiveRegion="polite" style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetLinkChecking}</Text> : null}
               {step === 'password' ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetNewSubtitle}</Text> : null}
               {step === 'email' ? (
                 <View style={styles.field}>

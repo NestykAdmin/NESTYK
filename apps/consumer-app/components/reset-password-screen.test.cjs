@@ -1,5 +1,6 @@
 // app/reset-password.tsx: the reset email links to /reset-password?token_hash=…&type=recovery. That link works on
-// any device (no PKCE verifier needed), works once, and is dropped from the address after it is checked.
+// any device (no PKCE verifier needed). Supabase spends it once, so the page spends it when the new password is saved,
+// not when the page opens: until then it can be opened again. Once spent it is dropped from the address.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -34,8 +35,8 @@ function nodes(element) {
 const en = load(`${root}/packages/i18n/src/locales/en.ts`, {}).en;
 const copy = en.mobile.auth;
 
-function screen({ tokenHash = null, pkceLink = false, verify = async () => {} } = {}) {
-  const state = [], refs = [], verified = [], replaced = [];
+function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, save = async () => {} } = {}) {
+  const state = [], refs = [], replaced = [], calls = [];
   let cursor = 0, refCursor = 0;
   global.window = { location: { pathname: '/reset-password' }, history: { replaceState: (...args) => replaced.push(args) } };
   const deps = {
@@ -56,8 +57,9 @@ function screen({ tokenHash = null, pkceLink = false, verify = async () => {} } 
     '@nestyk/i18n': { useLocale: () => ({ t: en, locale: 'en' }), localizedError: (e, fallback) => fallback },
     '@nestyk/ui/native': { AccountCompleteModal: 'Modal', MobileButton: 'Button', MobileInput: 'Input', MobileNestykLogo: 'Logo',
       useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { error: '#dc2626' } } },
-    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, requestPasswordReset: async () => {}, saveResetPassword: async () => {},
-      enterAfterPasswordReset: async () => {}, verifyRecoveryLink: (hash) => { verified.push(hash); return verify(hash); } }) },
+    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, requestPasswordReset: async () => {},
+      saveResetPassword: (password) => { calls.push(['save', password]); return save(password); },
+      enterAfterPasswordReset: async () => {}, verifyRecoveryLink: (hash) => { calls.push(['verify', hash]); return verify(hash); } }) },
     '../lib/auth/supabase': { openedPasswordResetLink: pkceLink || Boolean(tokenHash), openedRecoveryTokenHash: tokenHash },
     '../lib/auth/password-rules': { passwordIsStrong: () => true },
     '../lib/auth/hcaptcha-site-key': { hcaptchaSiteKey: () => '' },
@@ -68,37 +70,64 @@ function screen({ tokenHash = null, pkceLink = false, verify = async () => {} } 
   const render = () => { cursor = 0; refCursor = 0; return nodes(Component()); };
   const labels = () => render().filter((n) => n?.type === 'Input').map((n) => n.props.accessibilityLabel);
   const texts = () => render().filter((n) => typeof n === 'string');
-  return { render, labels, texts, verified, replaced, flush: () => new Promise((r) => setImmediate(r)) };
+  const fill = (label, value) => render().find((n) => n?.type === 'Input' && n.props.accessibilityLabel === label).props.onChangeText(value);
+  const press = (label) => render().find((n) => n?.type === 'Button' && n.props.children === label).props.onPress();
+  const saveNewPassword = async (password = 'Abcdefg1') => {
+    fill(copy.password, password);
+    fill(copy.confirmPassword, password);
+    press(copy.resetNewTitle);
+    await new Promise((r) => setImmediate(r));
+  };
+  const done = () => render().find((n) => n?.type === 'Modal').props.visible;
+  return { render, labels, texts, calls, replaced, saveNewPassword, done };
 }
 
-test('a reset link opened on any device checks the token, then asks for the new password', async () => {
+test('opening the reset link does not spend it: it can be opened again until the password is saved', () => {
   const page = screen({ tokenHash: 'abc123' });
-  assert.ok(page.texts().includes(copy.resetLinkChecking));
-  assert.deepEqual(page.labels(), []);
-  await page.flush();
   page.render();
-  assert.deepEqual(page.verified, ['abc123'], 'the link is checked once, even though the page renders again');
+  page.render();
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
-  assert.deepEqual(page.replaced, [[null, '', '/reset-password']], 'the token leaves the address bar');
+  assert.deepEqual(page.calls, [], 'nothing is sent to Supabase just by opening the page');
+  assert.deepEqual(page.replaced, [], 'the link stays in the address, so a refresh still works');
 });
 
-test('a used or expired link goes back to the email step and says so', async () => {
-  const page = screen({ tokenHash: 'used', verify: async () => { throw new Error('Token has expired or is invalid'); } });
-  page.render();
-  await page.flush();
+test('saving the new password spends the link, then stores the password and drops the link from the address', async () => {
+  const page = screen({ tokenHash: 'abc123' });
+  await page.saveNewPassword('Abcdefg1');
+  assert.deepEqual(page.calls, [['verify', 'abc123'], ['save', 'Abcdefg1']]);
+  assert.deepEqual(page.replaced, [[null, '', '/reset-password']]);
+  assert.equal(page.done(), true);
+});
+
+test('a used or expired link is found at save, goes back to the email step and saves nothing', async () => {
+  const page = screen({ tokenHash: 'used', verify: async () => { throw new Error('Email link is invalid or has expired'); } });
+  await page.saveNewPassword();
+  assert.deepEqual(page.calls, [['verify', 'used']]);
   assert.deepEqual(page.labels(), [copy.email]);
   assert.ok(page.texts().includes(copy.resetLinkInvalid));
+  assert.deepEqual(page.replaced, [[null, '', '/reset-password']]);
+});
+
+test('a rejected password keeps the spent link sign-in: the retry does not check the link again', async () => {
+  let attempts = 0;
+  const page = screen({ tokenHash: 'abc123', save: async () => { attempts += 1; if (attempts === 1) throw new Error('New password should be different from the old password.'); } });
+  await page.saveNewPassword('Abcdefg1');
+  assert.equal(page.done(), false);
+  assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
+  await page.saveNewPassword('Abcdefg2');
+  assert.deepEqual(page.calls, [['verify', 'abc123'], ['save', 'Abcdefg1'], ['save', 'Abcdefg2']]);
+  assert.equal(page.done(), true);
 });
 
 test('the page opened without a link starts at the email step and checks nothing', () => {
   const page = screen();
   assert.deepEqual(page.labels(), [copy.email]);
-  assert.deepEqual(page.verified, []);
-  assert.deepEqual(page.replaced, []);
+  assert.deepEqual(page.calls, []);
 });
 
-test('an older PKCE link (?code=) still opens the new-password step', () => {
+test('an older PKCE link (?code=) opens the new-password step and saves without a token check', async () => {
   const page = screen({ pkceLink: true });
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
-  assert.deepEqual(page.verified, []);
+  await page.saveNewPassword('Abcdefg1');
+  assert.deepEqual(page.calls, [['save', 'Abcdefg1']]);
 });
