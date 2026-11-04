@@ -1920,6 +1920,24 @@ export interface TranslationSchema {
       };
     };
     listings: {
+      web: {
+        colRoom: string;
+        colSize: string;
+        colType: string;
+        colPrice: string;
+        colStatus: string;
+        colUpdated: string;
+        pageRange: string;
+        prevPage: string;
+        nextPage: string;
+        pages: string;
+        viewTable: string;
+        viewCards: string;
+        emptyTitle: string;
+        emptyBody: string;
+        filters: string;
+        tableLabel: string;
+      };
       editRoom: string;
       saveChanges: string;
       cancelEdit: string;

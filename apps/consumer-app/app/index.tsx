@@ -34,6 +34,7 @@ import {
 } from '../components/tenant-web/navigation';
 import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import { AgentOverview } from '../components/agent-web/AgentOverview';
+import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
@@ -1399,6 +1400,16 @@ export function AppHomeScreen() {
     }
 
     if (activeTab === 'listingRoom') {
+      // Desktop web (plan step 4): table / card grid page; phone and phone-width web keep the app screen.
+      if (isAgentWeb) {
+        return (
+          <AgentRoomsPage
+            reloadToken={roomsReloadToken}
+            onReloadSettled={finishPageRefresh}
+            onAddRoom={openCreateListing}
+          />
+        );
+      }
       return (
         <View style={styles.bodyContainer}>
           <AgentRoomsScreen
