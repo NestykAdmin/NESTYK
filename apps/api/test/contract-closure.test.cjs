@@ -25,6 +25,7 @@ const reasons=[
  {id:3,code:'before_start_cancelled',applicable_status:'cancelled',requires_note:true,is_active:true},
  {id:4,code:'draft_cancelled',applicable_status:'cancelled',requires_note:true,is_active:true},
  {id:6,code:'other_termination',applicable_status:'terminated',requires_note:true,is_active:true},
+ {id:11,code:'reservation_fulfilled',applicable_status:'terminated',requires_note:false,is_active:true},
 ];
 function fixture(options={}){
  const state={contracts:[{...base,...options.contract},...(options.others??[])],lead:{id:1,created_by_user_id:7,rent_room_id:3,status:'booked',tenant_id:2,booking_released_at:null},tenancy:{id:4,status:'active',move_out_date:null,...options.tenancy},invoices:structuredClone(options.invoices??[]),bills:[{id:1,status:'pending',due_date:'2026-10-15',amount:'15000.00',payment_slip_path:'pending.jpg'},{id:2,status:'paid',due_date:'2026-09-15',amount:'15000.00',payment_slip_path:'paid.jpg'}]};
@@ -227,4 +228,9 @@ test('AC-8.7: the daily close releases the stay of an undecided lease the day af
   assert.equal(r.state.contracts[0].data.undecided, undefined); assert.equal(r.state.lead.booking_released_at, null); assert.equal(r.state.tenancy.status, 'active');
   const plain = fixture({ contract: { ...ended, data: {} } });
   assert.equal(await closeEndedLease(plain.db, 20, '2026-11-02'), null, 'an ended lease that is not undecided is left alone');
+});
+
+test('the reservation_fulfilled reason is set by the move-in handover only: not offered, and refused when closing a lease',async()=>{
+ const list=await contractEndReasons(fixture().db);assert.ok(!list.some(r=>r.code==='reservation_fulfilled'));
+ const f=fixture();await assert.rejects(()=>f.close({endReasonCode:'reservation_fulfilled',effectiveEndDate:'2026-10-12'}),e=>e.getStatus()===400);assert.equal(f.updates.length,0);
 });

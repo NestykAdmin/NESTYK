@@ -93,6 +93,7 @@ const copy = {
       cancelled: "ยกเลิก",
       expired: "หมดอายุ",
       terminated: "สิ้นสุดสัญญา",
+      fulfilled: "ใช้แล้ว",
     },
   },
   en: {
@@ -188,6 +189,7 @@ const copy = {
       cancelled: "Cancelled",
       expired: "Expired",
       terminated: "Terminated",
+      fulfilled: "Used",
     },
   },
   zh: {
@@ -282,6 +284,7 @@ const copy = {
       cancelled: "已取消",
       expired: "已到期",
       terminated: "已终止",
+      fulfilled: "已使用",
     },
   },
   ja: {
@@ -376,6 +379,7 @@ const copy = {
       cancelled: "キャンセル済み",
       expired: "期限切れ",
       terminated: "終了",
+      fulfilled: "使用済み",
     },
   },
 };

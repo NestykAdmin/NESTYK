@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { isFulfilledReservation } from '../lib/contract-status';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { getCardElevation, MobileButton, MobileIcon, MobileInput, MobileStatusPill, tokens, useMobileTheme, type AppIconName } from '@nestyk/ui/native';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
@@ -53,8 +54,9 @@ export function AgentContractLibrary({ contracts, invoices, commissions, view, o
       detail = [c.property, c.room && fillTemplate(tc.common.room, { room: c.room })].filter(Boolean).join(' · ');
       if (entry.kind !== 'contract') { amount = c.reservationPayment!.total; reference = c.contractNo; }
       else amount = c.formKind === 'reservation' ? c.reservationFee : c.formKind === 'broker_appointment' ? null : c.monthlyRent;
-      status = entry.kind === 'contract' ? tc.common.status[c.status] : entry.kind === 'booking_receipt' ? tc.payment.status.paid
-        : entry.state === 'closed' ? tc.payment.closed : c.reservationPayment!.status === 'paid' ? tc.payment.status.paid
+      const used = isFulfilledReservation(c);
+      status = entry.kind === 'contract' ? (used ? tc.common.statusFulfilled : tc.common.status[c.status]) : entry.kind === 'booking_receipt' ? tc.payment.status.paid
+        : entry.state === 'closed' ? (used ? tc.payment.fulfilled : tc.payment.closed) : c.reservationPayment!.status === 'paid' ? tc.payment.status.paid
         : c.reservationPayment!.status === 'submitted' ? tc.payment.submittedShort : tc.payment.unpaidShort;
     } else if (entry.kind === 'invoice' || entry.kind === 'receipt') {
       number = entry.kind === 'receipt' ? entry.value.receiptDocumentNo! : entry.value.documentNo;

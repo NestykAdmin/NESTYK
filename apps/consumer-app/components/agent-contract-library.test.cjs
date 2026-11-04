@@ -23,7 +23,7 @@ const dependencies = {
   },
   './TenantDetailParts': { DetailCard: 'section', DetailMenuRow: 'button', ps: { grow: {}, row: {}, body: {}, small: {}, value: {} } },
   '@nestyk/i18n': i18nMock({ agent: { contracts: { commissionConfirmation: { menu: 'ค่าคอมมิชชัน' } } } }),
-  '../lib/lead-format': leadFormat, '../lib/agent-contract-library': lib,
+  '../lib/lead-format': leadFormat, '../lib/agent-contract-library': lib, '../lib/contract-status': load('../lib/contract-status.ts'),
 };
 const { AgentContractLibrary } = load('AgentContractLibrary.tsx', dependencies);
 const { ContractTypePicker } = load('ContractTypePicker.tsx', dependencies);
@@ -111,4 +111,19 @@ test('create waits until the document list has loaded, with or without a tenant'
     assert.equal(create(render(view, { tenantName, loading: true })),true,String(tenantName));
     assert.equal(create(render(view, { tenantName })),false,String(tenantName));
   }
+});
+
+test('a booking letter its lease took over shows "used" on the letter and on its booking invoice', () => {
+  const used = { ...booking, status: 'terminated', endReasonCode: 'reservation_fulfilled' };
+  // The letter is in the rental folder, its booking invoice in the finance folder.
+  const texts = (contracts) => ['rental', 'finance'].flatMap((folder) => {
+    const tree = AgentContractLibrary({ ...base, contracts, view: { ...lib.emptyLibraryView(), folder }, onViewChange() {}, onOpen() {} });
+    return nodes(tree).map((n) => n.props?.children).flat().filter((c) => typeof c === 'string');
+  });
+  const shown = texts([used, lease]);
+  assert.ok(shown.includes(contractsTh.common.statusFulfilled), 'the letter');
+  assert.ok(shown.includes(contractsTh.payment.fulfilled), 'its booking invoice');
+  const ended = texts([{ ...booking, status: 'terminated', endReasonCode: 'landlord_withdrew' }, lease]);
+  assert.ok(!ended.includes(contractsTh.common.statusFulfilled));
+  assert.ok(ended.includes(contractsTh.payment.closed));
 });

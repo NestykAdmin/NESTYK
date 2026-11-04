@@ -489,6 +489,7 @@ export class AgentContractsService {
       .leftJoinAndSelect("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.template", "template")
       .leftJoinAndSelect("c.tenant", "tenant")
+      .leftJoinAndSelect("c.end_reason", "endReason")
       .where("c.created_by_user_id = :agentId", { agentId });
   }
   /**
@@ -515,6 +516,7 @@ export class AgentContractsService {
       .where("c.created_by_user_id = :agentId", { agentId })
       .andWhere("c.status = 'active'")
       .andWhere("COALESCE(template.form_kind, agreementType.form_kind) = 'broker_appointment'")
+      // Same term as BROKER_APPOINTMENT_TERM_YEARS in agreement-hold.ts (account deletion counts it the same way).
       .andWhere("c.start_date + INTERVAL '1 year' > CAST(:today AS date)", { today: bangkokDate() });
     if (filter.roomIds) query = query.andWhere("c.rent_room_id IN (:...roomIds)", { roomIds: filter.roomIds });
     if (filter.tenantIds) query = query.andWhere("c.tenant_id IN (:...tenantIds)", { tenantIds: filter.tenantIds });
@@ -672,7 +674,8 @@ export class AgentContractsService {
       .leftJoinAndSelect("room.property", "property")
       .leftJoinAndSelect("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.template", "template")
-      .leftJoinAndSelect("c.tenant", "tenant");
+      .leftJoinAndSelect("c.tenant", "tenant")
+      .leftJoinAndSelect("c.end_reason", "endReason");
     return withCancelled ? query.where("TRUE") : query.where("c.status <> 'cancelled'");
   }
   private partiesFor(userId: number, c: LeaseContractEntity) {
@@ -893,6 +896,7 @@ export class AgentContractsService {
       monthlyRent: c.monthly_rent == null ? null : Number(c.monthly_rent),
       deposit: c.deposit == null ? null : Number(c.deposit),
       endReasonId: c.end_reason_id ?? null,
+      endReasonCode: c.end_reason?.code ?? null,
       endReasonNote: c.end_reason_note ?? null,
       effectiveEndDate: c.effective_end_date ?? null,
       endRecordedAt: c.end_recorded_at?.toISOString() ?? null,

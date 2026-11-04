@@ -18,7 +18,9 @@ import { MobileLinkedAccountsBody } from '../components/MobileLinkedAccountsBody
 import { tokens } from '../theme/tokens';
 import { getCardElevation } from '../theme/elevation';
 import { useMobileTheme } from '../theme/ThemeContext';
-import { MobileChangePasswordBody } from './MobileChangePasswordBody';
+import { ChangePasswordInput, MobileChangePasswordBody } from './MobileChangePasswordBody';
+import { MobileDeleteAccountBody } from './MobileDeleteAccountBody';
+import type { AccountDeletionPreview, AccountDeletionProof } from './MobileDeleteAccountBody';
 
 export interface MobileAccountProfile {
   name: string;
@@ -37,6 +39,15 @@ export interface MobileAccountSettingsBodyProps {
   onSaveProfile?: (input: ProfileSaveInput) => Promise<void>;
   onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
+  onChangePassword?: (input: ChangePasswordInput) => Promise<void>;
+  onLoadAccountDeletion?: () => Promise<AccountDeletionPreview>;
+  onDeleteAccount?: (proof: AccountDeletionProof) => Promise<void>;
+  onScheduleAccountDeletion?: (proof: AccountDeletionProof) => Promise<void>;
+  onCancelAccountDeletion?: () => Promise<void>;
+  captcha?: React.ReactNode;
+  captchaRequired?: boolean;
+  captchaToken?: string | null;
+  onCaptchaReset?: () => void;
 }
 
 export interface MobileAccountSettingsBodyHandle {
@@ -48,6 +59,7 @@ type SettingsView =
   | 'profile'
   | 'linkedAccounts'
   | 'password'
+  | 'delete'
   | 'about'
   | 'terms'
   | 'privacy'
@@ -71,6 +83,15 @@ export const MobileAccountSettingsBody = forwardRef<
   onSaveProfile,
   onUploadAvatar,
   onRemoveAvatar,
+  onChangePassword,
+  onLoadAccountDeletion,
+  onDeleteAccount,
+  onScheduleAccountDeletion,
+  onCancelAccountDeletion,
+  captcha,
+  captchaRequired,
+  captchaToken,
+  onCaptchaReset,
 }, ref) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
@@ -79,6 +100,7 @@ export const MobileAccountSettingsBody = forwardRef<
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailNotifEnabled, setEmailNotifEnabled] = useState(true);
   const slideX = useSharedValue(0);
+  const canDeleteAccount = !!(onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion);
 
   const cardStyle = {
     backgroundColor: theme.card,
@@ -94,6 +116,8 @@ export const MobileAccountSettingsBody = forwardRef<
           return t.mobile.account.linkedAccounts.title;
         case 'password':
           return t.mobile.account.changePassword;
+        case 'delete':
+          return t.mobile.account.deleteAccount;
         case 'about':
           return t.mobile.appSettings.aboutNestyk;
         case 'terms':
@@ -211,9 +235,30 @@ export const MobileAccountSettingsBody = forwardRef<
       case 'password':
         return (
           <View style={{ width: paneWidth, flex: 1 }}>
-            <MobileChangePasswordBody />
+            <MobileChangePasswordBody
+              onChangePassword={onChangePassword}
+              onFinished={closeNested}
+              captcha={captcha}
+              captchaRequired={captchaRequired}
+              captchaToken={captchaToken}
+            />
           </View>
         );
+      case 'delete':
+        return onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion ? (
+          <View style={{ width: paneWidth, flex: 1 }}>
+            <MobileDeleteAccountBody
+              onLoad={onLoadAccountDeletion}
+              onDeleteNow={onDeleteAccount}
+              onSchedule={onScheduleAccountDeletion}
+              onCancelSchedule={onCancelAccountDeletion}
+              captcha={captcha}
+              captchaRequired={captchaRequired}
+              captchaToken={captchaToken}
+              onCaptchaReset={onCaptchaReset}
+            />
+          </View>
+        ) : null;
       case 'about':
         return renderInfoBody(t.mobile.appSettings.aboutBody);
       case 'terms':
@@ -264,8 +309,16 @@ export const MobileAccountSettingsBody = forwardRef<
                   t.mobile.account.changePassword,
                   'shield',
                   () => openNested('password'),
-                  { isLast: true },
+                  { isLast: !canDeleteAccount },
                 )}
+                {canDeleteAccount
+                  ? renderLinkRow(
+                      t.mobile.account.deleteAccount,
+                      'trash',
+                      () => openNested('delete'),
+                      { isLast: true },
+                    )
+                  : null}
               </View>
 
               <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>

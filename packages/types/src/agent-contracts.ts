@@ -58,6 +58,8 @@ export interface AgentContract {
   monthlyRent: number | null;
   deposit: number | null;
   endReasonId?: number | null;
+  /** Code of the end reason; `reservation_fulfilled` is a booking letter its lease has taken over. */
+  endReasonCode?: string | null;
   endReasonNote?: string | null;
   effectiveEndDate?: string | null;
   endRecordedAt?: string | null;

@@ -16,6 +16,9 @@ import {
 } from "./navigation";
 import "./agent-workspace.css";
 import { AgentSelect } from "./AgentSelect";
+import { passwordIsStrong } from "../../lib/auth/password-rules";
+import { hcaptchaSiteKey } from "../../lib/auth/hcaptcha-site-key";
+import { HcaptchaField } from "../../components/HcaptchaField";
 
 const ROLES: UserRole[] = ["guest", "tenant", "landlord", "agent", "admin"];
 
@@ -37,12 +40,37 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [profileSaving, setProfileSaving] = React.useState(false);
   const [profileError, setProfileError] = React.useState<string | null>(null);
   const [profilePreview, setProfilePreview] = React.useState<string | null>(null);
+  const [passwordOpen, setPasswordOpen] = React.useState(false);
+  const [currentPassword, setCurrentPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [passwordSaving, setPasswordSaving] = React.useState(false);
+  const [passwordError, setPasswordError] = React.useState<string | null>(null);
+  const [complete, setComplete] = React.useState<null | "profile" | "password">(null);
+  const [captchaToken, setCaptchaToken] = React.useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = React.useState(0);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
+  const [deleteNowAvailable, setDeleteNowAvailable] = React.useState(false);
+  const [deleteBlocked, setDeleteBlocked] = React.useState<string[] | null>(null);
+  const [deleteScheduled, setDeleteScheduled] = React.useState<string | null>(null);
+  const [deletePending, setDeletePending] = React.useState<"now" | "later" | "cancel" | null>(null);
+  const deletePendingRef = React.useRef(deletePending);
+  deletePendingRef.current = deletePending;
+  const [deletePassword, setDeletePassword] = React.useState("");
+  const [deletePasswordStep, setDeletePasswordStep] = React.useState(false);
+  const deletePasswordStepRef = React.useRef(deletePasswordStep);
+  deletePasswordStepRef.current = deletePasswordStep;
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = React.useState(false);
+  const captchaRequired = hcaptchaSiteKey().length > 0;
   const copy = t.agent.dashboard.webWorkspace;
   const parent = agentWebParent(props.activeTab);
 
   useEffect(() => {
     if (!props.enabled) return;
     const closeAccount = (event: PointerEvent) => {
+      if (deletePendingRef.current) return;
       if (
         event.target instanceof Node &&
         !accountRef.current?.contains(event.target)
@@ -51,7 +79,17 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       }
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && accountRef.current?.open) {
+      if (event.key !== "Escape") return;
+      if (deletePasswordStepRef.current) {
+        setDeletePasswordStep(false);
+        setDeletePassword("");
+        return;
+      }
+      if (deletePendingRef.current) {
+        setDeletePending(null);
+        return;
+      }
+      if (accountRef.current?.open) {
         accountRef.current.removeAttribute("open");
         accountRef.current.querySelector("summary")?.focus();
       }
@@ -62,6 +100,22 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       document.removeEventListener("pointerdown", closeAccount);
       document.removeEventListener("keydown", escape);
     };
+  }, [props.enabled]);
+
+  useEffect(() => {
+    const account = accountRef.current;
+    if (!props.enabled || !account) return;
+    const onToggle = () => {
+      if (account.open) return;
+      setPasswordOpen(false);
+      setProfileOpen(false);
+      setDeleteOpen(false);
+      setAccountMenuOpen(false);
+      setPasswordError(null);
+      setProfileError(null);
+    };
+    account.addEventListener("toggle", onToggle);
+    return () => account.removeEventListener("toggle", onToggle);
   }, [props.enabled]);
 
   useEffect(() => {
@@ -81,6 +135,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const menuLabel = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
     item.labelKey ? t.agent.dashboard[item.labelKey] : t.mobile.tabs[item.tab];
   const shellRole = props.activeRole ?? "agent";
+  const canEditProfile = shellRole === "agent" && !!props.onSaveProfile;
+  const canDeleteAccount = !!props.onLoadAccountDeletion && !!props.onDeleteAccount;
+  const hasAccountActions = canEditProfile || !!props.onChangePassword || canDeleteAccount;
   const openProfile = () => {
     const parts = props.userName.trim().split(/\s+/).filter(Boolean);
     setProfileFirst(parts[0] ?? "");
@@ -112,11 +169,55 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         phone: profilePhone.trim() ? profilePhone.trim() : null,
       });
       setProfileOpen(false);
+      setPasswordOpen(false);
+      setComplete("profile");
       accountRef.current?.removeAttribute("open");
     } catch (cause) {
       setProfileError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
     } finally {
       setProfileSaving(false);
+    }
+  };
+  const savePassword = async () => {
+    if (!props.onChangePassword || passwordSaving) return;
+    const copyPassword = t.mobile.account.password;
+    if (!currentPassword) {
+      setPasswordError(copyPassword.required);
+      return;
+    }
+    if (!passwordIsStrong(newPassword)) {
+      setPasswordError(t.mobile.auth.passwordRules);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(copyPassword.mismatch);
+      return;
+    }
+    if (captchaRequired && !captchaToken) {
+      setPasswordError(t.mobile.auth.captchaRequired);
+      return;
+    }
+    setPasswordSaving(true);
+    setPasswordError(null);
+    try {
+      await props.onChangePassword({
+        currentPassword,
+        newPassword,
+        ...(captchaToken ? { captchaToken } : {}),
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordOpen(false);
+      setComplete("password");
+      accountRef.current?.removeAttribute("open");
+    } catch (cause) {
+      const code = cause && typeof cause === "object" && "code" in cause ? (cause as { code?: string }).code : undefined;
+      setPasswordError(code === "WRONG_PASSWORD" ? copyPassword.incorrect : code === "WEAK_PASSWORD" ? t.mobile.auth.passwordRules : cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+    } finally {
+      setCaptchaToken(null);
+      setCaptchaKey(captchaKey + 1);
+      setPasswordSaving(false);
     }
   };
   const workspaceLabel = props.workspaceLabel ?? t.agent.dashboard.workspaceLabel;
@@ -329,7 +430,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                     color={theme.textSecondary}
                   />
                 </summary>
-                <div className="aw-account-popover">
+                <div className={passwordOpen ? "aw-account-popover aw-account-popover-password" : "aw-account-popover"}>
                   <div className="aw-account-info">
                     <strong>{props.userName}</strong>
                     <span>{props.userEmail}</span>
@@ -404,12 +505,79 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                       </button>
                     </form>
                   ) : null}
-                  {shellRole === "agent" && props.onSaveProfile && !profileOpen ? (
-                    <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
-                      {t.mobile.account.editProfile}
-                    </button>
+                  {props.onChangePassword && passwordOpen ? (
+                    <form
+                      className="aw-profile-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        return savePassword();
+                      }}
+                    >
+                      <p className="aw-photo-hint">{t.mobile.auth.passwordRules}</p>
+                      <label>
+                        {t.mobile.account.password.current}
+                        <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" />
+                      </label>
+                      <label>
+                        {t.mobile.account.password.new}
+                        <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" />
+                      </label>
+                      <label>
+                        {t.mobile.account.password.confirm}
+                        <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
+                      </label>
+                      {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                      {passwordError ? <p className="aw-profile-error" role="alert">{passwordError}</p> : null}
+                      <button type="submit" className="aw-button aw-button-primary" disabled={passwordSaving}>
+                        {passwordSaving ? t.common.loading : t.mobile.account.password.submit}
+                      </button>
+                      <button type="button" className="aw-button aw-button-secondary" disabled={passwordSaving} onClick={() => setPasswordOpen(false)}>
+                        {t.common.cancel}
+                      </button>
+                    </form>
                   ) : null}
-                  {profileOpen ? null : <>
+                  {hasAccountActions && !profileOpen && !passwordOpen && !deleteOpen ? (
+                    accountMenuOpen ? (
+                      <>
+                      {canEditProfile ? (
+                        <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
+                          {t.mobile.account.editProfile}
+                        </button>
+                      ) : null}
+                      {props.onChangePassword ? (
+                        <button type="button" className="aw-button aw-button-secondary" onClick={() => { setPasswordError(null); setPasswordOpen(true); }}>
+                          {t.mobile.account.changePassword}
+                        </button>
+                      ) : null}
+                      {canDeleteAccount ? (
+                        <button type="button" className="aw-button aw-button-secondary" onClick={() => {
+                          setDeleteError(null);
+                          setDeleteBlocked(null);
+                          setDeleteOpen(true);
+                          void props.onLoadAccountDeletion!().then((preview) => {
+                            setDeleteBlocked(preview.blocked ? preview.reasons : []);
+                            setDeleteScheduled(preview.scheduledFor);
+                            setDeleteNowAvailable(preview.deleteNowAvailable === true);
+                            setDeletePending(null);
+                          }).catch((cause: unknown) => {
+                            setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+                          });
+                        }}>
+                          {t.mobile.account.deleteAccount}
+                        </button>
+                      ) : null}
+                      <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(false)}>
+                        {t.common.cancel}
+                      </button>
+                      </>
+                    ) : (
+                      <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(true)}>
+                        {t.mobile.account.manageAccount}
+                      </button>
+                    )
+                  ) : null}
+                  {profileOpen || passwordOpen ? null : <>
+                  {accountMenuOpen || deleteOpen ? null : <>
                   <label>
                     {t.mobile.profile.switchRole}
                     <AgentSelect
@@ -454,6 +622,38 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                       }
                     />
                   </label>
+                  </>}
+                  {deleteOpen ? (
+                    <div className="aw-profile-form">
+                      <p className="aw-photo-hint">{t.mobile.account.deleteAccountBody}</p>
+                      {deleteBlocked && deleteBlocked.length > 0 ? (
+                        <>
+                          <p className="aw-profile-error">{t.mobile.account.deleteAccountBlocked}</p>
+                          {deleteBlocked.map((reason) => (
+                            <p key={reason} className="aw-profile-error">{t.mobile.account.deleteAccountReasons[reason as 'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit']}</p>
+                          ))}
+                        </>
+                      ) : null}
+                      {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
+                      {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
+                      {!deleteBlocked?.length && !deleteScheduled ? (
+                        <>
+                          {deleteNowAvailable ? <button type="button" className="aw-button aw-button-primary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('now')}>{t.mobile.account.deleteAccountNow}</button> : null}
+                          <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('later')}>{t.mobile.account.deleteAccountLater}</button>
+                        </>
+                      ) : null}
+                      {deleteScheduled && props.onCancelAccountDeletion ? (
+                        <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => {
+                          setDeleteError(null);
+                          setDeletePasswordStep(false);
+                          setDeletePending("cancel");
+                        }}>{t.mobile.account.deleteAccountCancel}</button>
+                      ) : null}
+                      <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => { setDeleteOpen(false); setDeletePending(null); }}>
+                        {t.common.cancel}
+                      </button>
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     className="aw-signout"
@@ -471,6 +671,137 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
             {props.children}
           </main>
         </div>
+        {complete ? (
+          <div className="aw-complete" role="dialog" aria-modal="true" aria-labelledby="aw-complete-title">
+            <div className="aw-complete-card">
+              <div className="aw-complete-badge" aria-hidden="true">
+                <MobileIcon name="check" size={28} color="#211E1E" weight="bold" />
+              </div>
+              <h2 id="aw-complete-title">
+                {complete === "password" ? t.mobile.account.changePassword : t.mobile.account.editProfile}
+              </h2>
+              <p>{complete === "password" ? t.mobile.account.password.updated : t.mobile.account.profileSaved}</p>
+              <button type="button" className="aw-button aw-button-primary" onClick={() => {
+                const returnToOverview = complete === "password";
+                setComplete(null);
+                if (returnToOverview) navigate("dashboard");
+              }}>
+                {t.mobile.account.done}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {deletePending ? (
+          <div
+            className="aw-complete"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="aw-delete-title"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <div className="aw-complete-card">
+              <h2 id="aw-delete-title">{deletePending === "cancel" ? t.mobile.account.deleteAccountCancel : t.mobile.account.deleteAccountConfirm}</h2>
+              <p>
+                {deletePasswordStep
+                  ? t.mobile.account.deleteAccountPasswordPrompt
+                  : deletePending === "cancel"
+                    ? t.mobile.account.deleteAccountCancelConfirm
+                    : deletePending === "now"
+                      ? t.mobile.account.deleteAccountConfirmNow
+                      : t.mobile.account.deleteAccountConfirmLater}
+              </p>
+              {deletePasswordStep ? (
+                <label className="aw-profile-form">
+                  {t.mobile.account.password.current}
+                  <input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(event) => setDeletePassword(event.target.value)}
+                    autoComplete="current-password"
+                  />
+                </label>
+              ) : null}
+              {deletePasswordStep && captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+              {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
+              <div className="aw-confirm-actions">
+                <button
+                  type="button"
+                  className={deletePending === "cancel" ? "aw-button aw-button-primary" : "aw-button aw-button-danger"}
+                  disabled={deleteBusy}
+                  onClick={() => {
+                    const choice = deletePending;
+                    if (!choice) return;
+                    if (choice !== "cancel" && !deletePasswordStep) {
+                      setDeleteError(null);
+                      setDeletePassword("");
+                      setCaptchaToken(null);
+                      setCaptchaKey((key) => key + 1);
+                      setDeletePasswordStep(true);
+                      return;
+                    }
+                    if (choice !== "cancel") {
+                      if (!deletePassword) {
+                        setDeleteError(t.mobile.account.password.required);
+                        return;
+                      }
+                      if (captchaRequired && !captchaToken) {
+                        setDeleteError(t.mobile.auth.captchaRequired);
+                        return;
+                      }
+                    }
+                    const proof = { password: deletePassword, ...(captchaToken ? { captchaToken } : {}) };
+                    const result = choice === "now"
+                      ? props.onDeleteAccount?.(proof)
+                      : choice === "later"
+                        ? props.onScheduleAccountDeletion?.(proof)
+                        : props.onCancelAccountDeletion?.();
+                    if (!result) return;
+                    setDeleteBusy(true);
+                    setDeleteError(null);
+                    void result.then(() => {
+                      setDeletePending(null);
+                      setDeletePasswordStep(false);
+                      setDeletePassword("");
+                      setDeleteOpen(false);
+                      setDeleteBusy(false);
+                      if (choice === "cancel") setDeleteScheduled(null);
+                      if (choice === "later") navigate("dashboard");
+                    }).catch((cause: unknown) => {
+                      const code = cause && typeof cause === "object" && "code" in cause ? String((cause as { code: unknown }).code) : "";
+                      if (code === "REAUTH_REQUIRED") {
+                        // More than 5 minutes since the password was confirmed: ask for it again (QA A).
+                        setDeletePassword("");
+                        setDeletePasswordStep(true);
+                        setDeleteError(t.mobile.account.deleteAccountReauth);
+                      } else if (code === "ACCOUNT_DELETE_BLOCKED" && props.onLoadAccountDeletion) {
+                        // QA B10: something new blocks deletion since the panel opened: show the fresh reasons.
+                        setDeletePending(null);
+                        setDeletePasswordStep(false);
+                        setDeletePassword("");
+                        setDeleteError(null);
+                        void props.onLoadAccountDeletion().then((preview) => {
+                          setDeleteBlocked(preview.blocked ? preview.reasons : []);
+                          setDeleteScheduled(preview.scheduledFor);
+                            setDeleteNowAvailable(preview.deleteNowAvailable === true);
+                        }).catch(() => setDeleteError(t.common.errorGeneric));
+                      } else {
+                        setDeleteError(code === "WRONG_PASSWORD" ? t.mobile.account.password.incorrect : cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+                      }
+                      setCaptchaToken(null);
+                      setCaptchaKey((key) => key + 1);
+                      setDeleteBusy(false);
+                    });
+                  }}
+                >
+                  {deleteBusy ? t.common.loading : t.common.confirm}
+                </button>
+                <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => { setDeletePending(null); setDeletePasswordStep(false); setDeletePassword(""); setDeleteError(null); }}>
+                  {t.common.cancel}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <dialog
           className="aw-notifications"
           ref={dialogRef}

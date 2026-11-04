@@ -5,6 +5,7 @@ import type { AgentContract } from "@nestyk/types";
 import { fillTemplate, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
 import { SlipReturnControl } from "./SlipReturnControl";
+import { isFulfilledReservation } from "../lib/contract-status";
 
 export function ReservationPaymentCard({
   contract,
@@ -90,7 +91,7 @@ export function ReservationPaymentCard({
             : pc.submittedHint}
         </Text>
       )}
-      {closed && <Text style={text}>{pc.closed}</Text>}
+      {closed && <Text style={text}>{isFulfilledReservation(contract) ? pc.fulfilled : pc.closed}</Text>}
       {paymentStatus === "unpaid" && !closed && payment?.slipReturnReason && (
         <Text style={{ ...text, color: "#B91C1C" }}>
           {fillTemplate(t.contracts.slipReturn.returned, { reason: payment.slipReturnReason })}

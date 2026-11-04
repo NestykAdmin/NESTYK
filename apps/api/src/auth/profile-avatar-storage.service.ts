@@ -50,7 +50,7 @@ export class ProfileAvatarStorage {
     try {
       const input = sharp(file.buffer, { limitInputPixels: 40_000_000, failOn: 'warning' });
       const metadata = await input.metadata();
-      if (!['jpeg', 'png', 'webp', 'heif', 'avif'].includes(metadata.format ?? '') || (metadata.pages ?? 1) > 1) {
+      if (!['jpeg', 'png', 'webp'].includes(metadata.format ?? '') || (metadata.pages ?? 1) > 1) {
         throw new Error('Unsupported image');
       }
       image = await input.rotate().resize(512, 512, { fit: 'cover' }).jpeg({ quality: 80 }).toBuffer();

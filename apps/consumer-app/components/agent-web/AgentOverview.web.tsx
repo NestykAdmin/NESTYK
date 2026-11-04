@@ -67,6 +67,7 @@ export function AgentOverview({
   snapshot,
   onNavigate,
   onRefresh,
+  deletionScheduledFor,
 }: AgentOverviewProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
@@ -295,6 +296,11 @@ export function AgentOverview({
     >
       <WebContentContainer>
       <div className="aov-dashboard">
+        {deletionScheduledFor ? (
+          <p className="aov-deletion" role="alert">
+            {t.mobile.account.deleteAccountOverview.replace('{date}', new Date(deletionScheduledFor).toLocaleDateString(localeTag, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }))}
+          </p>
+        ) : null}
         <header className="aov-intro">
           <div>
             <p className="aov-eyebrow">{t.mobile.tabs.dashboard}</p>

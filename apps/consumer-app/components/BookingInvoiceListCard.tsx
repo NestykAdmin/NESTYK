@@ -4,6 +4,7 @@ import { tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentContract } from "@nestyk/types";
 import { fillTemplate, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
+import { isFulfilledReservation } from "../lib/contract-status";
 
 export function bookingInvoicesForTenant(
   contracts: AgentContract[],
@@ -68,7 +69,7 @@ export function BookingInvoiceListCard({
           ฿{payment.total.toLocaleString(localeTag(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
         <Text style={{ ...text, color: payment.status === "paid" ? "#198460" : "#B45309" }}>
-          {closed ? tc.payment.closed : payment.status === "paid" ? tc.payment.status.paid : payment.status === "submitted" ? tc.payment.submittedShort : tc.payment.unpaidShort}
+          {closed ? (isFulfilledReservation(contract) ? tc.payment.fulfilled : tc.payment.closed) : payment.status === "paid" ? tc.payment.status.paid : payment.status === "submitted" ? tc.payment.submittedShort : tc.payment.unpaidShort}
         </Text>
       </View>
     </Pressable>
