@@ -17,10 +17,12 @@ function visit(node) {
 visit(ast);
 assert.ok(handler, 'home screen has an auth action');
 
-function setup({ authenticated = true, signOut = async () => {} } = {}) {
+// AFTER_SIGN_OUT_PATH (app/index.tsx): '/login' on mobile, '/' (guest home) on the web (Mos 4 Nov 2026).
+function setup({ authenticated = true, signOut = async () => {}, afterSignOutPath = '/login' } = {}) {
   const calls = [];
   const dependencies = {
     isAuthenticated: authenticated,
+    AFTER_SIGN_OUT_PATH: afterSignOutPath,
     signOut: async () => { calls.push(['signOut']); await signOut(); },
     router: {
       push: route => calls.push(['push', route]),
@@ -63,6 +65,15 @@ test('the existing sign-out failure cleanup also ends at login', async () => {
     ['inbox', false], ['room', null], ['contract', null], ['role', 'guest'],
     ['tab', 'search'], ['alert', 'Sign out', 'Signed out'], ['replace', '/login'],
   ]);
+});
+
+test('web: sign out lands on the guest home instead of login', async () => {
+  const { run, calls } = setup({ afterSignOutPath: '/' });
+  await run();
+  assert.deepEqual(calls.at(-1), ['replace', '/']);
+  const failing = setup({ afterSignOutPath: '/', signOut: async () => { throw new Error('Sign out failed'); } });
+  await failing.run();
+  assert.deepEqual(failing.calls.at(-1), ['replace', '/']);
 });
 
 test('a guest opens login without attempting to sign out', async () => {

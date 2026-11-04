@@ -1,7 +1,7 @@
 type ResetClient = {
   auth: {
     resetPasswordForEmail(email: string, options?: { captchaToken?: string; redirectTo?: string }): Promise<{ error: { message: string } | null }>;
-    verifyOtp(args: { email: string; token: string; type: 'recovery' } | { token_hash: string; type: 'recovery' }): Promise<{ data: { session: unknown }; error: { message: string } | null }>;
+    verifyOtp(args: { token_hash: string; type: 'recovery' }): Promise<{ data: { session: unknown }; error: { message: string } | null }>;
     updateUser(args: { password: string }): Promise<{ error: { message: string } | null }>;
     signOut(args: { scope: 'others' }): Promise<unknown>;
   };
@@ -45,15 +45,6 @@ export function recoveryTokenHash(href: string): string | null {
 export async function verifyRecoveryLink(client: ResetClient, tokenHash: string): Promise<void> {
   const { data, error } = await client.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
   if (error || !data.session) throw new Error(error?.message ?? 'Recovery link was not accepted');
-}
-
-export async function verifyRecoveryCode(client: ResetClient, email: string, token: string): Promise<void> {
-  const { data, error } = await client.auth.verifyOtp({
-    email: email.trim().toLowerCase(),
-    token: token.trim(),
-    type: 'recovery',
-  });
-  if (error || !data.session) throw new Error(error?.message ?? 'Recovery code was not accepted');
 }
 
 /** Stores the new password, then signs the other devices out. The current session stays. */

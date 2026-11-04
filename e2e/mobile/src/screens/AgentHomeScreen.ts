@@ -54,7 +54,7 @@ const MENU_BUTTON: ElementSpec = {
   description: 'ปุ่ม Menu บนส่วนหัว',
   testId: 'header.menu',
   labels: [FIXED_LABELS.menu],
-  // แท็บ "เมนู" ของผู้เยี่ยมชมในภาษาอังกฤษชื่อ "Menu" เหมือนกันแต่เป็นชนิด Other
+  // จำกัดชนิดเป็น Button กันไว้ แม้แท็บ mobile.tabs.menu ของผู้เยี่ยมชมจะเปลี่ยนชื่อเป็น "More" แล้ว
   types: ['XCUIElementTypeButton'],
 };
 

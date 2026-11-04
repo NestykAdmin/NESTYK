@@ -1,6 +1,8 @@
 import { AMENITIES_FACILITY_GROUP_LABELS, AMENITIES_FACILITY_LABELS } from '../amenities-catalog-labels';
 import { TranslationSchema } from '../types';
 import { contractsTh } from './contracts/th';
+import { legalTh } from './legal/th';
+import { webSessionTh } from './web-session/th';
 
 export const th: TranslationSchema = {
   common: {
@@ -23,17 +25,17 @@ export const th: TranslationSchema = {
     photoPermission: 'กรุณาอนุญาตให้เข้าถึงรูปภาพ',
   },
   roles: {
-    guest: 'ผู้ค้นหาห้อง',
+    guest: 'Guest',
     tenant: 'ผู้เช่า',
     landlord: 'ผู้ให้เช่า',
     agent: 'นายหน้า',
-    admin: 'ผู้ดูแล',
+    admin: 'Admin Nestyk',
     services: 'ศูนย์บริการ',
-    guestSubtitle: 'ผู้ค้นหาห้อง',
+    guestSubtitle: 'Guest',
     tenantSubtitle: 'ผู้เช่า · ห้อง 1804',
     landlordSubtitle: 'ผู้ให้เช่า · ห้องที่นายหน้าดูแล',
     agentSubtitle: 'นายหน้า · Co-Broke',
-    adminSubtitle: 'ผู้ดูแล · Operations',
+    adminSubtitle: 'Admin Nestyk · Operations',
     servicesSubtitle: 'ศูนย์บริการส่วนกลาง',
   },
   mobile: {
@@ -42,9 +44,9 @@ export const th: TranslationSchema = {
       search: 'ค้นหา',
       living: 'อยู่อาศัย',
       bills: 'บิล',
-      dashboard: 'ภาพรวม',
+      dashboard: 'Dashboard',
       listings: 'ประกาศ',
-      listingRoom: 'ห้อง',
+      listingRoom: 'Listing',
       createListing: 'ลงประกาศใหม่',
       listingLead: 'ลีด',
       createLead: 'เพิ่มลีด',
@@ -60,16 +62,16 @@ export const th: TranslationSchema = {
       deals: 'ดีล',
       tickets: 'ตั๋ว',
       services: 'บริการ',
-      menu: 'เมนู',
+      menu: 'เพิ่มเติม',
     },
     screens: {
       home: 'หน้าแรก',
       discover: 'ค้นหา',
       living: 'อยู่อาศัย',
       bills: 'บิลและการชำระ',
-      dashboard: 'ภาพรวม',
+      dashboard: 'Dashboard',
       listings: 'ประกาศ',
-      listingRoom: 'Listing Room',
+      listingRoom: 'Room Listings',
       createListing: 'ลงประกาศใหม่',
       listingLead: 'Listing Lead',
       clients: 'ผู้เช่า',
@@ -160,7 +162,7 @@ export const th: TranslationSchema = {
       help: 'ช่วยเหลือ',
       faq: 'คำถามที่พบบ่อย',
       contactSupport: 'ติดต่อ NESTYK',
-      contract: 'สัญญาเช่า',
+      contract: 'สัญญาของฉัน',
       reportIssue: 'แจ้งซ่อม',
       documents: 'เอกสาร',
       leaseDoc: 'เอกสารสัญญา',
@@ -171,7 +173,7 @@ export const th: TranslationSchema = {
       incomeReport: 'รายงานรายได้',
       occupancy: 'อัตราการเช่า',
       listing: 'Listing',
-      listingRoom: 'Listing Room',
+      listingRoom: 'Room Listings',
       createListing: 'ลงประกาศใหม่',
       listingLead: 'Listing Lead',
       crm: 'CRM',
@@ -2000,8 +2002,19 @@ export const th: TranslationSchema = {
         expand: 'ขยายเมนู',
         skip: 'ข้ามไปยังเนื้อหา',
         close: 'ปิด',
+        breadcrumb: 'ตำแหน่งหน้า',
+        menu: 'เมนู',
+        create: 'สร้าง',
+        team: 'ทีม',
+        switchWorkspace: 'สลับ workspace',
+        addWorkspace: 'เพิ่ม workspace',
+        manageWorkspace: 'จัดการ workspace',
         refresh: 'รีเฟรช',
         readAll: 'อ่านทั้งหมดแล้ว',
+        theme: 'ธีม',
+        themeLight: 'สว่าง',
+        themeDark: 'มืด',
+        themeSystem: 'ตามเครื่อง',
         brandTag: 'พื้นที่ทำงานนายหน้า',
       },
       webOverview: {
@@ -2103,7 +2116,7 @@ export const th: TranslationSchema = {
       rentSlipsCancel: 'ยกเลิก',
       rentSlipsLoadFailed: 'โหลดสลิปไม่สำเร็จ',
       moreTitle: 'เครื่องมือเพิ่มเติม',
-      openServices: 'บริการอสังหา',
+      openServices: 'บริการ',
       openCalendar: 'ปฏิทิน',
       openContacts: 'ผู้ติดต่อ',
       openCommission: 'ค่าคอม',
@@ -2121,6 +2134,8 @@ export const th: TranslationSchema = {
 
   },
   contracts: contractsTh,
+  legal: legalTh,
+  webSession: webSessionTh,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.th,
     facilities: { ...AMENITIES_FACILITY_LABELS.th, air_conditioner: 'แอร์', wifi: 'ไวไฟ', parking: 'ที่จอดรถ', swimming_pool: 'สระว่ายน้ำ', elevator: 'ลิฟต์', security: 'รปภ.' },

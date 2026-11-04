@@ -13,6 +13,10 @@
       "types": "./src/native.ts",
       "default": "./src/native.ts"
     },
+    "./public-footer": {
+      "types": "./src/shells/PublicFooter.tsx",
+      "default": "./src/shells/PublicFooter.tsx"
+    },
     "./web-content": {
       "types": "./src/shells/WebContentContainer.tsx",
       "react-native": "./src/shells/WebContentContainer.native.tsx",

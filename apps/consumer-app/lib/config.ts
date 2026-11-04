@@ -1,4 +1,6 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { webDevApiUrl } from './web-api-proxy';
 import type { UserRole } from '@nestyk/types';
 
 const ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
@@ -56,8 +58,14 @@ export const APP_CONFIG = {
   baseUrl: toDeviceUrls(
     extra?.baseUrl || process.env.EXPO_PUBLIC_BASE_URL || 'http://localhost:3000',
   ),
-  apiUrl: toDeviceUrls(
-    extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000/api/v1',
+  apiUrl: webDevApiUrl(
+    toDeviceUrls(extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000/api/v1'),
+    {
+      dev: typeof __DEV__ !== 'undefined' && __DEV__,
+      isWeb: Platform.OS === 'web',
+      origin: typeof window !== 'undefined' && window.location ? window.location.origin : null,
+      flag: process.env.EXPO_PUBLIC_WEB_API_PROXY,
+    },
   ),
   /** Cold-start shell role (`EXPO_PUBLIC_DEFAULT_ROLE`) */
   defaultRole: resolveDefaultRole(),

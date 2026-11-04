@@ -135,6 +135,20 @@ test('401 and Supabase cannot renew (signed out elsewhere, password changed): se
   }
 });
 
+test('401 REAUTH_REQUIRED (password check too old for delete account): no renewal, no sign out, code kept (N2)', async () => {
+  const { api, calls } = makeApi({ live: liveSession('good-token'), refresh: refreshed('new-token') });
+  let expired = 0;
+  api.setSessionExpiredHandler(() => { expired += 1; });
+  const REAUTH = { status: 401, body: { code: 'REAUTH_REQUIRED', message: 'Confirm your identity again' } };
+  await withFetch([REAUTH], async (sent) => {
+    await assert.rejects(() => api.apiPost('/auth/account/deletion', {}), (e) =>
+      e instanceof api.ApiError && e.status === 401 && e.code === api.REAUTH_REQUIRED && e.message === 'Confirm your identity again');
+    assert.equal(sent.length, 1, 'not sent again');
+  });
+  assert.equal(calls.refreshSession, 0);
+  assert.equal(expired, 0);
+});
+
 test('401 again with a freshly renewed token (account removed on the API side): session expired', async () => {
   const { api, calls } = makeApi({ live: liveSession('old-token'), refresh: refreshed('new-token') });
   let expired = 0;

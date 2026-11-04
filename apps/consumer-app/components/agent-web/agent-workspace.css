@@ -1,5 +1,5 @@
 .aw-shell {
-  --aw-brand: #f4bd42;
+  --aw-brand: #f8b615;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   width: 100%;
@@ -108,14 +108,15 @@
   border-right: 1px solid var(--aw-border);
 }
 .aw-brand {
-  min-height: 112px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 24px 28px;
+  gap: 0;
+  min-height: 0;
+  padding: 4px;
   border: 0;
+  border-radius: 10px;
   background: transparent;
   text-align: left;
 }
@@ -193,17 +194,23 @@
   border-radius: 4px;
   padding: 2px 5px;
 }
+/* Top bar menu button (design W1: round, no border). Narrow screens: opens the sidebar drawer. */
 .aw-collapse {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  min-height: 62px;
-  padding: 16px 30px;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  padding: 0;
   border: 0;
-  border-top: 1px solid var(--aw-border);
+  border-radius: 50%;
   background: transparent;
   color: var(--aw-muted) !important;
-  font-size: 12px !important;
+}
+.aw-collapse:hover {
+  background: var(--aw-bg);
+  color: var(--aw-ink) !important;
 }
 .aw-workspace {
   display: flex;
@@ -212,13 +219,14 @@
   min-height: 0;
 }
 .aw-topbar {
-  height: 76px;
+  grid-area: top;
+  height: 70px;
   flex-shrink: 0;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  gap: 16px;
-  padding: 0 36px;
+  gap: 0;
+  padding: 0 24px 0 0;
   background: var(--aw-surface);
   border-bottom: 1px solid var(--aw-border);
   position: relative;
@@ -502,6 +510,15 @@
   border-radius: 7px;
   color: #c13c35 !important;
 }
+/* "Sign out of all devices": quieter than the main sign out, under it. */
+.aw-signout-all {
+  border-color: transparent;
+  color: var(--aw-text-secondary, #64748b) !important;
+  font-size: 12px;
+}
+.aw-signout-all:hover:not(:disabled) {
+  color: #c13c35 !important;
+}
 .aw-main {
   min-height: 0;
   flex: 1;
@@ -603,7 +620,8 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-.aw-page-title h1 {
+.aw-page-title h1,
+.aw-page-title h2 {
   font-family: "Mitr_500Medium", sans-serif;
   font-size: 24px;
   font-weight: normal;
@@ -746,11 +764,6 @@
 .aw-collapsed .aw-logo-compact {
   display: block;
 }
-.aw-collapsed .aw-brand {
-  padding: 20px;
-  min-height: 112px;
-  align-items: center;
-}
 .aw-collapsed .aw-sidebar-scroll {
   padding: 12px;
 }
@@ -758,15 +771,11 @@
   justify-content: center;
   padding: 12px;
 }
-.aw-collapsed .aw-collapse {
-  padding: 16px;
-  justify-content: center;
-}
 .aw-shell[data-theme="dark"] .aw-nav-item:hover:not(:disabled) {
   background: #ffffff0d;
 }
 .aw-shell[data-theme="dark"] .aw-nav-item.is-active {
-  background: #f4bd4224;
+  background: #f8b61524;
   color: #f4cd76;
 }
 @media (max-width: 1100px) {
@@ -775,9 +784,6 @@
   }
   .aw-collapsed {
     grid-template-columns: 80px minmax(0, 1fr);
-  }
-  .aw-topbar {
-    padding: 0 24px;
   }
   .aw-main {
     padding: 16px 0;
@@ -796,68 +802,6 @@
   .aw-breadcrumb > svg,
   .aw-breadcrumb > div {
     display: none;
-  }
-}
-@media (max-width: 760px) {
-  .aw-shell {
-    grid-template-columns: 72px minmax(0, 1fr);
-  }
-  .aw-sidebar .aw-nav-label,
-  .aw-workspace-label,
-  .aw-nav-caption,
-  .aw-active-dot,
-  .aw-collapse {
-    display: none;
-  }
-  .aw-brand {
-    padding: 16px 10px;
-    align-items: center;
-    min-height: 88px;
-    overflow: hidden;
-  }
-  .aw-logo-wide {
-    display: none;
-  }
-  .aw-logo-compact {
-    display: block;
-  }
-  .aw-sidebar-scroll {
-    padding: 8px;
-  }
-  .aw-nav-item {
-    justify-content: center;
-    padding: 12px;
-  }
-  .aw-nav-divider {
-    margin: 18px 8px;
-  }
-  .aw-topbar {
-    height: 64px;
-    padding: 0 12px;
-    gap: 8px;
-  }
-  .aw-topbar-actions {
-    gap: 8px;
-  }
-  .aw-account-name,
-  .aw-topbar-divider {
-    display: none;
-  }
-  .aw-main {
-    padding: 8px 0;
-  }
-  .aw-page-title h1 {
-    font-size: 20px;
-  }
-  .aw-page-heading {
-    gap: 12px;
-  }
-  .aw-page-actions {
-    gap: 6px;
-  }
-  .aw-notifications {
-    margin: 12px;
-    height: calc(100dvh - 24px);
   }
 }
 .aw-notification-heading {
@@ -934,4 +878,373 @@
   padding: 32px 16px;
   text-align: center;
   color: var(--aw-muted);
+}
+
+/* ===== C1 · shell W1: header across the top (logo cell = sidebar width), sidebar below ===== */
+.aw-shell {
+  --aw-brand: #f8b615;
+  --aw-side: 248px;
+  grid-template-columns: var(--aw-side) minmax(0, 1fr);
+  grid-template-rows: 70px minmax(0, 1fr);
+  grid-template-areas: "top top" "side main";
+}
+.aw-shell.aw-collapsed {
+  --aw-side: 80px;
+  grid-template-columns: var(--aw-side) minmax(0, 1fr);
+}
+.aw-logo-cell {
+  width: var(--aw-side);
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+}
+.aw-collapsed .aw-logo-cell {
+  justify-content: center;
+  padding: 0;
+}
+.aw-topbar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-left: 16px;
+}
+.aw-title {
+  margin: 0;
+  min-width: 0;
+  font-family: "Mitr_500Medium", sans-serif;
+  font-size: 19px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aw-shell .aw-topbar-actions {
+  margin-left: auto;
+  gap: 8px;
+}
+/* + Create (design W1): dark pill, so it never competes with the page's yellow primary button */
+.aw-shell .aw-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: #211e1e;
+  color: #ffffff !important;
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: 14px;
+}
+.aw-shell .aw-create:hover {
+  background: #3a3535;
+}
+.aw-shell[data-theme="dark"] .aw-create {
+  background: #f3f5f8;
+  color: #211e1e !important;
+}
+.aw-shell[data-theme="dark"] .aw-create:hover {
+  background: #ffffff;
+}
+/* Top bar icon buttons (design W1): round, no border; the language button is the only outlined one */
+.aw-shell .aw-topbar .aw-icon-button {
+  width: 42px;
+  height: 42px;
+  border-color: transparent;
+  border-radius: 50%;
+  background: transparent;
+}
+.aw-shell .aw-topbar .aw-icon-button:hover,
+.aw-shell .aw-topbar .aw-icon-button[aria-expanded="true"] {
+  background: var(--aw-bg);
+}
+.aw-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--aw-border);
+  border-radius: 999px;
+  background: var(--aw-surface);
+  font-size: 13px;
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+}
+.aw-lang:hover {
+  background: var(--aw-bg);
+}
+.aw-shell .aw-icon-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+.aw-shell .aw-sidebar {
+  grid-area: side;
+}
+.aw-shell .aw-main {
+  grid-area: main;
+}
+
+/* Workspace (role) switcher at the top of the sidebar */
+.aw-switch {
+  padding: 14px 14px 4px;
+}
+.aw-switch .awu-menu {
+  display: flex;
+  width: 100%;
+}
+.aw-switcher {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--aw-border);
+  border-radius: 12px;
+  background: var(--aw-surface);
+  text-align: left;
+}
+.aw-switcher:hover {
+  background: var(--aw-bg);
+}
+.aw-switch-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #fff4d8;
+}
+.aw-switch-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--aw-surface);
+}
+.aw-switch-copy,
+.aw-account-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+.aw-switch-copy strong,
+.aw-account-text strong {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-weight: normal;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aw-switch-copy small,
+.aw-account-text small {
+  font-size: 11px;
+  color: var(--aw-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aw-switch-chev,
+.aw-account-chev {
+  display: flex;
+  flex-shrink: 0;
+}
+.aw-switch .awu-menu-list {
+  left: 0;
+  right: 0;
+  min-width: 0;
+}
+.aw-collapsed .aw-switch {
+  display: flex;
+  justify-content: center;
+  padding: 14px 0 4px;
+}
+.aw-collapsed .aw-switcher {
+  width: auto;
+  padding: 4px;
+  border-color: transparent;
+}
+.aw-collapsed .aw-switch-copy,
+.aw-collapsed .aw-switch-chev,
+.aw-collapsed .aw-account-text,
+.aw-collapsed .aw-account-chev {
+  display: none;
+}
+.aw-collapsed .aw-switch .awu-menu-list {
+  right: auto;
+  min-width: 240px;
+}
+/* Collapsed rail: the menu wrapper is full width, so centre the role button in it like the nav icons. */
+.aw-collapsed .aw-switch .awu-menu {
+  justify-content: center;
+}
+
+/* Menu groups */
+.aw-shell .aw-nav {
+  gap: 2px;
+}
+.aw-shell .aw-nav-item {
+  min-height: 42px;
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+.aw-shell .aw-nav-divider {
+  margin: 14px 12px 10px;
+}
+.aw-shell .aw-nav-caption {
+  margin: 6px 12px 6px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.aw-nav-chev {
+  display: flex;
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+.aw-nav-item[aria-expanded="true"] .aw-nav-chev {
+  transform: rotate(90deg);
+}
+.aw-nav-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 6px 22px;
+  padding-left: 12px;
+  border-left: 1px solid var(--aw-border);
+}
+.aw-nav-subitem {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--aw-muted) !important;
+}
+.aw-nav-subitem:hover:not(:disabled) {
+  background: #f3f5f8;
+  color: var(--aw-ink) !important;
+}
+.aw-nav-subitem.is-active {
+  background: #fff4d8;
+  color: #583c0a !important;
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+}
+.aw-collapsed .aw-nav-sub,
+.aw-collapsed .aw-nav-chev {
+  display: none;
+}
+
+/* Account card at the bottom of the sidebar (menu opens upwards) */
+.aw-sidebar > .aw-account {
+  padding: 10px 12px;
+  border-top: 1px solid var(--aw-border);
+}
+.aw-sidebar > .aw-account summary {
+  padding: 8px;
+  border-radius: 12px;
+}
+.aw-sidebar > .aw-account summary:hover {
+  background: var(--aw-bg);
+}
+.aw-sidebar > .aw-account .aw-account-popover {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 12px;
+  right: auto;
+  max-height: calc(100dvh - 120px);
+}
+.aw-collapsed .aw-sidebar > .aw-account {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+.aw-collapsed .aw-sidebar > .aw-account .aw-account-popover {
+  left: 8px;
+}
+
+.aw-shell[data-theme="dark"] .aw-switch-tile {
+  background: #f8b61524;
+}
+.aw-shell[data-theme="dark"] .aw-nav-subitem:hover:not(:disabled) {
+  background: #ffffff0d;
+}
+.aw-shell[data-theme="dark"] .aw-nav-subitem.is-active {
+  background: #f8b61524;
+  color: #f4cd76 !important;
+}
+
+@media (max-width: 1100px) {
+  .aw-shell {
+    --aw-side: 216px;
+  }
+  .aw-shell.aw-collapsed {
+    --aw-side: 80px;
+  }
+  .aw-shell .aw-topbar {
+    padding-right: 16px;
+  }
+}
+/* Below 768px web shows the mobile app screens instead of this shell (app/index.tsx WEB_SHELL_MIN_WIDTH). */
+
+/* ===== Page toolbar: refresh moved out of the top bar (D4, 4 Nov 2026) ===== */
+.aw-page-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.aw-page-header-main {
+  flex: 1;
+  min-width: 0;
+}
+.aw-page-toolbar {
+  padding-top: 12px;
+}
+.aw-page-tools {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.aw-page-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--aw-border);
+  border-radius: 10px;
+  background: var(--aw-surface);
+  color: var(--aw-muted) !important;
+  font-size: 13px;
+}
+.aw-page-refresh:hover:not(:disabled) {
+  background: var(--aw-bg);
+  color: var(--aw-ink) !important;
+}
+.aw-page-refresh[aria-busy="true"] svg {
+  animation: aw-spin 0.9s linear infinite;
+}
+@keyframes aw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aw-page-refresh[aria-busy="true"] svg {
+    animation: none;
+  }
 }

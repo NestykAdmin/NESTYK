@@ -11,6 +11,7 @@ import { openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/su
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
+import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 
 type Step = 'email' | 'sent' | 'password' | 'done';
 
@@ -20,7 +21,7 @@ export default function ResetPasswordScreen() {
   const { theme } = useMobileTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, isAuthenticated } = useAuth();
+  const { requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, isAuthenticated, signOut } = useAuth();
   const [step, setStep] = useState<Step>(openedRecoveryTokenHash || openedPasswordResetLink ? 'password' : 'email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +32,7 @@ export default function ResetPasswordScreen() {
   const [captchaKey, setCaptchaKey] = useState(0);
   const captchaRequired = hcaptchaSiteKey().length > 0;
   // The reset email's link (`?token_hash=`) works on any device. Supabase spends it once, so it is spent when the
-  // new password is saved, not when the page opens: the link can be opened again (refresh, another tab) until then.
+  // new password is saved, not when the page opens: the email link can be opened again until then.
   const linkVerified = useRef(false);
   const resetCaptcha = () => {
     setCaptchaToken(null);
@@ -42,10 +43,14 @@ export default function ResetPasswordScreen() {
     if (isAuthenticated && step === 'email') router.replace('/');
   }, [isAuthenticated, router, step]);
 
-  /** Drops the token from the address once it is spent, so a refresh or a shared screenshot does not carry it. */
-  const forgetLinkInAddress = () => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
-  };
+  // Drop the token from the address at once, so a refresh or a shared screenshot does not carry it. The token was read
+  // when the app loaded (lib/auth/supabase.ts), so saving still works; the email link itself stays usable until then.
+  useEffect(() => {
+    if (!openedRecoveryTokenHash) return;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   const fieldStyle = { backgroundColor: theme.card, borderColor: theme.border, color: theme.textHeading };
   const title = step === 'password' || step === 'done' ? copy.resetNewTitle : copy.resetTitle;
@@ -91,11 +96,13 @@ export default function ResetPasswordScreen() {
     setLoading(true);
     try {
       if (openedRecoveryTokenHash && !linkVerified.current) {
+        // Signed in (maybe as someone else): sign out this device first. Checking the link signs in the link's
+        // account, and the screen and the API token must never belong to two different people (review 513fbf0 R3).
+        if (isAuthenticated) await signOut();
         try {
           await verifyRecoveryLink(openedRecoveryTokenHash);
         } catch {
           // Expired, already used, or a newer link was sent.
-          forgetLinkInAddress();
           setPassword('');
           setConfirmation('');
           setError(copy.resetLinkInvalid);
@@ -104,7 +111,6 @@ export default function ResetPasswordScreen() {
         }
         // Spent now: a retry after a rejected password reuses this sign-in instead of the link.
         linkVerified.current = true;
-        forgetLinkInAddress();
       }
       await saveResetPassword(password);
       setStep('done');
@@ -164,6 +170,7 @@ export default function ResetPasswordScreen() {
                 </MobileButton>
               ) : null}
             </View>
+            <AuthLegalFooter testID="resetPassword.footer" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

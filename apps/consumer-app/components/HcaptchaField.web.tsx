@@ -19,7 +19,8 @@ function loadHcaptcha(): Promise<void> {
   if (!scriptPromise) {
     scriptPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://js.hcaptcha.com/1/api.js?render=explicit';
+      // Always English, whatever the browser language (Mos, 4 Nov 2026).
+      script.src = 'https://js.hcaptcha.com/1/api.js?render=explicit&hl=en';
       script.async = true;
       script.onload = () => resolve();
       script.onerror = () => {
@@ -68,6 +69,7 @@ export function HcaptchaField({
         host.current.replaceChildren();
         widgetId = window.hcaptcha.render(host.current, {
           sitekey: siteKey,
+          hl: 'en',
           theme: 'light',
           size: 'normal',
           callback: (token: string) => onTokenRef.current(token || null),

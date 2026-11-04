@@ -1,6 +1,8 @@
 import { AMENITIES_FACILITY_GROUP_LABELS, AMENITIES_FACILITY_LABELS } from '../amenities-catalog-labels';
 import { TranslationSchema } from '../types';
 import { contractsZh } from './contracts/zh';
+import { legalZh } from './legal/zh';
+import { webSessionZh } from './web-session/zh';
 
 export const zh: TranslationSchema = {
   common: {
@@ -23,17 +25,17 @@ export const zh: TranslationSchema = {
     photoPermission: '请允许访问照片',
   },
   roles: {
-    guest: '寻房者',
+    guest: '访客',
     tenant: '租客',
     landlord: '房东',
     agent: '中介',
-    admin: '管理员',
+    admin: 'Nestyk 管理员',
     services: '服务中心',
-    guestSubtitle: '寻房者',
+    guestSubtitle: '访客',
     tenantSubtitle: '租客 · 1804室',
     landlordSubtitle: '房东 · 由中介管理的房源',
     agentSubtitle: '中介 · 联卖伙伴',
-    adminSubtitle: '管理员 · 运营',
+    adminSubtitle: 'Nestyk 管理员 · 运营',
     servicesSubtitle: '综合服务中心',
   },
   mobile: {
@@ -42,9 +44,9 @@ export const zh: TranslationSchema = {
       search: '搜索',
       living: '居住',
       bills: '账单',
-      dashboard: '总览',
+      dashboard: '仪表板',
       listings: '房源',
-      listingRoom: '房间',
+      listingRoom: '房源',
       createListing: '发布房源',
       listingLead: '线索',
       createLead: '新建线索',
@@ -60,16 +62,16 @@ export const zh: TranslationSchema = {
       deals: '成交',
       tickets: '工单',
       services: '服务',
-      menu: '菜单',
+      menu: '更多',
     },
     screens: {
       home: '首页',
       discover: '发现',
       living: '居住',
       bills: '账单与支付',
-      dashboard: '总览',
+      dashboard: '仪表板',
       listings: '房源',
-      listingRoom: '房源房间',
+      listingRoom: '房源列表',
       createListing: '发布房源',
       listingLead: '房源线索',
       clients: '租客',
@@ -160,7 +162,7 @@ export const zh: TranslationSchema = {
       help: '帮助',
       faq: '常见问题',
       contactSupport: '联系 NESTYK',
-      contract: '租赁合同',
+      contract: '我的合同',
       reportIssue: '报修',
       documents: '文件',
       leaseDoc: '合同文件',
@@ -171,7 +173,7 @@ export const zh: TranslationSchema = {
       incomeReport: '收入报表',
       occupancy: '入住率',
       listing: '房源',
-      listingRoom: '房源房间',
+      listingRoom: '房源列表',
       createListing: '发布房源',
       listingLead: '房源线索',
       crm: 'CRM',
@@ -1997,8 +1999,19 @@ export const zh: TranslationSchema = {
         expand: '展开导航',
         skip: '跳至内容',
         close: '关闭',
+        breadcrumb: '面包屑导航',
+        menu: '菜单',
+        create: '创建',
+        team: '团队',
+        switchWorkspace: '切换工作区',
+        addWorkspace: '添加工作区',
+        manageWorkspace: '管理工作区',
         refresh: '刷新',
         readAll: '全部标为已读',
+        theme: '主题',
+        themeLight: '浅色',
+        themeDark: '深色',
+        themeSystem: '跟随设备',
         brandTag: '中介工作区',
       },
       webOverview: {
@@ -2100,7 +2113,7 @@ export const zh: TranslationSchema = {
       rentSlipsCancel: '取消',
       rentSlipsLoadFailed: '凭证加载失败',
       moreTitle: '更多工具',
-      openServices: '物业服务',
+      openServices: '服务',
       openCalendar: '日历',
       openContacts: '联系人',
       openCommission: '佣金',
@@ -2118,6 +2131,8 @@ export const zh: TranslationSchema = {
 
   },
   contracts: contractsZh,
+  legal: legalZh,
+  webSession: webSessionZh,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.zh,
     facilities: { ...AMENITIES_FACILITY_LABELS.zh, air_conditioner: '空调', wifi: '无线网', parking: '停车', swimming_pool: '泳池', elevator: '电梯', security: '安保' },

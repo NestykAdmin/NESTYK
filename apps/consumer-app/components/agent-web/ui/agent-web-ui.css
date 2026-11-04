@@ -1,0 +1,87 @@
+/* Agent web shared UI (awu-*). Colours come from the workspace variables (--aw-*), so dark mode follows the shell. */
+
+/* Card */
+.awu-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: var(--aw-surface, #fff);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+.awu-card-flush { padding: 0; gap: 0; overflow: hidden; }
+.awu-card-flush > .awu-card-head { padding: 16px 20px; }
+.awu-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.awu-card-head h2 { margin: 0; font-family: "Mitr_500Medium", "NotoSansThai_600SemiBold", sans-serif; font-size: 17px; font-weight: 500; color: var(--aw-ink); }
+.awu-card-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Page header row */
+.awu-page-header { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.awu-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--aw-muted); }
+.awu-crumbs li { display: inline-flex; align-items: center; gap: 6px; }
+.awu-crumbs button { all: unset; cursor: pointer; color: var(--aw-muted); text-decoration: underline; text-decoration-color: var(--aw-border); text-underline-offset: 3px; }
+.awu-crumbs button:hover { color: var(--aw-ink); }
+.awu-crumbs button:focus-visible { outline: 2px solid #b98112; outline-offset: 2px; border-radius: 4px; }
+.awu-crumbs [aria-current="page"] { color: var(--aw-ink); font-weight: 600; }
+.awu-page-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.awu-page-desc { margin: 0; font-size: 14px; color: var(--aw-muted); }
+.awu-page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Menu */
+.awu-menu { position: relative; display: inline-flex; }
+.awu-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--aw-border);
+  border-radius: 14px;
+  background: var(--aw-surface, #fff);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+}
+.awu-menu-end { right: 0; }
+.awu-menu-start { left: 0; }
+.awu-menu-item {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--aw-ink);
+  cursor: pointer;
+}
+.awu-menu-item:hover:not(:disabled), .awu-menu-item:focus-visible { background: var(--aw-bg); }
+.awu-menu-item:focus-visible { outline: 2px solid #b98112; outline-offset: -2px; }
+.awu-menu-item:disabled { color: var(--aw-muted); cursor: default; }
+.awu-menu-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.awu-menu-badge { font-size: 11px; color: var(--aw-muted); white-space: nowrap; }
+
+/* Dialog */
+.awu-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: var(--aw-surface, #fff);
+  color: var(--aw-ink);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+}
+.awu-dialog-sm { width: min(420px, calc(100vw - 32px)); }
+.awu-dialog-lg { width: min(880px, calc(100vw - 32px)); }
+.awu-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+.awu-dialog-panel { display: flex; flex-direction: column; max-height: inherit; }
+.awu-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 0; }
+.awu-dialog-head h2 { margin: 0; font-family: "Mitr_500Medium", "NotoSansThai_600SemiBold", sans-serif; font-size: 20px; font-weight: 500; }
+.awu-dialog-desc { margin: 6px 20px 0; font-size: 14px; color: var(--aw-muted); }
+.awu-dialog-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px; }
+.awu-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--aw-border); }

@@ -61,8 +61,8 @@ export interface SessionLabels {
 
 const th: SessionLabels = {
   agentTabs: {
-    dashboard: 'ภาพรวม', // mobile.tabs.dashboard บรรทัด 45
-    listingRoom: 'ห้อง', // mobile.tabs.listingRoom บรรทัด 47
+    dashboard: 'Dashboard', // mobile.tabs.dashboard บรรทัด 45
+    listingRoom: 'Listing', // mobile.tabs.listingRoom บรรทัด 47
     listingLead: 'ลีด', // mobile.tabs.listingLead บรรทัด 49
     clients: 'ผู้เช่า', // mobile.tabs.clients บรรทัด 54
     more: 'เพิ่มเติม', // mobile.tabs.more บรรทัด 55
@@ -89,8 +89,8 @@ const th: SessionLabels = {
 
 const en: SessionLabels = {
   agentTabs: {
-    dashboard: 'Overview', // mobile.tabs.dashboard บรรทัด 45
-    listingRoom: 'Rooms', // mobile.tabs.listingRoom บรรทัด 47
+    dashboard: 'Dashboard', // mobile.tabs.dashboard บรรทัด 45
+    listingRoom: 'Listing', // mobile.tabs.listingRoom บรรทัด 47
     listingLead: 'Leads', // mobile.tabs.listingLead บรรทัด 49
     clients: 'Tenants', // mobile.tabs.clients บรรทัด 54
     more: 'More', // mobile.tabs.more บรรทัด 55
@@ -171,7 +171,7 @@ export function sessionInEveryLanguage(pick: (labels: SessionLabels) => string |
 /**
  * ชื่อกำกับที่แอปเขียนเป็นภาษาอังกฤษตายตัว จึงเหมือนกันทุกภาษา
  * ปุ่มเปิดลิ้นชักบนส่วนหัว: MobileWorkspaceHeader.tsx บรรทัด 39 (หน้าภาพรวม) และ MobileSectionHeader.tsx บรรทัด 90 (แท็บอื่น)
- * ระวัง: แท็บ "เมนู" ของผู้เยี่ยมชมในภาษาอังกฤษชื่อ "Menu" เหมือนกัน (mobile.tabs.menu บรรทัด 63) แต่เป็นชนิด Other ไม่ใช่ Button
+ * แท็บ mobile.tabs.menu (บรรทัด 63) ของผู้เยี่ยมชมเปลี่ยนชื่อเป็น "More"/"เพิ่มเติม" แล้ว (ประชุม 2 พ.ย. 2026) จึงไม่ชนกับปุ่ม "Menu" อีก
  */
 export const FIXED_LABELS = {
   menu: 'Menu',

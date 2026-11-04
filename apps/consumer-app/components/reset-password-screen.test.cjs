@@ -1,6 +1,7 @@
 // app/reset-password.tsx: the reset email links to /reset-password?token_hash=…&type=recovery. That link works on
 // any device (no PKCE verifier needed). Supabase spends it once, so the page spends it when the new password is saved,
-// not when the page opens: until then it can be opened again. Once spent it is dropped from the address.
+// not when the page opens: until then the email link can be opened again. The token leaves the address bar at once,
+// and a device signed in to another account signs out before the link is checked (review 513fbf0 R3).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -35,10 +36,12 @@ function nodes(element) {
 const en = load(`${root}/packages/i18n/src/locales/en.ts`, {}).en;
 const copy = en.mobile.auth;
 
-function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, save = async () => {} } = {}) {
+function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, save = async () => {}, signedIn = false } = {}) {
   const state = [], refs = [], replaced = [], calls = [];
+  const auth = { signedIn };
   let cursor = 0, refCursor = 0;
-  global.window = { location: { pathname: '/reset-password' }, history: { replaceState: (...args) => replaced.push(args) } };
+  global.window = { location: { pathname: '/reset-password', search: tokenHash ? `?token_hash=${tokenHash}&type=recovery` : '' },
+    history: { replaceState: (...args) => { replaced.push(args); global.window.location.search = ''; } } };
   const deps = {
     react: { ...React,
       useEffect: (effect) => { effect(); },
@@ -57,7 +60,8 @@ function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, s
     '@nestyk/i18n': { useLocale: () => ({ t: en, locale: 'en' }), localizedError: (e, fallback) => fallback },
     '@nestyk/ui/native': { AccountCompleteModal: 'Modal', MobileButton: 'Button', MobileInput: 'Input', MobileNestykLogo: 'Logo',
       useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { error: '#dc2626' } } },
-    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, requestPasswordReset: async () => {},
+    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: auth.signedIn, requestPasswordReset: async () => {},
+      signOut: async () => { calls.push(['sign-out']); auth.signedIn = false; },
       saveResetPassword: (password) => { calls.push(['save', password]); return save(password); },
       enterAfterPasswordReset: async () => {}, verifyRecoveryLink: (hash) => { calls.push(['verify', hash]); return verify(hash); } }) },
     '../lib/auth/supabase': { openedPasswordResetLink: pkceLink || Boolean(tokenHash), openedRecoveryTokenHash: tokenHash },
@@ -79,19 +83,19 @@ function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, s
     await new Promise((r) => setImmediate(r));
   };
   const done = () => render().find((n) => n?.type === 'Modal').props.visible;
-  return { render, labels, texts, calls, replaced, saveNewPassword, done };
+  return { render, labels, texts, calls, replaced, saveNewPassword, done, auth };
 }
 
-test('opening the reset link does not spend it: it can be opened again until the password is saved', () => {
+test('opening the reset link does not spend it, and the token leaves the address bar at once', () => {
   const page = screen({ tokenHash: 'abc123' });
   page.render();
   page.render();
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
-  assert.deepEqual(page.calls, [], 'nothing is sent to Supabase just by opening the page');
-  assert.deepEqual(page.replaced, [], 'the link stays in the address, so a refresh still works');
+  assert.deepEqual(page.calls, [], 'nothing is sent to Supabase just by opening the page, so the email link still works');
+  assert.deepEqual(page.replaced, [[null, '', '/reset-password']], 'dropped once, before anything is checked');
 });
 
-test('saving the new password spends the link, then stores the password and drops the link from the address', async () => {
+test('saving the new password spends the link, then stores the password', async () => {
   const page = screen({ tokenHash: 'abc123' });
   await page.saveNewPassword('Abcdefg1');
   assert.deepEqual(page.calls, [['verify', 'abc123'], ['save', 'Abcdefg1']]);
@@ -130,4 +134,13 @@ test('an older PKCE link (?code=) opens the new-password step and saves without 
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
   await page.saveNewPassword('Abcdefg1');
   assert.deepEqual(page.calls, [['save', 'Abcdefg1']]);
+});
+
+test('signed in (maybe as another account): this device signs out before the link is checked (review 513fbf0 R3)', async () => {
+  const page = screen({ tokenHash: 'abc123', signedIn: true });
+  page.render();
+  assert.deepEqual(page.calls, [], 'opening the page signs nobody out');
+  await page.saveNewPassword('Abcdefg1');
+  assert.deepEqual(page.calls, [['sign-out'], ['verify', 'abc123'], ['save', 'Abcdefg1']]);
+  assert.equal(page.done(), true);
 });

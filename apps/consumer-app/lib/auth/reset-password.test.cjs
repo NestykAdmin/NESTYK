@@ -9,7 +9,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'reset-pa
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('unexpected import'); }, mod, mod.exports);
-const { requestPasswordReset, verifyRecoveryCode, verifyRecoveryLink, recoveryTokenHash, saveResetPassword } = mod.exports;
+const { requestPasswordReset, verifyRecoveryLink, recoveryTokenHash, saveResetPassword } = mod.exports;
 
 function client(overrides = {}) {
   const calls = [];
@@ -74,10 +74,8 @@ test('a reset request includes the captcha token when one was solved', async () 
   assert.deepEqual(auth.calls, [['request', 'jom@nestyk.com', { captchaToken: 'hcaptcha-token' }]]);
 });
 
-test('a wrong recovery code does not set a new password', async () => {
-  const auth = client({ verifyError: { message: 'Token has expired or is invalid' } });
-  await assert.rejects(() => verifyRecoveryCode(auth, 'jom@nestyk.com', '000000'));
-  assert.deepEqual(auth.calls.map((call) => call[0]), ['verify']);
+test('the 6-digit recovery code path is gone (the email link replaced it, Mos 4 Nov 2026)', () => {
+  assert.equal(mod.exports.verifyRecoveryCode, undefined);
 });
 
 test('saving a new password signs the other devices out', async () => {

@@ -1,0 +1,95 @@
+/* F1 workspace footer (footer plan, board W19). Sits at the end of the page content, not fixed. */
+/* The page body keeps its full height so the footer comes after the content instead of over it
+   (.aw-page-body is flex: 1 1 0 inside the scrolling column). */
+.aw-page-scroll .aw-page-body:has(~ .awf-footer) {
+  flex: 1 0 auto;
+}
+.awf-footer {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  min-height: 48px;
+  margin-top: 32px;
+  padding: 14px 0 20px;
+  border-top: 1px solid var(--aw-border, #e2e8f0);
+  color: var(--aw-text-secondary, #64748b);
+  font-size: 13px;
+  line-height: 20px;
+}
+.awf-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* Pages with their own content container turn the outer one into display: contents (web-content-container.css),
+   so the footer loses its gutter and max width: give it the same left/right edges as the page content. */
+.nestyk-web-container-fill:has([data-web-content-container]) .awf-footer {
+  margin-inline: max(
+    var(--nestyk-web-content-gutter, 32px),
+    calc((100% - var(--nestyk-web-content-max-width, 1200px)) / 2)
+  );
+}
+/* The help menu sits at the bottom of the scroll area: open it upwards so it is not cut off. */
+.awf-footer .awu-menu-list {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.awf-links a {
+  color: inherit;
+  text-decoration: none;
+}
+.awf-links a:hover,
+.awf-links a:focus-visible {
+  color: var(--aw-text, #1a2b48);
+  text-decoration: underline;
+}
+.awf-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.awf-dot {
+  margin-right: 8px;
+  opacity: 0.6;
+}
+.awf-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.awf-help:hover {
+  color: var(--aw-text, #1a2b48);
+}
+.awf-build {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px dashed var(--aw-border, #cbd5e1);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  cursor: copy;
+}
+.awf-build:hover {
+  color: var(--aw-text, #1a2b48);
+  border-style: solid;
+}
+.awf-footer a:focus-visible,
+.awf-help:focus-visible,
+.awf-build:focus-visible {
+  outline: 2px solid var(--aw-brand, #f8b615);
+  outline-offset: 2px;
+  border-radius: 6px;
+}

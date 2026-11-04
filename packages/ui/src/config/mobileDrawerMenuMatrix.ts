@@ -1,6 +1,7 @@
 import { UserRole } from '@nestyk/types';
 import { AppIconName } from '../icons/types';
 import { MobileAppTab } from '../components/MobileBottomTabBar';
+import { isAgentComingSoonTab } from './agentComingSoon';
 
 export type DrawerMenuLabelKey =
   | 'sectionTitle'
@@ -52,6 +53,8 @@ export interface DrawerMenuItem {
   children?: DrawerMenuItem[];
   /** Default: slide when children exist */
   presentation?: DrawerSubmenuPresentation;
+  /** Shown dimmed with a "coming soon" pill and cannot be pressed */
+  comingSoon?: boolean;
 }
 
 export interface DrawerMenuSection {
@@ -186,7 +189,7 @@ const DRAWER_MENU_MATRIX: Record<UserRole, DrawerMenuSection[]> = {
           icon: 'handshake',
           presentation: 'expand',
           children: [
-            { id: 'contact', labelKey: 'contact', icon: 'chat', action: { type: 'tab', tab: 'contact' } },
+            { id: 'contact', labelKey: 'contact', icon: 'chat', action: { type: 'tab', tab: 'contact' }, comingSoon: isAgentComingSoonTab('contact') },
             { id: 'calendar', labelKey: 'calendar', icon: 'calendar', action: { type: 'tab', tab: 'calendar' } },
           ],
         },
@@ -195,12 +198,15 @@ const DRAWER_MENU_MATRIX: Record<UserRole, DrawerMenuSection[]> = {
           labelKey: 'agentContracts',
           icon: 'clipboard',
           action: { type: 'tab', tab: 'contracts' },
+          comingSoon: isAgentComingSoonTab('contracts'),
         },
         {
           id: 'commission',
           labelKey: 'commission',
           icon: 'credit-card',
+          // No /agent/commission page yet (same "coming soon" as the More tab and the web sidebar)
           action: { type: 'route', path: '/agent/commission' },
+          comingSoon: true,
         },
         {
           id: 'moreTools',

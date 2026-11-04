@@ -102,7 +102,7 @@ test('desktop labels resolve from all four central locale dictionaries', () => {
   locale = 'en';
 });
 
-function renderDashboardBody(snapshot, platform) {
+function renderDashboardBody(snapshot, platform, width = 1440) {
   const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let initializer;
@@ -114,7 +114,8 @@ function renderDashboardBody(snapshot, platform) {
   const compiled = ts.transpileModule(`const render = ${initializer};`, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText;
   const desktop = () => null;
   const mobile = () => null;
-  const result = new Function('React', 'Platform', 'AgentOverview', 'MobileAgentDashboardBody', 'MobileBrandLoader', 'View', 'styles', 'activeRole', 'agentDashboardSnapshot', 'handleAgentDashboardNavigate', 'profileInitials', 'handlePageRefresh', `${compiled}; return render();`)(React, { OS: platform }, desktop, mobile, 'MobileBrandLoader', 'View', { bodyContainer: {} }, 'agent', snapshot, () => {}, 'AG', () => {});
+  // deletionScheduledFor: the account-deletion notice prop added by the delete-account work (b41a56f); none scheduled here.
+  const result = new Function('React', 'Platform', 'AgentOverview', 'MobileAgentDashboardBody', 'MobileBrandLoader', 'View', 'styles', 'activeRole', 'agentDashboardSnapshot', 'handleAgentDashboardNavigate', 'profileInitials', 'handlePageRefresh', 'deletionScheduledFor', 'isAgentWeb', `${compiled}; return render();`)(React, { OS: platform }, desktop, mobile, 'MobileBrandLoader', 'View', { bodyContainer: {} }, 'agent', snapshot, () => {}, 'AG', () => {}, null, platform === 'web' && width >= 768);
   return { result, desktop, mobile };
 }
 
@@ -128,6 +129,10 @@ test('Agent web uses the desktop body while iOS and Android retain the original 
       assert.equal(result.props.children.props.initials, 'AG');
     }
   }
+  // Phone-width web (under 768px) shows the same body as the app.
+  const { result, mobile } = renderDashboardBody(fixture(), 'web', 375);
+  assert.equal(result.type, 'View');
+  assert.equal(result.props.children.type, mobile);
 });
 
 test('agent dashboard shows the brand loader while awaiting data on web, iOS and Android', () => {

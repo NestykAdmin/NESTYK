@@ -20,6 +20,8 @@ export interface MobileNotificationsBodyProps {
   messageItems: MobileNotificationItem[];
   onClearAll?: () => void;
   onBack?: () => void;
+  /** Shown when the selected list is empty */
+  emptyLabel?: string;
 }
 
 export const MobileNotificationsBody: React.FC<MobileNotificationsBodyProps> = ({
@@ -27,6 +29,7 @@ export const MobileNotificationsBody: React.FC<MobileNotificationsBodyProps> = (
   messageItems,
   onClearAll,
   onBack,
+  emptyLabel,
 }) => {
   const { t } = useLocale();
   const { theme, isDark } = useMobileTheme();
@@ -89,6 +92,9 @@ export const MobileNotificationsBody: React.FC<MobileNotificationsBodyProps> = (
       </View>
 
       <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+        {items.length === 0 && emptyLabel ? (
+          <Text style={[styles.empty, { color: theme.textSecondary }]}>{emptyLabel}</Text>
+        ) : null}
         {items.map((item) => (
           <View
             key={item.id}
@@ -113,6 +119,7 @@ export const MobileNotificationsBody: React.FC<MobileNotificationsBodyProps> = (
 };
 
 const styles = StyleSheet.create({
+  empty: { fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 21, textAlign: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   container: {
     flex: 1,
   },
