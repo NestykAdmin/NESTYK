@@ -6,7 +6,7 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--aw-s2);
   width: min(380px, calc(100vw - 32px));
   pointer-events: none;
   font-family: "NotoSansThai_400Regular", sans-serif;
@@ -15,20 +15,20 @@
   pointer-events: auto;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 12px 10px 12px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--aw-border, #e5e7eb);
+  gap: var(--aw-s3);
+  padding: var(--aw-s3) var(--aw-s3) var(--aw-s3) var(--aw-s3);
+  border-radius: var(--aw-r-md);
+  border: 1px solid var(--aw-border);
   border-left-width: 4px;
   background: var(--aw-surface, #ffffff);
-  color: var(--aw-ink, #1a2b48);
+  color: var(--aw-ink);
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
   animation: wn-in 160ms ease-out;
   box-sizing: border-box;
 }
-.wn-success { border-left-color: #1f6b43; }
-.wn-error { border-left-color: #b42318; }
-.wn-info { border-left-color: #f8b615; }
+.wn-success { border-left-color: var(--aw-success); }
+.wn-error { border-left-color: var(--aw-danger); }
+.wn-info { border-left-color: var(--aw-brand); }
 .wn-toast-icon {
   flex: none;
   display: grid;
@@ -37,9 +37,9 @@
   height: 26px;
   border-radius: 50%;
 }
-.wn-success .wn-toast-icon { background: #eaf5ee; }
-.wn-error .wn-toast-icon { background: #fdecea; }
-.wn-info .wn-toast-icon { background: #fff3cc; }
+.wn-success .wn-toast-icon { background: var(--aw-success-soft); }
+.wn-error .wn-toast-icon { background: var(--aw-danger-soft); }
+.wn-info .wn-toast-icon { background: var(--aw-brand-soft); }
 .wn-toast-text {
   flex: 1;
   min-width: 0;
@@ -52,13 +52,13 @@
 .wn-toast-text strong {
   font-family: "NotoSansThai_600SemiBold", sans-serif;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--aw-t-body);
   line-height: 20px;
 }
 .wn-toast-text span {
-  font-size: 13px;
+  font-size: var(--aw-t-small);
   line-height: 19px;
-  color: var(--aw-muted, #64748b);
+  color: var(--aw-muted);
   white-space: pre-line;
 }
 .wn-toast-close {
@@ -75,7 +75,7 @@
   cursor: pointer;
 }
 .wn-toast-close:hover { background: rgba(100, 116, 139, 0.14); }
-.wn-toast-close:focus-visible { outline: 2px solid #b98112; outline-offset: 2px; }
+.wn-toast-close:focus-visible { outline: 2px solid var(--aw-ring); outline-offset: 2px; }
 
 /* Confirm dialog buttons (WebDialog footer) */
 .wn-btn {
@@ -83,19 +83,19 @@
   align-items: center;
   justify-content: center;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: var(--aw-s2) var(--aw-s4);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--aw-r-sm);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--aw-t-body);
   cursor: pointer;
 }
-.wn-btn:focus-visible { outline: 2px solid #b98112; outline-offset: 2px; }
-.wn-btn-primary { background: #f8b615; color: #211e1e; }
-.wn-btn-primary:hover { background: #eab134; }
-.wn-btn-secondary { background: var(--aw-surface, #ffffff); color: var(--aw-ink, #1a2b48); border-color: var(--aw-border, #e5e7eb); }
-.wn-btn-danger { background: #dc2626; color: #ffffff; }
-.wn-btn-danger:hover { background: #b91c1c; }
+.wn-btn:focus-visible { outline: 2px solid var(--aw-ring); outline-offset: 2px; }
+.wn-btn-primary { background: var(--aw-brand); color: var(--aw-black); }
+.wn-btn-primary:hover { background: var(--aw-brand-hover); }
+.wn-btn-secondary { background: var(--aw-surface, #ffffff); color: var(--aw-ink); border-color: var(--aw-border); }
+.wn-btn-danger { background: var(--aw-danger-fill); color: #ffffff; }
+.wn-btn-danger:hover { background: var(--aw-danger-fill-hover); }
 
 /* Phone-width web shows the app screens with a bottom tab bar: full-width toasts above it. */
 @media (max-width: 767px) {

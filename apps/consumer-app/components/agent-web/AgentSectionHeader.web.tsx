@@ -11,6 +11,16 @@ export function AgentSectionHeader(props: MobileSectionHeaderProps) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const deep = props.leading === "back" && !!props.onBackPress;
+  // The sidebar switcher already names the workspace; only page-specific subtitles stay (design audit #9).
+  const genericLabels = [
+    t.agent.dashboard.workspaceLabel,
+    t.owner.webWorkspace.workspaceLabel,
+    t.tenant.webWorkspace.workspaceLabel,
+  ];
+  const subtitle =
+    props.workspaceLabel && !genericLabels.includes(props.workspaceLabel)
+      ? props.workspaceLabel
+      : null;
   return (
     <div className="aw-page-heading">
       <div className="aw-page-title">
@@ -36,9 +46,7 @@ export function AgentSectionHeader(props: MobileSectionHeaderProps) {
               <h2>{props.title}</h2>
             </div>
           ) : null}
-          {props.workspaceLabel ? (
-            <p>{props.workspaceLabel}</p>
-          ) : null}
+          {subtitle ? <p>{subtitle}</p> : null}
         </div>
       </div>
       <div className="aw-page-actions">
