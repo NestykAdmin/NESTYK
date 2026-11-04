@@ -19,6 +19,8 @@
  *   และหัวของหน้าห้องกับหน้าลีด ("Listing Room" กับ "Lead") ซึ่งเป็นค่าในไฟล์ภาษาไทยเอง
  *
  * การตรวจอีเมลใช้ assert.ok แทน expect เพื่อให้ข้อความเมื่อไม่ผ่านบอกแค่ชื่อตัวแปร ไม่มีค่าอีเมลในผลรัน
+ * known-bug: ข้อ 'signs out from App Settings and lands on the guest home @known-bug' ครอบด้วย MOB-SIGNOUT-LOGIN (ดู SIGN_OUT_LANDS_ON_LOGIN)
+ *   รันเฉพาะข้อ known-bug ของชุดนี้ด้วย npx wdio run ./wdio.session.conf.ts --mochaOpts.grep @known-bug (npm run test:known-bugs ไม่รวมชุด session)
  */
 import assert from 'node:assert/strict';
 import { env } from '../src/config/env';
@@ -34,6 +36,7 @@ import { WelcomeScreen } from '../src/screens/WelcomeScreen';
 import { acceptAlert, waitForAlert } from '../src/support/alert';
 import { requireApi } from '../src/support/api-health';
 import { startApp } from '../src/support/app';
+import { expectKnownBug, type KnownBug } from '../src/support/known-bug';
 import { readUntil } from '../src/support/wait';
 
 /** เวลารอหน้าต่างแจ้งหลังแตะออกจากระบบ (ขั้นที่ 34: ขึ้นหลังแตะ 1.5 วินาที) */
@@ -57,6 +60,17 @@ describe('Agent session (needs the API)', function () {
 
   /** ข้อความที่คาด ในภาษาที่ชุดเทสสั่งให้แอปใช้ (E2E_APP_LANGUAGE) */
   const labels = sessionLabelsFor(env.appLanguage);
+
+  /**
+   * ออกจากระบบแล้วแอปพาไปหน้า login แทนหน้าแรกของผู้เยี่ยมชม
+   * ที่มา: apps/consumer-app/app/index.tsx บรรทัด 1464 ถึง 1488 ที่ qa/e2e 01d0523 (ตั้งบทบาท guest แล้วเรียก router.replace('/login'))
+   *   เปลี่ยนใน commit a5d716b (develop 27 ต.ค. 2026) ส่วนคอมเมนต์ QA B4 ในไฟล์เดียวกัน (บรรทัด 1439) บอกว่าการออกจากระบบไปหน้าแรกโดยไม่ผ่านหน้า login
+   * Aof ยืนยันเมื่อ 4 พ.ย. 2026 ว่าที่ถูกคือหน้าแรกของผู้เยี่ยมชม แจ้งทีมแล้ว ทีมกำลังแก้
+   */
+  const SIGN_OUT_LANDS_ON_LOGIN: KnownBug = {
+    id: 'MOB-SIGNOUT-LOGIN',
+    summary: 'ออกจากระบบแล้วแอปไปหน้า login แทนหน้าแรกของผู้เยี่ยมชม (index.tsx บรรทัด 1478 และ 1486 ที่ 01d0523)',
+  };
   const welcome = new WelcomeScreen();
   const login = new LoginScreen();
   const home = new AgentHomeScreen();
@@ -92,7 +106,7 @@ describe('Agent session (needs the API)', function () {
     await home.waitUntilShown(LOGIN_WAIT_MS);
 
     // ขั้นที่ 4: หน้าแรกคือแท็บภาพรวม มีป้ายพื้นที่ทำงาน แท็บครบ 5 แท็บ และแท็บที่ถูกเลือกคือภาพรวมแท็บเดียว
-    //   (index.tsx บรรทัด 144 กับ 148 ถึง 150: บทบาทเริ่มต้นมาจากค่าตั้งของ build และแท็บแรกของ agent คือ dashboard)
+    //   (index.tsx บรรทัด 163 กับ 168 ที่ 01d0523: บทบาทเริ่มต้นมาจากค่าตั้งของ build APP_CONFIG.defaultRole และแท็บแรกของ agent คือ dashboard)
     expect(await home.workspaceLabelShown()).toBe(true);
     expect(await home.visibleTabs()).toEqual([...AGENT_TABS]);
     expect(await readUntil(() => home.selectedTabs(), ['dashboard'])).toEqual(['dashboard']);
@@ -145,7 +159,7 @@ describe('Agent session (needs the API)', function () {
     expect(await login.isShown()).toBe(false);
   });
 
-  it('signs out from App Settings and lands on the guest home', async () => {
+  it('signs out from App Settings and lands on the guest home @known-bug', async () => {
     // ขั้นที่ 1: ล็อกอิน (ขั้นเตรียม)
     await loginAsDevAgent();
 
@@ -154,19 +168,24 @@ describe('Agent session (needs the API)', function () {
     assert.ok(await readUntil(() => settings.showsEmail(env.devLoginEmail), true), 'แผงตั้งค่าแอปไม่แสดงอีเมลที่ตรงกับ E2E_DEV_LOGIN_EMAIL');
 
     // ขั้นที่ 3: แตะออกจากระบบ (ปุ่มอยู่นอกจอ ไฟล์หน้าจอเลื่อนจอให้ก่อน)
-    //   แอปเปิดหน้าต่างแจ้ง หัวเรื่อง "ออกจากระบบ" ข้อความ "ออกจากระบบแล้ว" (index.tsx บรรทัด 1328)
-    //   ข้อจำกัด: ถ้าการออกจากระบบล้มเหลว แอปก็แสดงหน้าต่างเดียวกันและพาไปหน้าของผู้เยี่ยมชมเหมือนกัน (index.tsx บรรทัด 1329 ถึง 1336)
+    //   แอปเปิดหน้าต่างแจ้ง หัวเรื่อง "ออกจากระบบ" ข้อความ "ออกจากระบบแล้ว" (index.tsx บรรทัด 1477 ที่ 01d0523)
+    //   ข้อจำกัด: ถ้าการออกจากระบบล้มเหลว แอปก็แสดงหน้าต่างเดียวกันและไปหน้าเดียวกัน (index.tsx บรรทัด 1479 ถึง 1487 ที่ 01d0523)
     //   ข้อนี้จึงยืนยันได้แค่สิ่งที่ผู้ใช้เห็น ส่วนการลบการล็อกอินที่เก็บไว้ ยืนยันในข้อถัดไป
     await settings.signOut();
     expect((await waitForAlert(ALERT_WAIT_MS)).texts).toEqual([labels.signOut, labels.signedOut]);
 
     // ขั้นที่ 4: ปิดหน้าต่างแจ้ง แล้วเห็นหน้าของผู้เยี่ยมชมที่แท็บหน้าแรก และไม่เห็นส่วนใดของหน้าของนายหน้าแล้ว
-    //   (index.tsx บรรทัด 1326 ถึง 1327 และ 1333 ถึง 1334: ตั้งบทบาทเป็น guest และเปิดแท็บแรกของ guest ขั้นที่ 34: 0.2 วินาทีหลังปิดหน้าต่าง)
-    //   แอปเปลี่ยนบทบาทก่อนเปิดหน้าต่างแจ้ง เมื่อหน้าของผู้เยี่ยมชมขึ้นแล้ว หน้าของนายหน้าต้องหายไปแล้ว จึงอ่านครั้งเดียวโดยไม่รอ
+    //   (index.tsx บรรทัด 1475 ถึง 1476 และ 1483 ถึง 1484 ที่ 01d0523: ตั้งบทบาทเป็น guest และเปิดแท็บแรกของ guest ขั้นที่ 34: 0.2 วินาทีหลังปิดหน้าต่าง)
+    //   ระหว่างที่บั๊ก MOB-SIGNOUT-LOGIN ยังอยู่ แอปไปหน้า login แทน การตรวจหน้าของผู้เยี่ยมชมจึงครอบด้วย expectKnownBug
+    //   ส่วนการตรวจว่าหน้าของนายหน้าหายไปแล้วอยู่นอกตัวครอบ เพราะต้องจริงทั้งก่อนและหลังทีมแก้ (ถ้ายังเห็นหน้าของนายหน้าหลังปิดหน้าต่าง ข้อนี้จะแดง)
     await acceptAlert();
-    await guest.waitUntilShown();
-    expect(await readUntil(() => guest.isHomeTabSelected(), true)).toBe(true);
-    expect(await home.isShown()).toBe(false);
+    expect(await readUntil(() => home.isShown(), false)).toBe(false);
+    await expectKnownBug(SIGN_OUT_LANDS_ON_LOGIN, async () => {
+      assert.ok(await readUntil(() => guest.isHomeTabSelected(), true), 'ไม่เห็นแท็บหน้าแรกของผู้เยี่ยมชมที่ถูกเลือกอยู่หลังออกจากระบบ');
+    });
+    // ถึงบรรทัดนี้ได้เฉพาะเมื่อบั๊กยังอยู่ (วันที่ทีมแก้ expectKnownBug โยน error ก่อน): อาการต้องเป็นหน้า login ตรงตาม MOB-SIGNOUT-LOGIN
+    //   ไม่อย่างนั้นอาการอื่น (แอปล่ม จอว่าง หน้า error) จะถูกนับเป็นบั๊กนี้ผิด ๆ ลบบรรทัดนี้ไปพร้อมตัวครอบเมื่อทีมแก้แล้ว
+    expect(await readUntil(() => login.isShown(), true)).toBe(true);
   });
 
   it('asks for login again after a restart that follows the sign-out', async () => {
@@ -178,10 +197,12 @@ describe('Agent session (needs the API)', function () {
     await settings.signOut();
     await waitForAlert(ALERT_WAIT_MS);
     await acceptAlert();
-    await guest.waitUntilShown();
+    //   รอแค่ให้หน้าของนายหน้าหายไป ไม่รอหน้าของผู้เยี่ยมชม เพราะระหว่างที่บั๊ก MOB-SIGNOUT-LOGIN ยังอยู่ แอปไปหน้า login แทน
+    //   หน้าที่ไปหลังออกจากระบบตรวจในข้อก่อนแล้ว ข้อนี้ตรวจเรื่องเปิดแอปใหม่
+    expect(await readUntil(() => home.isShown(), false)).toBe(false);
 
     // ขั้นที่ 3: ปิดแล้วเปิดแอปใหม่โดยไม่ล้างข้อมูล การออกจากระบบลบการล็อกอินที่เก็บไว้แล้ว (AuthContext.tsx บรรทัด 225 ถึง 244)
-    //   แอปที่บทบาทตั้งต้นต้องล็อกอินและไม่มีการล็อกอินเก็บไว้ จะพาไปหน้า login (index.tsx บรรทัด 524 ถึง 545)
+    //   แอปที่บทบาทตั้งต้นต้องล็อกอินและไม่มีการล็อกอินเก็บไว้ จะพาไปหน้า login (index.tsx บรรทัด 583 ถึง 605 ที่ 01d0523)
     //   ระวัง: ล็อกอินแบบนักพัฒนา ถ้าตอนเปิดแอปใหม่ /auth/sync ไม่สำเร็จด้วยเหตุใดก็ตาม แอปก็ล้างการล็อกอินแล้วไปหน้า login เหมือนกัน (session-expiry.ts บรรทัด 60 ถึง 66 ; AuthContext.tsx บรรทัด 139 ถึง 142)
     //   จึงตรวจว่า API ตอบ /health ทั้งก่อนเปิดแอปใหม่และหลังเห็นหน้า login เพื่อลดโอกาสที่หน้า login จะมาจาก API ไม่ตอบ
     //   (ยังพิสูจน์ไม่ได้ทั้งหมดว่าแอปไม่ได้เรียก /auth/sync แล้วล้มเหลว ดูข้อจำกัดใน README หัวข้อ "ชุด session")
