@@ -12,7 +12,7 @@ import { DEV_AUTH_CONFIG, toDevAccessToken } from './dev-auth';
 import { createSessionExpiry, restoreSession } from './session-expiry';
 import { providerRedirectPending } from './google-oauth';
 import { signInWithFacebook as startFacebookSignIn, signInWithGoogle as startGoogleSignIn } from './google-sign-in';
-import { isRecoveryLanding, requestPasswordReset as requestPasswordResetFlow, saveResetPassword as saveResetPasswordFlow, verifyRecoveryCode as verifyRecoveryCodeFlow } from './reset-password';
+import { isRecoveryLanding, requestPasswordReset as requestPasswordResetFlow, saveResetPassword as saveResetPasswordFlow, verifyRecoveryLink as verifyRecoveryLinkFlow } from './reset-password';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 import {
   clearAuthSession,
@@ -48,7 +48,8 @@ type AuthContextValue = {
   verifySignupCode: (email: string, token: string, profile: { firstName: string; lastName: string; phone: string }) => Promise<void>;
   resendSignupCode: (email: string, captchaToken?: string) => Promise<void>;
   requestPasswordReset: (email: string, captchaToken?: string, redirectTo?: string) => Promise<void>;
-  verifyRecoveryCode: (email: string, token: string) => Promise<void>;
+  /** The reset email's link: a used or expired link throws. */
+  verifyRecoveryLink: (tokenHash: string) => Promise<void>;
   saveResetPassword: (newPassword: string) => Promise<void>;
   enterAfterPasswordReset: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -391,8 +392,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await requestPasswordResetFlow(resetClient(), email, captchaToken, redirectTo);
   }, [resetClient]);
 
-  const verifyRecoveryCode = useCallback(async (email: string, token: string) => {
-    await verifyRecoveryCodeFlow(resetClient(), email, token);
+  const verifyRecoveryLink = useCallback(async (tokenHash: string) => {
+    await verifyRecoveryLinkFlow(resetClient(), tokenHash);
   }, [resetClient]);
 
   const saveResetPassword = useCallback(async (newPassword: string) => {
@@ -440,7 +441,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       verifySignupCode,
       resendSignupCode,
       requestPasswordReset,
-      verifyRecoveryCode,
+      verifyRecoveryLink,
       saveResetPassword,
       enterAfterPasswordReset,
       signOut,
@@ -448,7 +449,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sessionExpired,
       dismissSessionExpired,
     };
-  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryCode, saveResetPassword, enterAfterPasswordReset, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
+  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, signOut, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

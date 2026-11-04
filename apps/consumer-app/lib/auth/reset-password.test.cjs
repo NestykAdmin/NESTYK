@@ -9,7 +9,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'reset-pa
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('unexpected import'); }, mod, mod.exports);
-const { requestPasswordReset, verifyRecoveryCode, saveResetPassword } = mod.exports;
+const { requestPasswordReset, verifyRecoveryCode, verifyRecoveryLink, recoveryTokenHash, saveResetPassword } = mod.exports;
 
 function client(overrides = {}) {
   const calls = [];
@@ -41,6 +41,31 @@ test('the email link is recognized as a recovery landing', () => {
   assert.equal(isRecoveryLanding('http://127.0.0.1:8081/reset-password#access_token=abc&type=recovery'), true);
   assert.equal(isRecoveryLanding('http://127.0.0.1:8081/reset-password?code=abc'), true);
   assert.equal(isRecoveryLanding('http://127.0.0.1:8081/reset-password'), false);
+});
+
+test('the token_hash link is a recovery landing, and its token is read only for recovery', () => {
+  const { isRecoveryLanding } = mod.exports;
+  const link = 'https://app.nestyk.com/reset-password?token_hash=pkce_abc123&type=recovery';
+  assert.equal(isRecoveryLanding(link), true);
+  assert.equal(recoveryTokenHash(link), 'pkce_abc123');
+  assert.equal(recoveryTokenHash('https://app.nestyk.com/reset-password?token_hash=abc&type=signup'), null);
+  assert.equal(recoveryTokenHash('https://app.nestyk.com/reset-password?code=abc'), null);
+  assert.equal(recoveryTokenHash('https://app.nestyk.com/reset-password?token_hash=&type=recovery'), null);
+  assert.equal(recoveryTokenHash(''), null);
+});
+
+test('a reset link is checked with its token hash alone, so no saved PKCE verifier is needed', async () => {
+  const auth = client();
+  await verifyRecoveryLink(auth, 'abc123');
+  assert.deepEqual(auth.calls, [['verify', { token_hash: 'abc123', type: 'recovery' }]]);
+});
+
+test('a used or expired reset link is rejected and sets no password', async () => {
+  const auth = client({ verifyError: { message: 'Email link is invalid or has expired' } });
+  await assert.rejects(() => verifyRecoveryLink(auth, 'used'), /invalid or has expired/);
+  const noSession = client({ session: false });
+  await assert.rejects(() => verifyRecoveryLink(noSession, 'abc'));
+  assert.deepEqual(auth.calls.map((call) => call[0]), ['verify']);
 });
 
 test('a reset request includes the captcha token when one was solved', async () => {
