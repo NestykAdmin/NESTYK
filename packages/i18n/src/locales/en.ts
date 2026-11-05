@@ -355,6 +355,7 @@ export const en: TranslationSchema = {
       resetSend: 'Send link',
       resetLinkSent: 'If this email has an account, we sent it a link to set a new password. You can open it on any device. The link works once.',
       resetLinkInvalid: 'This link has expired or was already used, so your password was not changed. Tap "Back to login", then "Forgot password?" to get a new link.',
+      resetLinkBroken: 'This link does not work. Enter your email and tap "Send link" to get a new one.',
       resetNewTitle: 'Set a new password',
       resetNewSubtitle: 'Choose a new password. Other devices will be signed out.',
       resetDone: 'Your password has been changed. If you asked in the app, go back and sign in there with your new password.',

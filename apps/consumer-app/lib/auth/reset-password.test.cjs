@@ -100,3 +100,18 @@ test('no reset session (a link without a token, a bad ?code=) is reported as REC
   const weak = client({ updateError: { message: 'Password is too weak' } });
   await assert.rejects(() => saveResetPassword(weak, 'weak'), (e) => e.code === undefined && e.message === 'Password is too weak');
 });
+
+test('QA 4 Nov 2026 item 4: "?type=recovery" alone is not a reset link; it is a broken one', () => {
+  const { isRecoveryLanding, brokenRecoveryLanding } = mod.exports;
+  const base = 'http://localhost:8081/reset-password';
+  for (const bad of [`${base}?type=recovery`, `${base}#type=recovery`, `${base}?token_hash=&type=recovery`]) {
+    assert.equal(isRecoveryLanding(bad), false, bad);
+    assert.equal(brokenRecoveryLanding(bad), true, bad);
+  }
+  for (const good of [`${base}?token_hash=abc&type=recovery`, `${base}?code=abc`, `${base}#access_token=abc&type=recovery`]) {
+    assert.equal(isRecoveryLanding(good), true, good);
+    assert.equal(brokenRecoveryLanding(good), false, good);
+  }
+  assert.equal(brokenRecoveryLanding(base), false, 'the plain forgot-password page is not a link at all');
+  assert.equal(brokenRecoveryLanding(''), false);
+});

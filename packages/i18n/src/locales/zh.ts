@@ -354,6 +354,7 @@ export const zh: TranslationSchema = {
       resetSend: '发送链接',
       resetLinkSent: '如果该邮箱有账号，我们已发送设置新密码的链接。可以在任何设备上打开，链接只能使用一次。',
       resetLinkInvalid: '此链接已过期或已被使用，密码未更改。请点“返回登录”，再点“忘记密码？”获取新链接。',
+      resetLinkBroken: '此链接无效。请输入邮箱并点“发送链接”获取新链接。',
       resetNewTitle: '设置新密码',
       resetNewSubtitle: '设置新密码后，其他设备将退出登录。',
       resetDone: '密码已更改。如果你是在 App 中申请的，请回到 App 用新密码登录。',

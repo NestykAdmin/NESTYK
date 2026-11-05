@@ -348,6 +348,7 @@ export interface TranslationSchema {
       resetSend: string;
       resetLinkSent: string;
       resetLinkInvalid: string;
+      resetLinkBroken: string;
       resetNewTitle: string;
       resetNewSubtitle: string;
       resetDone: string;

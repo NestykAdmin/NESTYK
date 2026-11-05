@@ -22,7 +22,7 @@ import {
   saveAuthSession,
   StoredAuthSession,
 } from './session-storage';
-import { markAuthEvent, subscribeCrossTab } from './cross-tab';
+import { clearExpiryNotice, markAuthEvent, subscribeCrossTab, takeExpiryNotice } from './cross-tab';
 import { requestGuestBrowse } from './role-gate';
 
 export type AuthUserResponse = {
@@ -52,6 +52,8 @@ type AuthContextValue = {
   requestPasswordReset: (email: string, captchaToken?: string, redirectTo?: string) => Promise<void>;
   /** The reset email's link: a used or expired link throws. */
   verifyRecoveryLink: (tokenHash: string) => Promise<void>;
+  /** Whether this device holds a reset session (an older `?code=` link signed in). */
+  hasResetSession: () => Promise<boolean>;
   saveResetPassword: (newPassword: string) => Promise<void>;
   enterAfterPasswordReset: () => Promise<void>;
   /** Signs out this device only; other phones and browsers stay signed in (Mos 4 Nov 2026). */
@@ -115,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const applySession = useCallback(async (next: StoredAuthSession) => {
     await saveAuthSession(next);
+    clearExpiryNotice(); // web: signed in again, an older "session expired" is no longer news
     setSession(next);
   }, []);
 
@@ -204,6 +207,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await clearAuthSession();
           setSession(null);
           if (result.kind === 'expired') setSessionExpired(true);
+          // Web: another tab's session ran out before this tab loaded (it found no session): say why here too, once.
+          else if (!stored && takeExpiryNotice()) setSessionExpired(true);
         }
       } catch {
         // Storage failed: start signed out rather than stay on the splash screen.
@@ -456,6 +461,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await verifyRecoveryLinkFlow(resetClient(), tokenHash);
   }, [resetClient]);
 
+  const hasResetSession = useCallback(async () => {
+    try {
+      const { data } = await resetClient().auth.getSession();
+      return Boolean(data.session);
+    } catch {
+      return false;
+    }
+  }, [resetClient]);
+
   const saveResetPassword = useCallback(async (newPassword: string) => {
     await saveResetPasswordFlow(resetClient(), newPassword);
   }, [resetClient]);
@@ -502,6 +516,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resendSignupCode,
       requestPasswordReset,
       verifyRecoveryLink,
+      hasResetSession,
       saveResetPassword,
       enterAfterPasswordReset,
       signOut,
@@ -511,7 +526,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sessionExpired,
       dismissSessionExpired,
     };
-  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, signOut, signOutEverywhere, signOutIdle, refreshProfile, sessionExpired, dismissSessionExpired]);
+  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryLink, hasResetSession, saveResetPassword, enterAfterPasswordReset, signOut, signOutEverywhere, signOutIdle, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

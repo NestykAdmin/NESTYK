@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { AccountCompleteModal, MobileButton, MobileInput, MobileNestykLogo, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
-import { openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
+import { openedBrokenResetLink, openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { RECOVERY_SESSION_MISSING } from '../lib/auth/reset-password';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
@@ -22,12 +22,13 @@ export default function ResetPasswordScreen() {
   const { theme } = useMobileTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, isAuthenticated, signOut } = useAuth();
+  const { requestPasswordReset, verifyRecoveryLink, hasResetSession, saveResetPassword, enterAfterPasswordReset, isAuthenticated, signOut } = useAuth();
   const [step, setStep] = useState<Step>(openedRecoveryTokenHash || openedPasswordResetLink ? 'password' : 'email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // A cut or edited reset link (QA 4 Nov 2026 item 4) opens the email step with the reason, not a form that cannot save.
+  const [error, setError] = useState<string | null>(openedBrokenResetLink ? copy.resetLinkBroken : null);
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
@@ -47,11 +48,26 @@ export default function ResetPasswordScreen() {
   // Drop the token from the address at once, so a refresh or a shared screenshot does not carry it. The token was read
   // when the app loaded (lib/auth/supabase.ts), so saving still works; the email link itself stays usable until then.
   useEffect(() => {
-    if (!openedRecoveryTokenHash) return;
+    if (!openedRecoveryTokenHash && !openedBrokenResetLink) return;
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.search) {
       window.history.replaceState(null, '', window.location.pathname);
     }
   }, []);
+
+  // An older `?code=` link signs in while the app loads. When that did not happen (a bad or used code), say so on the
+  // email step instead of showing a form that cannot save.
+  useEffect(() => {
+    if (!openedPasswordResetLink || openedRecoveryTokenHash) return;
+    let live = true;
+    void hasResetSession().then((signedIn) => {
+      if (!live || signedIn) return;
+      setStep('email');
+      setError(copy.resetLinkBroken);
+    });
+    return () => {
+      live = false;
+    };
+  }, [hasResetSession, copy.resetLinkBroken]);
 
   const fieldStyle = { backgroundColor: theme.card, borderColor: theme.border, color: theme.textHeading };
   const title = step === 'password' || step === 'done' ? copy.resetNewTitle : copy.resetTitle;

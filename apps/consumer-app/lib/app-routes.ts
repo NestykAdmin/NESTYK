@@ -84,6 +84,16 @@ export function loginPathFor(nextPath?: string | null): string {
 }
 
 /**
+ * "/Login", "/PRIVACY/" and the like: the lower-case path of a screen that has its own route file (expo-router matches
+ * those files case-sensitively, so the catch-all route gets them). Null for any other path. QA web test 4 Nov 2026 item 9.
+ */
+export function ownScreenPath(pathname: string): string | null {
+  const kind = parseAppPath(pathname).kind;
+  if (kind !== 'auth' && kind !== 'legal') return null;
+  return pathname.replace(/\/+$/, '').toLowerCase();
+}
+
+/**
  * Whether a signed-in account may open a role's pages: guest pages are public, any other role must be one of the
  * account's roles. A typed or linked URL of another role sends the account to its own home (QA web role URL bug,
  * 4 Nov 2026). The API still refuses the data either way.

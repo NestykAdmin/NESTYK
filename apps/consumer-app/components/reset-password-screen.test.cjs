@@ -36,7 +36,7 @@ function nodes(element) {
 const en = load(`${root}/packages/i18n/src/locales/en.ts`, {}).en;
 const copy = en.mobile.auth;
 
-function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, save = async () => {}, signedIn = false } = {}) {
+function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetSession = true, verify = async () => {}, save = async () => {}, signedIn = false } = {}) {
   const state = [], refs = [], replaced = [], calls = [];
   const auth = { signedIn };
   let cursor = 0, refCursor = 0;
@@ -63,8 +63,8 @@ function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, s
     '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: auth.signedIn, requestPasswordReset: async () => {},
       signOut: async () => { calls.push(['sign-out']); auth.signedIn = false; },
       saveResetPassword: (password) => { calls.push(['save', password]); return save(password); },
-      enterAfterPasswordReset: async () => {}, verifyRecoveryLink: (hash) => { calls.push(['verify', hash]); return verify(hash); } }) },
-    '../lib/auth/supabase': { openedPasswordResetLink: pkceLink || Boolean(tokenHash), openedRecoveryTokenHash: tokenHash },
+      enterAfterPasswordReset: async () => {}, hasResetSession: async () => resetSession, verifyRecoveryLink: (hash) => { calls.push(['verify', hash]); return verify(hash); } }) },
+    '../lib/auth/supabase': { openedPasswordResetLink: pkceLink || Boolean(tokenHash), openedRecoveryTokenHash: tokenHash, openedBrokenResetLink: brokenLink },
     '../lib/auth/password-rules': { passwordIsStrong: () => true },
     '../lib/auth/hcaptcha-site-key': { hcaptchaSiteKey: () => '' },
     '../components/HcaptchaField': { HcaptchaField: 'Hcaptcha' },
@@ -154,4 +154,27 @@ test('QA 4 Nov 2026 item 4/7: a link without a token (no reset session) shows th
   assert.ok(page.texts().includes(copy.resetLinkInvalid));
   assert.ok(!page.texts().includes('Auth session missing!'));
   assert.equal(page.done(), false);
+});
+
+test('QA 4 Nov 2026 item 4: "?type=recovery" with no token opens the email step with the reason, not a form', () => {
+  const page = screen({ brokenLink: true });
+  assert.deepEqual(page.labels(), [copy.email]);
+  assert.ok(page.texts().includes(copy.resetLinkBroken));
+  assert.deepEqual(page.replaced, [], 'nothing in the address to drop in this test (no search string)');
+  assert.deepEqual(page.calls, []);
+});
+
+test('QA 4 Nov 2026 item 4: an older ?code= link that did not sign in goes to the email step with the reason', async () => {
+  const page = screen({ pkceLink: true, resetSession: false });
+  page.render();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(page.labels(), [copy.email]);
+  assert.ok(page.texts().includes(copy.resetLinkBroken));
+});
+
+test('an older ?code= link that signed in keeps the new-password form', async () => {
+  const page = screen({ pkceLink: true, resetSession: true });
+  page.render();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
 });

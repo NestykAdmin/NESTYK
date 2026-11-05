@@ -23,11 +23,24 @@ export async function requestPasswordReset(
   if (error) throw new Error(error.message);
 }
 
-/** The email link lands here. Supabase puts the recovery session in the hash or a `code` query. */
+/**
+ * The email link lands here with something that can sign in: a token hash, a PKCE `code` (emails sent before the
+ * template changed), or an access token in the hash. "?type=recovery" alone is not a link (QA 4 Nov 2026 item 4).
+ */
 export function isRecoveryLanding(href: string): boolean {
   const url = new URL(href, 'http://localhost');
   const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
-  return hash.get('type') === 'recovery' || url.searchParams.get('type') === 'recovery' || url.searchParams.has('code');
+  return url.searchParams.has('code') || recoveryTokenHash(href) !== null ||
+    (hash.get('type') === 'recovery' && hash.has('access_token'));
+}
+
+/** Says it is a reset link (`type=recovery`, `token_hash`) but carries nothing to sign in with: cut or edited. */
+export function brokenRecoveryLanding(href: string): boolean {
+  if (!href) return false;
+  const url = new URL(href, 'http://localhost');
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const saysRecovery = url.searchParams.get('type') === 'recovery' || hash.get('type') === 'recovery' || url.searchParams.has('token_hash');
+  return saysRecovery && !isRecoveryLanding(href);
 }
 
 /**

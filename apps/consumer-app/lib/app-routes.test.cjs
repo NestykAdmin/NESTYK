@@ -11,7 +11,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'app-rout
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('app-routes must stay dependency free'); }, mod, mod.exports);
 const {
-  parseAppPath, roleHomePath, safeNextPath, loginPathFor, pickLandingRole, postLoginPath, canOpenRole,
+  parseAppPath, roleHomePath, safeNextPath, loginPathFor, pickLandingRole, postLoginPath, canOpenRole, ownScreenPath,
   stateToRoute, routeToState, routeEntryKey, isParentRoute, normalizeHref, parseQuery,
 } = mod.exports;
 
@@ -198,4 +198,13 @@ test('R2: router params are written one way (keys sorted, catch-all arrays read 
   assert.equal(normalizeHref('/x', { b: '2', a: ['1', '9'] }), '/x?a=1&b=2');
   assert.equal(normalizeHref('', {}), '/');
   assert.deepEqual(parseQuery('?a=1&a=2&b=%E0%B8%81&c'), { a: '1', b: 'ก', c: '' });
+});
+
+test('QA 4 Nov 2026 item 9: auth and legal screens typed with capitals map to their lower-case path; others do not', () => {
+  assert.equal(ownScreenPath('/Login'), '/login');
+  assert.equal(ownScreenPath('/REGISTER/'), '/register');
+  assert.equal(ownScreenPath('/Reset-Password'), '/reset-password');
+  assert.equal(ownScreenPath('/Privacy'), '/privacy');
+  assert.equal(ownScreenPath('/TERMS'), '/terms');
+  for (const other of ['/AGENT/rooms', '/', '/search', '/foo', '/login/extra']) assert.equal(ownScreenPath(other), null, other);
 });
