@@ -128,3 +128,33 @@ path ทั้งหมดอยู่ใต้ `apps/consumer-app/` ข้อ 1
 - **ปัญหา:** login ด้วย Google/Facebook บนเว็บจะโหลดหน้าใหม่ แล้ว `IdleSignOutGate` มองเป็น session ที่กู้คืนมา ใช้เวลาเก่าที่ค้างอยู่ ถ้าเกิน 8 ชม. จะเด้งออกทันทีหลัง login
 - **เสนอ:** login สำเร็จทุกทางให้เขียน `lastActivity` เป็นตอนนี้ และออกจากระบบทุกทางให้ล้างทิ้ง
 - ยังไม่ได้ทำ ตอนนี้ยังไม่เปิด Google/Facebook ถ้า Mos จะทำเอง บอก Jom ด้วย
+
+---
+
+## เพิ่มเติม 5 พ.ย. 2026: เส้นทาง GET ของบิลอ่านอย่างเดียว (ไฟล์ QA `bills-get-creates-bills-for-dev-2026-11-05.md`)
+
+**ก่อนแก้:** `GET /bills/mine`, `GET /bills/mine/next`, `GET /bills/received` และ `GET /bills/agent/tenants/:id` เรียก `ensureForUser` / `ensureForOwner` / `insertBills` ก่อนตอบ แค่เปิดหน้าก็ออกบิล และเปลี่ยนสถานะการเข้าพัก (`room_tenancies` → `active`) กับสัญญาต่ออายุ (→ `active`)
+
+**หลังแก้ (ทาง ค.)**
+- `apps/api/src/billing/tenant-billing.service.ts`
+  - เอาการออกบิลออกจาก `listMine`, `nextForUser`, `listReceived`, `listForAgentTenant` ทั้ง 4 อ่านอย่างเดียว
+  - `listForAgentTenant` ยังอ่าน `activeLeases()` เพื่อคำนวณ `upcoming` และ `advancePeriods` เหมือนเดิม แค่ไม่เรียก `insertBills`
+  - เพิ่ม `refreshForTenant(userId)` และ `refreshForOwner(userId)` คืน `{ issued }` (ห่อ `ensureForUser` / `ensureForOwner` เดิม)
+- **controller ใหม่ `apps/api/src/billing/bill-refresh.controller.ts`** (ลงทะเบียนใน `billing.module.ts`)
+  - `POST /bills/mine/refresh` (`@Roles("tenant")`) และ `POST /bills/received/refresh` (`@Roles("landlord")`) ตอบ 200
+  - แยกไว้คนละไฟล์ เพราะ `late-fee-invoices.test.cjs` (M8) ตรวจว่า `OwnerBillsController` ต้องไม่มี POST เลย จึงไม่ได้แตะ `TenantBillsController` และ `OwnerBillsController`
+- **แอป `apps/consumer-app/lib/tenant-bills-api.ts`**
+  - `listMyBills`, `getMyNextBill` เรียก `POST /bills/mine/refresh` ก่อน GET ส่วน `listReceivedBills` เรียก `POST /bills/received/refresh` ก่อน
+  - ถ้าเรียกพร้อมกัน (การ์ดหน้าแรกกับหน้าบิลตอน login) จะใช้คำขอเดียวร่วมกัน
+  - ถ้า refresh ล้มเหลว ก็ยังอ่านต่อ ไม่บล็อกหน้า
+  - component (`TenantNextBillCard`, `TenantBillsScreen`, `OwnerConfirmedRent`) ไม่ต้องแก้
+- **หน้าผู้เช่าของนายหน้า** (`getAgentTenantBilling`) อ่านอย่างเดียว ไม่มี refresh นายหน้าเห็นบิลที่งานตั้งเวลา 00:05 หรือที่ผู้เช่า/ผู้ให้เช่าเปิดหน้าแล้วออกไว้
+- `.env.api.example`: แก้คำอธิบายใต้ `DISABLE_SCHEDULED_JOBS` ให้ตรงกับของใหม่
+
+**ไม่เปลี่ยน:** งานตั้งเวลา 00:05 (`ensureAllActive`), กฎออกบิล (5 วันก่อนครบกำหนด ถึงวันผ่อนผัน), การกันบิลซ้ำ (unique `(lease_contract_id, period)` + `orIgnore` + ล็อกสัญญา)
+
+**ผลที่ควรรู้**
+- แอปมือถือเวอร์ชันเก่าที่ยังเรียกแค่ GET จะเห็นบิลใหม่ช้าสุดไม่ถึง 1 วัน (หลังงาน 00:05) จนกว่าจะอัปเดตแอป
+- e2e ของ QA ไม่ต้องตัดคำขอ GET ของบิลแล้ว แต่ควรเพิ่มเทสต์ของ 2 POST ใหม่
+
+**เทสต์:** `apps/api/test/bills-read-only.test.cjs` (GET ไม่เขียน, POST ออกบิล, role และ 200) และ `apps/consumer-app/lib/tenant-bills-api.test.cjs` (POST ก่อน GET, เรียกพร้อมกันได้คำขอเดียว, refresh ล้มแล้วยังอ่าน, หน้านายหน้าอ่านอย่างเดียว)
