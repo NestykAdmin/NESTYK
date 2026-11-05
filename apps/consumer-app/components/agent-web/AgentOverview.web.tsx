@@ -109,7 +109,7 @@ export function AgentOverview({
     )
     .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   const nextAppointment = today.find(
-    (item) => Date.parse(item.startsAt) >= now.getTime(),
+    (item) => item.status !== "done" && Date.parse(item.startsAt) >= now.getTime(),
   );
   const work = snapshot.actionRequired.items
     .filter((item) => item.count > 0)
@@ -413,11 +413,13 @@ export function AgentOverview({
                       ) : null}
                     </span>
                     <Pill
-                      tone={item.status === "confirmed" ? "success" : "warning"}
+                      tone={item.status === "done" ? "neutral" : item.status === "confirmed" ? "success" : "warning"}
                     >
-                      {item.status === "confirmed"
-                        ? copy.statusConfirmed
-                        : copy.statusPending}
+                      {item.status === "done"
+                        ? copy.statusDone
+                        : item.status === "confirmed"
+                          ? copy.statusConfirmed
+                          : copy.statusPending}
                     </Pill>
                   </button>
                 ))}
@@ -576,10 +578,12 @@ export function AgentOverview({
                                 <span>
                                   <strong>{room.title}</strong>
                                   <small>
-                                    {interpolate(copy.bedsArea, {
-                                      beds: room.beds,
-                                      area: room.area,
-                                    })}
+                                    {room.beds === 0
+                                      ? `${t.masters.roomTypes.studio} · ${room.area}`
+                                      : interpolate(copy.bedsArea, {
+                                          beds: room.beds,
+                                          area: room.area,
+                                        })}
                                   </small>
                                 </span>
                               </button>

@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { apiPatch, apiPost, setSessionExpiredHandler } from '../api';
-import { noteProfileSync, resetAgentSession } from '../agent-session';
+import { noteProfileSync, resetAgentSession, takeRecentSync } from '../agent-session';
 import { DEV_AUTH_CONFIG, toDevAccessToken } from './dev-auth';
 import { createSessionExpiry, restoreSession } from './session-expiry';
 import { providerRedirectPending } from './google-oauth';
@@ -200,7 +200,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const result = await restoreSession({
           stored,
           client: getSupabaseClient(),
-          sync: syncProfile,
+          // A screen may already have synced for the agent check while this effect waited for storage: reuse that.
+          sync: (token) => (token === undefined ? takeRecentSync<AuthUserResponse>() : null) ?? syncProfile(token),
           adoptProviderSession: !stored && providerRedirectPending(href) && !(href && isRecoveryLanding(href)),
         });
         if (cancelled) return;

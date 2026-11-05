@@ -20,7 +20,7 @@ import {
 } from '@nestyk/ui/native';
 import { listAgentLeads } from '../lib/agent-leads-api';
 import { leadMatchReady } from '../lib/lead-match-preview';
-import { LeadStatusBadge, leadAvatarInitials, leadDisplayStatus, leadStatusTone } from './AgentLeadDetailBody';
+import { LeadNewBadge, LeadStatusBadge, leadAvatarInitials, leadDisplayStatus, leadStatusTone } from './AgentLeadDetailBody';
 import { ViewingDateTile } from './ViewingDateTile';
 
 type LocationDraft = {
@@ -395,6 +395,7 @@ export function AgentLeadsScreen({
                     footer={
                       <>
                         <LeadStatusBadge status={status} />
+                        <LeadNewBadge lead={lead} />
                         {viewingAt && lead.nextViewingRoom ? (
                           <Text style={[styles.matchRooms, { color: theme.textHeading }]} numberOfLines={1}>
                             {lead.nextViewingRoom}

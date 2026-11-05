@@ -25,7 +25,7 @@ import {
 } from '../lib/lead-format';
 import { formatPhoneDisplay, phoneDialString } from '../lib/phone';
 import { distanceKm } from '../lib/lead-match-preview';
-import { LeadNextViewingLine, LeadStatusBadge, SheetHeader, leadCardShadow, leadDisplayStatus } from './AgentLeadDetailBody';
+import { LeadNewBadge, LeadNextViewingLine, LeadStatusBadge, SheetHeader, leadCardShadow, leadDisplayStatus } from './AgentLeadDetailBody';
 
 type Accent = 'lead' | 'matching' | 'screening' | 'notes';
 
@@ -272,6 +272,7 @@ export function LeadFullInfoBody({ lead }: { lead: AgentLead }) {
 
         <View style={styles.footer}>
           <LeadStatusBadge status={leadDisplayStatus(lead)} />
+          <LeadNewBadge lead={lead} />
           <Text style={[styles.label, styles.flex1, { color: theme.textSecondary }]}>
             {c.leadCodeLine.replace('{code}', formatLeadCode(lead)).replace('{date}', createdDate ?? '—')}
           </Text>

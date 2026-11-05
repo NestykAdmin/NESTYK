@@ -35,6 +35,7 @@ import {
 import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import { AgentOverview } from '../components/agent-web/AgentOverview';
 import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
+import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
@@ -1246,6 +1247,18 @@ export function AppHomeScreen() {
     }
 
     if (activeTab === 'listingLead') {
+      // Desktop web (W2, Mos 5 Nov 2026): leads table; phone and phone-width web keep the app screen.
+      if (isAgentWeb) {
+        return (
+          <AgentLeadsPage
+            workFilter={leadsWorkFilter}
+            reloadToken={leadsReloadToken}
+            onReloadSettled={finishPageRefresh}
+            onOpenLead={openLeadDetail}
+            onAddLead={openCreateLead}
+          />
+        );
+      }
       return (
         <View style={styles.bodyContainer}>
           <AgentLeadsScreen

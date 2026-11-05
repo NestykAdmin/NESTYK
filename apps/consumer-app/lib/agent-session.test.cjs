@@ -118,3 +118,33 @@ test('wiring: every profile sync is noted, and sign out / expiry reset the agent
   assert.match(ctx, /const request = apiPost<AuthUserResponse>\('\/auth\/sync', \{\}, accessToken\);\n\s*noteProfileSync\(request\);/);
   assert.equal((ctx.match(/resetAgentSession\(\);/g) || []).length, 2, 'endSession + session expiry');
 });
+
+// Other order: a screen asks for the agent check first; the restore then takes that answer instead of syncing again.
+test('restore can take the agent check\'s own sync, once it is fresh', async () => {
+  const s = loadShared(['guest', 'agent']);
+  assert.equal(s.takeRecentSync(), null, 'nothing yet');
+  await s.ensureAgentSession();
+  assert.equal(s.posts.length, 1);
+  const reused = await s.takeRecentSync();
+  assert.deepEqual(reused.roles, ['guest', 'agent']);
+  assert.equal(s.posts.length, 1, 'no second POST');
+  s.resetAgentSession();
+  assert.equal(s.takeRecentSync(), null, 'sign out forgets it');
+});
+
+test('a failed agent sync is not handed to the restore', async () => {
+  const mod = { exports: {} };
+  const posts = [];
+  new Function('require', 'module', 'exports', '__DEV__', SOURCE)((id) => {
+    if (id === './api') return { apiPost: async (r) => { posts.push(r); throw new Error('offline'); } };
+    throw new Error(`Unexpected dependency: ${id}`);
+  }, mod, mod.exports, false);
+  await assert.rejects(() => mod.exports.ensureAgentSession());
+  assert.equal(mod.exports.takeRecentSync(), null);
+});
+
+test('wiring: only the restore takes the shared sync; refresh and sign-in always ask the API', () => {
+  const ctx = fs.readFileSync(path.join(__dirname, 'auth/AuthContext.tsx'), 'utf8');
+  assert.equal((ctx.match(/takeRecentSync</g) || []).length, 1);
+  assert.match(ctx, /sync: \(token\) => \(token === undefined \? takeRecentSync<AuthUserResponse>\(\) : null\) \?\? syncProfile\(token\)/);
+});

@@ -31,6 +31,16 @@ export function resetAgentSession(): void {
   ensurePromise = null;
 }
 
+/**
+ * The other order: a screen can ask for the agent check before AuthContext's restore has synced (rooms and tenants do
+ * this on mount). AuthContext's restore, and only restore, takes this answer when it is still fresh, so the page load
+ * makes one POST /auth/sync either way. Never used for refreshProfile or sign-in, which need a new answer.
+ */
+export function takeRecentSync<T>(): Promise<T> | null {
+  if (recentSync && Date.now() - recentSync.at < RECENT_SYNC_MS) return recentSync.promise as unknown as Promise<T>;
+  return null;
+}
+
 async function currentSync(): Promise<AuthSyncResponse> {
   if (recentSync && Date.now() - recentSync.at < RECENT_SYNC_MS) {
     try {
@@ -39,7 +49,13 @@ async function currentSync(): Promise<AuthSyncResponse> {
       // The earlier request failed: ask again below.
     }
   }
-  return apiPost<AuthSyncResponse>('/auth/sync', {});
+  const request = apiPost<AuthSyncResponse>('/auth/sync', {});
+  const mine = { at: Date.now(), promise: request };
+  recentSync = mine;
+  request.catch(() => {
+    if (recentSync === mine) recentSync = null;
+  });
+  return request;
 }
 
 /** AGENT_ROLE_REQUIRED: the signed-in account has no agent role (e.g. a tenant who typed an /agent URL). */
@@ -54,6 +70,7 @@ async function syncAndGrantAgent(): Promise<AuthSyncResponse> {
   // SELF_REGISTRATION_ROLES). The app asks for a role only in a dev build that opts in; the API refuses it anyway
   // outside NODE_ENV=development (QA web role URL bug, 4 Nov 2026). Same switch as ensureAdminRole (AuthContext.tsx).
   if (!(typeof __DEV__ !== 'undefined' && __DEV__ && process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT === 'true')) {
+    recentSync = null; // a "no agent role" answer is never kept: the next check asks the API again
     throw Object.assign(new Error('Agent role required'), { code: AGENT_ROLE_REQUIRED });
   }
   return apiPost<AuthSyncResponse>('/auth/dev/roles', { role: 'agent' });

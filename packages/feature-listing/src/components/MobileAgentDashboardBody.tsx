@@ -126,11 +126,16 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
 
   const now = Date.now();
   const upcoming = snapshot.schedule.items
-    .filter((a) => new Date(a.startsAt).getTime() >= now - 5 * 60_000)
+    .filter((a) => a.status !== 'done' && new Date(a.startsAt).getTime() >= now - 5 * 60_000)
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
   const highlight = upcoming[0] ?? snapshot.schedule.items[0] ?? null;
   const rest = upcoming.filter((a) => a.id !== highlight?.id);
   const visibleRest = scheduleExpanded ? rest : rest.slice(0, 0);
+
+  const apptStatusLabel = (status: AgentDashboardAppointment['status']) =>
+    status === 'done' ? copy.statusDone : status === 'confirmed' ? copy.statusConfirmed : copy.statusPending;
+  const apptStatusTone = (status: AgentDashboardAppointment['status']) =>
+    status === 'done' ? 'neutral' : status === 'confirmed' ? 'success' : 'warning';
 
   const apptSubtitle = (a: AgentDashboardAppointment) => {
     const kind = a.kind === 'viewing' ? copy.apptViewing : copy.apptFollowUp;
@@ -378,8 +383,8 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                   </Text>
                 </View>
                 <SoftPill
-                  label={highlight.status === 'confirmed' ? copy.statusConfirmed : copy.statusPending}
-                  tone={highlight.status === 'confirmed' ? 'success' : 'warning'}
+                  label={apptStatusLabel(highlight.status)}
+                  tone={apptStatusTone(highlight.status)}
                 />
               </Pressable>
               {visibleRest.map((item) => (
@@ -397,8 +402,8 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                     </Text>
                   </View>
                   <SoftPill
-                    label={item.status === 'confirmed' ? copy.statusConfirmed : copy.statusPending}
-                    tone={item.status === 'confirmed' ? 'success' : 'warning'}
+                    label={apptStatusLabel(item.status)}
+                    tone={apptStatusTone(item.status)}
                   />
                 </Pressable>
               ))}

@@ -566,6 +566,17 @@
 .aw-page-fixed {
   overflow: hidden;
 }
+/* W1 (Mos 5 Nov 2026): create forms (room, lead, tenant) in a centred column; the page header, body, bottom bar and
+   footer all follow the same width. Lists and the Dashboard keep the full content width. */
+.aw-main[data-page-width="form"] {
+  --nestyk-web-content-max-width: var(--aw-form-max-width, 880px);
+}
+.aw-main[data-page-width="form"] .aw-page-bottom > * {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--aw-form-max-width, 880px) + 2 * var(--nestyk-web-content-gutter, 32px));
+  margin-inline: auto;
+}
 .aw-page-fixed .aw-page-body {
   padding-block: 0;
 }

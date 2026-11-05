@@ -32,6 +32,17 @@ export const AGENT_WEB_MORE: ReadonlyArray<AgentWebMenuItem> = [
   { tab: "contracts", icon: "files", labelKey: "openContracts" },
 ];
 
+/**
+ * W1 (Mos 5 Nov 2026): create forms sit in a centred column on wide screens (agent-workspace.css
+ * `[data-page-width="form"]`); lists and the Dashboard keep the full width. Layout only, same form and flow as the app.
+ */
+export type AgentWebPageWidth = "wide" | "form";
+
+export function agentWebPageWidth(tab: MobileAppTab, creating?: "room" | "lead" | "tenant" | null): AgentWebPageWidth {
+  if (creating === "tenant") return "form";
+  return tab === "createListing" || tab === "createLead" ? "form" : "wide";
+}
+
 /** Keep the parent menu selected inside create/detail flows. */
 export function agentWebParent(tab: MobileAppTab): AgentWebDestination | null {
   if (tab === "createListing") return "listingRoom";

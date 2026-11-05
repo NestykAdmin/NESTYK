@@ -1,0 +1,97 @@
+/* Agent web leads table (W2, Mos 5 Nov 2026). Shares the toolbar, chips, table card and pager of agent-rooms.css. */
+.awl-sort {
+  width: 220px;
+}
+.awl-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--aw-s2);
+}
+.awl-work-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aw-s3);
+  padding: var(--aw-s3) var(--aw-s4);
+  border: 1px solid var(--aw-brand-text);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+}
+.awl-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+  min-width: 0;
+}
+.awl-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+/* Same tones as the app's status pills (MobileStatusPill STATUS_PILL_TONES). */
+.awl-tone-yellow { background: #fef3c7; color: #b45309; }
+.awl-tone-blue { background: #dbeafe; color: #1d4ed8; }
+.awl-tone-purple { background: #ede9fe; color: #6d28d9; }
+.awl-tone-green { background: #dcfce7; color: #15803d; }
+.awl-tone-rose { background: #fce7f3; color: #be185d; }
+.awl-tone-red { background: #fee2e2; color: #b91c1c; }
+.awl-tone-slate { background: #f1f5f9; color: #475569; }
+.awl-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.awl-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.awl-status small {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small, 12px);
+}
+.awl-match {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.awl-match strong {
+  color: var(--aw-ink);
+}
+.awl-match small,
+.awl-match-none {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small, 12px);
+}
+.awl-match-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #b45309;
+  font-size: var(--aw-t-small, 12px);
+}
+.awl-error-detail {
+  margin: 0;
+  padding: 0 var(--aw-s4) var(--aw-s4);
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small, 12px);
+}
+.awl-filter-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s3);
+}
+.awl-check {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  color: var(--aw-ink);
+}

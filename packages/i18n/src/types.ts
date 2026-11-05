@@ -805,6 +805,17 @@ export interface TranslationSchema {
       };
     };
     leads: {
+      web: {
+        tableLabel: string;
+        colLead: string;
+        colArea: string;
+        colBudget: string;
+        colStatus: string;
+        colMatch: string;
+        colUpdated: string;
+        emptyTitle: string;
+        emptyBody: string;
+      };
       mapSearchHint: string;
       mapPinHint: string;
       mapWithin: string;
@@ -900,6 +911,7 @@ export interface TranslationSchema {
       };
       /** Status chip row on the lead list. */
       statusAll: string;
+      badgeNew: string;
       statusFilter: string;
       markInProgress: string;
       markLost: string;
@@ -1817,6 +1829,8 @@ export interface TranslationSchema {
       addDocument: string;
       ownerName: string;
       ownerPhone: string;
+      ownerNamePlaceholder: string;
+      ownerPhonePlaceholder: string;
       ownerEmail: string;
       ownerOther: string;
       ownerOtherPlaceholder: string;
@@ -2100,6 +2114,7 @@ export interface TranslationSchema {
       upNext: string;
       statusConfirmed: string;
       statusPending: string;
+      statusDone: string;
       todaysSchedule: string;
       viewCalendar: string;
       listingInventory: string;

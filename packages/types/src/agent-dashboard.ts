@@ -47,7 +47,8 @@ export type AgentDashboardAppointment = {
   title: string;
   contactName: string;
   kind: AgentAppointmentKind;
-  status: 'confirmed' | 'pending';
+  /** done: a viewing marked finished today (B4, Mos 5 Nov 2026: the Dashboard lists it too). */
+  status: 'confirmed' | 'pending' | 'done';
 };
 
 export type AgentDashboardSnapshot = {

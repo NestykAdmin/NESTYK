@@ -49,6 +49,7 @@ import {
   saveLeadMatchSettings,
 } from '../lib/agent-leads-api';
 import { leadMatchReady, type LeadMatchRunResult, type LeadRoomMatch } from '../lib/lead-match-preview';
+import { leadIsFresh } from '../lib/lead-fresh';
 import { criterionTone, summarizeComparison, type CompareKey } from '../lib/lead-room-compare';
 import { useMatchCopy } from './lead-match-copy';
 import { LeadViewingsSection, viewedRoomIds } from './LeadViewingsSection';
@@ -84,6 +85,13 @@ export function leadDisplayStatus(lead: Pick<AgentLead, 'status' | 'nextViewingA
   const open = lead.status === 'new' || lead.status === 'inprogress';
   const upcoming = !!lead.nextViewingAt && new Date(lead.nextViewingAt).getTime() > Date.now();
   return open && upcoming ? 'viewing' : lead.status;
+}
+
+/** "ใหม่" tag next to the status while nobody has changed the lead yet (lib/lead-fresh.ts). */
+export function LeadNewBadge({ lead }: { lead: Pick<AgentLead, 'status' | 'createdAt' | 'updatedAt'> }) {
+  const { t } = useLocale();
+  if (!leadIsFresh(lead)) return null;
+  return <MobileStatusPill label={t.agent.leads.badgeNew} tone="rose" />;
 }
 
 export function LeadStatusBadge({ status }: { status: string }) {
@@ -769,6 +777,7 @@ export function AgentLeadDetailBody({
                 <LeadStatusBadge status={displayStatus} />
                 {statusTargets.length ? <MobileIcon name="chevron-down" size={12} color={statusTone.fg} /> : null}
               </Pressable>
+              <LeadNewBadge lead={lead} />
             </View>
             <Text style={[styles.meta, { color: theme.textSecondary }]} numberOfLines={1}>
               {c.leadCodeLine

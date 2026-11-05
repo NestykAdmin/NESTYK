@@ -72,6 +72,8 @@ export type AgentLead = Required<Omit<CreateLeadInput, 'budgetMin' | 'budgetMax'
   id: number; budgetMin: number | null; budgetMax: number | null;
   desiredRoomTypeCode: string | null; visaTypeCode: string | null;
   status: LeadStatus; lostReason: string | null; createdAt: string;
+  /** Last change to the lead (edit, match run, viewing). Drives the "ใหม่" tag until the first change. */
+  updatedAt?: string;
   /** Latest manual room-matching run; only on list responses, null when never matched. */
   lastMatch?: LeadMatchSummary | null;
   /** Earliest upcoming scheduled viewing (ISO); drives the derived "viewing booked" status. */

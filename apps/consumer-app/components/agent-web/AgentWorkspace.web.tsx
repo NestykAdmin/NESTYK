@@ -14,6 +14,7 @@ import type { AgentWorkspaceProps, WorkspaceNavItem } from "./AgentWorkspace.typ
 import {
   AGENT_WEB_PRIMARY,
   AGENT_WEB_MORE,
+  agentWebPageWidth,
   agentWebParent,
 } from "./navigation";
 import "./agent-workspace.css";
@@ -882,7 +883,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                 </details>
         </aside>
 
-          <main id="agent-web-main" className="aw-main" tabIndex={-1}>
+          <main
+            id="agent-web-main"
+            className="aw-main"
+            data-page-width={agentWebPageWidth(props.activeTab, props.creating)}
+            tabIndex={-1}
+          >
             {props.children}
           </main>
         <WebDialog
