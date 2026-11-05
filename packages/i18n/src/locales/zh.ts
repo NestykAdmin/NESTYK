@@ -763,6 +763,18 @@ export const zh: TranslationSchema = {
         subtitleAll: '全部租客名单',
         tabWork: '待办',
         tabAll: '全部租客',
+        /** Agent web tenants tables (W3, 5 Nov 2026). */
+        web: {
+          colWork: '待办',
+          colTenant: '租客',
+          colRoom: '项目 · 房间',
+          colDetail: '详情',
+          colUnit: '房间',
+          colRent: '租金',
+          colStatus: '状态',
+          tableWork: '待处理事项',
+          tableAll: '租客列表',
+        },
         tileSlip: '待审核凭证',
         tileSlipHint: '有新记录',
         tileOverdue: '欠款',

@@ -757,6 +757,17 @@ export interface TranslationSchema {
         subtitleAll: string;
         tabWork: string;
         tabAll: string;
+        web: {
+          colWork: string;
+          colTenant: string;
+          colRoom: string;
+          colDetail: string;
+          colUnit: string;
+          colRent: string;
+          colStatus: string;
+          tableWork: string;
+          tableAll: string;
+        };
         tileSlip: string;
         tileSlipHint: string;
         tileOverdue: string;

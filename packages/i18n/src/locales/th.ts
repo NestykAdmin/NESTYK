@@ -764,6 +764,18 @@ export const th: TranslationSchema = {
         subtitleAll: 'รายชื่อผู้เช่าทั้งหมด',
         tabWork: 'งานค้าง',
         tabAll: 'ผู้เช่าทั้งหมด',
+        /** Agent web tenants tables (W3, 5 Nov 2026). */
+        web: {
+          colWork: 'งาน',
+          colTenant: 'ผู้เช่า',
+          colRoom: 'โครงการ · ห้อง',
+          colDetail: 'รายละเอียด',
+          colUnit: 'ห้อง',
+          colRent: 'ค่าเช่า',
+          colStatus: 'สถานะ',
+          tableWork: 'งานที่ต้องจัดการ',
+          tableAll: 'รายชื่อผู้เช่า',
+        },
         tileSlip: 'รอตรวจสลิป',
         tileSlipHint: 'มีรายการใหม่',
         tileOverdue: 'ค้างชำระ',

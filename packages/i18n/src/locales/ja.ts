@@ -764,6 +764,18 @@ export const ja: TranslationSchema = {
         subtitleAll: '全入居者一覧',
         tabWork: '未対応',
         tabAll: '全入居者',
+        /** Agent web tenants tables (W3, 5 Nov 2026). */
+        web: {
+          colWork: 'タスク',
+          colTenant: '入居者',
+          colRoom: '物件 · 部屋',
+          colDetail: '詳細',
+          colUnit: '部屋',
+          colRent: '賃料',
+          colStatus: 'ステータス',
+          tableWork: '対応が必要なタスク',
+          tableAll: '入居者一覧',
+        },
         tileSlip: '明細確認待ち',
         tileSlipHint: '新しい項目あり',
         tileOverdue: '未払い',

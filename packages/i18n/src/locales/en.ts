@@ -764,6 +764,18 @@ export const en: TranslationSchema = {
         subtitleAll: 'All tenants',
         tabWork: 'To do',
         tabAll: 'All tenants',
+        /** Agent web tenants tables (W3, 5 Nov 2026). */
+        web: {
+          colWork: 'To do',
+          colTenant: 'Tenant',
+          colRoom: 'Project · room',
+          colDetail: 'Details',
+          colUnit: 'Room',
+          colRent: 'Rent',
+          colStatus: 'Status',
+          tableWork: 'Open work',
+          tableAll: 'Tenants',
+        },
         tileSlip: 'Slips to review',
         tileSlipHint: 'New items',
         tileOverdue: 'Overdue',

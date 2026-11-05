@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import Animated, { FadeIn } from "react-native-reanimated";
 import {
@@ -40,6 +40,8 @@ import { TenantWorkBody } from "./TenantWorkBody";
 import { ContractReminderList } from "./ContractReminderList";
 import { listAgentReminders } from "../lib/reminders-api";
 import { TenantDirectoryBody, type TenantDirectoryFilter } from "./TenantDirectoryBody";
+import { TenantWorkTable } from "./agent-web/TenantWorkTable";
+import { TenantDirectoryTable } from "./agent-web/TenantDirectoryTable";
 import { DetailCard, DetailField } from "./TenantDetailParts";
 import { FinancialDocumentForm } from "./FinancialDocumentForm";
 
@@ -208,6 +210,11 @@ export function AgentTenantsScreen({
     onWorkFilterHandled?.();
   }, [workFilter, onWorkFilterHandled]);
   const workItems = useMemo(() => tenantWorkItems(items, slips), [items, slips]);
+  // W3 (Mos 5 Nov 2026): the desktop web shell (same 768px line as app/index.tsx) shows the lists as tables; same data and actions.
+  const { width: windowWidth } = useWindowDimensions();
+  const webTables = Platform.OS === "web" && windowWidth >= 768;
+  const WorkList = webTables ? TenantWorkTable : TenantWorkBody;
+  const DirectoryList = webTables ? TenantDirectoryTable : TenantDirectoryBody;
   const listView: TenantListView = view ?? (workItems.length ? "work" : "all");
   useEffect(() => {
     onListViewChange?.(listView);
@@ -779,7 +786,7 @@ export function AgentTenantsScreen({
     void open(item.tenant.id, at);
   };
   return (
-    <View style={s.root}>
+    <View style={[s.root, webTables && s.rootWide]}>
       <MobileSegmentedTabs
         tabs={[
           { key: "work", label: c.list.tabWork, count: loading ? "–" : workItems.length },
@@ -809,7 +816,7 @@ export function AgentTenantsScreen({
               void open(reminder.tenantId, reminder.billId != null ? "payments" : "contracts");
             }}
           />
-          <TenantWorkBody
+          <WorkList
             items={workItems}
             kind={workKind}
             onKindChange={setWorkKind}
@@ -821,7 +828,7 @@ export function AgentTenantsScreen({
           />
           </>
         ) : (
-          <TenantDirectoryBody
+          <DirectoryList
             tenants={items}
             items={workItems}
             loading={loading}
@@ -896,6 +903,8 @@ const s = StyleSheet.create({
     maxWidth: 760,
     alignSelf: "center",
   },
+  /** W3: the lists use the full page width in the desktop web shell (detail and form keep 760). */
+  rootWide: { maxWidth: "100%" },
   subtitle: {
     fontFamily: tokens.typography.native.headingTh,
     fontSize: 16,
