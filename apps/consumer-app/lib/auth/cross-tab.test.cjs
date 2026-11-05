@@ -71,7 +71,9 @@ function webTabs() {
   }).outputText;
   const rules = load('cross-tab-rules.ts');
   const mod = { exports: {} };
-  new Function('require', 'module', 'exports', source)((id) => { if (id === './cross-tab-rules') return rules; throw new Error(id); }, mod, mod.exports);
+  const idle = load('idle-rules.ts');
+  const deps = { './cross-tab-rules': rules, './idle-rules': idle };
+  new Function('require', 'module', 'exports', source)((id) => { if (deps[id]) return deps[id]; throw new Error(id); }, mod, mod.exports);
   return { ...mod.exports, store };
 }
 
@@ -88,6 +90,31 @@ test('a tab that loads after another tab expired is told once; a sign out or a n
   web.markAuthEvent('expired');
   web.clearExpiryNotice(); // signed in again
   assert.equal(web.takeExpiryNotice(), false);
+});
+
+test('review F6: a new sign-in starts the idle clock now; a sign out or expiry clears it', () => {
+  const web = webTabs();
+  const KEY = 'nestyk.web.lastActivity';
+  web.store.set(KEY, '1000'); // left over from yesterday
+  const before = Date.now();
+  web.markFreshSignIn();
+  assert.ok(Number(web.store.get(KEY)) >= before, 'Google return page does not read the old time');
+  web.markAuthEvent('signedOut');
+  assert.equal(web.store.has(KEY), false);
+  web.markFreshSignIn();
+  web.markAuthEvent('expired');
+  assert.equal(web.store.has(KEY), false);
+});
+
+test('review F6 wiring: only new sign-ins start the clock (restore and profile refresh keep the saved time)', () => {
+  const ctx = read('AuthContext.tsx');
+  assert.match(ctx, /if \(fresh\) markFreshSignIn\(\);/);
+  assert.match(ctx, /result\.profile\), !stored\);/, 'restore: only an adopted Google/Facebook return is fresh');
+  assert.match(ctx, /await applySession\(result\.session\);/, 'cached restore is not fresh');
+  assert.match(ctx, /const next = sessionFromSync\(session\.mode[^\n]*\n\s*await applySession\(next\);/, 'refreshProfile is not fresh');
+  const fresh = (ctx.match(/await applySession\([\s\S]*?\);/g) || []).filter((call) => /,\s*true,?\s*\);$/.test(call));
+  assert.equal(fresh.length, 5, 'password, dev, OAuth, sign-up, reset');
+  assert.match(read('cross-tab.ts'), /export function markFreshSignIn\(\): void \{\}/);
 });
 
 test('wiring: a signed-out load asks once; signing in clears it; mobile never tells', () => {

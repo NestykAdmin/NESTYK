@@ -22,7 +22,7 @@ import {
   saveAuthSession,
   StoredAuthSession,
 } from './session-storage';
-import { clearExpiryNotice, markAuthEvent, subscribeCrossTab, takeExpiryNotice } from './cross-tab';
+import { clearExpiryNotice, markAuthEvent, markFreshSignIn, subscribeCrossTab, takeExpiryNotice } from './cross-tab';
 import { requestGuestBrowse } from './role-gate';
 
 export type AuthUserResponse = {
@@ -115,9 +115,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Set by signOut; a re-render does not reset it (unlike sessionRef).
   const signingOutRef = useRef(false);
 
-  const applySession = useCallback(async (next: StoredAuthSession) => {
+  /** `fresh`: a new sign-in (not a restore or profile refresh), which starts the web idle clock (review F6). */
+  const applySession = useCallback(async (next: StoredAuthSession, fresh = false) => {
     await saveAuthSession(next);
     clearExpiryNotice(); // web: signed in again, an older "session expired" is no longer news
+    if (fresh) markFreshSignIn(); // no-op on mobile
     setSession(next);
   }, []);
 
@@ -199,7 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         if (cancelled) return;
         if (result.kind === 'synced') {
-          await applySession(sessionFromSync(result.mode, result.accessToken, result.userId, result.profile));
+          // No stored session = the Google/Facebook return page adopted a new sign-in.
+          await applySession(sessionFromSync(result.mode, result.accessToken, result.userId, result.profile), !stored);
         } else if (result.kind === 'cached') {
           await applySession(result.session);
         } else {
@@ -227,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let profile = await syncProfile(accessToken);
     const granted = await ensureAdminRole(accessToken, profile.roles);
     if (granted) profile = granted;
-    await applySession(sessionFromSync('supabase', accessToken, userId, profile));
+    await applySession(sessionFromSync('supabase', accessToken, userId, profile), true);
     setSessionExpired(false);
   }, [applySession]);
 
@@ -284,6 +287,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (granted) profile = granted;
         await applySession(
           sessionFromSync('dev', accessToken, DEV_AUTH_CONFIG.uuid, profile),
+          true,
         );
         setSessionExpired(false);
         return;
@@ -305,7 +309,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let profile = await syncProfile(oauthSession.access_token);
       const granted = await ensureAdminRole(oauthSession.access_token, profile.roles);
       if (granted) profile = granted;
-      await applySession(sessionFromSync('supabase', oauthSession.access_token, oauthSession.user.id, profile));
+      await applySession(sessionFromSync('supabase', oauthSession.access_token, oauthSession.user.id, profile), true);
     } catch (syncError) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       throw syncError;
@@ -437,7 +441,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let synced = await syncProfile(data.session.access_token);
       await saveSignupProfile(data.session.access_token, profile);
       synced = await syncProfile(data.session.access_token);
-      await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced));
+      await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced), true);
     } catch (syncError) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       throw syncError;
@@ -479,7 +483,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session) throw error ?? new Error();
     const synced = await syncProfile(data.session.access_token);
-    await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced));
+    await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced), true);
     setSessionExpired(false);
   }, [applySession, resetClient]);
 

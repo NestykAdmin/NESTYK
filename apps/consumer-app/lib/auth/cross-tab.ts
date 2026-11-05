@@ -9,6 +9,9 @@ export function takeExpiryNotice(): boolean {
 
 export function clearExpiryNotice(): void {}
 
+/** Mobile: no idle sign out. */
+export function markFreshSignIn(): void {}
+
 export function subscribeCrossTab(_onAction: (action: CrossTabAction, raw: string | null) => void, _currentUserId: () => string | null): () => void {
   return () => undefined;
 }
