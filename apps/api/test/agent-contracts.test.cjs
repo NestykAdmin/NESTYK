@@ -772,14 +772,18 @@ test('D2: a reservation draft takes the confirmed offer\'s numbers, and its book
       return f;
     };
     const body = { leadId: 1, agreementTypeCode: 'reservation', startDate: '2026-10-14', moveInDate: '2026-10-15', reservationFee: 5000, data: { reservationLetter: letter } };
-    const c = await make(confirmedOfferRow).service.create(7, body);
+    // The offer starts in the future: a move-in before the letter's date (today) would move to today (test date bomb,
+    // review 4 Nov 2026: the fixed 2026-11-01 passed into the past).
+    const year = new Date().getFullYear() + 2;
+    const start = `${year}-11-01`;
+    const c = await make({ ...confirmedOfferRow, start_date: start }).service.create(7, body);
     const saved = c.data.reservationLetter;
     assert.deepEqual(
       [saved.monthlyRent, saved.termMonths, saved.termFrom, saved.termTo, saved.advanceMonths, saved.advanceAmount, saved.reservationPayment, saved.depositAmount, saved.depositMonths, saved.applyToAdvance, saved.applyToDeposit, saved.balanceDue],
-      ['15000', '12', '2026-11-01', '2027-10-31', '1', '15000', '15000', '30000', '2', true, false, '30000']);
+      ['15000', '12', start, `${year + 1}-10-31`, '1', '15000', '15000', '30000', '2', true, false, '30000']);
     assert.equal(c.reservation_fee, '15000.00', 'the booking invoice is 1 month of rent');
     assert.equal(c.data.financialDocuments.invoice.items[0].unitPrice, 15000);
-    assert.equal(c.move_in_date, '2026-11-01');
+    assert.equal(c.move_in_date, start);
     assert.equal(saved.project, 'Condo', 'the other fields stay as typed');
     // No confirmed offer: the typed letter and fee stay.
     const old = await make(null).service.create(7, body);
