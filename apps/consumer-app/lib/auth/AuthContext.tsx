@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { apiPatch, apiPost, setSessionExpiredHandler } from '../api';
+import { noteProfileSync, resetAgentSession, takeRecentSync } from '../agent-session';
 import { DEV_AUTH_CONFIG, toDevAccessToken } from './dev-auth';
 import { createSessionExpiry, restoreSession } from './session-expiry';
 import { providerRedirectPending } from './google-oauth';
@@ -72,7 +73,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 /** Without a token, api.ts sends the current Supabase token and renews it when needed. */
 async function syncProfile(accessToken?: string): Promise<AuthUserResponse> {
-  return apiPost<AuthUserResponse>('/auth/sync', {}, accessToken);
+  const request = apiPost<AuthUserResponse>('/auth/sync', {}, accessToken);
+  noteProfileSync(request); // the agent role check reuses this answer instead of syncing again (lib/agent-session.ts)
+  return request;
 }
 
 async function ensureAdminRole(accessToken: string, roles: string[]): Promise<AuthUserResponse | null> {
@@ -130,6 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearStored: async () => {
         markAuthEvent('expired'); // web: other tabs go to /login with the notice too (no-op on mobile)
         await clearAuthSession();
+        resetAgentSession();
       },
       client: getSupabaseClient,
       onExpired: () => {
@@ -196,7 +200,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const result = await restoreSession({
           stored,
           client: getSupabaseClient(),
-          sync: syncProfile,
+          // A screen may already have synced for the agent check while this effect waited for storage: reuse that.
+          sync: (token) => (token === undefined ? takeRecentSync<AuthUserResponse>() : null) ?? syncProfile(token),
           adoptProviderSession: !stored && providerRedirectPending(href) && !(href && isRecoveryLanding(href)),
         });
         if (cancelled) return;
@@ -344,6 +349,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       markAuthEvent(reason); // web: other tabs follow (guest home, or /login for expired); no-op on mobile
       await clearAuthSession();
+      resetAgentSession();
       sessionRef.current = null;
       setSession(null);
       setSessionExpired(reason === 'expired');

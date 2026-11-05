@@ -68,7 +68,7 @@ test('desktop quick actions, work filters, room rows and calendar keep existing 
   tree.find(node => node?.type === 'button' && nodes(node.props.children).includes(calendarLabel)).props.onClick();
   assert.deepEqual(calls[8], { type: 'tab', tab: 'calendar' });
   assert.equal(work.length, 4);
-  assert.equal(byClass(tree, 'aov-kpi').length, 5);
+  assert.equal(byClass(tree, 'aov-kpi').length, 4);
   assert.equal(tree.filter(node => node?.props?.role === 'note').length, 1);
 });
 

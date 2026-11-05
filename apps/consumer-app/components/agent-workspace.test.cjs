@@ -376,23 +376,16 @@ test('top-level pages show their title only in the top bar; deep pages keep it b
   assert.equal(deep.find(node => node?.type === 'h2').props.children, 'Lead details');
 });
 
-test('refresh is not in the top bar; the page toolbar shows it on scrolling pages only', () => {
+test('there is no refresh button on the web: not in the top bar and not on the page (D4)', () => {
   state = [];
   const tree = render(props({ onRefresh() {}, refreshing: false }));
   assert.equal(byClass(tree, 'aw-refresh').length, 0);
   assert.equal(tree.some(node => node?.props?.['aria-label'] === 'Refresh'), false);
   const { AgentWorkspacePage } = load(path.join(__dirname, 'agent-web/AgentWorkspace.web.tsx'));
-  let calls = 0;
-  const page = nodes(AgentWorkspacePage({ header: 'Heading', children: 'Body', onRefresh: () => calls++, refreshing: false }));
-  const refresh = page.find(node => node?.props?.['data-testid'] === 'page.refresh');
-  assert.ok(refresh);
-  refresh.props.onClick();
-  assert.equal(calls, 1);
+  const page = nodes(AgentWorkspacePage({ header: 'Heading', children: 'Body' }));
+  assert.equal(page.some(node => node?.props?.['data-testid'] === 'page.refresh'), false);
   assert.ok(page.includes('Heading'));
-  const busy = nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, refreshing: true })).find(node => node?.props?.['data-testid'] === 'page.refresh');
-  assert.equal(busy.props.disabled, true);
-  assert.equal(nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, scrollable: false })).some(node => node?.props?.['data-testid'] === 'page.refresh'), false);
-  assert.equal(nodes(AgentWorkspacePage({ children: 'Body', onRefresh() {}, bottomBar: 'Save' })).some(node => node?.props?.['data-testid'] === 'page.refresh'), false);
+  assert.ok(page.includes('Body'));
 });
 
 test('theme menu offers light, dark and match device, and remembers the choice in this browser', () => {

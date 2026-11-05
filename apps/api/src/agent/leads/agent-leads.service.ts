@@ -470,6 +470,7 @@ function toLead(row: LeadEntity) {
     desiredRoomTypeId: row.desired_room_type_id, desiredRoomTypeCode: row.desired_room_type?.code ?? null,
     notes: row.notes ?? null,
     status: row.status as LeadStatus, lostReason: row.lost_reason ?? null, createdAt: row.created_at,
+    updatedAt: row.updated_at,
     // Set by booking (POST /agent/tenants): the tenant made from this lead and the room it took.
     tenantId: row.tenant_id ?? null, rentRoomId: row.rent_room_id ?? null,
   };

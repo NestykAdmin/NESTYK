@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, {
   Easing,
@@ -19,6 +19,8 @@ const TRACK = '#EEF2F6';
 const LOW = tokens.colors.error;
 const MID = tokens.colors.brand[500];
 const HIGH = tokens.colors.success;
+/** On web, reanimated moves the arc but never updates an animated `stroke` colour (it stayed red at every score), so web uses the final score's colour from the start. */
+const STATIC_STROKE = Platform.OS === 'web';
 
 /** Score bands: 0–49 low (red) · 50–74 mid (yellow) · 75–100 high (green). */
 export function scoreRingColor(score: number): string {
@@ -68,9 +70,10 @@ export function MobileScoreRing({
     return () => cancelAnimation(progress);
   }, [target, progress]);
 
+  const finalStroke = scoreRingColor(target);
   const animatedProps = useAnimatedProps(() => ({
     strokeDashoffset: circumference * (1 - progress.value / 100),
-    stroke: scoreRingColor(progress.value),
+    stroke: STATIC_STROKE ? finalStroke : scoreRingColor(progress.value),
   }));
 
   const center = size / 2;

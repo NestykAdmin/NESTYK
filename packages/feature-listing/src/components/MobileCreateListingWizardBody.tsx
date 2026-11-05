@@ -3508,7 +3508,7 @@ export const MobileCreateListingWizardBody: React.FC<
                   ) : null}
                   <MobileInput
                     label={cr.ownerName}
-                    placeholder="e.g. Alex Morgan"
+                    placeholder={cr.ownerNamePlaceholder}
                     value={ownerName}
                     required
                     onChangeText={(v) => {
@@ -3519,7 +3519,7 @@ export const MobileCreateListingWizardBody: React.FC<
                   />
                   <MobileInput
                     label={cr.ownerPhone}
-                    placeholder="e.g. 0812345678"
+                    placeholder={cr.ownerPhonePlaceholder}
                     keyboardType="phone-pad"
                     value={ownerPhone}
                     required
@@ -3833,7 +3833,7 @@ export const MobileCreateListingWizardBody: React.FC<
               <MobileInput
                 label={cr.ownerName}
                 required
-                placeholder="e.g. Alex Morgan"
+                placeholder={cr.ownerNamePlaceholder}
                 value={draftOwnerName}
                 onChangeText={(v) => {
                   setDraftOwnerName(v);
@@ -3848,7 +3848,7 @@ export const MobileCreateListingWizardBody: React.FC<
               <MobileInput
                 label={cr.ownerPhone}
                 required
-                placeholder="e.g. 0812345678"
+                placeholder={cr.ownerPhonePlaceholder}
                 keyboardType="phone-pad"
                 value={draftOwnerPhone}
                 onChangeText={(v) => {

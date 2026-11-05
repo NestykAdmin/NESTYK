@@ -618,6 +618,8 @@ export interface TranslationSchema {
         sectionContracts: string;
         sectionBills: string;
         sectionPayments: string;
+        webOverview: string;
+        webSections: string;
         sectionAttachments: string;
         profileComplete: string;
         profileMissing: string;
@@ -757,6 +759,17 @@ export interface TranslationSchema {
         subtitleAll: string;
         tabWork: string;
         tabAll: string;
+        web: {
+          colWork: string;
+          colTenant: string;
+          colRoom: string;
+          colDetail: string;
+          colUnit: string;
+          colRent: string;
+          colStatus: string;
+          tableWork: string;
+          tableAll: string;
+        };
         tileSlip: string;
         tileSlipHint: string;
         tileOverdue: string;
@@ -805,6 +818,17 @@ export interface TranslationSchema {
       };
     };
     leads: {
+      web: {
+        tableLabel: string;
+        colLead: string;
+        colArea: string;
+        colBudget: string;
+        colStatus: string;
+        colMatch: string;
+        colUpdated: string;
+        emptyTitle: string;
+        emptyBody: string;
+      };
       mapSearchHint: string;
       mapPinHint: string;
       mapWithin: string;
@@ -900,6 +924,7 @@ export interface TranslationSchema {
       };
       /** Status chip row on the lead list. */
       statusAll: string;
+      badgeNew: string;
       statusFilter: string;
       markInProgress: string;
       markLost: string;
@@ -1817,6 +1842,8 @@ export interface TranslationSchema {
       addDocument: string;
       ownerName: string;
       ownerPhone: string;
+      ownerNamePlaceholder: string;
+      ownerPhonePlaceholder: string;
       ownerEmail: string;
       ownerOther: string;
       ownerOtherPlaceholder: string;
@@ -1929,6 +1956,24 @@ export interface TranslationSchema {
       };
     };
     listings: {
+      web: {
+        colRoom: string;
+        colSize: string;
+        colType: string;
+        colPrice: string;
+        colStatus: string;
+        colUpdated: string;
+        pageRange: string;
+        prevPage: string;
+        nextPage: string;
+        pages: string;
+        viewTable: string;
+        viewCards: string;
+        emptyTitle: string;
+        emptyBody: string;
+        filters: string;
+        tableLabel: string;
+      };
       editRoom: string;
       saveChanges: string;
       cancelEdit: string;
@@ -2039,6 +2084,28 @@ export interface TranslationSchema {
         balance: string;
         loadFailed: string;
       };
+      /** Web shared states (A7): empty, no match, error, not found, no permission, offline, table selection and sort. */
+      webStates: {
+        emptyTitle: string;
+        emptyBody: string;
+        filteredTitle: string;
+        filteredBody: string;
+        clearFilters: string;
+        errorTitle: string;
+        errorBody: string;
+        retry: string;
+        notFoundTitle: string;
+        notFoundBody: string;
+        backToList: string;
+        forbiddenTitle: string;
+        forbiddenBody: string;
+        offlineTitle: string;
+        offlineBody: string;
+        selectAll: string;
+        selectRow: string;
+        selected: string;
+        sortBy: string;
+      };
       workspaceLabel: string;
       welcome: string;
       todayDate: string;
@@ -2060,6 +2127,7 @@ export interface TranslationSchema {
       upNext: string;
       statusConfirmed: string;
       statusPending: string;
+      statusDone: string;
       todaysSchedule: string;
       viewCalendar: string;
       listingInventory: string;

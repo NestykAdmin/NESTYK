@@ -3,7 +3,7 @@
   min-width: 0;
   min-height: 0;
   overflow: visible;
-  padding: 4px 0 24px;
+  padding: var(--aw-s1) 0 var(--aw-s6);
   color: var(--aw-ink);
   font: 14px/1.5 "NotoSansThai_400Regular", sans-serif;
 }
@@ -25,19 +25,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--aw-s2);
   min-height: 39px;
-  padding: 8px 15px;
+  padding: var(--aw-s2) var(--aw-s4);
   border: 1px solid transparent;
-  border-radius: 7px;
-  font-size: 12px;
+  border-radius: var(--aw-r-sm);
+  font-size: var(--aw-t-caption);
 }
 .aov-scroll .aw-button-primary {
   background: var(--aw-brand);
-  color: #382b12;
+  color: var(--aw-on-brand);
 }
 .aov-scroll .aw-button-primary:hover {
-  background: #eab134;
+  background: var(--aw-brand-hover);
 }
 .aov-scroll .aw-button-secondary {
   background: var(--aw-surface);
@@ -50,17 +50,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--nestyk-web-section-gap);
-  padding-bottom: 8px;
+  padding-bottom: var(--aw-s2);
 }
 .aov-deletion {
   margin: 0;
-  padding: 16px 18px;
-  border: 1px solid #dc2626;
-  border-radius: 16px;
-  background: #fef2f2;
-  color: #dc2626;
+  padding: var(--aw-s4) var(--aw-s5);
+  border: 1px solid var(--aw-danger-fill);
+  border-radius: var(--aw-r-lg);
+  background: var(--aw-danger-soft);
+  color: var(--aw-danger-fill);
   font-family: "Mitr_500Medium", sans-serif;
-  font-size: 18px;
+  font-size: var(--aw-t-page);
   font-weight: 700;
   line-height: 28px;
 }
@@ -73,14 +73,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
+  gap: var(--aw-s5);
   flex-wrap: wrap;
-  padding: 4px 0 2px;
-}
-.aov-eyebrow {
-  color: var(--aw-muted);
-  font-size: 12px;
-  margin-bottom: 4px !important;
+  padding: var(--aw-s1) 0 2px;
 }
 .aov-intro h1 {
   font:
@@ -90,36 +85,37 @@
 }
 .aov-date {
   color: var(--aw-muted);
-  font-size: 12px;
-  margin-top: 4px !important;
+  font-size: var(--aw-t-caption);
+  margin-top: var(--aw-s1) !important;
 }
 .aov-quick-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--aw-s3);
   flex-wrap: wrap;
 }
 .aov-quick-actions .aw-button {
   min-height: 42px;
-  padding: 10px 18px;
+  padding: var(--aw-s3) var(--aw-s5);
 }
 .aov-demo {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border: 1px solid #eed9a5;
-  border-radius: 8px;
-  background: #fff9e9;
-  color: #80601b;
-  font-size: 12px;
+  gap: var(--aw-s2);
+  padding: var(--aw-s2) var(--aw-s3);
+  border: 1px solid var(--aw-brand-line);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-brand-soft);
+  color: var(--aw-brand-ink);
+  font-size: var(--aw-t-caption);
 }
 .aov-demo > svg {
   flex-shrink: 0;
 }
 .aov-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
+  /* Compact KPI strip under the work row (design audit, pass 3); commission has its own card below. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--aw-s3);
 }
 .aov-kpi {
   display: flex;
@@ -127,24 +123,24 @@
   justify-content: flex-start;
   text-align: left;
   min-width: 0;
-  padding: 17px 18px;
+  padding: var(--aw-s3) var(--aw-s4);
   border: 1px solid var(--aw-border);
-  border-radius: 11px;
+  border-radius: var(--aw-r-md);
   background: var(--aw-surface);
   color: var(--aw-ink);
   box-shadow: 0 2px 5px #1a2b4803;
 }
 button.aov-kpi:hover {
-  border-color: #d9bd7e;
+  border-color: var(--aw-brand-line);
   box-shadow: 0 3px 12px #1a2b4809;
 }
 .aov-kpi-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--aw-s3);
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
 }
 .aov-kpi-top > svg {
   flex-shrink: 0;
@@ -152,24 +148,26 @@ button.aov-kpi:hover {
 .aov-kpi-value {
   display: block;
   font:
-    29px/1.4 "NotoSansThai_600SemiBold",
+    var(--aw-t-display) / 1.4 "NotoSansThai_600SemiBold",
     sans-serif;
   font-variant-numeric: tabular-nums;
-  margin-top: 10px;
+  margin-top: var(--aw-s1);
   overflow-wrap: anywhere;
 }
 .aov-kpi-sub {
   color: var(--aw-muted);
-  font-size: 12px;
-  margin-top: 3px;
+  font-size: var(--aw-t-caption);
+  margin-top: var(--aw-s1);
 }
 .aov-grid {
   display: grid;
   gap: var(--nestyk-web-section-gap);
-  align-items: stretch;
+  /* Cards keep their own height; a short card no longer stretches to match its neighbour. */
+  align-items: start;
 }
 .aov-work-grid {
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  /* To-do first and widest: it is the page's main job (design audit, pass 3). */
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
 }
 .aov-portfolio-grid {
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
@@ -180,7 +178,7 @@ button.aov-kpi:hover {
 .aov-panel {
   min-width: 0;
   border: 1px solid var(--aw-border);
-  border-radius: 11px;
+  border-radius: var(--aw-r-md);
   background: var(--aw-surface);
   box-shadow: 0 2px 5px #1a2b4803;
   overflow: hidden;
@@ -191,8 +189,8 @@ button.aov-kpi:hover {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 16px 20px 12px;
+  gap: var(--aw-s2);
+  padding: var(--aw-s4) var(--aw-s5) var(--aw-s3);
 }
 .aov-panel h2 {
   color: var(--aw-ink);
@@ -204,12 +202,12 @@ button.aov-kpi:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  color: #926314 !important;
-  font-size: 12px !important;
+  gap: var(--aw-s2);
+  color: var(--aw-brand-text) !important;
+  font-size: var(--aw-t-caption) !important;
   border: 0;
   background: none;
-  padding: 4px 0;
+  padding: var(--aw-s1) 0;
   min-height: 28px;
   text-align: left;
 }
@@ -221,23 +219,23 @@ button.aov-kpi:hover {
   place-items: center;
   min-width: 27px;
   height: 27px;
-  padding: 0 7px;
-  border-radius: 8px;
-  color: #71500a;
-  background: #fff1cd;
-  font-size: 12px;
+  padding: 0 var(--aw-s2);
+  border-radius: var(--aw-r-sm);
+  color: var(--aw-brand-ink);
+  background: var(--aw-brand-soft);
+  font-size: var(--aw-t-caption);
   font-family: "NotoSansThai_600SemiBold", sans-serif;
 }
 .aov-work-list {
-  padding: 0 20px 10px;
+  padding: 0 var(--aw-s5) var(--aw-s3);
 }
 .aov-work-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--aw-s3);
   width: 100%;
   min-height: 61px;
-  padding: 12px 0;
+  padding: var(--aw-s3) 0;
   border: 0;
   border-top: 1px solid var(--aw-border);
   text-align: left;
@@ -253,12 +251,12 @@ button.aov-kpi:hover {
   width: 35px;
   height: 35px;
   flex-shrink: 0;
-  border-radius: 9px;
+  border-radius: var(--aw-r-md);
 }
 .aov-row-copy {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--aw-s1);
   flex: 1;
   min-width: 0;
 }
@@ -272,7 +270,7 @@ button.aov-kpi:hover {
 .aov-row-copy small,
 .aov-row-copy time {
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
   line-height: 1.55;
 }
 .aov-row-count {
@@ -280,30 +278,30 @@ button.aov-kpi:hover {
   place-items: center;
   min-width: 24px;
   height: 24px;
-  padding: 0 6px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 0 var(--aw-s2);
+  border-radius: var(--aw-r-sm);
+  font-size: var(--aw-t-caption);
   color: var(--aw-ink);
   background: var(--aw-bg);
 }
 .aov-overdue .aov-row-count {
-  background: #fff0f0;
-  color: #bd3636;
+  background: var(--aw-danger-soft);
+  color: var(--aw-danger);
 }
 .aov-work-row > svg,
 .aov-activity-row > svg {
   flex-shrink: 0;
 }
 .aov-schedule-list {
-  padding: 0 20px 12px;
+  padding: 0 var(--aw-s5) var(--aw-s3);
 }
 .aov-appointment {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--aw-s4);
   min-height: 70px;
-  padding: 14px 0;
+  padding: var(--aw-s4) 0;
   border: 0;
   border-top: 1px solid var(--aw-border);
   background: transparent;
@@ -321,11 +319,11 @@ button.aov-kpi:hover {
   flex-shrink: 0;
 }
 .aov-appointment.is-next > time {
-  color: #a77314;
+  color: var(--aw-brand-text);
 }
 .aov-next-label {
-  color: #a77314;
-  font-size: 12px;
+  color: var(--aw-brand-text);
+  font-size: var(--aw-t-caption);
 }
 .aov-pill {
   display: inline-flex;
@@ -333,9 +331,9 @@ button.aov-kpi:hover {
   justify-content: center;
   width: fit-content;
   max-width: 100%;
-  padding: 4px 8px;
-  border-radius: 5px;
-  font-size: 12px;
+  padding: var(--aw-s1) var(--aw-s2);
+  border-radius: var(--aw-r-sm);
+  font-size: var(--aw-t-caption);
   line-height: 1.5;
 }
 .aov-tone-neutral {
@@ -344,43 +342,43 @@ button.aov-kpi:hover {
 }
 .aov-tone-success {
   color: #28734a;
-  background: #e9f6ee;
+  background: var(--aw-success-soft);
 }
 .aov-tone-warning {
-  color: #996516;
-  background: #fff3da;
+  color: var(--aw-brand-text);
+  background: var(--aw-brand-soft);
 }
 .aov-tone-danger {
-  color: #c43e43;
-  background: #fff0f0;
+  color: var(--aw-danger);
+  background: var(--aw-danger-soft);
 }
 .aov-tone-info {
-  color: #38659d;
-  background: #eef4fc;
+  color: var(--aw-info);
+  background: var(--aw-info-soft);
 }
 .aov-inventory-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
-  margin: 0 20px 12px;
-  padding: 2px 0 15px;
+  gap: var(--aw-s6);
+  margin: 0 var(--aw-s5) var(--aw-s3);
+  padding: 2px 0 var(--aw-s4);
 }
 .aov-inventory-summary > div > span {
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
   color: var(--aw-muted);
 }
 .aov-inventory-summary p {
   display: flex;
   align-items: baseline;
-  gap: 5px;
+  gap: var(--aw-s1);
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
   color: var(--aw-muted);
-  margin: 5px 0 9px;
+  margin: var(--aw-s1) 0 var(--aw-s2);
 }
 .aov-inventory-summary p strong {
   color: var(--aw-ink);
-  font-size: 15px;
+  font-size: var(--aw-t-body);
   font-family: "NotoSansThai_600SemiBold", sans-serif;
 }
 .aov-inventory-summary i {
@@ -395,7 +393,7 @@ button.aov-kpi:hover {
 }
 .aov-ratio {
   height: 4px;
-  border-radius: 4px;
+  border-radius: var(--aw-r-xs);
   overflow: hidden;
   background: var(--aw-border);
 }
@@ -403,15 +401,15 @@ button.aov-kpi:hover {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #78ad8a;
+  background: var(--aw-success-fill);
 }
 .aov-ratio-brand > span {
-  background: #e8bd59;
+  background: var(--aw-brand-line);
 }
 .aov-table-scroll {
   max-width: 100%;
   overflow-x: auto;
-  padding: 0 20px 12px;
+  padding: 0 var(--aw-s5) var(--aw-s3);
 }
 .aov-stock-table {
   border-collapse: collapse;
@@ -420,24 +418,24 @@ button.aov-kpi:hover {
   text-align: left;
 }
 .aov-stock-table th {
-  padding: 10px 8px;
+  padding: var(--aw-s3) var(--aw-s2);
   color: var(--aw-muted);
   background: var(--aw-bg);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
   font-weight: normal;
   white-space: nowrap;
 }
 .aov-stock-table th:first-child {
-  border-radius: 5px 0 0 5px;
-  padding-left: 10px;
+  border-radius: var(--aw-r-sm) 0 0 var(--aw-r-sm);
+  padding-left: var(--aw-s3);
 }
 .aov-stock-table th:last-child {
-  border-radius: 0 5px 5px 0;
+  border-radius: 0 var(--aw-r-sm) var(--aw-r-sm) 0;
 }
 .aov-stock-table td {
   border-bottom: 1px solid var(--aw-border);
-  padding: 13px 8px;
-  font-size: 13px;
+  padding: var(--aw-s3) var(--aw-s2);
+  font-size: var(--aw-t-small);
 }
 .aov-stock-table tr:last-child td {
   border-bottom: 0;
@@ -449,7 +447,7 @@ button.aov-kpi:hover {
 .aov-property {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--aw-s3);
   border: 0;
   background: transparent;
   text-align: left;
@@ -459,7 +457,7 @@ button.aov-kpi:hover {
 .aov-property > span:last-child {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--aw-s1);
   min-width: 0;
 }
 .aov-property strong {
@@ -469,7 +467,7 @@ button.aov-kpi:hover {
 }
 .aov-property small {
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
 }
 .aov-property:hover strong {
   text-decoration: underline;
@@ -479,7 +477,7 @@ button.aov-kpi:hover {
   place-items: center;
   width: 38px;
   height: 38px;
-  border-radius: 7px;
+  border-radius: var(--aw-r-sm);
   background: var(--aw-bg);
   flex-shrink: 0;
 }
@@ -492,17 +490,17 @@ button.aov-kpi:hover {
 .aov-client-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  padding: 4px 20px 16px;
+  gap: var(--aw-s3);
+  padding: var(--aw-s1) var(--aw-s5) var(--aw-s4);
 }
 .aov-client-stats button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding: 13px 6px;
+  gap: var(--aw-s1);
+  padding: var(--aw-s3) var(--aw-s2);
   border: 1px solid var(--aw-border);
-  border-radius: 8px;
+  border-radius: var(--aw-r-sm);
   background: transparent;
 }
 .aov-client-stats button:hover {
@@ -516,22 +514,22 @@ button.aov-kpi:hover {
 }
 .aov-client-stats span {
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
 }
 .aov-renewal {
   background: var(--aw-bg);
   border: 1px solid var(--aw-border);
-  border-radius: 8px;
-  padding: 12px;
-  margin: 0 20px 18px;
+  border-radius: var(--aw-r-sm);
+  padding: var(--aw-s3);
+  margin: 0 var(--aw-s5) var(--aw-s5);
 }
 .aov-renewal-heading {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 12px;
+  gap: var(--aw-s2);
+  font-size: var(--aw-t-caption);
   color: var(--aw-muted);
-  margin-bottom: 8px;
+  margin-bottom: var(--aw-s2);
   flex-wrap: wrap;
 }
 .aov-renewal-heading .aov-pill {
@@ -549,25 +547,25 @@ button.aov-kpi:hover {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 3px;
+  gap: var(--aw-s2);
+  margin-top: var(--aw-s1);
 }
 .aov-renewal-footer > span {
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
 }
 .aov-finance-grid .aov-panel-heading {
   align-items: baseline;
 }
 .aov-period {
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
 }
 .aov-finance-total {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 0 20px;
+  gap: var(--aw-s1);
+  padding: 0 var(--aw-s5);
 }
 .aov-finance-total > strong {
   font:
@@ -578,16 +576,16 @@ button.aov-kpi:hover {
 }
 .aov-finance-total > span {
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
 }
 .aov-payment-progress {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 14px 20px;
+  gap: var(--aw-s1);
+  padding: var(--aw-s4) var(--aw-s5);
 }
 .aov-payment-progress > span {
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
   color: var(--aw-muted);
   text-align: right;
 }
@@ -596,90 +594,90 @@ button.aov-kpi:hover {
   height: 5px;
   width: 100%;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--aw-r-sm);
   overflow: hidden;
   background: var(--aw-border);
-  accent-color: #68a37c;
+  accent-color: var(--aw-success-fill);
 }
 .aov-payment-progress progress::-webkit-progress-bar {
   background: var(--aw-border);
-  border-radius: 5px;
+  border-radius: var(--aw-r-sm);
 }
 .aov-payment-progress progress::-webkit-progress-value {
-  background: #68a37c;
-  border-radius: 5px;
+  background: var(--aw-success-fill);
+  border-radius: var(--aw-r-sm);
 }
 .aov-payment-progress progress::-moz-progress-bar {
-  background: #68a37c;
-  border-radius: 5px;
+  background: var(--aw-success-fill);
+  border-radius: var(--aw-r-sm);
 }
 .aov-commission-progress progress {
-  accent-color: #dbb350;
+  accent-color: var(--aw-brand-line);
 }
 .aov-commission-progress progress::-webkit-progress-value {
-  background: #dbb350;
+  background: var(--aw-brand-line);
 }
 .aov-commission-progress progress::-moz-progress-bar {
-  background: #dbb350;
+  background: var(--aw-brand-line);
 }
 .aov-money-split {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--aw-s3);
   margin: 0;
-  padding: 0 20px 16px;
+  padding: 0 var(--aw-s5) var(--aw-s4);
 }
 .aov-money-split > div + div {
   border-left: 1px solid var(--aw-border);
-  padding-left: 14px;
+  padding-left: var(--aw-s4);
 }
 .aov-money-split dt {
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
   color: var(--aw-muted);
 }
 .aov-money-split dd {
   font:
     17px/1.6 "NotoSansThai_500Medium",
     sans-serif;
-  margin: 4px 0 0;
+  margin: var(--aw-s1) 0 0;
   overflow-wrap: anywhere;
 }
 .aov-money-success {
   color: #378256;
 }
 .aov-money-danger {
-  color: #c14145;
+  color: var(--aw-danger);
 }
 .aov-money-warning {
-  color: #a87b20;
+  color: var(--aw-brand-text);
 }
 .aov-panel-footer {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--aw-s2);
   border-top: 1px solid var(--aw-border);
-  margin: 0 20px;
-  padding: 9px 0 12px;
+  margin: 0 var(--aw-s5);
+  padding: var(--aw-s2) 0 var(--aw-s3);
 }
 .aov-outstanding {
   color: var(--aw-muted);
-  font-size: 12px;
-  padding: 0 20px 12px;
+  font-size: var(--aw-t-caption);
+  padding: 0 var(--aw-s5) var(--aw-s3);
 }
 .aov-coming-soon {
   color: var(--aw-muted);
-  font-size: 12px;
+  font-size: var(--aw-t-caption);
   min-height: 49px;
 }
 .aov-activity-list {
-  padding: 0 20px 12px;
+  padding: 0 var(--aw-s5) var(--aw-s3);
 }
 .aov-activity-row {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 10px;
-  padding: 12px 0;
+  gap: var(--aw-s3);
+  padding: var(--aw-s3) 0;
   min-height: 68px;
   background: transparent;
   border: 0;
@@ -696,32 +694,32 @@ button.aov-kpi:hover {
   flex-shrink: 0;
 }
 .aov-activity-row .aov-row-copy strong {
-  font-size: 13px;
+  font-size: var(--aw-t-small);
 }
 .aov-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--aw-s3);
   color: var(--aw-muted);
-  font-size: 12px;
-  padding: 32px 20px;
+  font-size: var(--aw-t-caption);
+  padding: var(--aw-s7) var(--aw-s5);
   text-align: center;
   min-height: 130px;
 }
 .aov-loading {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: var(--aw-s4);
   min-height: 170px;
-  padding: 20px;
+  padding: var(--aw-s5);
 }
 .aov-loading span,
 .aov-kpi-skeleton {
   display: block;
   height: 24px;
-  border-radius: 5px;
+  border-radius: var(--aw-r-sm);
   background: var(--aw-bg);
 }
 .aov-loading span:nth-child(2) {
@@ -733,7 +731,7 @@ button.aov-kpi:hover {
 .aov-kpi-skeleton {
   height: 50px;
   width: 75%;
-  margin-top: 15px;
+  margin-top: var(--aw-s4);
 }
 .aov-scroll[data-theme="dark"] .aov-demo {
   color: #e6c77f;
@@ -776,8 +774,8 @@ button.aov-kpi:hover {
   color: #e3c180;
 }
 @container agent-overview (max-width: 1040px) {
-  .aov-kpis {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .aov-work-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
   .aov-finance-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -807,7 +805,7 @@ button.aov-kpi:hover {
 }
 @container agent-overview (max-width: 440px) {
   .aov-intro h1 {
-    font-size: 22px;
+    font-size: var(--aw-t-page);
   }
   .aov-kpis {
     grid-template-columns: minmax(0, 1fr);
@@ -817,17 +815,22 @@ button.aov-kpi:hover {
   }
   .aov-quick-actions .aw-button {
     flex: 1;
-    padding: 10px;
+    padding: var(--aw-s3);
   }
   .aov-inventory-summary {
     grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
+    gap: var(--aw-s3);
   }
   .aov-appointment {
-    gap: 10px;
+    gap: var(--aw-s3);
     flex-wrap: wrap;
   }
   .aov-appointment > .aov-pill {
-    margin-left: 50px;
+    margin-left: var(--aw-s8);
   }
+}
+
+/* Empty cards: the shared state, a little tighter inside a dashboard card. */
+.aov-panel .awu-state-compact {
+  padding: var(--aw-s4) var(--aw-s4) var(--aw-s5);
 }

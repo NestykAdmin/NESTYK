@@ -3,11 +3,29 @@ import type { AgentTenantBilling, TenantBill, TenantNextBill } from "@nestyk/typ
 import { ensureAgentSession } from "./agent-session";
 import { apiGet, apiPost, apiRequest } from "./api";
 
-export function listMyBills(): Promise<TenantBill[]> {
+/**
+ * QA (5 Nov 2026): GET /bills/* only reads. Before reading, ask the API to issue the bills that fell due, so a bill
+ * shows at once instead of after the 00:05 job. The home card and the bills page ask at the same time after sign-in:
+ * they share one request. A failed refresh does not stop the read (the job still issues the bill tonight).
+ */
+const refreshing = new Map<string, Promise<void>>();
+function refreshOnce(path: string): Promise<void> {
+  const pending = refreshing.get(path);
+  if (pending) return pending;
+  const run = apiPost(path, {})
+    .then(() => undefined, () => undefined)
+    .finally(() => refreshing.delete(path));
+  refreshing.set(path, run);
+  return run;
+}
+
+export async function listMyBills(): Promise<TenantBill[]> {
+  await refreshOnce("/bills/mine/refresh");
   return apiGet("/bills/mine");
 }
 
-export function getMyNextBill(): Promise<TenantNextBill | null> {
+export async function getMyNextBill(): Promise<TenantNextBill | null> {
+  await refreshOnce("/bills/mine/refresh");
   return apiGet("/bills/mine/next");
 }
 
@@ -15,7 +33,8 @@ export function openMyBillSlip(id: number): Promise<{ url: string }> {
   return apiGet(`/bills/mine/${id}/payment-slip`);
 }
 
-export function listReceivedBills(): Promise<TenantBill[]> {
+export async function listReceivedBills(): Promise<TenantBill[]> {
+  await refreshOnce("/bills/received/refresh");
   return apiGet("/bills/received");
 }
 
