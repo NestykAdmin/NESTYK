@@ -123,3 +123,9 @@ Thumbs.db
 # temp files left by Claude sessions (keep out of git)
 _to_delete_*/
 Claude outputs/
+
+# Design review screenshots (before/after images): local only, keep the .md reports
+.design-review/**/*.jpg
+.design-review/**/*.jpeg
+.design-review/**/*.png
+.design-review/**/*.webp

@@ -1929,6 +1929,24 @@ export interface TranslationSchema {
       };
     };
     listings: {
+      web: {
+        colRoom: string;
+        colSize: string;
+        colType: string;
+        colPrice: string;
+        colStatus: string;
+        colUpdated: string;
+        pageRange: string;
+        prevPage: string;
+        nextPage: string;
+        pages: string;
+        viewTable: string;
+        viewCards: string;
+        emptyTitle: string;
+        emptyBody: string;
+        filters: string;
+        tableLabel: string;
+      };
       editRoom: string;
       saveChanges: string;
       cancelEdit: string;
@@ -2038,6 +2056,28 @@ export interface TranslationSchema {
         viewingsToday: string;
         balance: string;
         loadFailed: string;
+      };
+      /** Web shared states (A7): empty, no match, error, not found, no permission, offline, table selection and sort. */
+      webStates: {
+        emptyTitle: string;
+        emptyBody: string;
+        filteredTitle: string;
+        filteredBody: string;
+        clearFilters: string;
+        errorTitle: string;
+        errorBody: string;
+        retry: string;
+        notFoundTitle: string;
+        notFoundBody: string;
+        backToList: string;
+        forbiddenTitle: string;
+        forbiddenBody: string;
+        offlineTitle: string;
+        offlineBody: string;
+        selectAll: string;
+        selectRow: string;
+        selected: string;
+        sortBy: string;
       };
       workspaceLabel: string;
       welcome: string;

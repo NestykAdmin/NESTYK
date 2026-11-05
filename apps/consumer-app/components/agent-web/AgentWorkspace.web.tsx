@@ -86,15 +86,6 @@ function readThemePref(): WebThemePref {
   }
 }
 
-function RefreshIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 12a8 8 0 1 1-2.34-5.66" />
-      <path d="M20 4v5h-5" />
-    </svg>
-  );
-}
-
 export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t, locale, setLocale } = useLocale();
   const { theme, isDark, setThemeMode } = useMobileTheme();
@@ -597,7 +588,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                 <>
                   <span className="aw-switch-tile" aria-hidden="true">
                     <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color="#583C0A" />
-                    <span className="aw-switch-dot" style={{ background: ROLE_DOT[shellRole] }} />
+                    <span className="aw-switch-dot" style={{ "--aw-role": ROLE_DOT[shellRole] } as React.CSSProperties} />
                   </span>
                   <span className="aw-switch-copy">
                     <strong>{t.roles[shellRole]}</strong>
@@ -1169,46 +1160,13 @@ export function AgentWorkspacePage({
   children,
   bottomBar,
   scrollable = true,
-  onRefresh,
-  refreshing,
 }: MobileModePageProps) {
-  const { t } = useLocale();
-  const refreshLabel = t.agent.dashboard.webWorkspace.refresh;
-  // Refresh lives in the page's own toolbar (decision D4), not in the top bar; forms with a fixed action bar leave it out.
-  const tools =
-    onRefresh && scrollable && !bottomBar ? (
-      <div className="aw-page-tools">
-        <button
-          type="button"
-          className="aw-page-refresh"
-          disabled={refreshing}
-          aria-busy={refreshing}
-          onClick={onRefresh}
-          data-testid="page.refresh"
-        >
-          <RefreshIcon />
-          <span>{refreshLabel}</span>
-        </button>
-      </div>
-    ) : null;
+  // No refresh button on the web (Mos 4 Nov 2026, D4): pages load fresh data when opened; the browser reload works too.
   return (
     <div className="aw-page">
       {header ? (
         <div className="aw-page-header">
-          <WebContentContainer>
-            {tools ? (
-              <div className="aw-page-header-row">
-                <div className="aw-page-header-main">{header}</div>
-                {tools}
-              </div>
-            ) : (
-              header
-            )}
-          </WebContentContainer>
-        </div>
-      ) : tools ? (
-        <div className="aw-page-toolbar">
-          <WebContentContainer>{tools}</WebContentContainer>
+          <WebContentContainer>{header}</WebContentContainer>
         </div>
       ) : null}
       <div className={`aw-page-content ${scrollable ? "aw-page-scroll" : "aw-page-fixed"}`}>

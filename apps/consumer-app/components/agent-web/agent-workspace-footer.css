@@ -11,27 +11,27 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 24px;
+  gap: var(--aw-s2) var(--aw-s6);
   min-height: 48px;
-  margin-top: 32px;
-  padding: 14px 0 20px;
-  border-top: 1px solid var(--aw-border, #e2e8f0);
-  color: var(--aw-text-secondary, #64748b);
-  font-size: 13px;
+  margin-top: var(--aw-s7);
+  padding: var(--aw-s4) 0 var(--aw-s5);
+  border-top: 1px solid var(--aw-border);
+  color: var(--aw-text-secondary, var(--aw-muted));
+  font-size: var(--aw-t-small);
   line-height: 20px;
 }
 .awf-links {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--aw-s2);
 }
 /* Pages with their own content container turn the outer one into display: contents (web-content-container.css),
    so the footer loses its gutter and max width: give it the same left/right edges as the page content. */
 .nestyk-web-container-fill:has([data-web-content-container]) .awf-footer {
   margin-inline: max(
-    var(--nestyk-web-content-gutter, 32px),
-    calc((100% - var(--nestyk-web-content-max-width, 1200px)) / 2)
+    var(--nestyk-web-content-gutter, var(--aw-s7)),
+    calc((100% - var(--nestyk-web-content-max-width, var(--aw-s8))) / 2)
   );
 }
 /* The help menu sits at the bottom of the scroll area: open it upwards so it is not cut off. */
@@ -45,7 +45,7 @@
 }
 .awf-links a:hover,
 .awf-links a:focus-visible {
-  color: var(--aw-text, #1a2b48);
+  color: var(--aw-text, var(--aw-ink));
   text-decoration: underline;
 }
 .awf-item {
@@ -54,13 +54,13 @@
   white-space: nowrap;
 }
 .awf-dot {
-  margin-right: 8px;
+  margin-right: var(--aw-s2);
   opacity: 0.6;
 }
 .awf-help {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--aw-s1);
   padding: 0;
   border: 0;
   background: none;
@@ -69,27 +69,27 @@
   cursor: pointer;
 }
 .awf-help:hover {
-  color: var(--aw-text, #1a2b48);
+  color: var(--aw-text, var(--aw-ink));
 }
 .awf-build {
   height: 24px;
-  padding: 0 10px;
+  padding: 0 var(--aw-s3);
   border: 1px dashed var(--aw-border, #cbd5e1);
-  border-radius: 999px;
+  border-radius: var(--aw-r-pill);
   background: transparent;
   color: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-size: var(--aw-t-caption);
   cursor: copy;
 }
 .awf-build:hover {
-  color: var(--aw-text, #1a2b48);
+  color: var(--aw-text, var(--aw-ink));
   border-style: solid;
 }
 .awf-footer a:focus-visible,
 .awf-help:focus-visible,
 .awf-build:focus-visible {
-  outline: 2px solid var(--aw-brand, #f8b615);
+  outline: 2px solid var(--aw-brand);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: var(--aw-r-sm);
 }
