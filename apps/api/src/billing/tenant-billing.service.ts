@@ -275,7 +275,7 @@ export class TenantBillingService {
             where: { rent_room_id: c.rent_room_id, status: 'active', id: Not(c.room_tenancy_id) },
           });
           if (occupied) continue;
-          // The daily job and billing reads activate occupancy only once the signed stay starts.
+          // The daily job and the bill refresh POSTs activate occupancy only once the signed stay starts.
           // The parent lock keeps a concurrent closure from reactivating a moved-out tenancy.
           await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, tenant_id: c.tenant_id,
             rent_room_id: c.rent_room_id, created_by_user_id: c.created_by_user_id, status: 'prospect' },
@@ -347,6 +347,19 @@ export class TenantBillingService {
 
   async ensureForOwner(userId: number, today = bangkokToday()) {
     return this.insertBills(await this.ownerLeases(userId).getMany(), today);
+  }
+
+  /**
+   * QA (5 Nov 2026): the GET routes of bills only read. The app calls these POSTs before reading, so a bill that fell
+   * due today shows at once instead of after the 00:05 job. Idempotent: one bill per lease and period (unique index,
+   * orIgnore), so a double call or a call racing the job issues nothing twice.
+   */
+  async refreshForTenant(userId: number) {
+    return { issued: await this.ensureForUser(userId) };
+  }
+
+  async refreshForOwner(userId: number) {
+    return { issued: await this.ensureForOwner(userId) };
   }
 
   private billsQuery() {
@@ -421,7 +434,6 @@ export class TenantBillingService {
 
   async listMine(userId: number) {
     const today = bangkokToday();
-    await this.ensureForUser(userId, today);
     const rows = await this.billsQuery()
       .where("tenant.user_id = :userId", { userId })
       .orderBy("b.due_date", "DESC")
@@ -432,7 +444,6 @@ export class TenantBillingService {
 
   async nextForUser(userId: number): Promise<TenantNextBill | null> {
     const today = bangkokToday();
-    await this.ensureForUser(userId, today);
     const unpaid = await this.billsQuery()
       .where("tenant.user_id = :userId", { userId })
       .andWhere("b.status = 'pending'")
@@ -477,7 +488,6 @@ export class TenantBillingService {
 
   async listReceived(userId: number) {
     const today = bangkokToday();
-    await this.ensureForOwner(userId, today);
     const rows = await this.billsQuery()
       .where("(c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND room.owner_id = :userId))", { userId })
       .orderBy("b.due_date", "DESC")
@@ -590,7 +600,7 @@ export class TenantBillingService {
     if (!tenant) throw new NotFoundException('ไม่พบผู้เช่า');
     const today = bangkokToday();
     const leases = await this.activeLeases().andWhere('c.tenant_id = :tenantId', { tenantId }).getMany();
-    await this.insertBills(leases, today);
+    // Reads only (QA 5 Nov 2026): the 00:05 job and the tenant's / landlord's refresh issue the bills.
     const rows = await this.agentBills(agentId).andWhere('b.tenant_id = :tenantId', { tenantId })
       .orderBy('b.due_date', 'DESC').addOrderBy('b.id', 'DESC').getMany();
     const credits = await reservationCredits(this.db, rows.map(row => row.lease_contract));
