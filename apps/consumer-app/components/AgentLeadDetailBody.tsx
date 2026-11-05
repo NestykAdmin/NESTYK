@@ -312,8 +312,9 @@ export function AgentLeadDetailBody({
   const visibleMatches = suggestions.slice(0, visibleCount);
   const moreCount = Math.min(MATCH_PAGE_SIZE, suggestions.length - visibleMatches.length);
   /** With viewings booked the suggestions are secondary, so they start folded; state cards stay visible. */
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  useEffect(() => setSuggestionsOpen(false), [lead.id]);
+  // Phone: folded once the lead has viewings. Desktop web (Mos 5 Nov 2026): open, there is room for it next to the lead card.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(webColumns);
+  useEffect(() => setSuggestionsOpen(webColumns), [lead.id, webColumns]);
   const suggestionsCollapsible = hasViewings && !booked && ready && !matchError && !!lastRun && suggestions.length > 0;
   const suggestionsCollapsed = suggestionsCollapsible && !suggestionsOpen;
   const suggestionsSummary =

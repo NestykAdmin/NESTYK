@@ -51,3 +51,9 @@ test('the lead card, full-info link and viewings sit left; matched rooms right; 
     /<LeadDetailColumns web=\{webColumns\}>\s*<LeadDetailColumn web=\{webColumns\} side="main">[\s\S]*?<LeadViewingsSection[\s\S]*?<\/LeadDetailColumn>\s*<LeadDetailColumn web=\{webColumns\} side="rooms">[\s\S]*?<\/LeadDetailColumn>\s*<\/LeadDetailColumns>\s*<MobileBottomSheet\s+visible=\{sheetOpen\}/,
   );
 });
+
+test('suggested rooms start open on the desktop web and folded on the phone (unchanged there)', () => {
+  const body = read('AgentLeadDetailBody.tsx');
+  assert.match(body, /const \[suggestionsOpen, setSuggestionsOpen\] = useState\(webColumns\);/);
+  assert.match(body, /useEffect\(\(\) => setSuggestionsOpen\(webColumns\), \[lead\.id, webColumns\]\);/);
+});
