@@ -64,6 +64,18 @@ const MENU_BUTTON: ElementSpec = {
   types: ['XCUIElementTypeButton'],
 };
 
+/**
+ * ปุ่มระฆังบนส่วนหัวของแท็บภาพรวม เปิดแผงแจ้งเตือน (ดู NotificationsPanel)
+ * ที่มา (qa/e2e f8be525): packages/ui/src/components/MobileWorkspaceHeader.tsx บรรทัด 61 ถึง 67 (accessibilityRole="button" ชื่อกำกับ "Notifications" ตายตัว)
+ *   กดแล้วเรียก setNotificationsOpen(true) (apps/consumer-app/app/index.tsx บรรทัด 803 และ 925) หัวข้อภาษาอังกฤษของแผงชื่อเดียวกัน จึงระบุชนิด Button
+ */
+const NOTIFICATIONS_BUTTON: ElementSpec = {
+  description: 'ปุ่มระฆัง (Notifications) บนส่วนหัว',
+  testId: 'header.notifications',
+  labels: [FIXED_LABELS.notifications],
+  types: ['XCUIElementTypeButton'],
+};
+
 const WORKSPACE_LABEL: ElementSpec = {
   description: 'ป้ายพื้นที่ทำงานนายหน้าบนส่วนหัว',
   testId: 'header.workspaceLabel',
@@ -249,5 +261,10 @@ export class AgentHomeScreen {
   /** แตะปุ่ม Menu เพื่อเปิดลิ้นชักเมนู (ดู ProfileDrawer) */
   async openMenu(): Promise<void> {
     await tap(MENU_BUTTON);
+  }
+
+  /** แตะปุ่มระฆังเพื่อเปิดแผงแจ้งเตือน (ดู NotificationsPanel) ปุ่มนี้อยู่บนส่วนหัวของแท็บภาพรวมเท่านั้น */
+  async openNotifications(): Promise<void> {
+    await tap(NOTIFICATIONS_BUTTON);
   }
 }

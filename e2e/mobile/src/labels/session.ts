@@ -59,7 +59,35 @@ export interface SessionLabels {
   loadErrors: Record<DataTab, readonly string[]>;
   /** ชื่อปุ่มลองใหม่ที่แสดงคู่กับข้อความ error ของหน้าห้องและหน้าลีด ชื่อนี้ไม่เปลี่ยนตามข้อความของ error */
   retryButtons: Record<RetryTab, string>;
+  /**
+   * คำว่า "เร็ว ๆ นี้" ที่แอปต่อท้ายชื่อกำกับของแถวและปุ่มที่ยังไม่เปิดใช้ (รูปแบบ "<ชื่อ>, <คำนี้>")
+   * และเป็นข้อความของแผงแจ้งเตือนเมื่อไม่มีรายการ (agent.dashboard.comingSoon)
+   */
+  comingSoon: string;
+  /** ชื่อแถวในลิ้นชักเมนูของนายหน้า (mobile.drawerMenu.<key>) ที่ชุดเทสตรวจ ดู DRAWER_ROWS */
+  drawerRows: Record<DrawerRow, string>;
+  /** ชื่อปุ่มลัดในแท็บเพิ่มเติมของนายหน้า (agent.dashboard.open*) ดู MORE_SHORTCUTS */
+  moreShortcuts: Record<MoreShortcut, string>;
+  /** คำอธิบายของปุ่มลัดปฏิทิน แอปต่อท้ายชื่อปุ่มที่เปิดใช้ได้ด้วยคำอธิบาย (รูปแบบ "<ชื่อ>, <คำอธิบาย>") */
+  calendarDesc: string;
+  /** หัวข้อของแผงแจ้งเตือน (mobile.notifications.title) */
+  notificationsTitle: string;
 }
+
+/**
+ * แถวในลิ้นชักเมนูของนายหน้าที่ชุดเทสตรวจ: packages/ui/src/config/mobileDrawerMenuMatrix.ts บรรทัด 150 ถึง 219 (qa/e2e f8be525)
+ *   - crm: กลุ่มที่กางในที่ มี contact กับ calendar อยู่ข้างใน (บรรทัด 190 ถึง 193)
+ *   - contact กับ agentContracts: comingSoon ตาม isAgentComingSoonTab (บรรทัด 192 และ 201) ซึ่งรายการคือ contact, contracts, services
+ *     (packages/ui/src/config/agentComingSoon.ts บรรทัด 9)
+ *   - commission: comingSoon: true ตรง ๆ (บรรทัด 203 ถึง 210)
+ *   - calendar กับ moreTools: ไม่ใช่ comingSoon ใช้เป็นตัวเทียบว่าแถวที่เปิดใช้ได้กดได้จริง (บรรทัด 193 และ 211 ถึง 216)
+ */
+export const DRAWER_ROWS = ['crm', 'contact', 'calendar', 'commission', 'agentContracts', 'moreTools'] as const;
+export type DrawerRow = (typeof DRAWER_ROWS)[number];
+
+/** ปุ่มลัดในแท็บเพิ่มเติม: apps/consumer-app/components/AgentMoreToolsBody.tsx บรรทัด 26 ถึง 31 ที่ qa/e2e f8be525 (calendar เปิดใช้ได้ อีก 3 ปุ่มเป็น comingSoon) */
+export const MORE_SHORTCUTS = ['calendar', 'contacts', 'services', 'contracts'] as const;
+export type MoreShortcut = (typeof MORE_SHORTCUTS)[number];
 
 const th: SessionLabels = {
   agentTabs: {
@@ -87,6 +115,25 @@ const th: SessionLabels = {
     listingRoom: 'ลองใหม่', // agent.listings.retry บรรทัด 1872
     listingLead: 'ลองใหม่', // agent.leads.retry บรรทัด 943
   },
+  // ข้อความ 5 ช่องข้างล่างอ่านที่ qa/e2e f8be525 (ไม่ใช่ bc77a8b เหมือนช่องข้างบน)
+  //   comingSoon ใช้ agent.dashboard.comingSoon ซึ่งเป็นคีย์ที่ลิ้นชัก แท็บเพิ่มเติม และแผงแจ้งเตือนใช้จริง ไม่ใช่ mobile.roleHome.comingSoon (บรรทัด 50 ค่าเดียวกัน)
+  comingSoon: 'เร็ว ๆ นี้', // agent.dashboard.comingSoon บรรทัด 2143
+  drawerRows: {
+    crm: 'CRM', // mobile.drawerMenu.crm บรรทัด 189
+    contact: 'ติดต่อ', // mobile.drawerMenu.contact บรรทัด 190
+    calendar: 'ปฏิทิน', // mobile.drawerMenu.calendar บรรทัด 191
+    commission: 'ค่าคอมมิชชั่น', // mobile.drawerMenu.commission บรรทัด 192
+    agentContracts: 'สัญญา', // mobile.drawerMenu.agentContracts บรรทัด 193
+    moreTools: 'เครื่องมือเพิ่มเติม', // mobile.drawerMenu.moreTools บรรทัด 195
+  },
+  moreShortcuts: {
+    calendar: 'ปฏิทิน', // agent.dashboard.openCalendar บรรทัด 2131
+    contacts: 'ผู้ติดต่อ', // agent.dashboard.openContacts บรรทัด 2132
+    services: 'บริการ', // agent.dashboard.openServices บรรทัด 2130
+    contracts: 'คลังสัญญา', // agent.dashboard.openContracts บรรทัด 2134
+  },
+  calendarDesc: 'นัดหมายและกำหนดการ', // agent.dashboard.calendarDesc บรรทัด 2138
+  notificationsTitle: 'การแจ้งเตือน', // mobile.notifications.title บรรทัด 98
 };
 
 const en: SessionLabels = {
@@ -115,6 +162,24 @@ const en: SessionLabels = {
     listingRoom: 'Retry', // agent.listings.retry บรรทัด 1872
     listingLead: 'Retry', // agent.leads.retry บรรทัด 943
   },
+  // ข้อความ 5 ช่องข้างล่างอ่านที่ qa/e2e f8be525 (เลขบรรทัดเท่ากับ th.ts)
+  comingSoon: 'Coming soon', // agent.dashboard.comingSoon บรรทัด 2143
+  drawerRows: {
+    crm: 'CRM', // mobile.drawerMenu.crm บรรทัด 189
+    contact: 'Contact', // mobile.drawerMenu.contact บรรทัด 190
+    calendar: 'Calendar', // mobile.drawerMenu.calendar บรรทัด 191
+    commission: 'Commission', // mobile.drawerMenu.commission บรรทัด 192
+    agentContracts: 'Contracts', // mobile.drawerMenu.agentContracts บรรทัด 193
+    moreTools: 'More tools', // mobile.drawerMenu.moreTools บรรทัด 195
+  },
+  moreShortcuts: {
+    calendar: 'Calendar', // agent.dashboard.openCalendar บรรทัด 2131
+    contacts: 'Contacts', // agent.dashboard.openContacts บรรทัด 2132
+    services: 'Services', // agent.dashboard.openServices บรรทัด 2130
+    contracts: 'Contracts archive', // agent.dashboard.openContracts บรรทัด 2134
+  },
+  calendarDesc: 'Appointments and schedule', // agent.dashboard.calendarDesc บรรทัด 2138
+  notificationsTitle: 'Notifications', // mobile.notifications.title บรรทัด 98
 };
 
 const ALL: Record<AppLanguage, SessionLabels> = { th, en };
@@ -177,4 +242,6 @@ export function sessionInEveryLanguage(pick: (labels: SessionLabels) => string |
  */
 export const FIXED_LABELS = {
   menu: 'Menu',
+  /** ปุ่มระฆังบนส่วนหัวของหน้าภาพรวม: packages/ui/src/components/MobileWorkspaceHeader.tsx บรรทัด 61 ถึง 67 ที่ qa/e2e f8be525 (ชื่อเดียวกับหัวข้อแผงแจ้งเตือนภาษาอังกฤษ จึงต้องระบุชนิด) */
+  notifications: 'Notifications',
 } as const;
