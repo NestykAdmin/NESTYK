@@ -34,3 +34,20 @@ test('table words exist in all four languages', () => {
     }
   }
 });
+
+// W6 (Mos 5 Nov 2026): lead page in two columns on the desktop web; the same cards in the same order.
+test('the lead page wrappers add nothing on native and phone-width web', () => {
+  const native = read('agent-web/LeadDetailColumns.tsx');
+  assert.equal((native.match(/return <>\{children\}<\/>;/g) || []).length, 2);
+  const web = read('agent-web/LeadDetailColumns.web.tsx');
+  assert.equal((web.match(/if \(!web\) return <>\{children\}<\/>;/g) || []).length, 2);
+});
+
+test('the lead card, full-info link and viewings sit left; matched rooms right; the sheet stays outside', () => {
+  const body = read('AgentLeadDetailBody.tsx');
+  assert.match(body, /const webColumns = Platform\.OS === 'web' && windowWidth >= 768;/);
+  assert.match(
+    body,
+    /<LeadDetailColumns web=\{webColumns\}>\s*<LeadDetailColumn web=\{webColumns\} side="main">[\s\S]*?<LeadViewingsSection[\s\S]*?<\/LeadDetailColumn>\s*<LeadDetailColumn web=\{webColumns\} side="rooms">[\s\S]*?<\/LeadDetailColumn>\s*<\/LeadDetailColumns>\s*<MobileBottomSheet\s+visible=\{sheetOpen\}/,
+  );
+});

@@ -95,3 +95,26 @@
   gap: var(--aw-s2);
   color: var(--aw-ink);
 }
+/* W6 lead page: two columns of the app's own cards. */
+.awl-detail {
+  display: grid;
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  gap: var(--aw-s6, 24px);
+  align-items: start;
+}
+.awl-detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.awl-detail-main {
+  position: sticky;
+  top: 0;
+}
+@media (max-width: 1100px) {
+  .awl-detail {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: var(--aw-s4);
+  }
+}

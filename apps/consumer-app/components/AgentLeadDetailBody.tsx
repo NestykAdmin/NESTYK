@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
   FadeIn,
@@ -53,6 +53,7 @@ import { leadIsFresh } from '../lib/lead-fresh';
 import { criterionTone, summarizeComparison, type CompareKey } from '../lib/lead-room-compare';
 import { useMatchCopy } from './lead-match-copy';
 import { LeadViewingsSection, viewedRoomIds } from './LeadViewingsSection';
+import { LeadDetailColumn, LeadDetailColumns } from './agent-web/LeadDetailColumns';
 import {
   formatBudgetRange,
   formatDate,
@@ -155,6 +156,9 @@ export function AgentLeadDetailBody({
   menuRequest?: number;
 }) {
   const { t, locale } = useLocale();
+  // W6 (Mos 5 Nov 2026): the desktop web shell (same 768px line as app/index.tsx) lays the cards out in two columns.
+  const { width: windowWidth } = useWindowDimensions();
+  const webColumns = Platform.OS === 'web' && windowWidth >= 768;
   const c = t.agent.leads;
   const { theme } = useMobileTheme();
   const agentColor = tokens.colors.roles.agent;
@@ -746,6 +750,8 @@ export function AgentLeadDetailBody({
 
   return (
     <View style={styles.root}>
+      <LeadDetailColumns web={webColumns}>
+      <LeadDetailColumn web={webColumns} side="main">
       {leadError ? (
         <View style={[styles.banner, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.bannerText, { color: theme.textHeading }]}>{c.loadError}</Text>
@@ -843,7 +849,9 @@ export function AgentLeadDetailBody({
         onOpenMatch={onOpenMatch}
         onSaved={onViewingSaved}
       />
+      </LeadDetailColumn>
 
+      <LeadDetailColumn web={webColumns} side="rooms">
       <Animated.View layout={LinearTransition.duration(220)} style={styles.section}>
         <View style={styles.sectionHead}>
           <Pressable
@@ -917,6 +925,8 @@ export function AgentLeadDetailBody({
           renderMatches()
         )}
       </Animated.View>
+      </LeadDetailColumn>
+      </LeadDetailColumns>
 
       <MobileBottomSheet
         visible={sheetOpen}
