@@ -17,6 +17,9 @@ export const webSessionTh = {
   noAccessHome: 'กลับหน้าแรก',
   otherSite: 'เว็บอื่น',
   noAccessOpenRole: 'ไปที่หน้า{role}',
+  narrowTitle: 'ใช้งานบนแอปจะสะดวกกว่า',
+  narrowBody: 'เว็บนี้ออกแบบสำหรับจอกว้างตั้งแต่ 768 px ขึ้นไป บนมือถือแนะนำให้ใช้แอป NESTYK',
+  narrowClose: 'เข้าใจแล้ว',
 };
 
 export type WebSessionCopy = typeof webSessionTh;

@@ -12,6 +12,7 @@ import { useFonts } from 'expo-font';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import WebAppHost from '../components/web-routes/WebAppHost';
 import { IdleSignOutGate } from '../components/web-session/IdleSignOutGate';
+import { NarrowWebBanner } from '../components/web-narrow/NarrowWebBanner';
 import { WebNotifier } from '../components/web-notify/WebNotifier';
 import { loadPreferredLocale, savePreferredLocale } from '../lib/locale-storage';
 import { Mitr_400Regular, Mitr_500Medium } from '@expo-google-fonts/mitr';
@@ -114,6 +115,8 @@ export default function Layout() {
                 <WebAppHost />
                 {/* Web only: 8 hours with no input signs this device out (lib/auth/idle-rules.ts). Mobile: nothing. */}
                 <IdleSignOutGate />
+                {/* Web only: role pages under 768 px suggest the phone app (lib/narrow-web.ts). Mobile: nothing. */}
+                <NarrowWebBanner />
                 {/* Web only: Alert.alert shows a toast (bottom right) or a confirm dialog (plan A6). Mobile: nothing. */}
                 <WebNotifier />
               </BootstrapGate>

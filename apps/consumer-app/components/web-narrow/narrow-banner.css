@@ -1,0 +1,47 @@
+/* "Use the NESTYK app" banner on role pages narrower than 768 px (lib/narrow-web.ts). Web only. */
+.nwb-root {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* Above the phone screens' bottom tab bar. */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  z-index: 2147482000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #211e1e;
+  color: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+  font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.nwb-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.nwb-copy strong {
+  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+}
+.nwb-close {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #f8b615;
+  color: #211e1e;
+  font: inherit;
+  cursor: pointer;
+}
+.nwb-close:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
