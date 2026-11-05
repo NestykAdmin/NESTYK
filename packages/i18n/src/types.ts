@@ -40,6 +40,15 @@ export interface TranslationSchema {
     servicesSubtitle: string;
   };
   mobile: {
+    roleHome: {
+      guestTitle: string;
+      guestDesc: string;
+      tenantTitle: string;
+      landlordTitle: string;
+      agentTitle: string;
+      adminTitle: string;
+      comingSoon: string;
+    };
     tabs: {
       home: string;
       search: string;
@@ -338,8 +347,8 @@ export interface TranslationSchema {
       resetTitle: string;
       resetSend: string;
       resetLinkSent: string;
-      resetLinkChecking: string;
       resetLinkInvalid: string;
+      resetLinkBroken: string;
       resetNewTitle: string;
       resetNewSubtitle: string;
       resetDone: string;

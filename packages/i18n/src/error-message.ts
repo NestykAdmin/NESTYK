@@ -20,10 +20,25 @@ export function isInLocale(text: string, locale: SupportedLocale): boolean {
 }
 
 /**
+ * Errors whose message is for developers, never for users (QA web role URL bug, 4 Nov 2026):
+ * - a 403 in English: the API's role checks ("Required role: landlord", "agent role required",
+ *   "Dev role grant is disabled"). The API's 403s meant for users are written in Thai.
+ * - AGENT_ROLE_REQUIRED from lib/agent-session.ts (an account without the agent role).
+ * - "HTTP 409" and the like: the API sent no message (lib/api.ts).
+ */
+function developerOnly(error: Error, message: string): boolean {
+  const { status, code } = error as Error & { status?: unknown; code?: unknown };
+  if (code === 'AGENT_ROLE_REQUIRED') return true;
+  if (/^HTTP \d{3}$/.test(message)) return true;
+  return status === 403 && !THAI.test(message);
+}
+
+/**
  * Message to show for a caught error: its own message when that is already in the
- * selected language, otherwise the translated `fallback`.
+ * selected language, otherwise the translated `fallback`. Developer-only messages always get `fallback`.
  */
 export function localizedError(error: unknown, fallback: string, locale: SupportedLocale): string {
   const message = error instanceof Error ? error.message.trim() : '';
-  return message && isInLocale(message, locale) ? message : fallback;
+  if (!message || developerOnly(error as Error, message)) return fallback;
+  return isInLocale(message, locale) ? message : fallback;
 }

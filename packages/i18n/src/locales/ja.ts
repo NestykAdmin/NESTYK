@@ -39,6 +39,16 @@ export const ja: TranslationSchema = {
     servicesSubtitle: 'サービスハブ',
   },
   mobile: {
+    /** Home card per role (QA 4 Nov 2026: no made-up numbers; admin is not built yet). */
+    roleHome: {
+      guestTitle: 'NESTYK へようこそ',
+      guestDesc: '近くの部屋を探して内見を予約できます。',
+      tenantTitle: '入居者ホーム',
+      landlordTitle: 'オーナーホーム',
+      agentTitle: 'エージェントホーム',
+      adminTitle: '管理者ホーム',
+      comingSoon: '近日公開',
+    },
     tabs: {
       home: 'ホーム',
       search: '検索',
@@ -342,10 +352,10 @@ export const ja: TranslationSchema = {
       signupUnavailable: "このバージョンでは新規登録はまだ利用できません。",
       resetUnavailable: "このバージョンではパスワードの再設定はまだ利用できません。",
       resetTitle: 'パスワードを忘れた',
-      resetSend: 'コードを送る',
+      resetSend: 'リンクを送る',
       resetLinkSent: 'このメールアドレスのアカウントがあれば、パスワード再設定のリンクを送りました。どの端末でも開けます。リンクは1回だけ使えます。',
-      resetLinkChecking: 'リンクを確認しています…',
-      resetLinkInvalid: 'このリンクは期限切れか、すでに使われています。メールアドレスを入力して新しいリンクを受け取ってください。',
+      resetLinkInvalid: 'このリンクは期限切れか、すでに使われているため、パスワードは変更されていません。「ログインに戻る」から「パスワードをお忘れですか？」を押して新しいリンクを受け取ってください。',
+      resetLinkBroken: 'このリンクは使えません。メールアドレスを入力して「リンクを送る」を押し、新しいリンクを受け取ってください。',
       resetNewTitle: '新しいパスワードを設定',
       resetNewSubtitle: '新しいパスワードを設定すると、他の端末はログアウトされます。',
       resetDone: 'パスワードを変更しました。アプリから申請した場合は、アプリに戻って新しいパスワードでログインしてください。',

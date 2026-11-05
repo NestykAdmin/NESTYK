@@ -6,10 +6,24 @@ import {
   isParentRoute,
   loginPathFor,
   normalizeHref,
+  pickLandingRole,
   postLoginPath,
   routeEntryKey,
   routeToState,
+  NO_ACCESS_PATH,
+  roleHomePath,
 } from './app-routes';
+import {
+  decideAccess,
+  decideRoleAccess,
+  elsewhereRoles,
+  landingFor,
+  portalFrom,
+  portalUrlsFrom,
+  roleElsewhere,
+  switcherRoles,
+  type Portal,
+} from './route-access';
 
 /**
  * Web side of the route helpers (route plan R1–R2, rules 1, 7, 17–21). The URL owns the page: "/" is guest,
@@ -17,6 +31,11 @@ import {
  * pages is router.push / router.replace and the browser back button returns without a reload.
  */
 const LAST_ROLE_KEY = 'nestyk.web.lastRole';
+
+/** Which roles this deploy shows (route-access.ts). agent.nestyk.com sets EXPO_PUBLIC_WEB_PORTAL=agent; default all. */
+export const WEB_PORTAL: Portal = portalFrom(process.env.EXPO_PUBLIC_WEB_PORTAL);
+/** The other portals' sites, e.g. "all=https://app.nestyk.com". Unset = roles of other portals are not offered. */
+const PORTAL_URLS = portalUrlsFrom(process.env.EXPO_PUBLIC_WEB_PORTAL_URLS);
 
 function currentLocation(): string {
   try {
@@ -143,7 +162,60 @@ export function loginHref(nextPath?: string | null): string {
   return loginPathFor(nextPath ?? currentLocation());
 }
 
-/** After sign-in: a safe `next` the account may open, else the remembered role, else agent → landlord → tenant (Q5). */
+/**
+ * After sign-in: a safe `next` the account may open, else the remembered role, else agent → landlord → tenant (Q5),
+ * all limited to this portal. An account with none of the portal's roles goes to the "no access" page.
+ */
 export function postLoginHref(next: unknown, roles: readonly string[] | null | undefined): string {
-  return postLoginPath(next, roles, readLastRole());
+  const lastRole = readLastRole();
+  if (WEB_PORTAL !== 'all' && !landingFor(WEB_PORTAL, roles, lastRole)) return NO_ACCESS_PATH;
+  const target = postLoginPath(next, roles, lastRole);
+  const [pathname, ...rest] = target.split('?');
+  const decision = decideAccess(pathname, rest.length ? `?${rest.join('?')}` : '', {
+    portal: WEB_PORTAL, signedIn: true, accountRoles: roles, lastRole,
+  });
+  if (decision.kind === 'redirect') return decision.to;
+  if (decision.kind === 'noRole') return NO_ACCESS_PATH;
+  return target;
+}
+
+/** The role a signed-in account goes to when the page it asked for belongs to a role it does not have (Q5 order). */
+export function landingRoleFor(roles: readonly string[] | null | undefined): UserRole {
+  return landingFor(WEB_PORTAL, roles, readLastRole()) ?? pickLandingRole(roles, readLastRole());
+}
+
+/**
+ * Where to send someone who opens `role`'s pages, or null when they may stay (route-access.ts). `roles` null = signed
+ * out or not loaded yet: only a role outside this portal moves (signing in is the login flow's job).
+ */
+export function roleRedirect(role: UserRole, roles: readonly string[] | null | undefined): string | null {
+  const decision = decideRoleAccess(role, roleHomePath(role), {
+    portal: WEB_PORTAL, signedIn: !!roles, accountRoles: roles, lastRole: readLastRole(),
+  });
+  if (decision.kind === 'redirect') return decision.to;
+  if (decision.kind === 'noRole') return NO_ACCESS_PATH;
+  return null;
+}
+
+/** Roles the role switcher lists: this portal's, then the account's roles that open on another site. */
+export function portalSwitcherRoles(roles: readonly string[] | null | undefined): UserRole[] | undefined {
+  return roles ? [...switcherRoles(WEB_PORTAL, roles), ...elsewhereRoles(WEB_PORTAL, roles, PORTAL_URLS)] : undefined;
+}
+
+/** The account's roles that open on another site (the switcher marks them, the no-access page links them). */
+export function otherSiteRoles(roles: readonly string[] | null | undefined): UserRole[] {
+  return elsewhereRoles(WEB_PORTAL, roles, PORTAL_URLS);
+}
+
+/** The other site's page for `role`, or null when this portal shows it. */
+export function roleSiteHref(role: UserRole): string | null {
+  return roleElsewhere(WEB_PORTAL, role, PORTAL_URLS);
+}
+
+/** Switching to a role of another portal: open that site in this tab. True when it did. */
+export function openRoleElsewhere(role: UserRole): boolean {
+  const href = roleSiteHref(role);
+  if (!href || typeof window === 'undefined') return false;
+  window.location.assign(href);
+  return true;
 }

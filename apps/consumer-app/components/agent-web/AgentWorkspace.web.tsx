@@ -615,6 +615,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   icon: ROLE_ICON[role] ?? ("user" as AppIconName),
                   checked: role === shellRole,
                   disabled: props.navigationDisabled,
+                  badge: props.otherSiteRoles?.includes(role) ? t.webSession.otherSite : undefined,
                   testID: `shell.workspace.${role}`,
                   onSelect: () => {
                     accountRef.current?.removeAttribute("open");

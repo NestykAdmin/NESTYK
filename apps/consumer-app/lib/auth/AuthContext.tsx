@@ -22,7 +22,7 @@ import {
   saveAuthSession,
   StoredAuthSession,
 } from './session-storage';
-import { markAuthEvent, subscribeCrossTab } from './cross-tab';
+import { clearExpiryNotice, markAuthEvent, markFreshSignIn, subscribeCrossTab, takeExpiryNotice } from './cross-tab';
 import { requestGuestBrowse } from './role-gate';
 
 export type AuthUserResponse = {
@@ -52,6 +52,8 @@ type AuthContextValue = {
   requestPasswordReset: (email: string, captchaToken?: string, redirectTo?: string) => Promise<void>;
   /** The reset email's link: a used or expired link throws. */
   verifyRecoveryLink: (tokenHash: string) => Promise<void>;
+  /** Whether this device holds a reset session (an older `?code=` link signed in). */
+  hasResetSession: () => Promise<boolean>;
   saveResetPassword: (newPassword: string) => Promise<void>;
   enterAfterPasswordReset: () => Promise<void>;
   /** Signs out this device only; other phones and browsers stay signed in (Mos 4 Nov 2026). */
@@ -75,7 +77,9 @@ async function syncProfile(accessToken?: string): Promise<AuthUserResponse> {
 
 async function ensureAdminRole(accessToken: string, roles: string[]): Promise<AuthUserResponse | null> {
   if (roles.includes('admin')) return null;
-  if (process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT === 'false') return null;
+  // Off unless a dev build opts in with EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=true (it used to be on unless set to false).
+  // The API also refuses outside NODE_ENV=development. Same switch as ensureAgentSession (lib/agent-session.ts).
+  if (!(typeof __DEV__ !== 'undefined' && __DEV__ && process.env.EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT === 'true')) return null;
   try {
     return await apiPost<AuthUserResponse>('/auth/dev/roles', { role: 'admin' }, accessToken);
   } catch {
@@ -111,8 +115,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Set by signOut; a re-render does not reset it (unlike sessionRef).
   const signingOutRef = useRef(false);
 
-  const applySession = useCallback(async (next: StoredAuthSession) => {
+  /** `fresh`: a new sign-in (not a restore or profile refresh), which starts the web idle clock (review F6). */
+  const applySession = useCallback(async (next: StoredAuthSession, fresh = false) => {
     await saveAuthSession(next);
+    clearExpiryNotice(); // web: signed in again, an older "session expired" is no longer news
+    if (fresh) markFreshSignIn(); // no-op on mobile
     setSession(next);
   }, []);
 
@@ -194,7 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         if (cancelled) return;
         if (result.kind === 'synced') {
-          await applySession(sessionFromSync(result.mode, result.accessToken, result.userId, result.profile));
+          // No stored session = the Google/Facebook return page adopted a new sign-in.
+          await applySession(sessionFromSync(result.mode, result.accessToken, result.userId, result.profile), !stored);
         } else if (result.kind === 'cached') {
           await applySession(result.session);
         } else {
@@ -202,6 +210,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await clearAuthSession();
           setSession(null);
           if (result.kind === 'expired') setSessionExpired(true);
+          // Web: another tab's session ran out before this tab loaded (it found no session): say why here too, once.
+          else if (!stored && takeExpiryNotice()) setSessionExpired(true);
         }
       } catch {
         // Storage failed: start signed out rather than stay on the splash screen.
@@ -220,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let profile = await syncProfile(accessToken);
     const granted = await ensureAdminRole(accessToken, profile.roles);
     if (granted) profile = granted;
-    await applySession(sessionFromSync('supabase', accessToken, userId, profile));
+    await applySession(sessionFromSync('supabase', accessToken, userId, profile), true);
     setSessionExpired(false);
   }, [applySession]);
 
@@ -277,6 +287,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (granted) profile = granted;
         await applySession(
           sessionFromSync('dev', accessToken, DEV_AUTH_CONFIG.uuid, profile),
+          true,
         );
         setSessionExpired(false);
         return;
@@ -298,7 +309,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let profile = await syncProfile(oauthSession.access_token);
       const granted = await ensureAdminRole(oauthSession.access_token, profile.roles);
       if (granted) profile = granted;
-      await applySession(sessionFromSync('supabase', oauthSession.access_token, oauthSession.user.id, profile));
+      await applySession(sessionFromSync('supabase', oauthSession.access_token, oauthSession.user.id, profile), true);
     } catch (syncError) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       throw syncError;
@@ -430,7 +441,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let synced = await syncProfile(data.session.access_token);
       await saveSignupProfile(data.session.access_token, profile);
       synced = await syncProfile(data.session.access_token);
-      await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced));
+      await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced), true);
     } catch (syncError) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       throw syncError;
@@ -454,6 +465,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await verifyRecoveryLinkFlow(resetClient(), tokenHash);
   }, [resetClient]);
 
+  const hasResetSession = useCallback(async () => {
+    try {
+      const { data } = await resetClient().auth.getSession();
+      return Boolean(data.session);
+    } catch {
+      return false;
+    }
+  }, [resetClient]);
+
   const saveResetPassword = useCallback(async (newPassword: string) => {
     await saveResetPasswordFlow(resetClient(), newPassword);
   }, [resetClient]);
@@ -463,7 +483,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session) throw error ?? new Error();
     const synced = await syncProfile(data.session.access_token);
-    await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced));
+    await applySession(sessionFromSync('supabase', data.session.access_token, data.session.user.id, synced), true);
     setSessionExpired(false);
   }, [applySession, resetClient]);
 
@@ -500,6 +520,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resendSignupCode,
       requestPasswordReset,
       verifyRecoveryLink,
+      hasResetSession,
       saveResetPassword,
       enterAfterPasswordReset,
       signOut,
@@ -509,7 +530,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sessionExpired,
       dismissSessionExpired,
     };
-  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, signOut, signOutEverywhere, signOutIdle, refreshProfile, sessionExpired, dismissSessionExpired]);
+  }, [ready, session, signIn, signInWithGoogle, signInWithFacebook, signUp, verifySignupCode, resendSignupCode, requestPasswordReset, verifyRecoveryLink, hasResetSession, saveResetPassword, enterAfterPasswordReset, signOut, signOutEverywhere, signOutIdle, refreshProfile, sessionExpired, dismissSessionExpired]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

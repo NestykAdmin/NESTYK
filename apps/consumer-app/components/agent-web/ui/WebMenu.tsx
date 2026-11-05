@@ -32,14 +32,32 @@ export function WebMenu(props: WebMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
+  // QA web test (4 Nov 2026) item 10.
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+      // The click that closes the menu only closes it: it must not also press what lies under it (it opened
+      // /agent/leads from the dashboard). Swallow that one click; if no click follows (a drag), stop waiting.
+      const swallow = (click: MouseEvent) => {
+        click.preventDefault();
+        click.stopPropagation();
+      };
+      document.addEventListener("click", swallow, { capture: true, once: true });
+      document.addEventListener(
+        "mouseup",
+        () => window.setTimeout(() => document.removeEventListener("click", swallow, { capture: true }), 0),
+        { once: true },
+      );
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      // Keyboard users go back to the button that opened the menu, not to the page body.
+      triggerRef.current?.focus();
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -69,6 +87,7 @@ export function WebMenu(props: WebMenuProps) {
   return (
     <div className="awu-menu" ref={rootRef} data-testid={props.testID}>
       <button
+        ref={triggerRef}
         type="button"
         className={props.triggerClassName ?? "aw-button aw-button-secondary"}
         aria-haspopup="menu"

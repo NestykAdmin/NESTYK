@@ -15,7 +15,10 @@ export const ROLE_PATH: Record<Exclude<UserRole, 'guest'>, string> = {
 };
 
 /** Screens that are their own route files (expo-router renders them, the app shell stays out). */
-export const AUTH_PATHS = ['/login', '/register', '/reset-password'] as const;
+export const AUTH_PATHS = ['/login', '/register', '/reset-password', '/no-access'] as const;
+
+/** Signed in, but the account has none of this portal's roles (lib/route-access.ts). */
+export const NO_ACCESS_PATH = '/no-access';
 
 /** Public document pages (footer plan F-Q1, Mos 4 Nov 2026): own route files, open without login, never a `next`. */
 export const LEGAL_PATHS = ['/privacy', '/terms'] as const;
@@ -83,6 +86,25 @@ export function loginPathFor(nextPath?: string | null): string {
   return next && next !== '/' ? `/login?next=${encodeURIComponent(next)}` : '/login';
 }
 
+/**
+ * "/Login", "/PRIVACY/" and the like: the lower-case path of a screen that has its own route file (expo-router matches
+ * those files case-sensitively, so the catch-all route gets them). Null for any other path. QA web test 4 Nov 2026 item 9.
+ */
+export function ownScreenPath(pathname: string): string | null {
+  const kind = parseAppPath(pathname).kind;
+  if (kind !== 'auth' && kind !== 'legal') return null;
+  return pathname.replace(/\/+$/, '').toLowerCase();
+}
+
+/**
+ * Whether a signed-in account may open a role's pages: guest pages are public, any other role must be one of the
+ * account's roles. A typed or linked URL of another role sends the account to its own home (QA web role URL bug,
+ * 4 Nov 2026). The API still refuses the data either way.
+ */
+export function canOpenRole(role: UserRole, roles: readonly string[] | null | undefined): boolean {
+  return role === 'guest' || (roles ?? []).includes(role);
+}
+
 /** Q5: the remembered role if the account still has it, else agent → landlord → tenant → guest. */
 export function pickLandingRole(roles: readonly string[] | null | undefined, lastRole?: string | null): UserRole {
   const have = new Set(roles ?? []);
@@ -96,7 +118,7 @@ export function postLoginPath(next: unknown, roles: readonly string[] | null | u
   if (target) {
     const parsed = parseAppPath(target.split(/[?#]/)[0]);
     if (parsed.kind === 'redirect') return parsed.to;
-    if (parsed.kind === 'app' && (parsed.role === 'guest' || (roles ?? []).includes(parsed.role))) return target;
+    if (parsed.kind === 'app' && canOpenRole(parsed.role, roles)) return target;
   }
   return roleHomePath(pickLandingRole(roles, lastRole));
 }

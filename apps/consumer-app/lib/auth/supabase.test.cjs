@@ -26,7 +26,7 @@ function load({ os = 'android', url = 'https://abc.supabase.co', key = 'sb_publi
       },
     },
     '@react-native-async-storage/async-storage': { default: storage },
-    './reset-password': { isRecoveryLanding: () => false, recoveryTokenHash: () => null },
+    './reset-password': { isRecoveryLanding: () => false, recoveryTokenHash: () => null, brokenRecoveryLanding: () => false },
     'react-native': {
       Platform: { OS: os },
       AppState: { addEventListener: (event, fn) => { calls.listeners.push({ event, fn }); return { remove() {} }; } },

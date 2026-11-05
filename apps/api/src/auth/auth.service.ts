@@ -493,8 +493,10 @@ export class AuthService {
     return this.toResponse(loaded, false);
   }
 
+  /** Local development only: Railway starts the API with NODE_ENV=production, so a stray ALLOW_DEV_ROLE_GRANT=true there
+   * still grants nothing (QA web role URL bug, 4 Nov 2026). */
   private assertDevGrantEnabled(): void {
-    if (process.env.ALLOW_DEV_ROLE_GRANT !== 'true') {
+    if (process.env.NODE_ENV !== 'development' || process.env.ALLOW_DEV_ROLE_GRANT !== 'true') {
       throw new ForbiddenException('Dev role grant is disabled');
     }
   }

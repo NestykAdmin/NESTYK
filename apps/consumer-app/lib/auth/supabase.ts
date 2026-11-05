@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
-import { isRecoveryLanding, recoveryTokenHash } from './reset-password';
+import { brokenRecoveryLanding, isRecoveryLanding, recoveryTokenHash } from './reset-password';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -23,6 +23,8 @@ const initialHref = typeof window !== 'undefined' && typeof window.location?.hre
 export const openedPasswordResetLink = initialHref !== '' && isRecoveryLanding(initialHref);
 /** The reset email's `token_hash` link (any device); null for a PKCE `code` link or no link. */
 export const openedRecoveryTokenHash = recoveryTokenHash(initialHref);
+/** A reset link with nothing to sign in with ("?type=recovery" alone, an empty token_hash). */
+export const openedBrokenResetLink = brokenRecoveryLanding(initialHref);
 
 export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured()) return null;

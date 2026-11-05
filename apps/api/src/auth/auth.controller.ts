@@ -19,7 +19,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { DevRegistrationGuard } from './guards/dev-registration.guard';
 import { RecentAuthGuard } from './guards/recent-auth.guard';
 import { MAX_PROFILE_AVATAR_BYTES } from './profile-avatar-storage.service';
-import { notifyPasswordChanged } from './password-changed-email';
 
 @Controller('auth')
 export class AuthController {
@@ -119,14 +118,6 @@ export class AuthController {
   async cancelAccountDeletion(@CurrentUser() user: AuthRequestUser) {
     this.requireUser(user);
     return this.authService.cancelAccountDeletion(user.id);
-  }
-
-  @Post('password-changed')
-  @UseGuards(AuthGuard)
-  async passwordChanged(@CurrentUser() user: AuthRequestUser) {
-    this.requireUser(user);
-    const sent = await notifyPasswordChanged(user.email);
-    return { sent };
   }
 
   @Post('dev/roles')

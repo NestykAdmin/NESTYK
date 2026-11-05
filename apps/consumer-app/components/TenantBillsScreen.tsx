@@ -136,7 +136,7 @@ export function TenantBillsScreen({
       setRows((current) => current.map((row) => (row.id === updated.id ? updated : row)));
       setNotice(tenantCopy.slipUploaded);
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : copy.loadFailed);
+      setError(localizedError(e, copy.loadFailed, locale));
     } finally {
       setSubmittingId(null);
     }
