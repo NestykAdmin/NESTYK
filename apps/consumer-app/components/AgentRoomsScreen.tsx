@@ -344,7 +344,8 @@ export function AgentRoomsScreen({
         })
         .catch((err) => {
           if (cancelled) return;
-          const message = localizedError(err, copy.loadError, locale);
+          // The card's title already says loading failed: an untranslated message becomes "try again", not the title twice.
+          const message = localizedError(err, t.common.errorGeneric, locale);
           if (append) setMoreError(message);
           else setError(message);
         })

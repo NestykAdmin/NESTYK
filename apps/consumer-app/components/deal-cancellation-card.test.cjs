@@ -14,6 +14,8 @@ const transpile = (file, req) => {
   return m.exports;
 };
 const none = (name) => assert.fail(`Unexpected dependency: ${name}`);
+// The real localizedError: the card shows the API's Thai reason, and a developer-only message becomes "try again".
+const { localizedError } = transpile('../../../packages/i18n/src/error-message.ts', none);
 const fmt = transpile('../lib/bill-format.ts', () => ({})).billFormatters('th');
 const rules = transpile('../lib/deal-cancellation.ts', none);
 function harness() {
@@ -25,7 +27,7 @@ function harness() {
     if (name === 'react-native') return { View: 'section', Text: 'span', Pressable: 'press' };
     if (name === 'expo-document-picker') return { getDocumentAsync: async () => ({ canceled: true }) };
     if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { danger: 'red', brand: { 50: '#eef', 500: '#00f' } } }, MobileButton: 'button', MobileInput: 'input' };
-    if (name === '@nestyk/i18n') return i18nMock();
+    if (name === '@nestyk/i18n') return { ...i18nMock({ common: { errorGeneric: 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง' } }), localizedError };
     if (name === '../lib/bill-format') return { billFormatters: () => fmt };
     if (name === '../lib/deal-cancellation') return rules;
     return none(name);

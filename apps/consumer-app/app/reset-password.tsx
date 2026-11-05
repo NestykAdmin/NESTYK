@@ -7,13 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { AccountCompleteModal, MobileButton, MobileInput, MobileNestykLogo, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
-import { openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
+import { openedBrokenResetLink, openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
 import { passwordIsStrong } from '../lib/auth/password-rules';
+import { RECOVERY_SESSION_MISSING } from '../lib/auth/reset-password';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { HcaptchaField } from '../components/HcaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 
-type Step = 'checking' | 'email' | 'sent' | 'password' | 'done';
+type Step = 'email' | 'sent' | 'password' | 'done';
 
 export default function ResetPasswordScreen() {
   const { t, locale } = useLocale();
@@ -21,17 +22,20 @@ export default function ResetPasswordScreen() {
   const { theme } = useMobileTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { ready, requestPasswordReset, verifyRecoveryLink, saveResetPassword, enterAfterPasswordReset, isAuthenticated, signOut } = useAuth();
-  const [step, setStep] = useState<Step>(openedRecoveryTokenHash ? 'checking' : openedPasswordResetLink ? 'password' : 'email');
+  const { requestPasswordReset, verifyRecoveryLink, hasResetSession, saveResetPassword, enterAfterPasswordReset, isAuthenticated, signOut } = useAuth();
+  const [step, setStep] = useState<Step>(openedRecoveryTokenHash || openedPasswordResetLink ? 'password' : 'email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // A cut or edited reset link (QA 4 Nov 2026 item 4) opens the email step with the reason, not a form that cannot save.
+  const [error, setError] = useState<string | null>(openedBrokenResetLink ? copy.resetLinkBroken : null);
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
   const captchaRequired = hcaptchaSiteKey().length > 0;
-  const checkedLink = useRef(false);
+  // The reset email's link (`?token_hash=`) works on any device. Supabase spends it once, so it is spent when the
+  // new password is saved, not when the page opens: the email link can be opened again until then.
+  const linkVerified = useRef(false);
   const resetCaptcha = () => {
     setCaptchaToken(null);
     setCaptchaKey(captchaKey + 1);
@@ -41,28 +45,29 @@ export default function ResetPasswordScreen() {
     if (isAuthenticated && step === 'email') router.replace('/');
   }, [isAuthenticated, router, step]);
 
-  // The reset email's link (`?token_hash=`) works on any device, and only once.
+  // Drop the token from the address at once, so a refresh or a shared screenshot does not carry it. The token was read
+  // when the app loaded (lib/auth/supabase.ts), so saving still works; the email link itself stays usable until then.
   useEffect(() => {
-    const tokenHash = openedRecoveryTokenHash;
-    if (!tokenHash || checkedLink.current) return;
-    // Drop the token from the address at once, so a refresh or a shared screenshot does not carry it
-    // (the token was read when the app loaded: lib/auth/supabase.ts).
+    if (!openedRecoveryTokenHash && !openedBrokenResetLink) return;
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.search) {
       window.history.replaceState(null, '', window.location.pathname);
     }
-    // Wait for the saved sign-in to be restored, so we know whether this browser is signed in.
-    if (!ready) return;
-    checkedLink.current = true;
-    // Signed in (maybe as someone else): sign out this device first. Checking the link signs in the link's account,
-    // and the screen and the API token must never belong to two different people (review 513fbf0 R3, Mos 4 Nov 2026).
-    (isAuthenticated ? signOut() : Promise.resolve())
-      .then(() => verifyRecoveryLink(tokenHash))
-      .then(() => setStep('password'))
-      .catch(() => {
-        setError(copy.resetLinkInvalid);
-        setStep('email');
-      });
-  }, [ready, isAuthenticated, signOut, verifyRecoveryLink, copy.resetLinkInvalid]);
+  }, []);
+
+  // An older `?code=` link signs in while the app loads. When that did not happen (a bad or used code), say so on the
+  // email step instead of showing a form that cannot save.
+  useEffect(() => {
+    if (!openedPasswordResetLink || openedRecoveryTokenHash) return;
+    let live = true;
+    void hasResetSession().then((signedIn) => {
+      if (!live || signedIn) return;
+      setStep('email');
+      setError(copy.resetLinkBroken);
+    });
+    return () => {
+      live = false;
+    };
+  }, [hasResetSession, copy.resetLinkBroken]);
 
   const fieldStyle = { backgroundColor: theme.card, borderColor: theme.border, color: theme.textHeading };
   const title = step === 'password' || step === 'done' ? copy.resetNewTitle : copy.resetTitle;
@@ -107,10 +112,27 @@ export default function ResetPasswordScreen() {
     }
     setLoading(true);
     try {
+      if (openedRecoveryTokenHash && !linkVerified.current) {
+        // Signed in (maybe as someone else): sign out this device first. Checking the link signs in the link's
+        // account, and the screen and the API token must never belong to two different people (review 513fbf0 R3).
+        if (isAuthenticated) await signOut();
+        try {
+          await verifyRecoveryLink(openedRecoveryTokenHash);
+        } catch {
+          // Expired, already used, or a newer link was sent: nothing is saved, and the page stays here with the
+          // message (QA 4 Nov 2026); "Back to login" then "Forgot password?" sends a new link.
+          setError(copy.resetLinkInvalid);
+          return;
+        }
+        // Spent now: a retry after a rejected password reuses this sign-in instead of the link.
+        linkVerified.current = true;
+      }
       await saveResetPassword(password);
       setStep('done');
     } catch (e) {
-      setError(localizedError(e, copy.registrationFailed, locale));
+      // No reset session (a link without a token, a bad ?code=): the same message as a used or expired link.
+      const missing = (e as { code?: unknown } | null)?.code === RECOVERY_SESSION_MISSING;
+      setError(missing ? copy.resetLinkInvalid : localizedError(e, copy.registrationFailed, locale));
     } finally {
       setLoading(false);
     }
@@ -131,7 +153,6 @@ export default function ResetPasswordScreen() {
                 fontFamily: locale === 'en' ? tokens.typography.native.headingEn : tokens.typography.native.headingTh,
               }]}>{title}</Text>
               {step === 'sent' ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetLinkSent}</Text> : null}
-              {step === 'checking' ? <Text accessibilityLiveRegion="polite" style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetLinkChecking}</Text> : null}
               {step === 'password' ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{copy.resetNewSubtitle}</Text> : null}
               {step === 'email' ? (
                 <View style={styles.field}>

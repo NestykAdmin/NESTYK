@@ -1,4 +1,4 @@
-/** Web sign-in session: "sign out of all devices" and the 8-hour idle sign out (Mos 4 Nov 2026). */
+/** Web sign-in session: "sign out of all devices", the 8-hour idle sign out (Mos 4 Nov 2026) and the "no access to this portal" page (5 Nov). */
 export const webSessionTh = {
   signOutAll: 'ออกจากระบบทุกอุปกรณ์',
   signOutAllTitle: 'ออกจากระบบทุกอุปกรณ์?',
@@ -9,6 +9,14 @@ export const webSessionTh = {
   idleBody: 'ไม่มีการใช้งานมาเกือบ 8 ชั่วโมง ระบบจะออกจากระบบในเครื่องนี้ใน {time}',
   idleStay: 'ใช้งานต่อ',
   idleSignOut: 'ออกจากระบบ',
+  noAccessTitle: 'บัญชีนี้ยังเข้าเว็บนี้ไม่ได้',
+  noAccessBody: '{email} ยังไม่มีสิทธิ์ใช้งานส่วนนี้ของ NESTYK',
+  noAccessHint: 'เข้าสู่ระบบด้วยบัญชีอื่น หรือติดต่อทีมงานหากคิดว่าเป็นข้อผิดพลาด',
+  noAccessSignOut: 'เข้าสู่ระบบด้วยบัญชีอื่น',
+  noAccessSupport: 'ติดต่อทีมงาน',
+  noAccessHome: 'กลับหน้าแรก',
+  otherSite: 'เว็บอื่น',
+  noAccessOpenRole: 'ไปที่หน้า{role}',
 };
 
 export type WebSessionCopy = typeof webSessionTh;

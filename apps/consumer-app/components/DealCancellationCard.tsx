@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { MobileButton, MobileInput, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentContract, CancelDeal, DealCancellation, DealCancellationParty, DealCancellationPreview } from "@nestyk/types";
-import { fillTemplate, useLocale } from "@nestyk/i18n";
+import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { billFormatters } from "../lib/bill-format";
 import {
   MAX_EVIDENCE_FILES,
@@ -156,7 +156,7 @@ export function DealCancellationCard({
     setPreview(null);
     setLoadError("");
     setIssue("");
-    loadPreview().then(setPreview, (e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
+    loadPreview().then(setPreview, (e: unknown) => setLoadError(localizedError(e, t.common.errorGeneric, locale)));
   }
   function close() {
     setOpen(false);

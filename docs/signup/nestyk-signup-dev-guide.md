@@ -135,6 +135,8 @@
 
 ## 3. งานตั้งค่า Supabase
 
+> **ค่าล่าสุดสำหรับขึ้น server (4 พ.ย. 2026):** ใช้ [`nestyk-auth-config-checklist.md`](./nestyk-auth-config-checklist.md) ซึ่งรวม Supabase, Railway และ env ของแอปไว้ที่เดียว ตารางด้านล่างเป็นบันทึกตอนวางแผน (22 ต.ค.) บางข้อไม่ตรงแล้ว เช่น S7 (ลิงก์ลืมรหัสผ่านใช้ Site URL ไม่ใช่ `nestyk://`) และ S3 (ยังห้ามบังคับชนิดตัวอักษรจนกว่าจะแก้ D5)
+
 > ใช้กับ Supabase ที่ทีมใช้ร่วมกันและ Supabase ของระบบจริง ส่วน `supabase/config.toml` เป็นค่าของ Supabase ที่รันในเครื่อง ถ้าจะเทสการยืนยันอีเมลในเครื่องต้องแก้ไฟล์นี้ด้วย (`enable_confirmations`, `site_url`, `additional_redirect_urls` บรรทัด 158-162, 225)
 
 | # | ตั้งค่า | ค่าที่แนะนำ | หมายเหตุ |

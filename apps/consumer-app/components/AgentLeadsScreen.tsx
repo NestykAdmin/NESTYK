@@ -179,7 +179,8 @@ export function AgentLeadsScreen({
           if (page > 1 && !result.items.length) setPage(Math.max(1, Math.ceil(result.total / 20)));
         })
         .catch((err) => {
-          if (!cancelled) setError(localizedError(err, c.loadError, locale));
+          // The card's title already says loading failed: an untranslated message becomes "try again", not the title twice.
+          if (!cancelled) setError(localizedError(err, t.common.errorGeneric, locale));
         })
         .finally(() => {
           if (cancelled) return;

@@ -39,6 +39,16 @@ export const en: TranslationSchema = {
     servicesSubtitle: 'Services Hub',
   },
   mobile: {
+    /** Home card per role (QA 4 Nov 2026: no made-up numbers; admin is not built yet). */
+    roleHome: {
+      guestTitle: 'Welcome to NESTYK',
+      guestDesc: 'Browse rooms and schedule viewings nearby.',
+      tenantTitle: 'Tenant home',
+      landlordTitle: 'Landlord home',
+      agentTitle: 'Agent home',
+      adminTitle: 'Admin home',
+      comingSoon: 'Coming soon',
+    },
     tabs: {
       home: 'Home',
       search: 'Search',
@@ -342,10 +352,10 @@ export const en: TranslationSchema = {
       signupUnavailable: "Registration is not available in this version yet.",
       resetUnavailable: "Password recovery is not available in this version yet.",
       resetTitle: 'Forgot password',
-      resetSend: 'Send code',
+      resetSend: 'Send link',
       resetLinkSent: 'If this email has an account, we sent it a link to set a new password. You can open it on any device. The link works once.',
-      resetLinkChecking: 'Checking the link…',
-      resetLinkInvalid: 'This link has expired or was already used. Enter your email to get a new one.',
+      resetLinkInvalid: 'This link has expired or was already used, so your password was not changed. Tap "Back to login", then "Forgot password?" to get a new link.',
+      resetLinkBroken: 'This link does not work. Enter your email and tap "Send link" to get a new one.',
       resetNewTitle: 'Set a new password',
       resetNewSubtitle: 'Choose a new password. Other devices will be signed out.',
       resetDone: 'Your password has been changed. If you asked in the app, go back and sign in there with your new password.',

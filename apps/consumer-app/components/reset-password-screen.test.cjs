@@ -1,5 +1,7 @@
 // app/reset-password.tsx: the reset email links to /reset-password?token_hash=…&type=recovery. That link works on
-// any device (no PKCE verifier needed), works once, and is dropped from the address after it is checked.
+// any device (no PKCE verifier needed). Supabase spends it once, so the page spends it when the new password is saved,
+// not when the page opens: until then the email link can be opened again. The token leaves the address bar at once,
+// and a device signed in to another account signs out before the link is checked (review 513fbf0 R3).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -34,9 +36,9 @@ function nodes(element) {
 const en = load(`${root}/packages/i18n/src/locales/en.ts`, {}).en;
 const copy = en.mobile.auth;
 
-function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, ready = true, signedIn = false } = {}) {
-  const state = [], refs = [], verified = [], replaced = [], order = [];
-  const auth = { ready, signedIn };
+function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetSession = true, verify = async () => {}, save = async () => {}, signedIn = false } = {}) {
+  const state = [], refs = [], replaced = [], calls = [];
+  const auth = { signedIn };
   let cursor = 0, refCursor = 0;
   global.window = { location: { pathname: '/reset-password', search: tokenHash ? `?token_hash=${tokenHash}&type=recovery` : '' },
     history: { replaceState: (...args) => { replaced.push(args); global.window.location.search = ''; } } };
@@ -58,11 +60,11 @@ function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, r
     '@nestyk/i18n': { useLocale: () => ({ t: en, locale: 'en' }), localizedError: (e, fallback) => fallback },
     '@nestyk/ui/native': { AccountCompleteModal: 'Modal', MobileButton: 'Button', MobileInput: 'Input', MobileNestykLogo: 'Logo',
       useMobileTheme: () => ({ theme: {} }), tokens: { typography: { native: {} }, colors: { error: '#dc2626' } } },
-    '../lib/auth/AuthContext': { useAuth: () => ({ ready: auth.ready, isAuthenticated: auth.signedIn, requestPasswordReset: async () => {},
-      saveResetPassword: async () => {}, enterAfterPasswordReset: async () => {},
-      signOut: async () => { order.push('signOut'); auth.signedIn = false; },
-      verifyRecoveryLink: (hash) => { order.push('verify'); verified.push(hash); return verify(hash); } }) },
-    '../lib/auth/supabase': { openedPasswordResetLink: pkceLink || Boolean(tokenHash), openedRecoveryTokenHash: tokenHash },
+    '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: auth.signedIn, requestPasswordReset: async () => {},
+      signOut: async () => { calls.push(['sign-out']); auth.signedIn = false; },
+      saveResetPassword: (password) => { calls.push(['save', password]); return save(password); },
+      enterAfterPasswordReset: async () => {}, hasResetSession: async () => resetSession, verifyRecoveryLink: (hash) => { calls.push(['verify', hash]); return verify(hash); } }) },
+    '../lib/auth/supabase': { openedPasswordResetLink: pkceLink || Boolean(tokenHash), openedRecoveryTokenHash: tokenHash, openedBrokenResetLink: brokenLink },
     '../lib/auth/password-rules': { passwordIsStrong: () => true },
     '../lib/auth/hcaptcha-site-key': { hcaptchaSiteKey: () => '' },
     '../components/HcaptchaField': { HcaptchaField: 'Hcaptcha' },
@@ -72,60 +74,107 @@ function screen({ tokenHash = null, pkceLink = false, verify = async () => {}, r
   const render = () => { cursor = 0; refCursor = 0; return nodes(Component()); };
   const labels = () => render().filter((n) => n?.type === 'Input').map((n) => n.props.accessibilityLabel);
   const texts = () => render().filter((n) => typeof n === 'string');
-  return { render, labels, texts, verified, replaced, order, auth, flush: () => new Promise((r) => setImmediate(r)) };
+  const fill = (label, value) => render().find((n) => n?.type === 'Input' && n.props.accessibilityLabel === label).props.onChangeText(value);
+  const press = (label) => render().find((n) => n?.type === 'Button' && n.props.children === label).props.onPress();
+  const saveNewPassword = async (password = 'Abcdefg1') => {
+    fill(copy.password, password);
+    fill(copy.confirmPassword, password);
+    press(copy.resetNewTitle);
+    await new Promise((r) => setImmediate(r));
+  };
+  const done = () => render().find((n) => n?.type === 'Modal').props.visible;
+  return { render, labels, texts, calls, replaced, saveNewPassword, done, auth };
 }
 
-test('a reset link opened on any device checks the token, then asks for the new password', async () => {
+test('opening the reset link does not spend it, and the token leaves the address bar at once', () => {
   const page = screen({ tokenHash: 'abc123' });
-  assert.ok(page.texts().includes(copy.resetLinkChecking));
-  assert.deepEqual(page.labels(), []);
-  await page.flush();
   page.render();
-  assert.deepEqual(page.verified, ['abc123'], 'the link is checked once, even though the page renders again');
+  page.render();
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
-  assert.deepEqual(page.replaced, [[null, '', '/reset-password']], 'the token leaves the address bar');
+  assert.deepEqual(page.calls, [], 'nothing is sent to Supabase just by opening the page, so the email link still works');
+  assert.deepEqual(page.replaced, [[null, '', '/reset-password']], 'dropped once, before anything is checked');
 });
 
-test('a used or expired link goes back to the email step and says so', async () => {
-  const page = screen({ tokenHash: 'used', verify: async () => { throw new Error('Token has expired or is invalid'); } });
-  page.render();
-  await page.flush();
-  assert.deepEqual(page.labels(), [copy.email]);
+test('saving the new password spends the link, then stores the password', async () => {
+  const page = screen({ tokenHash: 'abc123' });
+  await page.saveNewPassword('Abcdefg1');
+  assert.deepEqual(page.calls, [['verify', 'abc123'], ['save', 'Abcdefg1']]);
+  assert.deepEqual(page.replaced, [[null, '', '/reset-password']]);
+  assert.equal(page.done(), true);
+});
+
+test('a used or expired link is found at save: nothing is saved, the page stays and shows the message', async () => {
+  const page = screen({ tokenHash: 'used', verify: async () => { throw new Error('Email link is invalid or has expired'); } });
+  await page.saveNewPassword();
+  assert.deepEqual(page.calls, [['verify', 'used']], 'the new password is never sent');
+  assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword], 'still the new-password page, not the email step');
   assert.ok(page.texts().includes(copy.resetLinkInvalid));
+  assert.equal(page.done(), false);
+  await page.saveNewPassword();
+  assert.deepEqual(page.calls, [['verify', 'used'], ['verify', 'used']], 'trying again checks the link again and still saves nothing');
+});
+
+test('a rejected password keeps the spent link sign-in: the retry does not check the link again', async () => {
+  let attempts = 0;
+  const page = screen({ tokenHash: 'abc123', save: async () => { attempts += 1; if (attempts === 1) throw new Error('New password should be different from the old password.'); } });
+  await page.saveNewPassword('Abcdefg1');
+  assert.equal(page.done(), false);
+  assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
+  await page.saveNewPassword('Abcdefg2');
+  assert.deepEqual(page.calls, [['verify', 'abc123'], ['save', 'Abcdefg1'], ['save', 'Abcdefg2']]);
+  assert.equal(page.done(), true);
 });
 
 test('the page opened without a link starts at the email step and checks nothing', () => {
   const page = screen();
   assert.deepEqual(page.labels(), [copy.email]);
-  assert.deepEqual(page.verified, []);
-  assert.deepEqual(page.replaced, []);
+  assert.deepEqual(page.calls, []);
 });
 
-test('an older PKCE link (?code=) still opens the new-password step', () => {
+test('an older PKCE link (?code=) opens the new-password step and saves without a token check', async () => {
   const page = screen({ pkceLink: true });
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
-  assert.deepEqual(page.verified, []);
+  await page.saveNewPassword('Abcdefg1');
+  assert.deepEqual(page.calls, [['save', 'Abcdefg1']]);
 });
 
 test('signed in (maybe as another account): this device signs out before the link is checked (review 513fbf0 R3)', async () => {
   const page = screen({ tokenHash: 'abc123', signedIn: true });
   page.render();
-  await page.flush();
-  await page.flush();
-  page.render();
-  assert.deepEqual(page.order, ['signOut', 'verify']);
-  assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
+  assert.deepEqual(page.calls, [], 'opening the page signs nobody out');
+  await page.saveNewPassword('Abcdefg1');
+  assert.deepEqual(page.calls, [['sign-out'], ['verify', 'abc123'], ['save', 'Abcdefg1']]);
+  assert.equal(page.done(), true);
 });
 
-test('the link waits for the saved sign-in to load, but leaves the address bar at once', async () => {
-  const page = screen({ tokenHash: 'abc123', ready: false });
+test('QA 4 Nov 2026 item 4/7: a link without a token (no reset session) shows the link message, not "Auth session missing!"', async () => {
+  const missing = Object.assign(new Error('Auth session missing!'), { code: 'RECOVERY_SESSION_MISSING' });
+  const page = screen({ pkceLink: true, save: async () => { throw missing; } });
+  await page.saveNewPassword('Abcdefg1');
+  assert.ok(page.texts().includes(copy.resetLinkInvalid));
+  assert.ok(!page.texts().includes('Auth session missing!'));
+  assert.equal(page.done(), false);
+});
+
+test('QA 4 Nov 2026 item 4: "?type=recovery" with no token opens the email step with the reason, not a form', () => {
+  const page = screen({ brokenLink: true });
+  assert.deepEqual(page.labels(), [copy.email]);
+  assert.ok(page.texts().includes(copy.resetLinkBroken));
+  assert.deepEqual(page.replaced, [], 'nothing in the address to drop in this test (no search string)');
+  assert.deepEqual(page.calls, []);
+});
+
+test('QA 4 Nov 2026 item 4: an older ?code= link that did not sign in goes to the email step with the reason', async () => {
+  const page = screen({ pkceLink: true, resetSession: false });
   page.render();
-  await page.flush();
-  assert.deepEqual(page.verified, []);
-  assert.deepEqual(page.replaced, [[null, '', '/reset-password']]);
-  page.auth.ready = true;
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(page.labels(), [copy.email]);
+  assert.ok(page.texts().includes(copy.resetLinkBroken));
+});
+
+test('an older ?code= link that signed in keeps the new-password form', async () => {
+  const page = screen({ pkceLink: true, resetSession: true });
   page.render();
-  await page.flush();
-  assert.deepEqual(page.order, ['verify']);
-  assert.deepEqual(page.replaced.length, 1);
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
 });

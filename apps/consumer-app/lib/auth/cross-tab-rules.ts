@@ -12,6 +12,19 @@ export const AUTH_EVENT_KEY = 'nestyk.web.authEvent';
 
 export type AuthEventReason = 'signedOut' | 'expired';
 
+/**
+ * When the last session ran out (ms). A tab that loads after another tab's session expired finds no session and would
+ * show the sign-in page with no reason; this time lets it show "session expired" once (QA web test 4 Nov 2026 item 5).
+ */
+export const EXPIRED_AT_KEY = 'nestyk.web.expiredAt';
+export const EXPIRY_NOTICE_MS = 24 * 60 * 60 * 1000;
+
+/** Whether a saved expiry time is recent enough to tell a tab that loads signed out (a future or broken time is not). */
+export function recentExpiry(raw: string | null | undefined, now: number): boolean {
+  const time = Number(raw);
+  return Boolean(raw) && Number.isFinite(time) && time > 0 && time <= now && now - time < EXPIRY_NOTICE_MS;
+}
+
 export type CrossTabAction =
   /** Nothing for this tab to do. */
   | { kind: 'none' }
