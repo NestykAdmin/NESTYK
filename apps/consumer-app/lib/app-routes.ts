@@ -15,7 +15,10 @@ export const ROLE_PATH: Record<Exclude<UserRole, 'guest'>, string> = {
 };
 
 /** Screens that are their own route files (expo-router renders them, the app shell stays out). */
-export const AUTH_PATHS = ['/login', '/register', '/reset-password'] as const;
+export const AUTH_PATHS = ['/login', '/register', '/reset-password', '/no-access'] as const;
+
+/** Signed in, but the account has none of this portal's roles (lib/route-access.ts). */
+export const NO_ACCESS_PATH = '/no-access';
 
 /** Public document pages (footer plan F-Q1, Mos 4 Nov 2026): own route files, open without login, never a `next`. */
 export const LEGAL_PATHS = ['/privacy', '/terms'] as const;

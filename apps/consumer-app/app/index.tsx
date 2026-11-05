@@ -98,7 +98,16 @@ import {
   setPendingRole,
 } from '../lib/auth/role-gate';
 import { type AppRouteState, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
-import { landingRoleFor, loginHref, useAppRouteSync, useInitialRouteState } from '../lib/web-routes';
+import {
+  landingRoleFor,
+  loginHref,
+  openRoleElsewhere,
+  otherSiteRoles,
+  portalSwitcherRoles,
+  roleRedirect,
+  useAppRouteSync,
+  useInitialRouteState,
+} from '../lib/web-routes';
 import {
   MOCK_LISTINGS,
   MOCK_SERVICE_TICKETS,
@@ -605,6 +614,11 @@ export function AppHomeScreen() {
   }, [partyInbox, selectedPartyRoom, openedPartyContract, contractHistory, activeRole]);
 
   const handleRoleChange = (role: UserRole) => {
+    // Web portal (e.g. agent.nestyk.com): a role this portal does not show opens on its own site (route-access.ts).
+    if (openRoleElsewhere(role)) {
+      setDrawerOpen(false);
+      return;
+    }
     if (roleRequiresAuth(role) && !isAuthenticated) {
       setPendingRole(role);
       setDrawerOpen(false);
@@ -649,11 +663,13 @@ export function AppHomeScreen() {
   const signedInRoles = ready && isAuthenticated && session ? session.roles : null;
   const signedInRolesRef = useRef<readonly string[] | null>(signedInRoles);
   signedInRolesRef.current = signedInRoles;
+  // Route access (lib/route-access.ts, 5 Nov 2026): also a role outside this web portal, signed in or not.
   useEffect(() => {
-    if (!signedInRoles || canOpenRole(activeRole, signedInRoles)) return;
+    const redirect = roleRedirect(activeRole, signedInRoles);
+    if (!redirect) return;
     const landing = landingRoleFor(signedInRoles);
     if (Platform.OS === 'web') {
-      router.replace(roleHomePath(landing) as never);
+      router.replace(redirect as never);
       return;
     }
     setPartyInbox(false);
@@ -667,9 +683,9 @@ export function AppHomeScreen() {
   // A URL from outside (link, address bar, back/forward) opens its page with a clean state, like a menu tap.
   const applyRoute = useCallback((route: AppRouteState) => {
     // A role this account does not have: go to its own home instead, without showing that role's page even once.
-    const roles = signedInRolesRef.current;
-    if (roles && !canOpenRole(route.role, roles)) {
-      router.replace(roleHomePath(landingRoleFor(roles)) as never);
+    const redirect = roleRedirect(route.role, signedInRolesRef.current);
+    if (redirect) {
+      router.replace(redirect as never);
       return;
     }
     setDrawerOpen(false);
@@ -1704,7 +1720,8 @@ export function AppHomeScreen() {
         onCreate={isAgentWeb ? openWebCreate : undefined}
         creating={creatingTenant ? 'tenant' : null}
         onRoleChange={handleRoleChange}
-        allowedRoles={isAuthenticated ? session?.roles : undefined}
+        allowedRoles={isAuthenticated ? portalSwitcherRoles(session?.roles) : undefined}
+        otherSiteRoles={isAuthenticated ? otherSiteRoles(session?.roles) : undefined}
         notificationsEmptyLabel={t.agent.dashboard.comingSoon}
         onSignOut={handleAuthAction}
         onSignOutEverywhere={isAuthenticated ? handleSignOutEverywhere : undefined}
@@ -1950,7 +1967,7 @@ export function AppHomeScreen() {
         onRoleChange={(role) => {
           handleRoleChange(role);
         }}
-        allowedRoles={isAuthenticated && session ? (session.roles as UserRole[]) : undefined}
+        allowedRoles={isAuthenticated && session ? portalSwitcherRoles(session.roles) : undefined}
         onSignOut={handleAuthAction}
         signOutLabel={isAuthenticated ? t.common.signOut : t.common.signIn}
         onMenuAction={(action) => {

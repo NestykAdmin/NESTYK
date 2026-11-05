@@ -10,4 +10,12 @@ export const webSessionEn: WebSessionCopy = {
   idleBody: 'No activity for almost 8 hours. You will be signed out on this device in {time}.',
   idleStay: 'Stay signed in',
   idleSignOut: 'Sign out',
+  noAccessTitle: 'This account cannot use this site yet',
+  noAccessBody: '{email} does not have access to this part of NESTYK.',
+  noAccessHint: 'Sign in with another account, or contact us if you think this is a mistake.',
+  noAccessSignOut: 'Sign in with another account',
+  noAccessSupport: 'Contact support',
+  noAccessHome: 'Go to home',
+  otherSite: 'Other site',
+  noAccessOpenRole: 'Go to {role}',
 };

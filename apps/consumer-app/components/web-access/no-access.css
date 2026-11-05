@@ -1,0 +1,90 @@
+/* /no-access page (route-access design, 5 Nov 2026). Web only. */
+.na-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: #f5f6f8;
+  font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
+  color: #1a2b48;
+}
+.na-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px 28px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+.na-card h1 {
+  margin: 24px 0 8px;
+  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.4;
+}
+.na-body {
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.na-hint {
+  margin: 0 0 24px;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.na-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.na-actions > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.na-primary {
+  border: 0;
+  background: #f8b615;
+  color: #211e1e;
+}
+.na-secondary:disabled,
+.na-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.na-secondary {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #1a2b48;
+}
+.na-actions > *:focus-visible {
+  outline: 2px solid #1a2b48;
+  outline-offset: 2px;
+}
+.na-support {
+  display: inline-block;
+  margin-top: 16px;
+  color: #475569;
+  font-size: 13px;
+}
+.na-support:focus-visible {
+  outline: 2px solid #1a2b48;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (max-width: 480px) {
+  .na-actions > * {
+    flex: 1 1 100%;
+  }
+}

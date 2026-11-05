@@ -10,4 +10,12 @@ export const webSessionZh: WebSessionCopy = {
   idleBody: '已近 8 小时没有操作。将在 {time} 后在本设备上退出登录。',
   idleStay: '保持登录',
   idleSignOut: '退出登录',
+  noAccessTitle: '此账户暂时无法使用本网站',
+  noAccessBody: '{email} 没有使用 NESTYK 此部分的权限。',
+  noAccessHint: '请使用其他账户登录；如认为有误，请联系我们。',
+  noAccessSignOut: '使用其他账户登录',
+  noAccessSupport: '联系客服',
+  noAccessHome: '返回首页',
+  otherSite: '其他网站',
+  noAccessOpenRole: '前往{role}',
 };

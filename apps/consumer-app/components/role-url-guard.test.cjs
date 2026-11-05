@@ -43,6 +43,8 @@ function setup({ roles, os = 'web', activeRole = 'guest' }) {
     canOpenRole: routes.canOpenRole,
     roleHomePath: routes.roleHomePath,
     landingRoleFor: (r) => routes.pickLandingRole(r),
+    // Portal "all" stand-in for lib/web-routes roleRedirect (portal rules: lib/route-access.test.cjs).
+    roleRedirect: (role, r) => (!r || routes.canOpenRole(role, r) ? null : routes.roleHomePath(routes.pickLandingRole(r))),
     getDefaultTabForRole: (role) => `${role}-home`,
     calendarDateKey: () => '2026-11-04',
   };
