@@ -98,6 +98,7 @@ import {
   roleRequiresAuth,
   setPendingRole,
 } from '../lib/auth/role-gate';
+import { ACCOUNT_DELETION_ENABLED, showAccountDeletion } from '../lib/account-deletion-flag';
 import { type AppRouteState, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
 import {
   landingRoleFor,
@@ -243,6 +244,8 @@ export function AppHomeScreen() {
   const clearClientsWorkFilter = useCallback(() => setClientsWorkFilter(null), []);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [deletionScheduledFor, setDeletionScheduledFor] = useState<string | null>(null);
+  // L5: delete account is hidden at launch (lib/account-deletion-flag.ts).
+  const accountDeletionMenu = showAccountDeletion(isAuthenticated, ACCOUNT_DELETION_ENABLED, deletionScheduledFor);
   const [pageRefreshing, setPageRefreshing] = useState(false);
   const refreshSequence = useRef(0);
   const pendingRefresh = useRef<number | null>(null);
@@ -1744,10 +1747,10 @@ export function AppHomeScreen() {
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
         onChangePassword={isAuthenticated ? changePassword : undefined}
-        onLoadAccountDeletion={isAuthenticated ? loadAccountDeletion : undefined}
-        onDeleteAccount={isAuthenticated ? deleteAccount : undefined}
-        onScheduleAccountDeletion={isAuthenticated ? scheduleAccountDeletion : undefined}
-        onCancelAccountDeletion={isAuthenticated ? cancelAccountDeletion : undefined}
+        onLoadAccountDeletion={accountDeletionMenu ? loadAccountDeletion : undefined}
+        onDeleteAccount={accountDeletionMenu ? deleteAccount : undefined}
+        onScheduleAccountDeletion={accountDeletionMenu ? scheduleAccountDeletion : undefined}
+        onCancelAccountDeletion={accountDeletionMenu ? cancelAccountDeletion : undefined}
         initials={profileInitials}
         notificationCount={unreadCount}
         notificationsOpen={notificationsOpen}
@@ -1963,10 +1966,10 @@ export function AppHomeScreen() {
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
         onChangePassword={isAuthenticated ? changePassword : undefined}
-        onLoadAccountDeletion={isAuthenticated ? loadAccountDeletion : undefined}
-        onDeleteAccount={isAuthenticated ? deleteAccount : undefined}
-        onScheduleAccountDeletion={isAuthenticated ? scheduleAccountDeletion : undefined}
-        onCancelAccountDeletion={isAuthenticated ? cancelAccountDeletion : undefined}
+        onLoadAccountDeletion={accountDeletionMenu ? loadAccountDeletion : undefined}
+        onDeleteAccount={accountDeletionMenu ? deleteAccount : undefined}
+        onScheduleAccountDeletion={accountDeletionMenu ? scheduleAccountDeletion : undefined}
+        onCancelAccountDeletion={accountDeletionMenu ? cancelAccountDeletion : undefined}
         captcha={passwordCaptchaRequired ? <HcaptchaField resetKey={passwordCaptchaKey} onToken={setPasswordCaptchaToken} /> : undefined}
         captchaRequired={passwordCaptchaRequired}
         captchaToken={passwordCaptchaToken}
