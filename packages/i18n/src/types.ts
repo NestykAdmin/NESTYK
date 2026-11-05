@@ -618,6 +618,8 @@ export interface TranslationSchema {
         sectionContracts: string;
         sectionBills: string;
         sectionPayments: string;
+        webOverview: string;
+        webSections: string;
         sectionAttachments: string;
         profileComplete: string;
         profileMissing: string;

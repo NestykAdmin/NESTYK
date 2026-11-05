@@ -36,3 +36,22 @@ test('table words exist in all four languages', () => {
     }
   }
 });
+
+// W5 (Mos 5 Nov 2026): tenant page side menu on the desktop web; same sections and state as the hub.
+test('the tenant page frame adds nothing on native and on phone-width web', () => {
+  assert.match(read('agent-web/TenantDetailFrame.tsx'), /return <>\{children\}<\/>;/);
+  const web = read('agent-web/TenantDetailFrame.web.tsx');
+  assert.match(web, /if \(!web\) return <>\{children\}<\/>;/);
+  assert.match(screen, /<TenantDetailFrame\s+web=\{webTables\}/);
+});
+
+test('the side menu lists the hub sections and changes section the same way as the hub', () => {
+  const web = read('agent-web/TenantDetailFrame.web.tsx');
+  for (const key of ['profile', 'room', 'contracts', 'bills', 'payments', 'attachments']) {
+    assert.match(web, new RegExp(`key: "${key}"`), key);
+  }
+  assert.match(web, /\{ key: null, icon: "grid", label: d\.webOverview \}/);
+  assert.match(web, /disabled=\{disabled && !current\}/);
+  assert.match(screen, /disabled=\{editing \|\| savingEdit\}/);
+  assert.match(screen, /onSection=\{\(next\) => \{[\s\S]{0,200}setContractStart\(null\);[\s\S]{0,200}setSection\(next\);/);
+});

@@ -625,6 +625,9 @@ export const en: TranslationSchema = {
         sectionContracts: 'Contracts',
         sectionBills: 'Bills',
         sectionPayments: 'Payments',
+        /** Agent web tenant page (W5, 5 Nov 2026): side menu. */
+        webOverview: 'Overview',
+        webSections: 'Tenant sections',
         sectionAttachments: 'Attachments',
         profileComplete: 'Phone, email, ID and nationality are complete',
         profileMissing: 'Not filled in: {fields}',

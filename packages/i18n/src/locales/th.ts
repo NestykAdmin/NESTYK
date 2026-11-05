@@ -625,6 +625,9 @@ export const th: TranslationSchema = {
         sectionContracts: 'สัญญา',
         sectionBills: 'บิล',
         sectionPayments: 'ข้อมูลชำระเงิน',
+        /** Agent web tenant page (W5, 5 Nov 2026): side menu. */
+        webOverview: 'ภาพรวม',
+        webSections: 'ส่วนข้อมูลผู้เช่า',
         sectionAttachments: 'เอกสารแนบ',
         profileComplete: 'เบอร์โทร อีเมล เลขบัตร สัญชาติ ครบแล้ว',
         profileMissing: 'ยังไม่ได้กรอก: {fields}',

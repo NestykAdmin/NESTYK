@@ -42,6 +42,7 @@ import { listAgentReminders } from "../lib/reminders-api";
 import { TenantDirectoryBody, type TenantDirectoryFilter } from "./TenantDirectoryBody";
 import { TenantWorkTable } from "./agent-web/TenantWorkTable";
 import { TenantDirectoryTable } from "./agent-web/TenantDirectoryTable";
+import { TenantDetailFrame } from "./agent-web/TenantDetailFrame";
 import { DetailCard, DetailField } from "./TenantDetailParts";
 import { FinancialDocumentForm } from "./FinancialDocumentForm";
 
@@ -509,7 +510,23 @@ export function AgentTenantsScreen({
       }
     };
     return (
-      <View style={s.root}>
+      <View style={[s.root, webTables && s.rootWide]}>
+        {/* W5 (Mos 5 Nov 2026): desktop web adds a side menu of the same sections; native renders the children only. */}
+        <TenantDetailFrame
+          web={webTables}
+          name={selected.name}
+          place={[selected.property, selected.room ? d.roomTitle.replace("{room}", selected.room) : null].filter(Boolean).join(" · ")}
+          section={section}
+          disabled={editing || savingEdit}
+          onSection={(next) => {
+            setError("");
+            setNotice("");
+            setContractStart(null);
+            setContractFocus(null);
+            setLateFeeReceipt(null);
+            setSection(next);
+          }}
+        >
         {!!notice && (
           <Text
             accessibilityRole="alert"
@@ -763,6 +780,7 @@ export function AgentTenantsScreen({
           </DetailCard>
         )}
         </Animated.View>
+        </TenantDetailFrame>
         <MobileBottomSheet visible={slipPreview != null} onClose={() => setSlipPreview(null)} maxHeight="90%">
           <View style={s.previewSheet}>
             <Text style={[s.subtitle, title]} numberOfLines={1}>
@@ -903,7 +921,7 @@ const s = StyleSheet.create({
     maxWidth: 760,
     alignSelf: "center",
   },
-  /** W3: the lists use the full page width in the desktop web shell (detail and form keep 760). */
+  /** W3/W5: the lists and the tenant page use the full page width in the desktop web shell (the create form keeps 760). */
   rootWide: { maxWidth: "100%" },
   subtitle: {
     fontFamily: tokens.typography.native.headingTh,

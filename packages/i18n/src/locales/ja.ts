@@ -625,6 +625,9 @@ export const ja: TranslationSchema = {
         sectionContracts: '契約',
         sectionBills: '請求',
         sectionPayments: '入金情報',
+        /** Agent web tenant page (W5, 5 Nov 2026): side menu. */
+        webOverview: '概要',
+        webSections: '入居者情報',
         sectionAttachments: '添付書類',
         profileComplete: '電話・メール・身分証番号・国籍は入力済み',
         profileMissing: '未入力: {fields}',

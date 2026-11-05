@@ -624,6 +624,9 @@ export const zh: TranslationSchema = {
         sectionContracts: '合同',
         sectionBills: '账单',
         sectionPayments: '付款记录',
+        /** Agent web tenant page (W5, 5 Nov 2026): side menu. */
+        webOverview: '概览',
+        webSections: '租客信息',
         sectionAttachments: '附件',
         profileComplete: '电话、邮箱、证件号、国籍已齐全',
         profileMissing: '缺少 {fields}',
