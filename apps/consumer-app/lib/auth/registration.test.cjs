@@ -29,6 +29,7 @@ function setup({ confirmation = false, signupError, syncError, testSignupError, 
       }
       calls.sync.push(route); if (syncError) throw syncError; return profile;
     }, setSessionExpiredHandler() {} },
+    '../agent-session': { noteProfileSync: () => {}, resetAgentSession: () => {} },
     './dev-auth': { DEV_AUTH_CONFIG: { enabled: false } },
     './session-expiry': {},
     './cross-tab': { markAuthEvent: () => {}, subscribeCrossTab: () => () => {}, takeExpiryNotice: () => false, clearExpiryNotice: () => {}, markFreshSignIn: () => {} },

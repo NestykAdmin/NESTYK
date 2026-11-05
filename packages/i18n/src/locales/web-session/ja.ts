@@ -18,7 +18,4 @@ export const webSessionJa: WebSessionCopy = {
   noAccessHome: 'ホームへ戻る',
   otherSite: '別サイト',
   noAccessOpenRole: '{role}へ移動',
-  narrowTitle: 'アプリの方が便利です',
-  narrowBody: 'このサイトは幅 768 px 以上の画面向けです。スマートフォンでは NESTYK アプリをご利用ください。',
-  narrowClose: '閉じる',
 };

@@ -62,3 +62,59 @@ test('a failed check is not cached: the next call syncs again', async () => {
     assert.deepEqual(s.posts.map((p) => p[0]), ['/auth/sync', '/auth/sync']);
   } finally { s.restore(); }
 });
+
+// T2 (5 Nov 2026): the agent check reuses the profile sync the sign-in code just made, and never another account's.
+function loadShared(roles) {
+  const posts = [];
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', '__DEV__', SOURCE)((id) => {
+    if (id === './api') return { apiPost: async (route, body) => { posts.push([route, body]); return { id: 1, email: 'a@example.test', roles }; } };
+    throw new Error(`Unexpected dependency: ${id}`);
+  }, mod, mod.exports, false);
+  return { ...mod.exports, posts };
+}
+
+test('a fresh profile sync from sign-in answers the agent check: no second POST /auth/sync', async () => {
+  const s = loadShared(['guest', 'agent']);
+  s.noteProfileSync(Promise.resolve({ id: 1, email: 'a@example.test', roles: ['guest', 'agent'] }));
+  assert.deepEqual((await s.ensureAgentSession()).roles, ['guest', 'agent']);
+  assert.deepEqual(s.posts, []);
+  await s.ensureAgentSession();
+  assert.deepEqual(s.posts, [], 'and it stays answered');
+});
+
+test('a sync that failed, or an older one, is not reused', async () => {
+  const s = loadShared(['guest', 'agent']);
+  s.noteProfileSync(Promise.reject(new Error('offline')));
+  await s.ensureAgentSession();
+  assert.deepEqual(s.posts.map((p) => p[0]), ['/auth/sync']);
+  const realNow = Date.now;
+  try {
+    const t = realNow();
+    Date.now = () => t;
+    const later = loadShared(['guest', 'agent']);
+    later.noteProfileSync(Promise.resolve({ id: 1, email: 'a@example.test', roles: ['guest', 'agent'] }));
+    Date.now = () => t + 31_000;
+    await later.ensureAgentSession();
+    assert.deepEqual(later.posts.map((p) => p[0]), ['/auth/sync'], 'older than 30 s');
+  } finally { Date.now = realNow; }
+});
+
+test('another account signing in on the same page is checked on its own answer; sign out forgets the old one', async () => {
+  const s = loadShared(['guest', 'agent']);
+  s.noteProfileSync(Promise.resolve({ id: 1, email: 'agent@example.test', roles: ['guest', 'agent'] }));
+  await s.ensureAgentSession();
+  s.noteProfileSync(Promise.resolve({ id: 2, email: 'tenant@example.test', roles: ['guest', 'tenant'] }));
+  await assert.rejects(() => s.ensureAgentSession(), (e) => e.code === s.AGENT_ROLE_REQUIRED);
+  s.noteProfileSync(Promise.resolve({ id: 1, email: 'agent@example.test', roles: ['guest', 'agent'] }));
+  await s.ensureAgentSession();
+  s.resetAgentSession();
+  await s.ensureAgentSession();
+  assert.deepEqual(s.posts.map((p) => p[0]), ['/auth/sync'], 'after sign out the next check asks the API');
+});
+
+test('wiring: every profile sync is noted, and sign out / expiry reset the agent check', () => {
+  const ctx = fs.readFileSync(path.join(__dirname, 'auth/AuthContext.tsx'), 'utf8');
+  assert.match(ctx, /const request = apiPost<AuthUserResponse>\('\/auth\/sync', \{\}, accessToken\);\n\s*noteProfileSync\(request\);/);
+  assert.equal((ctx.match(/resetAgentSession\(\);/g) || []).length, 2, 'endSession + session expiry');
+});

@@ -8,11 +8,45 @@ export type AuthSyncResponse = {
 
 let ensurePromise: Promise<AuthSyncResponse> | null = null;
 
+/** The newest profile sync the sign-in code made, so the agent check does not ask the API for the same thing again. */
+let recentSync: { at: number; promise: Promise<AuthSyncResponse> } | null = null;
+const RECENT_SYNC_MS = 30_000;
+
+/**
+ * AuthContext calls this for every POST /auth/sync it makes (restore on page load, sign-in, refresh). The next agent
+ * check reuses that answer while it is fresh: one request fewer per page load. A new sync also drops the previous
+ * agent check, so a different account signing in on the same page is checked again (T2, 5 Nov 2026).
+ */
+export function noteProfileSync(promise: Promise<AuthSyncResponse>): void {
+  recentSync = { at: Date.now(), promise };
+  ensurePromise = null;
+  promise.catch(() => {
+    if (recentSync?.promise === promise) recentSync = null;
+  });
+}
+
+/** Sign out or expiry: nothing about the old account is reused. */
+export function resetAgentSession(): void {
+  recentSync = null;
+  ensurePromise = null;
+}
+
+async function currentSync(): Promise<AuthSyncResponse> {
+  if (recentSync && Date.now() - recentSync.at < RECENT_SYNC_MS) {
+    try {
+      return await recentSync.promise;
+    } catch {
+      // The earlier request failed: ask again below.
+    }
+  }
+  return apiPost<AuthSyncResponse>('/auth/sync', {});
+}
+
 /** AGENT_ROLE_REQUIRED: the signed-in account has no agent role (e.g. a tenant who typed an /agent URL). */
 export const AGENT_ROLE_REQUIRED = 'AGENT_ROLE_REQUIRED';
 
 async function syncAndGrantAgent(): Promise<AuthSyncResponse> {
-  const synced = await apiPost<AuthSyncResponse>('/auth/sync', {});
+  const synced = await currentSync();
   if (synced.roles?.includes('agent')) {
     return synced;
   }

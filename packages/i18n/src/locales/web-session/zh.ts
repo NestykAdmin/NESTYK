@@ -18,7 +18,4 @@ export const webSessionZh: WebSessionCopy = {
   noAccessHome: '返回首页',
   otherSite: '其他网站',
   noAccessOpenRole: '前往{role}',
-  narrowTitle: '使用应用更方便',
-  narrowBody: '本网站适用于宽度 768 px 及以上的屏幕。在手机上请使用 NESTYK 应用。',
-  narrowClose: '知道了',
 };

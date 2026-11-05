@@ -18,7 +18,4 @@ export const webSessionEn: WebSessionCopy = {
   noAccessHome: 'Go to home',
   otherSite: 'Other site',
   noAccessOpenRole: 'Go to {role}',
-  narrowTitle: 'Easier in the app',
-  narrowBody: 'This site is made for screens 768 px and wider. On a phone, use the NESTYK app.',
-  narrowClose: 'Got it',
 };
