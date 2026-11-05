@@ -4,4 +4,6 @@ test-results/
 playwright-report/
 playwright-report-write/
 test-results-write/
+playwright-report-web-ui/
+test-results-web-ui/
 blob-report/
