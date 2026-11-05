@@ -50,6 +50,12 @@ export interface Labels {
     resetSend: string;
     /** ปุ่มกลับหน้า login ของหน้ารีเซ็ตรหัสผ่าน (หน้าสมัครสมาชิกใช้ข้อความเดียวกัน) */
     backToLogin: string;
+    /** ข้อความเมื่ออีเมลไม่ถูกรูปแบบ (รวมช่องว่าง) ของหน้ารีเซ็ตรหัสผ่าน (หน้าสมัครสมาชิกใช้ข้อความเดียวกัน) */
+    invalidEmail: string;
+    /** ข้อความเมื่อส่งฟอร์มสมัครสมาชิกที่ยังกรอกไม่ครบ */
+    registrationRequiredFields: string;
+    /** ปุ่มสร้างบัญชีของหน้าสมัครสมาชิก */
+    registerButton: string;
   };
   settings: {
     language: string;

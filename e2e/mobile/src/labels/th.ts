@@ -28,6 +28,9 @@ export const th: Labels = {
     resetTitle: 'ลืมรหัสผ่าน', // mobile.auth.resetTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 342 ไม่ได้เทียบด้วยสคริปต์)
     resetSend: 'ส่งรหัส', // mobile.auth.resetSend (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 343 ไม่ได้เทียบด้วยสคริปต์)
     backToLogin: 'กลับไปเข้าสู่ระบบ', // mobile.auth.backToLogin (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 315 ไม่ได้เทียบด้วยสคริปต์)
+    invalidEmail: 'กรอกอีเมลให้ถูกต้อง', // mobile.auth.invalidEmail (เทียบด้วยสคริปต์ที่ qa/e2e d5f9773 เมื่อ 5 พ.ย. 2026)
+    registrationRequiredFields: 'กรอกชื่อ นามสกุล เบอร์โทร อีเมล รหัสผ่าน และยืนยันรหัสผ่านให้ครบ', // mobile.auth.registrationRequiredFields (เทียบด้วยสคริปต์ที่ d5f9773)
+    registerButton: 'สร้างบัญชี', // mobile.auth.registerButton (เทียบด้วยสคริปต์ที่ d5f9773)
   },
   settings: {
     language: 'ภาษา', // mobile.settings.language
