@@ -323,7 +323,7 @@ E2E_ALLOW_WRITES=yes npm run test:write
 
 ## เทส UI เว็บ consumer-app
 
-เทสหน้าเว็บของ `apps/consumer-app` (Expo / react-native-web ที่เปิดด้วย `npm run web` พอร์ต 8081) อยู่ใน `tests/web-ui` แยกไฟล์ค่าตั้งเป็น `playwright.web-ui.config.ts` และรันด้วย `npm run test:web-ui` เท่านั้น (`npm test` ไม่รันชุดนี้) เคสทั้งหมดมาจากการเทสด้วยมือเมื่อ 4 พ.ย. 2026 ที่ qa/e2e `efab8d0` (ผลเต็มอยู่ในเอกสารโปรเจกต์ `nestyk-web-test-results-for-dev-2026-11-04.md`) ชุดนี้ไม่ใช่เทสของ `apps/web` (พอร์ต 3000)
+เทสหน้าเว็บของ `apps/consumer-app` (Expo / react-native-web ที่เปิดด้วย `npm run web` พอร์ต 8081) อยู่ใน `tests/web-ui` แยกไฟล์ค่าตั้งเป็น `playwright.web-ui.config.ts` และรันด้วย `npm run test:web-ui` เท่านั้น (`npm test` ไม่รันชุดนี้) เคสชุดแรกมาจากการเทสด้วยมือเมื่อ 4 พ.ย. 2026 ที่ qa/e2e `efab8d0` (ผลเต็มอยู่ในเอกสารโปรเจกต์ `nestyk-web-test-results-for-dev-2026-11-04.md`) ส่วนเทส flow ของหน้างานแบบอ่านอย่างเดียวเพิ่ม 6 พ.ย. 2026 (ดูหัวข้อ "เคสในชุดนี้") ชุดนี้ไม่ใช่เทสของ `apps/web` (พอร์ต 3000)
 
 ### สิ่งที่ต้องมีก่อนรัน
 
@@ -333,9 +333,10 @@ E2E_ALLOW_WRITES=yes npm run test:write
 
 ```bash
 read -s E2E_QA_TENANT_PASSWORD && export E2E_QA_TENANT_PASSWORD
+read -s E2E_QA_LANDLORD_PASSWORD && export E2E_QA_LANDLORD_PASSWORD
 read -s E2E_QA_AGENT_PASSWORD && export E2E_QA_AGENT_PASSWORD
 # หลังรันเสร็จ
-unset E2E_QA_TENANT_PASSWORD E2E_QA_AGENT_PASSWORD E2E_QA_ADMIN_PASSWORD
+unset E2E_QA_TENANT_PASSWORD E2E_QA_LANDLORD_PASSWORD E2E_QA_AGENT_PASSWORD E2E_QA_ADMIN_PASSWORD
 ```
 
 - build ของเว็บต้องไม่ตั้ง `EXPO_PUBLIC_HCAPTCHA_SITE_KEY` (ถ้าตั้ง หน้า login ต้องยืนยันว่าไม่ใช่บอท ตัวช่วยล็อกอินจะหยุดพร้อมบอกสาเหตุ)
@@ -347,8 +348,10 @@ unset E2E_QA_TENANT_PASSWORD E2E_QA_AGENT_PASSWORD E2E_QA_ADMIN_PASSWORD
 | `E2E_CONSUMER_WEB_URL` | `http://localhost:8081` | ที่อยู่ของเว็บ consumer-app |
 | `E2E_WEB_API_ORIGIN` | `https://nestyk-dev.up.railway.app` | API ที่เว็บต้องเรียก คำขอ `/api/...` ที่ไปที่อื่นถูกตัด ต้องเป็น https ไม่ใช่เครื่องนี้หรือเครื่องในวง LAN และชื่อเครื่องต้องอยู่ใน `ALLOWED_API_HOSTS` ของ `src/web-ui/web-ui-env.ts` (ตอนนี้มีแค่ `nestyk-dev.up.railway.app` เพราะ tunnel ที่ชี้กลับมาเครื่องนี้ เช่น ngrok ตรวจจากชื่อไม่ได้) ไม่อย่างนั้น global-setup หยุดทั้งชุด |
 | `E2E_QA_TENANT_PASSWORD` | ไม่ตั้ง (ข้อที่ใช้บัญชีนี้ข้าม) | รหัสผ่านของ `qa-tenant@nestyk.test` |
+| `E2E_QA_LANDLORD_PASSWORD` | ไม่ตั้ง (ข้อผู้ให้เช่าใน `party-pages.spec.ts` ข้าม) | รหัสผ่านของ `qa-landlord@nestyk.test` |
 | `E2E_QA_AGENT_PASSWORD` | ไม่ตั้ง (ข้อที่ใช้บัญชีนี้ข้าม) | รหัสผ่านของ `qa-agent@nestyk.test` |
 | `E2E_QA_ADMIN_PASSWORD` | ไม่ตั้ง (ข้อของบั๊ก 8 ข้าม) | รหัสผ่านของ `qa-admin@nestyk.test` |
+| `E2E_WEB_BILL_READS` | global-setup ตั้งให้เอง | `allowed` = ตัวกันปล่อย GET บิล 4 เส้นทางผ่าน ค่าอื่น = ตัด (ดู "กฎความปลอดภัย" ข้อบิล) ตั้ง `blocked` เองก่อนรันได้ถ้าจะตัดโดยไม่ตรวจรุ่นของ API ส่วน `allowed` ที่ตั้งเองไม่ถูกเชื่อ global-setup ตรวจใหม่ทุกครั้ง |
 
 `E2E_QA_EMAIL_DOMAIN` ใช้ร่วมกับชุด API (ดูหัวข้อตัวแปรแวดล้อมด้านบน) ชุดนี้ไม่ใช้ uuid ของบัญชี QA
 
@@ -379,11 +382,16 @@ unset E2E_QA_TENANT_PASSWORD E2E_QA_AGENT_PASSWORD E2E_QA_ADMIN_PASSWORD
 เส้นทางบิลที่ออกบิล ถูกตัดไว้โดยไม่ทำให้เทสไม่ผ่าน (ข้อสังเกตของ test-reviewer):
 - ตั้งแต่ `d2d4554` แอปเรียก `POST /bills/mine/refresh` และ `POST /bills/received/refresh` ก่อนอ่านบิลทุกครั้ง 2 เส้นทางนี้ออกบิลจริง จึงถูกตัดทุกข้อ (ชนิด `bill-write`) แอปอ่านบิลต่อโดยไม่แจ้ง error
 - งานออกบิลตั้งเวลา 00:05 เวลากรุงเทพทุกวัน (`apps/api/src/billing/tenant-billing.scheduler.ts:13` ที่ qa/e2e `a02e532`) และทีมตอบ 6 พ.ย. 2026 ว่า Railway dev ตั้ง `DISABLE_SCHEDULED_JOBS=false` งานนี้จึงทำงานบน staging (อนุมาน: บิลที่ถึงกำหนดของบัญชี QA บน staging ออกได้เองแม้ชุดนี้ตัด refresh ไว้ ถ้าบัญชีนั้นมีสัญญาที่ออกบิลได้)
-- เส้นทาง GET ด้านล่างอ่านอย่างเดียวตั้งแต่ `d2d4554` แต่ API รุ่นก่อนสร้างบิลก่อนตอบ ชุดเทสรู้รุ่นของ API ไม่ได้ จึงยังตัดไว้
+- เส้นทาง GET ด้านล่างอ่านอย่างเดียวตั้งแต่ `d2d4554` แต่ API รุ่นก่อนสร้างบิลก่อนตอบ จึงตัดไว้เป็นค่าเริ่มต้น และปล่อยผ่านเฉพาะเมื่อ global-setup ตรวจรุ่นแล้ว (ข้อ "GET บิล" ด้านล่าง)
 - `GET /bills/mine`, `/bills/mine/next` (`ensureForUser`: `apps/api/src/billing/tenant-billing.service.ts:335-340, 422-435` ที่ develop `bc77a8b`), `/bills/agent/tenants/:id` (`:588-604`) และ `/bills/received` (`ensureForOwner`: `:478-480`) ตั้งแต่ `d2d4554` 3 จุดหลังไม่เรียก ensure แล้ว
-- หน้าแรกของ tenant เรียก `/bills/mine/next` ทันทีที่ล็อกอิน ถ้าไม่ตัด และฐานข้อมูลของ staging เป็นของทีม บิลของผู้เช่าที่ผูกกับ qa-tenant จะถูกสร้างจริง หน้าบิลของผู้เช่าในชุดนี้จึงขึ้นว่าโหลดไม่สำเร็จ ซึ่งเป็นเรื่องปกติ
+- หน้าแรกของ tenant เรียก `/bills/mine/next` ทันทีที่ล็อกอิน ถ้าไม่ตัด และฐานข้อมูลของ staging เป็นของทีม บิลของผู้เช่าที่ผูกกับ qa-tenant จะถูกสร้างจริง เมื่อ `E2E_WEB_BILL_READS` ไม่ใช่ `allowed` หน้าบิลของผู้เช่าในชุดนี้จึงขึ้นว่าโหลดไม่สำเร็จ ซึ่งเป็นเรื่องปกติ ถ้าเป็น `allowed` แล้วยังขึ้นว่าโหลดไม่สำเร็จ แปลว่ามีปัญหาจริง
 - เทสข้อความดิบ "Required role: landlord" ให้หน้าได้คำตอบ 403 ของ `/bills/received` จริง ข้อนั้นจึงตรวจก่อนว่าบัญชีไม่มีบทบาท landlord (RolesGuard ตอบ 403 ก่อนถึงขั้นสร้างบิล) แล้วจึงเปิดให้เส้นทางนี้ผ่านเฉพาะข้อนั้น (`guard.allowOwnerBills()`) และตรวจว่าคำตอบที่ได้เป็น 403 ทุกครั้ง
-- ตั้งแต่ `648dd28` tenant ที่พิมพ์ URL ของบทบาทอื่นถูกพาไป `/tenant` หน้าแรกนี้มีการ์ดบิลถัดไปที่เรียก `POST /bills/mine/refresh` กับ `GET /bills/mine/next` (`lib/tenant-bills-api.ts:27-30`) ทั้ง 2 คำขอถูกตัดตามกติกาด้านบน การ์ดจึงขึ้นว่าโหลดไม่สำเร็จ ซึ่งเป็นเรื่องปกติของชุดนี้
+- ตั้งแต่ `648dd28` tenant ที่พิมพ์ URL ของบทบาทอื่นถูกพาไป `/tenant` หน้าแรกนี้มีการ์ดบิลถัดไปที่เรียก `POST /bills/mine/refresh` กับ `GET /bills/mine/next` (`lib/tenant-bills-api.ts:27-30`) POST ถูกตัดเสมอ ส่วน GET ถูกตัดเมื่อ `E2E_WEB_BILL_READS` ไม่ใช่ `allowed` การ์ดจึงขึ้นว่าโหลดไม่สำเร็จ ซึ่งเป็นเรื่องปกติในกรณีนั้นเท่านั้น
+- GET บิล (ตั้งแต่ 6 พ.ย. 2026): ก่อนเริ่มทั้งชุด global-setup ส่ง `POST /bills/mine/refresh` ไป staging โดยไม่แนบ token
+  - ได้ 401: API มีเส้นทาง refresh แล้ว (รุ่นตั้งแต่ `d2d4554`) ซึ่ง GET บิลอ่านอย่างเดียว คำขอถูก AuthGuard ปฏิเสธก่อนถึงโค้ดของเส้นทาง (`bill-refresh.controller.ts:14-15`) จึงไม่เขียนอะไร ตัวกันจึงปล่อย `GET /bills/mine`, `/bills/mine/next`, `/bills/received`, `/bills/agent/tenants/<เลข>` ผ่าน
+  - ได้ค่าอื่น (404 = รุ่นเก่า, เครือข่ายล้ม) ตัดต่อเหมือนเดิม และข้อที่ต้องอ่านบิลจริงใน `party-pages.spec.ts` ข้าม
+  - ตรวจโค้ด API ที่ `a02e532` แล้วว่า `listMine`, `nextForUser`, `listReceived`, `listForAgentTenant` ไม่มีคำสั่งเขียน (`tenant-billing.service.ts:435-500, 598-640`) ส่วน `POST .../refresh` ยังถูกตัดทุกครั้งไม่ว่าผลการตรวจจะเป็นอะไร
+  - บรรทัด `[เทส UI เว็บ] GET บิล: ...` ตอนเริ่มรันบอกผลการตรวจ
 
 ### รหัสผ่านกับรายงาน
 
@@ -404,7 +412,7 @@ unset E2E_QA_TENANT_PASSWORD E2E_QA_AGENT_PASSWORD E2E_QA_ADMIN_PASSWORD
 หลังรันทุกรอบที่มีข้อไม่ผ่าน ให้นับว่ารหัสผ่านอยู่ในไฟล์ผลกี่ครั้ง (ต้องได้ 0 ทุกบรรทัด) คำสั่งนี้พิมพ์แค่จำนวน และส่งรหัสให้ grep ทางไฟล์ชั่วคราวของ shell (`-f <(...)`) จึงไม่ปรากฏในรายการโปรเซส ส่วนข้อมูลที่บีบอัดอยู่ใน `index.html` ค้นด้วย grep ไม่ได้ ข้อนั้นอาศัยข้อ 1 ด้านบน
 
 ```bash
-for v in "$E2E_QA_TENANT_PASSWORD" "$E2E_QA_AGENT_PASSWORD" "$E2E_QA_ADMIN_PASSWORD"; do [ -n "$v" ] && grep -rFo -f <(printf '%s\n' "$v") test-results-web-ui playwright-report-web-ui/data 2>/dev/null | wc -l; done
+for v in "$E2E_QA_TENANT_PASSWORD" "$E2E_QA_LANDLORD_PASSWORD" "$E2E_QA_AGENT_PASSWORD" "$E2E_QA_ADMIN_PASSWORD"; do [ -n "$v" ] && grep -rFo -f <(printf '%s\n' "$v") test-results-web-ui playwright-report-web-ui/data 2>/dev/null | wc -l; done
 ```
 
 ### เคสในชุดนี้
@@ -419,6 +427,18 @@ for v in "$E2E_QA_TENANT_PASSWORD" "$E2E_QA_AGENT_PASSWORD" "$E2E_QA_ADMIN_PASSW
 | `reset-password.spec.ts` | ขั้นอีเมล (เฉพาะอีเมลที่ไม่ผ่านรูปแบบ ไม่ส่งอีเมลจริง) ลิงก์ปลอม และฟอร์มตั้งรหัสใหม่ |
 | `public-pages.spec.ts` | footer ของ 6 หน้า ลิงก์เปิดแท็บใหม่ หน้ากฎหมาย การสลับ 4 ภาษา และการสมัครที่ไม่ติ๊กยอมรับเงื่อนไข |
 | `agent-workspace.spec.ts` | ธีมมืด จอกว้าง 700px และเมนู Create |
+| `agent-leads.spec.ts` | หน้าลีด: แถวและตัวนับตรงกับคำตอบ ชิป All กับ total ชิปสถานะ 5 ตัว ค้น เรียง หน้าถัดไป เปิดรายละเอียดแล้วกลับ และ `?q=` ใน URL |
+| `agent-rooms.spec.ts` | หน้าห้อง: แถวและตัวนับ กรองสถานะ Available ค้น เรียงตามค่าเช่า มุมมอง Cards หลังโหลดใหม่ และหน้าต่างรายละเอียดกับ Esc (ไม่ใช่ไฟล์ชื่อเดียวกันใน `tests/api`) |
+| `agent-dashboard.spec.ts` | การ์ดตัวเลข 4 ใบเทียบกับ `GET /agent/dashboard` การ์ดพาไปหน้ารายการ (จดตัวเลขของหน้ารายการไว้ใน annotation ยังไม่ตรวจ) และหน้า Coming soon 3 หน้า |
+| `agent-tenants-calendar.spec.ts` | ผู้เช่าของนายหน้า: แท็บ All tenants ตัวนับ ค้นในหน้าเว็บ รายละเอียดและกล่องบิล ; ปฏิทิน: `?date=` และช่วงของ `GET /agent/viewings` |
+| `party-pages.spec.ts` | ผู้เช่า: สัญญา หน้า `/tenant/home` ปุ่ม Payment history หน้าบิลและการ์ดบิลถัดไป ; ผู้ให้เช่า: สัญญา ประวัติผู้เช่า การ์ด Confirmed rent รายได้ และข้อความเมื่อโหลดบิลไม่ได้ |
+
+ไฟล์ `agent-*.spec.ts` กับ `party-pages.spec.ts` (เพิ่ม 6 พ.ย. 2026 ตามแผน `claude/nestyk-web-flows-readonly-plan-2026-11-06.md` ในโปรเจกต์ QA NESTYK) อ่านอย่างเดียวทั้งหมด
+- ค่าที่คาดเทียบกับคำตอบของ API ในรอบเดียวกัน (`src/web-ui/support/api.ts` รอคำตอบด้วย `waitForResponse`) เพราะข้อมูลของบัญชี QA ใน staging เปลี่ยนได้ทุกวัน ข้อที่ต้องมีข้อมูล (เช่น มีลีดเกิน 20 ราย) ข้ามพร้อมเหตุผลเมื่อไม่มี
+- **ข้อมูลส่วนตัว**: ตารางลีดและผู้เช่าแสดงชื่อและเบอร์ของลูกค้าจริง แดชบอร์ดแสดงชื่อผู้ติดต่อ และหน้าบิลแสดงชื่อผู้เช่า ไฟล์ใหม่ทั้ง 5 ไฟล์ยกเว้น `agent-rooms.spec.ts` จึงปิดภาพหน้าจอ แต่ข้อที่ไม่ผ่านยังมี `error-context.md` ที่มีข้อความบนหน้า ห้าม commit หรือแนบส่งต่อ
+  - ข้อค้นของหน้าลีดใช้คำแรกของชื่อลีดแถวแรกเป็นคำค้น จึงใส่ด้วย `setInputValueHidden` (`fill` บันทึกค่าในชื่อขั้นของรายงาน HTML) และตรวจค่าในช่องค้นแบบไม่พิมพ์คำนั้นในข้อความ error
+  - คำค้นยังอยู่ใน URL ของคำขอ `GET /agent/leads?q=` ซึ่งรายงานไม่ได้เก็บ (ปิด trace ไว้) ห้ามรันไฟล์นี้ด้วย `--trace on`
+- ข้อที่ทำให้บิลโหลดไม่ได้ใช้ `page.route` ตัดคำขอเองในเบราว์เซอร์ จึงไม่มีคำขอนั้นออกไปที่ staging
 
 เทสการหมดเวลาตั้ง `nestyk.web.lastActivity` ให้ย้อนหลังแทนการรอ 8 ชั่วโมงจริง (`src/web-ui/support/idle.ts`)
 - ข้อที่ไม่โหลดหน้าใหม่ ส่ง `visibilitychange` ให้ตัวตรวจทำงานทันที
@@ -442,6 +462,9 @@ for v in "$E2E_QA_TENANT_PASSWORD" "$E2E_QA_AGENT_PASSWORD" "$E2E_QA_ADMIN_PASSW
 | 8 ตัวเลขในหน้า `/admin` | แก้แล้ว | การ์ดแสดง "Admin home" กับ "Coming soon" ในการ์ดไม่มีตัวเลข และไม่มี "Operations Dashboard" หรือ "Pending tickets: 3" บนหน้า (ต้องตั้ง `E2E_QA_ADMIN_PASSWORD`) |
 | 9 ตัวพิมพ์ใหญ่ใน URL | แก้แล้ว | `/Login` ไป `/login`, `/Privacy` ไป `/privacy` |
 | 10 เมนู Create | แก้แล้ว | เปิดเมนูแล้วโฟกัสอยู่ที่รายการแรก กด Esc โฟกัสกลับปุ่ม Create / คลิกข้างนอกแค่ปิดเมนู และคลิกถัดไปทำงานตามปกติ |
+| ข้อสงสัย 1 ของแผน 6 พ.ย.: `/tenant/home` แสดงสัญญาตัวอย่าง | known-bug (รอผลรันยืนยัน) | ไม่มี "The Base Sukhumvit 77 (Room 1804)" บนหน้า (ข้อความนี้เขียนตรงใน `app/index.tsx:1215`) |
+| ข้อสงสัย 2: การ์ด Confirmed rent | known-bug (รอผลรันยืนยัน) | เมื่อ `GET /bills/received` ล้ม ต้องไม่ขึ้นข้อความว่าง "Rent appears here after the agent confirms the slip." พร้อมข้อความผิดพลาด (`OwnerConfirmedRent.tsx:73-74`) |
+| ข้อสงสัย 3: ข้อความผิดพลาดเครือข่าย | known-bug 2 ข้อ (รอผลรันยืนยัน) | หน้าบิลของผู้เช่าต้องขึ้น "Could not load bills" / การ์ดของผู้ให้เช่าต้องไม่ขึ้น "Failed to fetch" (`localizedError` ส่งข้อความภาษาอังกฤษต่อเมื่อภาษาเป็น en: `packages/i18n/src/error-message.ts:40-43`) |
 | ออกจากระบบข้ามแท็บ (พบ 6 พ.ย. ไม่มีเลขในเอกสาร 4 พ.ย.) | known-bug 2 ข้อ | แท็บที่กด Sign Out ต้องไปหน้า login / แท็บอื่นต้องไม่ขึ้น "Your session has expired" ถ้าข้อใดแดงว่า "Expected to fail, but passed" แปลว่าทีมแก้แล้ว ให้ดูว่าข้อ 'signing out in one tab sends the other tab to the login page' ยังผ่านก่อนเอา `test.fail` ออก (ดู "ข้อควรรู้" ด้านล่าง) |
 
 #### บั๊กที่ทีมแก้แล้ว

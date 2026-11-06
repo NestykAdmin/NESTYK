@@ -58,6 +58,100 @@ export const EN = {
 } as const;
 
 /**
+ * ข้อความของหน้างาน (flow) ที่เทสอ่านอย่างเดียวใช้ (tests/web-ui/agent-*.spec.ts, party-pages.spec.ts)
+ * ที่มาเดียวกับ EN: packages/i18n/src/locales/en.ts ที่ 648dd28 (เท่ากับ qa/e2e d6370ee) คอมเมนต์คือ key และเลขบรรทัด
+ *   ตรวจค่าตาม key ด้วยการโหลดไฟล์ locale จริง และหาเลขบรรทัดจากโครงไฟล์ (ห้องทดลอง 6 พ.ย. 2026)
+ * ข้อความที่มี {count} {from} ใช้กับ fill() ด้านล่าง
+ */
+export const FLOW = {
+  // หน้าลีด (components/agent-web/AgentLeadsPage.web.tsx)
+  leadsCount: '{count} leads', // agent.leads.count :896 (ตัวนับ aria-live ของแถบเครื่องมือ)
+  leadsSearch: 'Search name, phone or location', // agent.leads.search :894 (aria-label ของช่องค้น)
+  leadsSort: 'Sort by', // agent.leads.sortTitle :944 (aria-label ของตัวเลือกการเรียง)
+  leadsStatusGroup: 'Filter by status', // agent.leads.statusFilter :936 (role=group ของชิปสถานะ)
+  leadsStatusAll: 'All', // agent.leads.statusAll :934
+  leadStatus: {
+    new: 'Normal', // agent.leads.statuses.new :928
+    inprogress: 'In care', // agent.leads.statuses.inprogress :929
+    lost: 'Not proceeding', // agent.leads.statuses.lost :930
+    booked: 'Booked', // agent.leads.statuses.booked :931
+    viewing: 'Viewing booked', // agent.leads.statuses.viewing :932
+  },
+  back: 'Back', // agent.createRoom.back :1492 (ปุ่มกลับของหัวหน้าย่อย AgentSectionHeader.web.tsx:33 และ AgentRoomDetailModal.web.tsx:165)
+
+  // ตัวแบ่งหน้า (ใช้ร่วมกันทั้งลีดและห้อง)
+  pagerNav: 'Pages', // agent.listings.web.pages :1970
+  pageRange: '{from}–{to} of {total}', // agent.listings.web.pageRange :1967
+  nextPage: 'Next page', // agent.listings.web.nextPage :1969
+
+  // หน้าห้อง (components/agent-web/AgentRoomsPage.web.tsx)
+  roomsCount: '{count} rooms', // agent.listings.results :1987
+  roomsSearch: 'Search rooms', // agent.listings.searchRooms :1984
+  roomsAvailability: 'Availability', // agent.listings.filterAvailability :2039 (aria-label ของตัวเลือกสถานะห้อง)
+  roomAvailable: 'Available', // agent.listings.available :1996 (ป้ายสถานะ available: roomStatusText ใน lib/agent-room-filters.ts:141-142)
+  roomsTableLabel: 'Room listings', // agent.listings.web.tableLabel :1976 (aria-label ของตารางและรายการการ์ด)
+  roomsViewTable: 'Table', // agent.listings.web.viewTable :1971
+  roomsViewCards: 'Cards', // agent.listings.web.viewCards :1972
+  sortBy: 'Sort by {column}', // agent.dashboard.webStates.sortBy :2107 (ปุ่มหัวคอลัมน์ WebTable.tsx:227)
+  colPrice: 'Rent / month', // agent.listings.web.colPrice :1964
+  roomDetails: 'Room details', // agent.listings.details :1990 (หัวเรื่อง h1 ของหน้าต่างรายละเอียดห้อง)
+
+  // แดชบอร์ด (components/agent-web/AgentOverview.web.tsx:225-268)
+  kpiAvailableListings: 'Available listings', // agent.dashboard.availableListings :2115
+  kpiOpenLeads: 'Open leads', // agent.dashboard.openLeads :2117
+  kpiCurrentTenants: 'Current tenants', // agent.dashboard.currentClients :2118
+  kpiViewingsToday: 'Viewings today', // agent.dashboard.webOverview.viewingsToday :2083
+  kpiLoadFailed: 'Unable to load data', // agent.dashboard.webOverview.loadFailed :2085
+  unavailableSection: 'Coming soon', // agent.dashboard.unavailableSection :2162 (ข้อความใต้หัวเรื่องของหน้า Coming soon: index.tsx:1366-1367)
+
+  // ผู้เช่าของนายหน้า (components/AgentTenantsScreen.tsx, agent-web/TenantDirectoryTable.web.tsx)
+  tenantsTabWork: 'To do', // agent.tenants.list.tabWork :768
+  tenantsTabAll: 'All tenants', // agent.tenants.list.tabAll :769
+  tenantsShowing: 'Showing {shown} of {total}', // agent.tenants.list.showing :820
+  tenantsSlipsLoadError: 'Could not load slips to review', // agent.tenants.list.slipsLoadError :824 (AgentTenantsScreen.tsx:176 เมื่อ GET /bills/agent/tenants/:id ล้ม)
+
+  // ปฏิทิน (components/AgentCalendarScreen.tsx copy = t.agent.calendar)
+  calendarLoadError: 'Unable to load appointments. Please try again.', // agent.calendar.loadError :493
+
+  // บิล (components/TenantBillsScreen.tsx, TenantNextBillCard.tsx, OwnerConfirmedRent.tsx)
+  tenantBillsEmpty: 'No bills yet', // tenant.bills.empty :441
+  tenantBillsLoadFailed: 'Could not load bills', // tenant.bills.loadFailed :443
+  tenantNoUpcomingBill: 'No upcoming bill', // tenant.bills.noUpcoming :421
+  ownerIncomeEmpty: 'No rental income yet', // owner.bills.empty :478
+  ownerLoadFailed: 'Could not load income', // owner.bills.loadFailed :480
+  ownerConfirmedTitle: 'Confirmed rent', // owner.bills.confirmedTitle :483
+  ownerConfirmedEmpty: 'Rent appears here after the agent confirms the slip.', // owner.bills.confirmedEmpty :484
+  tenantHomeTitle: 'Tenant home', // mobile.roleHome.tenantTitle :46
+  tenantNextBill: 'Next bill', // tenant.bills.next :417 (หัวการ์ดบิลถัดไปเมื่อมีบิล: TenantNextBillCard.tsx:64)
+  rentFor: 'Rent {month}', // tenant.bills.rentFor :399 (owner.bills.rentFor :462 ค่าเดียวกัน) ชื่อของแต่ละบิล
+  landlordHomeTitle: 'Landlord home', // mobile.roleHome.landlordTitle :47
+} as const;
+
+/**
+ * ข้อความของหน้าผู้เช่าและผู้ให้เช่า ที่ไม่อยู่ใน packages/i18n: apps/consumer-app/lib/tenant-workspace-copy.ts (ภาษา en เริ่มที่ :99) ที่ 648dd28
+ */
+export const PARTY_COPY = {
+  emptyContracts: 'No contracts delivered to this account yet', // emptyContracts :180
+  emptyTenantHistory: 'No tenant history yet', // emptyTenantHistory :142
+  paymentHistory: 'Payment history', // paymentHistory :150 (ปุ่มบนหัวหน้าบิล app/index.tsx:1887)
+} as const;
+
+/**
+ * ข้อความที่เขียนตรงในโค้ด ไม่ผ่าน i18n (apps/consumer-app/app/index.tsx ที่ 648dd28) ใช้ตรวจว่าไม่ควรอยู่บนหน้า
+ */
+export const HARDCODED = {
+  /** หน้า /tenant/home (แท็บ living) แสดงสัญญาเช่าตัวอย่างนี้ให้ทุกบัญชี: index.tsx:1215 */
+  sampleLease: 'The Base Sukhumvit 77 (Room 1804)',
+  /** ข้อความตัวอย่างของหน้า contact และ contracts ของนายหน้าก่อนขึ้น Coming soon: index.tsx:1378, :1390 */
+  mockMarker: '(mock',
+} as const;
+
+/** แทนค่า {ชื่อ} ในข้อความ เช่น fill(FLOW.leadsCount, { count: '12' }) */
+export function fill(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, key: string) => (key in values ? String(values[key]) : whole));
+}
+
+/**
  * ข้อความของการ์ดแอดมินก่อนแก้บั๊กข้อ 8 (เขียนไว้ในโค้ด app/index.tsx:1092 ที่ efab8d0 ไม่ผ่าน i18n) ใช้ตรวจว่าไม่กลับมา
  * ที่ 648dd28 ตัวเลข "Pending tickets: 3" เหลือแค่ในคอมเมนต์ index.tsx:1134 ส่วน "Operations Dashboard" ไม่อยู่ใน index.tsx แล้ว
  */

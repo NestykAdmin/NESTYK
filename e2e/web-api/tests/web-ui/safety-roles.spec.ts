@@ -25,6 +25,7 @@ import { waitForStableValue, watchForRequest } from '../../src/web-ui/support/wa
  * บัญชี qa-* มีอยู่แล้ว จึงเป็นการซิงก์บัญชีเดิม เหมือนตอนเทสด้วยมือ 4 พ.ย. 2026
  * ส่วนเส้นทางบิลที่สร้างบิลถูกตัดไว้ (guard.ts) รวมถึงหน้าแรกของ tenant ที่เป็นปลายทางของการพาไปหน้าแรก
  *   (การ์ดบิลถัดไปเรียก POST /bills/mine/refresh และ GET /bills/mine/next: lib/tenant-bills-api.ts:27-30)
+ *   POST refresh ถูกตัดทุกครั้ง ส่วน GET บิลผ่านได้เมื่อ global-setup ยืนยันว่า API อ่านอย่างเดียว (E2E_WEB_BILL_READS=allowed: guard.ts)
  *
  * ข้อ known-bug เรียก test.fail ก่อนการตรวจข้อที่เป็นตัวบั๊กเท่านั้น ความผิดพลาดของขั้นเตรียม (ล็อกอิน หาชิ้นส่วน) จึงแดงตามปกติ
  * ขั้นเตรียมของทุกข้อตรวจบทบาทจริงของบัญชีก่อน (expectLacksRole) ถ้าวันหนึ่งบัญชี QA ได้บทบาทเพิ่ม ข้อนั้นจะแดงที่ขั้นเตรียม

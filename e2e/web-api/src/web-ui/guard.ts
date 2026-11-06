@@ -33,12 +33,19 @@ import { webUiEnv } from './web-ui-env';
  *     ออกบิลที่ถึงกำหนดและเปลี่ยนการเข้าพักจาก prospect เป็น active ของผู้เรียก แอปเรียกก่อนอ่านบิลทุกครั้ง
  *     (apps/consumer-app/lib/tenant-bills-api.ts refreshOnce) และถ้าคำขอล้ม แอปอ่านบิลต่อโดยไม่แจ้ง error
  *     ตัดเป็นชนิด bill-write เสมอ (ไม่มีข้อไหนเปิดให้ผ่าน) ถ้าไม่ตัด จะตกเป็น unexpected-write และทำให้ทุกข้อที่เปิดหน้าบิลแดง
- *   - เส้นทางบิล GET: ตั้งแต่ d2d4554 อ่านอย่างเดียว แต่ API รุ่นก่อนหน้านั้นสร้างบิลก่อนตอบ ชุดเทสรู้รุ่นของ API ไม่ได้ จึงยังตัดไว้
+ *   - เส้นทางบิล GET: ตั้งแต่ d2d4554 อ่านอย่างเดียว แต่ API รุ่นก่อนหน้านั้นสร้างบิลก่อนตอบ จึงตัดไว้เป็นค่าเริ่มต้น
+ *     และปล่อยผ่านเฉพาะเมื่อ global-setup ตรวจรุ่นแล้ว (ดูหัวข้อ "ระยะ 2" ด้านล่าง)
  *     GET /bills/mine, /bills/mine/next (ensureForUser ใน API รุ่นก่อน d2d4554) และ /bills/agent/tenants/:id (listForAgentTenant)
  *     หน้าแรกของ tenant เรียก /bills/mine/next ทันทีที่ล็อกอิน (TenantNextBillCard) ถ้าฐานข้อมูลของ staging เป็นของทีม จะสร้างบิลจริง
  *     และ GET /bills/received (listReceived เรียก ensureForOwner ใน API รุ่นก่อน d2d4554) ซึ่งตัดเป็นค่าเริ่มต้นด้วย
  *     เทสข้อความดิบ "Required role: landlord" ให้หน้าได้คำตอบ 403 ของเส้นทางนี้จริง จึงเปิดให้ผ่านเฉพาะข้อนั้นด้วย allowOwnerBills()
  *     หลังตรวจแล้วว่าบัญชีไม่มีบทบาท landlord (RolesGuard ตอบ 403 ก่อนถึง ensureForOwner)
+ *   - ระยะ 2 (6 พ.ย. 2026): global-setup ตรวจรุ่นของ API ก่อนเริ่มทั้งชุด (web-ui-global-setup.ts probeBillReads)
+ *     ถ้า API มีเส้นทาง POST /bills/mine/refresh (ตอบ 401 เมื่อไม่ล็อกอิน) แปลว่าเป็นรุ่นตั้งแต่ d2d4554 ที่ GET บิลอ่านอย่างเดียว
+ *     จึงตั้ง E2E_WEB_BILL_READS=allowed และตัวกันปล่อย GET 4 เส้นทางนี้ผ่าน (isBillRead) ส่วน POST refresh ยังถูกตัดทุกครั้ง
+ *     ตรวจโค้ดที่ API a02e532 แล้ว: listMine, nextForUser, listReceived, listForAgentTenant ไม่มีคำสั่งเขียน
+ *       (apps/api/src/billing/tenant-billing.service.ts:435-500, 598-640 เขียนเฉพาะ insertBills ที่ refresh และงาน 00:05 เรียก)
+ *     ได้ค่าอื่น (404 = รุ่นเก่า, เครือข่ายล้ม, เลขอื่น) หรือ Aof ตั้ง E2E_WEB_BILL_READS=blocked เอง ตัดต่อเหมือนเดิม
  *
  * ทุกคำขอที่ถูกตัดถูกจดไว้ (เฉพาะ origin + path ไม่จด query เพราะอาจมี token) เทสใช้จำนวนที่จดเป็นหลักฐานได้
  */
@@ -103,6 +110,25 @@ export const NEVER_ALLOWED: readonly BlockedKind[] = [
   'unexpected-write',
 ];
 
+/** ตัวแปรแวดล้อมที่ global-setup ตั้งหลังตรวจรุ่นของ API ('allowed' = ปล่อย GET บิลผ่าน ค่าอื่น = ตัด) */
+export const BILL_READS_VARIABLE = 'E2E_WEB_BILL_READS';
+
+/** global-setup ตรวจแล้วว่า GET บิลของ API นี้อ่านอย่างเดียว (อ่านค่าตอนเรียก เพราะ global-setup ตั้งค่าหลังโหลดไฟล์นี้) */
+export function billReadsAllowed(): boolean {
+  return process.env[BILL_READS_VARIABLE] === 'allowed';
+}
+
+/**
+ * GET บิลที่ปล่อยผ่านได้เมื่อ billReadsAllowed(): /bills/mine, /bills/mine/next, /bills/received, /bills/agent/tenants/<เลข>
+ * ต้องไปที่ E2E_WEB_API_ORIGIN เท่านั้น (ข้อเสนอของ test-reviewer: path /bills/... ที่ไปเครื่องอื่นโดยไม่มี /api/ ไม่ตกเป็น foreign-api)
+ * path ย่อยอื่นใต้ /bills/agent/tenants/ ยังถูกตัดเป็น bill-write (ไม่ได้ตรวจโค้ดของเส้นทางเหล่านั้น)
+ */
+export function isBillRead(url: URL, method: string): boolean {
+  if (method.toUpperCase() !== 'GET' || url.origin !== webUiEnv.apiOrigin) return false;
+  const path = url.pathname.toLowerCase().replace(/^\/api\/v\d+/, '').replace(/\/+$/, '');
+  return /^\/bills\/(mine|mine\/next|received|agent\/tenants\/\d+)$/.test(path);
+}
+
 /** อ่าน role จากเนื้อคำขอขอบทบาท เช่น {"role":"agent"} (ไม่เก็บเนื้อคำขอชนิดอื่น เพราะอาจมีข้อมูลส่วนตัว) */
 function roleOf(kind: BlockedKind, body: string | null): string | null {
   if (kind !== 'dev-role-grant' || !body) return null;
@@ -136,7 +162,8 @@ export class RequestGuard {
         const request = route.request();
         const url = new URL(request.url());
         const kind = classifyRequest(url, webUiEnv.apiOrigin, request.method());
-        if (kind === null || (kind === 'owner-bills' && this.ownerBillsAllowed && request.method() === 'GET')) {
+        const billRead = (kind === 'bill-write' || kind === 'owner-bills') && billReadsAllowed() && isBillRead(url, request.method());
+        if (kind === null || billRead || (kind === 'owner-bills' && this.ownerBillsAllowed && request.method() === 'GET')) {
           await route.continue();
           return;
         }

@@ -20,10 +20,12 @@ function withoutTrailingSlash(url: string): string {
 }
 
 /** บทบาทที่ชุดเทส UI ล็อกอินได้ (ต้องมีรหัสผ่านในตัวแปรแวดล้อม) */
-export type WebUiRole = Extract<QaRole, 'tenant' | 'agent' | 'admin'>;
+export type WebUiRole = Extract<QaRole, 'tenant' | 'landlord' | 'agent' | 'admin'>;
 
 export const PASSWORD_VARIABLES: Record<WebUiRole, string> = {
   tenant: 'E2E_QA_TENANT_PASSWORD',
+  // qa-landlord ใช้กับหน้าผู้ให้เช่า (tests/web-ui/party-pages.spec.ts) เพิ่ม 6 พ.ย. 2026
+  landlord: 'E2E_QA_LANDLORD_PASSWORD',
   agent: 'E2E_QA_AGENT_PASSWORD',
   admin: 'E2E_QA_ADMIN_PASSWORD',
 };

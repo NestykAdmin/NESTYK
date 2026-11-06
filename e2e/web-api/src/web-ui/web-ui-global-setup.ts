@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-import { classifyRequest } from './guard';
+import { BILL_READS_VARIABLE, classifyRequest } from './guard';
 import { PASSWORD_VARIABLES, passwordOf, unsafeApiOriginReason, webUiEnv, type WebUiRole } from './web-ui-env';
 
 /**
@@ -11,6 +11,8 @@ import { PASSWORD_VARIABLES, passwordOf, unsafeApiOriginReason, webUiEnv, type W
  *      คำขอที่เห็นถูกตัดทั้งหมด ไม่ถึงปลายทาง หน้าแรกของผู้เยี่ยมชมน่าจะไม่เรียก API (index.tsx ใช้ MOCK_LISTINGS: test-reviewer อนุมาน)
  *      ถ้าไม่เห็นคำขอเลย ชั้นนี้ตรวจอะไรไม่ได้ จะพิมพ์บอกไว้ ตัวกันชั้นที่ 1-2 ยังทำงานในทุกข้อ
  *   4. พิมพ์บรรทัดสรุปว่าบัญชีไหนตั้งรหัสผ่านแล้ว (ไม่พิมพ์รหัส)
+ *   5. ตรวจรุ่นของ API ว่า GET บิลอ่านอย่างเดียวหรือไม่ (probeBillReads) แล้วตั้ง E2E_WEB_BILL_READS ให้ตัวกันใน guard.ts
+ *      ค่าใน process.env ที่ตั้งใน global-setup ส่งต่อถึง worker ของ Playwright
  */
 export default async function webUiGlobalSetup(): Promise<void> {
   const unsafe = unsafeApiOriginReason(webUiEnv.apiOrigin);
@@ -66,10 +68,39 @@ export default async function webUiGlobalSetup(): Promise<void> {
     await browser.close();
   }
 
+  const billReads = await probeBillReads();
+  process.env[BILL_READS_VARIABLE] = billReads.result;
+  console.log(`[เทส UI เว็บ] GET บิล: ${billReads.result === 'allowed' ? 'ปล่อยผ่าน' : 'ตัด'} (${billReads.reason})`);
+
   const roles = Object.keys(PASSWORD_VARIABLES) as WebUiRole[];
   const missing = roles.filter((role) => passwordOf(role) === null).map((role) => PASSWORD_VARIABLES[role]);
   console.log(
     `[เทส UI เว็บ] ตั้งรหัสผ่านแล้ว ${roles.length - missing.length} จาก ${roles.length} บัญชี` +
       (missing.length ? ` (ไม่ได้ตั้ง ${missing.join(', ')}: เทสที่ใช้บัญชีนั้นจะข้าม)` : ''),
   );
+}
+
+/**
+ * ตรวจว่า API ของ staging เป็นรุ่นที่ GET บิลอ่านอย่างเดียว (ตั้งแต่ d2d4554) หรือไม่ ด้วย POST /bills/mine/refresh แบบไม่ส่ง token
+ *   รุ่นใหม่: เส้นทางนี้มี และ AuthGuard ตอบ 401 ก่อนถึงโค้ดของเส้นทาง (apps/api/src/billing/bill-refresh.controller.ts:14-15
+ *   @UseGuards(AuthGuard, RolesGuard) ที่ API a02e532) จึงไม่มีการเขียน
+ *   รุ่นเก่า: ไม่มีเส้นทางนี้ Nest ตอบ 404
+ * ค่าอื่นทุกแบบ (เครือข่ายล้ม หมดเวลา เลขอื่น) ถือว่าไม่รู้ จึงตัดต่อเหมือนเดิม
+ * Aof ตั้ง E2E_WEB_BILL_READS=blocked ก่อนรันได้ เพื่อตัด GET บิลโดยไม่ตรวจ (ค่า allowed ที่ตั้งเองไม่ถูกเชื่อ ต้องตรวจทุกครั้ง)
+ */
+async function probeBillReads(): Promise<{ result: 'allowed' | 'blocked'; reason: string }> {
+  if (process.env[BILL_READS_VARIABLE] === 'blocked') return { result: 'blocked', reason: `ตั้ง ${BILL_READS_VARIABLE}=blocked ไว้` };
+  try {
+    const response = await fetch(`${webUiEnv.apiOrigin}/api/v1/bills/mine/refresh`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status === 401) return { result: 'allowed', reason: 'POST /bills/mine/refresh แบบไม่ล็อกอินได้ 401 = API รุ่นที่ GET บิลอ่านอย่างเดียว' };
+    return { result: 'blocked', reason: `POST /bills/mine/refresh แบบไม่ล็อกอินได้ ${response.status} (401 เท่านั้นที่ปล่อย) เทสหน้าบิลจะข้าม` };
+  } catch (error) {
+    return { result: 'blocked', reason: `ตรวจรุ่นของ API ไม่ได้ (${(error as Error).name}) เทสหน้าบิลจะข้าม` };
+  }
 }
