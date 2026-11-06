@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { EN } from '../labels';
 
-/** กล่องเตือนก่อนหมดเวลา (apps/consumer-app/components/web-session/IdleSignOutGate.web.tsx:124-136) */
+/** กล่องเตือนก่อนหมดเวลา (apps/consumer-app/components/web-session/IdleSignOutGate.web.tsx:129-143 ที่ qa/e2e 648dd28) */
 export class IdleWarning {
   constructor(private readonly page: Page) {}
 
@@ -17,7 +17,7 @@ export class IdleWarning {
     return this.dialog.getByTestId('session.idleSignOut');
   }
 
-  /** มี autoFocus (:132) */
+  /** มี autoFocus (:138) */
   get stay(): Locator {
     return this.dialog.getByTestId('session.idleStay');
   }

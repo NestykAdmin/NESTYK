@@ -3,21 +3,23 @@ import type { Page } from '@playwright/test';
 
 /**
  * ตัวช่วยเทสการหมดเวลาของเว็บ โดยไม่ต้องรอ 8 ชั่วโมงจริง
- * ค่าคงที่ตาม apps/consumer-app/lib/auth/idle-rules.ts (qa/e2e efab8d0)
+ * ค่าคงที่ตาม apps/consumer-app/lib/auth/idle-rules.ts (ตรวจซ้ำที่ qa/e2e 648dd28: เลขบรรทัดไม่เปลี่ยน)
  */
 export const ACTIVITY_KEY = 'nestyk.web.lastActivity'; // idle-rules.ts:12
 export const IDLE_LIMIT_MS = 8 * 60 * 60 * 1000; // idle-rules.ts:6
 export const IDLE_WARN_MS = 2 * 60 * 1000; // idle-rules.ts:7 (เตือนเมื่อเหลือไม่เกิน 2 นาที)
 export const ACTIVITY_WRITE_MS = 15_000; // idle-rules.ts:9 (การใช้งานที่ห่างจากครั้งก่อนน้อยกว่านี้ไม่ถูกนับ)
 export const AUTH_SESSION_KEY = 'nestyk.auth.session.v1'; // lib/auth/cross-tab-rules.ts:10
+/** เหตุผลที่แท็บล่าสุดล้าง session ('signedOut' หรือ 'expired') แท็บไหนเขียนล่าสุดก็ได้ (cross-tab-rules.ts:11, cross-tab.web.ts:7) */
+export const AUTH_EVENT_KEY = 'nestyk.web.authEvent';
 
 /**
  * ตั้งเวลาใช้งานล่าสุดให้ย้อนหลังไป msAgo มิลลิวินาที (เวลาของเบราว์เซอร์)
  * notify = true: สั่งให้ตัวตรวจของแท็บนี้ทำงานทันที ด้วย visibilitychange บน document
- *   (IdleSignOutGate.web.tsx:97-99, 105 ถ้าไม่สั่ง ตัวตรวจทำงานเองทุก 15 วินาที: setInterval :103)
- * notify = false: ไม่สั่ง ใช้เมื่อเทสจะโหลดหน้าใหม่เอง (ตัวตรวจทำงานตอนหน้าเริ่ม :91)
+ *   (IdleSignOutGate.web.tsx:103-105, 111 ถ้าไม่สั่ง ตัวตรวจทำงานเองตามรอบ: setInterval :109)
+ * notify = false: ไม่สั่ง ใช้เมื่อเทสจะโหลดหน้าใหม่เอง (ตัวตรวจทำงานตอนหน้าเริ่ม :93)
  *   ถ้าสั่ง แท็บนี้จะออกจากระบบก่อนโหลดใหม่ แล้วผลหลังโหลดจะขึ้นกับว่าการออกจากระบบเสร็จก่อนหรือหลัง (ข้อสังเกตของ test-reviewer)
- * แท็บอื่นของเบราว์เซอร์เดียวกันได้ storage event ของค่านี้ทุกครั้ง แล้วตรวจเวลาเอง (:100-102)
+ * แท็บอื่นของเบราว์เซอร์เดียวกันได้ storage event ของค่านี้ทุกครั้ง แล้วตรวจเวลาเอง (:106-108)
  */
 export async function setLastActivityAgo(page: Page, msAgo: number, options: { notify?: boolean } = {}): Promise<void> {
   await page.evaluate(
@@ -52,4 +54,11 @@ export async function storedRoles(page: Page): Promise<string[]> {
       return [];
     }
   }, AUTH_SESSION_KEY);
+}
+
+/** อ่าน nestyk.web.authEvent ของเบราว์เซอร์ (ใช้จดหลักฐาน ไม่ใช้เป็นค่าที่คาด) ไม่มีค่า = 'ไม่มีค่า' อ่านไม่ได้ = 'อ่านไม่ได้' */
+export async function readAuthEvent(page: Page): Promise<string> {
+  return page
+    .evaluate((key) => window.localStorage.getItem(key), AUTH_EVENT_KEY)
+    .then((value) => value ?? 'ไม่มีค่า', () => 'อ่านไม่ได้');
 }

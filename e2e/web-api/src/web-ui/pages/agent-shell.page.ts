@@ -35,9 +35,14 @@ export class AgentShell {
     return this.createMenu.getByRole('button', { name: EN.create, exact: true });
   }
 
-  /** รายการเมนูที่เปิดอยู่ของ Create (WebMenu.tsx:83-88 role=menu) */
+  /** รายการเมนูที่เปิดอยู่ของ Create (WebMenu.tsx:100-107 role=menu) */
   get createList(): Locator {
     return this.createMenu.getByRole('menu');
+  }
+
+  /** รายการแรกในเมนู Create ที่กดได้ (ตอนเปิดเมนู โฟกัสย้ายมาที่นี่: WebMenu.tsx:64) */
+  get createFirstItem(): Locator {
+    return this.createList.locator('button:not(:disabled)').first();
   }
 
   /** ปุ่มเปิดเมนูธีม (ตัวห่อ shell.theme ที่ :564-576 ปุ่มเปิดของ WebMenu.tsx:71-80) */

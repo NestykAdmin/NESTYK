@@ -75,29 +75,27 @@ test.describe('paths', () => {
   });
 
   test('/AGENT/Nope/1 is read without case and sends a signed-out visitor to log in', async ({ page }) => {
-    // parseAppPath ทำ path เป็นตัวเล็ก (app-routes.ts:38) path ใต้บทบาทที่ไม่รู้จักเปิดหน้าแรกของบทบาท แล้วพาไปล็อกอิน (index.tsx:640-643)
+    // parseAppPath ทำ path เป็นตัวเล็ก (app-routes.ts:38) path ใต้บทบาทที่ไม่รู้จักเปิดหน้าแรกของบทบาท แล้วพาไปล็อกอิน (index.tsx:659-662 ที่ qa/e2e 648dd28)
     await page.goto('/AGENT/Nope/1');
     await expect(page).toHaveURL((url) => url.pathname === '/login' && url.searchParams.get('next') === '/agent');
   });
 
-  test('/Login opens the login page', { tag: '@known-bug' }, async ({ page }) => {
-    // ขั้นที่ 1: เปิด /Login แล้วรอให้หน้าแสดงอย่างใดอย่างหนึ่ง: หน้าไม่พบ (ตอนนี้) หรือหน้า login (เมื่อแก้แล้ว)
+  // บั๊กข้อ 9 แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): CatchAllRoute.web.tsx เรียก ownScreenPath (lib/app-routes.ts)
+  //   แล้ว router.replace ไป path ตัวพิมพ์เล็ก พร้อม query เดิม
+  test('/Login opens the login page at /login', async ({ page }) => {
     await page.goto('/Login');
     const login = new LoginPage(page);
-    await expect(notFoundMessage(page).or(login.submit).first()).toBeVisible();
-    // ขั้นที่ 2: ต้องเป็นหน้า login
-    test.fail(true, 'บั๊กข้อ 9: /Login ขึ้นหน้า Unmatched Route ของ expo-router (ไฟล์ route /login ตรงตัวพิมพ์) แต่ /AGENT/... ใช้ได้');
-    await expect(login.submit).toBeVisible({ timeout: 3_000 });
+    await expect(login.submit).toBeVisible();
+    await expect(notFoundMessage(page)).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.pathname === '/login');
   });
 
-  test('/Privacy opens the privacy policy', { tag: '@known-bug' }, async ({ page }) => {
-    // ขั้นที่ 1: เปิด /Privacy แล้วรอให้หน้าแสดงอย่างใดอย่างหนึ่ง
+  test('/Privacy opens the privacy policy at /privacy', async ({ page }) => {
     await page.goto('/Privacy');
     const legal = new LegalPage(page, 'privacy');
-    await expect(notFoundMessage(page).or(legal.root).first()).toBeVisible();
-    // ขั้นที่ 2: ต้องเป็นหน้านโยบายความเป็นส่วนตัว
-    test.fail(true, 'บั๊กข้อ 9: /Privacy ขึ้นหน้า Unmatched Route ของ expo-router');
-    await expect(legal.root).toBeVisible({ timeout: 3_000 });
+    await expect(legal.root).toBeVisible();
+    await expect(notFoundMessage(page)).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.pathname === '/privacy');
   });
 });
 
@@ -124,15 +122,17 @@ test.describe('history', () => {
   });
 
   test('Back after signing out does not show the signed-in page', async ({ page, loginAs }) => {
-    // ขั้นที่ 1: ล็อกอินแล้วออกจากระบบ หลังออกไปหน้าแรกของผู้เยี่ยมชม (AFTER_SIGN_OUT_PATH index.tsx:171)
+    // ขั้นที่ 1: ล็อกอินแล้วออกจากระบบ ที่ qa/e2e a02e532 ไปหน้าแรกของผู้เยี่ยมชม (AFTER_SIGN_OUT_PATH index.tsx:183)
+    // ทีมตอบ 6 พ.ย. 2026 ว่าจะให้ไปหน้า login จึงรับได้ทั้ง 2 หน้า ข้อนี้ตรวจแค่ปุ่ม Back (ปลายทางตรวจใน session-idle.spec.ts)
     await loginAs('agent');
     const shell = new AgentShell(page);
     await expect(shell.createMenu).toBeVisible();
     await shell.signOut();
-    await expect(page).toHaveURL((url) => url.pathname === '/');
-    // ขั้นที่ 2: กด Back ต้องไปหน้า login (index.tsx:640-643 พาหน้าที่ต้องล็อกอินไป /login?next=) ไม่เห็นหน้าเดิม
+    await expect(page).toHaveURL((url) => url.pathname === '/' || url.pathname === '/login');
+    // ขั้นที่ 2: กด Back ต้องไปหน้า login ไม่เห็นหน้าเดิม: หน้านายหน้าที่ Back พากลับไปถูกส่งต่อเป็น /login?next=/agent (index.tsx:659-662)
+    // ตรวจ next=/agent ด้วย เพื่อแยกจากกรณีที่ Back ไม่ได้พาไปไหนแล้วค้างที่ /login ของการออกจากระบบ (ข้อสังเกตของ test-reviewer)
     await page.goBack();
-    await expect(page).toHaveURL((url) => url.pathname === '/login');
+    await expect(page).toHaveURL((url) => url.pathname === '/login' && url.searchParams.get('next') === '/agent');
     await expect(shell.createMenu).toHaveCount(0);
   });
 

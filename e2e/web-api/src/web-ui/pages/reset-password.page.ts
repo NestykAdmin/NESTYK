@@ -14,7 +14,7 @@ export class ResetPasswordPage {
     return this.page.getByLabel(label, { exact: true });
   }
 
-  /** ปุ่มส่งของขั้นอีเมล ตอนนี้เขียนว่า resetSend "Send code" (บั๊กข้อ 6) */
+  /** ปุ่มส่งของขั้นอีเมล resetSend "Send link" (บั๊กข้อ 6 แก้แล้วที่ 648dd28) */
   sendButton(label: string = EN.resetSend): Locator {
     return this.page.getByRole('button', { name: label, exact: true });
   }
@@ -27,18 +27,24 @@ export class ResetPasswordPage {
     return this.page.getByLabel(EN.confirmPassword, { exact: true });
   }
 
-  /** resetNewTitle เป็นทั้งหัวเรื่องและข้อความบนปุ่มบันทึก (:68, :162) จึงหาด้วย role button */
+  /** resetNewTitle เป็นทั้งหัวเรื่องและข้อความบนปุ่มบันทึก (:73, :183 ที่ 648dd28) จึงหาด้วย role button */
   get save(): Locator {
     return this.page.getByRole('button', { name: EN.resetNewTitle, exact: true });
   }
 
-  /** ข้อความผิดพลาด (role=alert) ข้อความกฎรหัสผ่านเป็น helperText ใต้ช่องด้วย (:149) จึงต้องหาใน alert */
+  /** ข้อความผิดพลาด (role=alert) ข้อความกฎรหัสผ่านเป็น helperText ใต้ช่องด้วย (:170) จึงต้องหาใน alert */
   get alert(): Locator {
     return this.page.getByRole('alert');
   }
 
+  /** ข้อความเมื่อ Supabase ไม่รับลิงก์ ขึ้นตอนกดบันทึก (ฟอร์มยังอยู่) อยู่ใน role=alert ตัวเดียวกับข้อความผิดพลาดอื่น (reset-password.tsx:181) */
   get linkInvalid(): Locator {
-    return this.page.getByText(EN.resetLinkInvalid);
+    return this.alert.filter({ hasText: EN.resetLinkInvalid });
+  }
+
+  /** ข้อความเมื่อเปิดลิงก์ที่ไม่มี token หรือ ?code= ที่ใช้ไม่ได้ ขึ้นบนขั้นอีเมล (role=alert :181) */
+  get linkBroken(): Locator {
+    return this.alert.filter({ hasText: EN.resetLinkBroken });
   }
 
   /** ข้อความที่ระบุที่ใดก็ได้บนหน้า (ใช้ตรวจว่าไม่มีข้อความดิบจาก Supabase) */
@@ -46,7 +52,7 @@ export class ResetPasswordPage {
     return this.page.getByText(value);
   }
 
-  /** testID resetPassword.footer (:169) */
+  /** testID resetPassword.footer (:190) */
   get footer(): Locator {
     return this.page.getByTestId('resetPassword.footer');
   }

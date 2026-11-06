@@ -6,14 +6,14 @@ import { webUiEnv } from './web-ui-env';
  *
  * เหตุผล (บันทึก QA 4 พ.ย. 2026 และผลเทสเว็บข้อ 1):
  *   - แอปขอบทบาทให้ตัวเองผ่าน POST /auth/dev/roles 2 จุด
- *       apps/consumer-app/lib/agent-session.ts:16  ensureAgentSession ขอ agent เมื่อเปิดหน้านายหน้าด้วยบัญชีที่ยังไม่มีบทบาทนี้
- *       apps/consumer-app/lib/auth/AuthContext.tsx:76-85  ensureAdminRole ขอ admin ทุกครั้งที่ล็อกอิน
- *         (ปิดได้ด้วย EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=false แต่ ensureAgentSession ไม่ตรวจสวิตช์นี้)
+ *       apps/consumer-app/lib/agent-session.ts:72-76  ensureAgentSession ขอ agent เมื่อเปิดหน้านายหน้าด้วยบัญชีที่ยังไม่มีบทบาทนี้
+ *       apps/consumer-app/lib/auth/AuthContext.tsx:81-91  ensureAdminRole ขอ admin ทุกครั้งที่ล็อกอิน
+ *         (ที่ qa/e2e 648dd28 ทั้ง 2 จุดขอเฉพาะ dev build ที่ตั้ง EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=true ผลรัน 6 พ.ย. 2026 ยังเห็นคำขอ)
  *   - API บนเครื่อง Aof ตั้ง ALLOW_DEV_ROLE_GRANT=true และต่อฐานข้อมูลของทีม ถ้าคำขอนี้ถึง API บนเครื่อง
  *     บทบาท agent หรือ admin จะถูกบันทึกถาวรให้บัญชี QA ในฐานข้อมูลของทีม
  *
  * ชั้นที่ 1: คำขอ /auth/dev/roles ถูกตัดทุกครั้ง ไม่ว่าจะไป API ตัวไหน (ทุก method) และคำขอ /auth/dev/ อื่น
- *   (เช่น /auth/dev/register ที่สร้างผู้ใช้: AuthContext.tsx:370-373) ถูกตัดและทำให้เทสไม่ผ่าน
+ *   (เช่น /auth/dev/register ที่สร้างผู้ใช้: AuthContext.tsx:388 ที่ qa/e2e 648dd28) ถูกตัดและทำให้เทสไม่ผ่าน
  * ชั้นที่ 2: คำขอที่ path ขึ้นต้นด้วย /api/ แต่ไม่ได้ไปที่ webUiEnv.apiOrigin ถูกตัด และทำให้เทสข้อนั้นไม่ผ่าน
  *   ครอบถึง proxy ของ Metro: เมื่อ EXPO_PUBLIC_API_URL เป็นที่อยู่ในเครื่อง เว็บเรียก API ผ่าน /api/... บน localhost:8081
  *   (apps/consumer-app/lib/web-api-proxy.ts, lib/config.ts) ซึ่งส่งต่อไป API บนเครื่อง
@@ -29,11 +29,15 @@ import { webUiEnv } from './web-ui-env';
  *     กันไว้ก่อน เผื่อหน้าใดส่งคำขอเขียนเองตอนเปิด (ข้อเสนอของ test-reviewer รอบ 2) ถ้าเกิด ให้ดูว่าเป็นคำขออะไรก่อนเพิ่มในรายการ
  *
  * ตัดโดยไม่ทำให้เทสไม่ผ่าน (หน้าเว็บเรียกเองเป็นปกติ):
- *   - เส้นทางบิลที่ "อ่าน" แต่สร้างบิลก่อนตอบ: GET /bills/mine, /bills/mine/next (ensureForUser
- *     apps/api/src/billing/tenant-billing.service.ts:335-340, 422-435) และ /bills/agent/tenants/:id (listForAgentTenant :588-604)
+ *   - POST /bills/mine/refresh และ POST /bills/received/refresh (ตั้งแต่ d2d4554, billing/bill-refresh.controller.ts)
+ *     ออกบิลที่ถึงกำหนดและเปลี่ยนการเข้าพักจาก prospect เป็น active ของผู้เรียก แอปเรียกก่อนอ่านบิลทุกครั้ง
+ *     (apps/consumer-app/lib/tenant-bills-api.ts refreshOnce) และถ้าคำขอล้ม แอปอ่านบิลต่อโดยไม่แจ้ง error
+ *     ตัดเป็นชนิด bill-write เสมอ (ไม่มีข้อไหนเปิดให้ผ่าน) ถ้าไม่ตัด จะตกเป็น unexpected-write และทำให้ทุกข้อที่เปิดหน้าบิลแดง
+ *   - เส้นทางบิล GET: ตั้งแต่ d2d4554 อ่านอย่างเดียว แต่ API รุ่นก่อนหน้านั้นสร้างบิลก่อนตอบ ชุดเทสรู้รุ่นของ API ไม่ได้ จึงยังตัดไว้
+ *     GET /bills/mine, /bills/mine/next (ensureForUser ใน API รุ่นก่อน d2d4554) และ /bills/agent/tenants/:id (listForAgentTenant)
  *     หน้าแรกของ tenant เรียก /bills/mine/next ทันทีที่ล็อกอิน (TenantNextBillCard) ถ้าฐานข้อมูลของ staging เป็นของทีม จะสร้างบิลจริง
- *     และ GET /bills/received (listReceived เรียก ensureForOwner :478-480) ซึ่งตัดเป็นค่าเริ่มต้นด้วย
- *     เทสข้อความดิบ "Required role: landlord" ต้องได้คำตอบ 403 ของเส้นทางนี้ จึงเปิดให้ผ่านเฉพาะข้อนั้นด้วย allowOwnerBills()
+ *     และ GET /bills/received (listReceived เรียก ensureForOwner ใน API รุ่นก่อน d2d4554) ซึ่งตัดเป็นค่าเริ่มต้นด้วย
+ *     เทสข้อความดิบ "Required role: landlord" ให้หน้าได้คำตอบ 403 ของเส้นทางนี้จริง จึงเปิดให้ผ่านเฉพาะข้อนั้นด้วย allowOwnerBills()
  *     หลังตรวจแล้วว่าบัญชีไม่มีบทบาท landlord (RolesGuard ตอบ 403 ก่อนถึง ensureForOwner)
  *
  * ทุกคำขอที่ถูกตัดถูกจดไว้ (เฉพาะ origin + path ไม่จด query เพราะอาจมี token) เทสใช้จำนวนที่จดเป็นหลักฐานได้
@@ -59,7 +63,7 @@ export interface BlockedRequest {
   role: string | null;
 }
 
-/** คำขอเขียนไป API ที่ยอมให้ผ่าน: METHOD + path ต่อจาก /api/v1 (การล็อกอินทุกครั้ง: AuthContext.tsx:72-74 และ lib/agent-session.ts:12) */
+/** คำขอเขียนไป API ที่ยอมให้ผ่าน: METHOD + path ต่อจาก /api/v1 (การล็อกอินทุกครั้ง: AuthContext.tsx:74-78 และ lib/agent-session.ts:44-51 ที่ 648dd28) */
 const ALLOWED_WRITES: readonly string[] = ['POST /auth/sync'];
 
 /** method ที่ไม่เขียนข้อมูล (OPTIONS คือคำขอตรวจ CORS ที่เบราว์เซอร์ส่งเอง) */
@@ -78,6 +82,8 @@ export function classifyRequest(url: URL, apiOrigin: string = webUiEnv.apiOrigin
   if (path.endsWith('/auth/v1/logout') && url.searchParams.get('scope') !== 'local') return 'global-sign-out';
   if (path.endsWith('/auth/v1/signup')) return 'sign-up';
   if (path.endsWith('/auth/v1/recover')) return 'password-recovery';
+  // ถ้าเปลี่ยนชนิดของ 2 เส้นทางนี้ ให้แก้ตัวกรอง '/bills/received' ใน tests/web-ui/safety-roles.spec.ts (ข้อ landlord income) ด้วย
+  if (/\/bills\/(mine|received)\/refresh\/?$/.test(path)) return 'bill-write';
   if (/\/bills\/mine(\/next)?\/?$/.test(path) || path.includes('/bills/agent/tenants/')) return 'bill-write';
   if (/\/bills\/received\/?$/.test(path)) return 'owner-bills';
   if (method && !READ_METHODS.has(method.toUpperCase()) && path.startsWith('/api/') && url.origin === apiOrigin) {
@@ -114,7 +120,7 @@ export class RequestGuard {
   private ownerBillsAllowed = false;
 
   /**
-   * ให้ GET /bills/received ผ่าน ใช้ได้เฉพาะเมื่อตรวจแล้วว่าบัญชีที่ล็อกอินไม่มีบทบาท landlord
+   * ให้ GET /bills/received ผ่าน (เฉพาะ GET method อื่นยังถูกตัดเป็น owner-bills) ใช้ได้เฉพาะเมื่อตรวจแล้วว่าบัญชีที่ล็อกอินไม่มีบทบาท landlord
    * (RolesGuard ตอบ 403 ก่อนถึง ensureForOwner ที่สร้างบิล) เรียกได้จากเทสเท่านั้น
    */
   allowOwnerBills(): void {
@@ -130,7 +136,7 @@ export class RequestGuard {
         const request = route.request();
         const url = new URL(request.url());
         const kind = classifyRequest(url, webUiEnv.apiOrigin, request.method());
-        if (kind === null || (kind === 'owner-bills' && this.ownerBillsAllowed)) {
+        if (kind === null || (kind === 'owner-bills' && this.ownerBillsAllowed && request.method() === 'GET')) {
           await route.continue();
           return;
         }
