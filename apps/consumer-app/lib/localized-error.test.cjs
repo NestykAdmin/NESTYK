@@ -41,3 +41,18 @@ test('other messages behave as before: shown when already in the reader\'s langu
   assert.equal(localizedError('not an error', 'FALLBACK', 'en'), 'FALLBACK');
   assert.equal(localizedError(new Error('   '), 'FALLBACK', 'en'), 'FALLBACK');
 });
+
+// QA web flow bugs 6 Nov 2026 item 3: "Failed to fetch" is Latin script, so English readers saw the browser's text.
+test('no answer at all gets the fallback in every language, whatever the browser called it', () => {
+  const offline = [
+    apiError('Failed to fetch', 0, 'NETWORK_ERROR'),
+    apiError('Load failed', 0, 'NETWORK_ERROR'),
+    Object.assign(new Error('Failed to fetch'), { name: 'AuthRetryableFetchError', status: 0 }),
+    new TypeError('NetworkError when attempting to fetch resource.'),
+  ];
+  for (const error of offline) {
+    for (const locale of ['en', 'th', 'zh', 'ja']) {
+      assert.equal(localizedError(error, 'FALLBACK', locale), 'FALLBACK', `${error.message} (${locale})`);
+    }
+  }
+});

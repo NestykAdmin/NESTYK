@@ -29,6 +29,12 @@ export const SESSION_EXPIRED = 'SESSION_EXPIRED';
  * (review b41a56f N2, Mos 4 Nov 2026).
  */
 export const REAUTH_REQUIRED = 'REAUTH_REQUIRED';
+/**
+ * `code` (status 0) of the ApiError thrown when the request got no answer: offline, server down, blocked. The browser's
+ * own message ("Failed to fetch", Safari "Load failed", React Native "Network request failed") is kept for logs, and
+ * localizedError shows the screen's translated fallback instead (QA web flow bugs 6 Nov 2026 item 3).
+ */
+export const NETWORK_ERROR = 'NETWORK_ERROR';
 
 let onSessionExpired: (() => void) | null = null;
 
@@ -128,7 +134,13 @@ export async function apiRequest<T>(
       ...auth,
       ...(init?.headers as Record<string, string> | undefined),
     };
-    const res = await fetch(`${APP_CONFIG.apiUrl}${path}`, { ...init, body, headers });
+    let res: Response;
+    try {
+      res = await fetch(`${APP_CONFIG.apiUrl}${path}`, { ...init, body, headers });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw error; // the caller cancelled it
+      throw new ApiError(error instanceof Error && error.message ? error.message : 'Network error', 0, NETWORK_ERROR);
+    }
     const text = toDeviceUrls(await res.text());
     let parsed: unknown = null;
     if (text) {

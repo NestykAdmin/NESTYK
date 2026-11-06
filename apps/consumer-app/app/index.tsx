@@ -1204,16 +1204,14 @@ export function AppHomeScreen() {
       return renderDashboardBody();
     }
 
+    // Living (/tenant/home): showed one sample lease to every tenant (QA web flow bugs 6 Nov 2026 item 1). The menu
+    // and the tab are "coming soon" until the page reads the tenant's own lease; a direct link lands here.
     if (activeTab === 'living') {
       return (
         <View style={styles.bodyContainer}>
           <View style={[styles.card, cardStyle]}>
-            <View style={styles.listingTopRow}>
-              <Text style={[styles.sectionHeader, headingText]}>My Rental</Text>
-              <MobileBadge role="tenant" label="Active Lease" />
-            </View>
-            <Text style={[styles.listingTitle, headingText]}>The Base Sukhumvit 77 (Room 1804)</Text>
-            <Text style={[styles.sectionDesc, secondaryText]}>Lease: Sep 1, 2026 – Aug 31, 2027 (12 months left)</Text>
+            <Text style={[styles.sectionHeader, headingText]}>{t.agent.dashboard.comingSoon}</Text>
+            <Text style={[styles.sectionDesc, secondaryText]}>{t.agent.dashboard.unavailableSection}</Text>
           </View>
         </View>
       );
