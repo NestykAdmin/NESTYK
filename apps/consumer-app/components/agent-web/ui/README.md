@@ -20,6 +20,10 @@ Use the app's own components first (`MobileSegmentedTabs`, `MobileListSearchRow`
 | White card on grey background | `<WebCard title actions padding />` | `padding="none"` for tables |
 | "+ สร้าง", language, row ⋯, account menu | `<WebMenu label trigger items />` | Esc / outside click / choosing closes it. `checked` makes a choice list (✓) |
 | Quick view / confirm / short form over the page | `<WebDialog open title onClose footer size />` | Long or multi-step work = a page (add room, add lead, tenant detail) |
+| A list as a table (rooms, leads, tenants) | `<WebTable label columns rows rowKey status sort onSortChange selectable … />` | States built in: `status="loading"` → skeleton · `"error"` → error + retry (offline when the browser is offline) · `"forbidden"` · no rows → empty, or "No matches" + "Clear filters" when `filtered`. Sort is the page's job: send it to the API, or `sortRows` for short lists. `nextSort` flips the direction |
+| A whole page or card with nothing to show / an error / not found / no permission / offline | `<WebState kind onRetry onClearFilters onBack action />` | Default texts from `agent.dashboard.webStates`; pass `title` / `description` for a list's own words (e.g. "No leads yet") |
+| Loading | `<WebSkeleton rows columns />` | Grey bars in the shape of the content, not a spinner |
+| Online / offline | `useOnline()` | `WebTable` already uses it for its error state |
 
 ## The 5 intents
 

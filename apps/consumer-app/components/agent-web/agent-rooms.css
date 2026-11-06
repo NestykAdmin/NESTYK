@@ -1,0 +1,386 @@
+/* Agent web Room Listings (plan step 4, design W1). Tokens only (--aw-*), see ui/agent-web-ui.css. */
+.awr-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s4);
+  min-width: 0;
+}
+
+/* Toolbar: search · status · filters · (sort in card view) · count · view switch */
+.awr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--aw-s3);
+}
+.awr-search {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  flex: 1 1 200px;
+  min-width: 180px;
+  max-width: 420px;
+  height: 40px;
+  padding: 0 var(--aw-s3);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+}
+.awr-search:focus-within {
+  border-color: var(--aw-brand-text);
+  box-shadow: 0 0 0 3px #eac15b20;
+}
+.awr-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--aw-ink);
+  font-size: var(--aw-t-body);
+}
+.aw-shell .awr-search input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.awr-status-select,
+.awr-sort-select {
+  display: flex;
+  width: 190px;
+}
+.awr-status-select select,
+.awr-sort-select select,
+.awr-field select,
+.awr-price-row input {
+  height: 40px;
+  padding: 0 var(--aw-s3);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+  font-size: var(--aw-t-body);
+}
+.awr-filter-btn {
+  height: 40px;
+}
+.awr-filter-btn.is-on {
+  border-color: var(--aw-brand-line);
+  background: var(--aw-brand-soft);
+}
+.awr-filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--aw-s1);
+  border-radius: var(--aw-r-pill);
+  background: var(--aw-brand);
+  color: var(--aw-on-brand);
+  font-size: var(--aw-t-caption);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+}
+.awr-count {
+  margin-left: auto;
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+  white-space: nowrap;
+}
+.awr-view {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+}
+.awr-view-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 34px;
+  border: 0;
+  border-radius: var(--aw-r-xs);
+  background: transparent;
+  color: var(--aw-muted);
+}
+.awr-view-btn:hover {
+  color: var(--aw-ink);
+}
+.awr-view-btn.is-active {
+  background: var(--aw-brand-soft);
+  color: var(--aw-brand-text);
+}
+
+/* Active filter chips */
+.awr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--aw-s2);
+}
+.awr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aw-s1);
+  height: 28px;
+  padding: 0 var(--aw-s3);
+  border: 1px solid var(--aw-brand-line);
+  border-radius: var(--aw-r-pill);
+  background: var(--aw-brand-soft);
+  color: var(--aw-brand-text);
+  font-size: var(--aw-t-small);
+}
+.awr-clear {
+  border: 0;
+  background: none;
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+  text-decoration: underline;
+}
+
+/* Results: the old rows stay while the next page loads, a little faded */
+.awr-results {
+  min-width: 0;
+  transition: opacity 120ms ease;
+}
+.awr-results.is-busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.awr-table-card {
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-surface);
+  overflow: hidden;
+}
+.awr-table-card .awu-table td {
+  padding-top: var(--aw-s2);
+  padding-bottom: var(--aw-s2);
+}
+
+/* Photo */
+.awr-thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--aw-bg);
+}
+.awr-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.awr-thumb-row {
+  width: 56px;
+  height: 42px;
+  border-radius: var(--aw-r-sm);
+}
+.awr-thumb-card {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--aw-r-md) var(--aw-r-md) 0 0;
+}
+
+/* Table cells */
+.awr-room {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+.awr-room strong {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-weight: 600;
+}
+.awr-room small,
+.awr-muted {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.awr-muted {
+  white-space: nowrap;
+}
+.awr-price {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.awr-none {
+  color: var(--aw-muted);
+}
+.awr-nowrap {
+  white-space: nowrap;
+}
+
+/* Card grid: 4 columns at 1440, fewer as the page narrows */
+.awr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--aw-s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.awr-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-surface);
+  text-align: left;
+  overflow: hidden;
+}
+button.awr-card:hover {
+  border-color: var(--aw-brand-line);
+  box-shadow: 0 3px 12px #1a2b480f;
+}
+.awr-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s1);
+  flex: 1;
+  padding: var(--aw-s3) var(--aw-s4) var(--aw-s4);
+  min-width: 0;
+}
+.awr-card-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aw-s2);
+  margin-bottom: var(--aw-s1);
+}
+.awr-card-status small,
+.awr-card-place,
+.awr-card-facts {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.awr-card-title {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.awr-card-price {
+  margin-top: auto;
+  padding-top: var(--aw-s2);
+}
+.awr-card-price strong {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: var(--aw-t-title);
+  font-variant-numeric: tabular-nums;
+}
+.awr-card-price small {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.awr-card-skeleton .awu-skeleton {
+  padding: var(--aw-s3) var(--aw-s4);
+}
+
+/* Pager */
+.awr-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aw-s3);
+}
+.awr-pager-range {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.awr-pager-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aw-s1);
+}
+.awr-page-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 var(--aw-s2);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+  font-variant-numeric: tabular-nums;
+}
+.awr-page-btn:hover:not(:disabled) {
+  border-color: var(--aw-brand-line);
+}
+.awr-page-btn.is-current {
+  border-color: var(--aw-brand);
+  background: var(--aw-brand);
+  color: var(--aw-on-brand);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+}
+.awr-page-gap {
+  min-width: 24px;
+  text-align: center;
+  color: var(--aw-muted);
+}
+
+/* Filter dialog */
+.awr-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aw-s4);
+}
+.awr-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.awr-field > span,
+.awr-field > legend {
+  padding: 0;
+  margin-bottom: var(--aw-s1);
+  color: var(--aw-ink);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: var(--aw-t-small);
+}
+.awr-field-wide {
+  grid-column: 1 / -1;
+}
+.awr-price-row {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s2);
+}
+.awr-price-row input {
+  flex: 1;
+  min-width: 0;
+}
+.awr-price-row input[aria-invalid="true"] {
+  border-color: var(--aw-danger);
+}
+.awr-field-error {
+  color: var(--aw-danger);
+  font-size: var(--aw-t-small);
+}
+
+@media (max-width: 1023px) {
+  .awr-search {
+    max-width: none;
+  }
+  .awr-count {
+    margin-left: 0;
+    order: 10;
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 600px) {
+  .awr-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

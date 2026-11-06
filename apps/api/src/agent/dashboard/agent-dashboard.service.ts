@@ -197,9 +197,10 @@ export class AgentDashboardService {
         tenantsCount: active, commissionPending: 0, currency: 'THB' },
       actionRequired: { status: sectionStatus(leadResult, viewingResult, tenantResult, contractResult, billResult), items: actionItems },
       schedule: { status: sectionStatus(viewingResult), items: viewings
-        .filter(v => v.status === 'scheduled' && new Date(v.scheduled_at).getTime() >= dayStart && new Date(v.scheduled_at).getTime() < dayStart + DAY_MS)
+        // B4 (Mos 5 Nov 2026): today's finished viewings stay on the list, marked done; cancelled ones do not.
+        .filter(v => (v.status === 'scheduled' || v.status === 'done') && new Date(v.scheduled_at).getTime() >= dayStart && new Date(v.scheduled_at).getTime() < dayStart + DAY_MS)
         .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime() || a.id - b.id)
-        .map(v => ({ id: String(v.id), startsAt: iso(v.scheduled_at), title: v.rent_room?.listing_title || v.rent_room?.property?.name || '', contactName: v.lead?.name || '', kind: 'viewing', status: 'confirmed' })) },
+        .map(v => ({ id: String(v.id), startsAt: iso(v.scheduled_at), title: v.rent_room?.listing_title || v.rent_room?.property?.name || '', contactName: v.lead?.name || '', kind: 'viewing', status: v.status === 'done' ? 'done' as const : 'confirmed' as const })) },
       inventory: { status: inventoryStatus, available, unavailable: rooms.length - available,
         published: rooms.filter(room => room.visibility === 'published').length,
         private: rooms.filter(room => room.visibility === 'private').length,

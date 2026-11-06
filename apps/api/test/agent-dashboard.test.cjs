@@ -99,13 +99,14 @@ test('empty persisted data is a real empty dashboard with commission explicitly 
   assert.ok(!('isDemoPreview' in result));
 });
 
-test('today schedule uses inclusive Bangkok start and exclusive next day and follow-up excludes future scheduled viewings', async () => {
+test('today schedule uses inclusive Bangkok start and exclusive next day, keeps today\'s done viewing (B4), and follow-up excludes future scheduled viewings', async () => {
   const f = fixture({ LeadEntity: [lead(1), lead(2, 7, 'inprogress'), lead(3, 7, 'inprogress')], LeadViewingEntity: [
     viewing(1, '2026-10-21T16:59:59.999Z'), viewing(2, '2026-10-21T17:00:00Z'), viewing(3, '2026-10-22T16:59:59.999Z'), viewing(4, '2026-10-22T17:00:00Z'), viewing(5, '2026-10-22T10:00:00Z', 'cancelled', 7, 2), viewing(6, '2026-10-22T11:00:00Z', 'done', 7, 3), viewing(7, '2026-10-22T10:00:00Z', 'scheduled', 8),
   ] });
   const result = await f.service.getDashboard(7, now);
-  assert.deepEqual(result.schedule.items.map(item => item.id), ['2', '3']);
-  assert.ok(result.schedule.items.every(item => item.kind === 'viewing' && item.status === 'confirmed'));
+  assert.deepEqual(result.schedule.items.map(item => item.id), ['2', '6', '3']);
+  assert.ok(result.schedule.items.every(item => item.kind === 'viewing'));
+  assert.deepEqual(result.schedule.items.map(item => item.status), ['confirmed', 'done', 'confirmed']);
   assert.equal(work(result, 'lead_follow_up').count, 2);
 });
 

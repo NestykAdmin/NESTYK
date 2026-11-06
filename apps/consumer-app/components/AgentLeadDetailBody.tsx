@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
   FadeIn,
@@ -49,9 +49,11 @@ import {
   saveLeadMatchSettings,
 } from '../lib/agent-leads-api';
 import { leadMatchReady, type LeadMatchRunResult, type LeadRoomMatch } from '../lib/lead-match-preview';
+import { leadIsFresh } from '../lib/lead-fresh';
 import { criterionTone, summarizeComparison, type CompareKey } from '../lib/lead-room-compare';
 import { useMatchCopy } from './lead-match-copy';
 import { LeadViewingsSection, viewedRoomIds } from './LeadViewingsSection';
+import { LeadDetailColumn, LeadDetailColumns } from './agent-web/LeadDetailColumns';
 import {
   formatBudgetRange,
   formatDate,
@@ -84,6 +86,13 @@ export function leadDisplayStatus(lead: Pick<AgentLead, 'status' | 'nextViewingA
   const open = lead.status === 'new' || lead.status === 'inprogress';
   const upcoming = !!lead.nextViewingAt && new Date(lead.nextViewingAt).getTime() > Date.now();
   return open && upcoming ? 'viewing' : lead.status;
+}
+
+/** "ใหม่" tag next to the status while nobody has changed the lead yet (lib/lead-fresh.ts). */
+export function LeadNewBadge({ lead }: { lead: Pick<AgentLead, 'status' | 'createdAt' | 'updatedAt'> }) {
+  const { t } = useLocale();
+  if (!leadIsFresh(lead)) return null;
+  return <MobileStatusPill label={t.agent.leads.badgeNew} tone="rose" />;
 }
 
 export function LeadStatusBadge({ status }: { status: string }) {
@@ -147,6 +156,9 @@ export function AgentLeadDetailBody({
   menuRequest?: number;
 }) {
   const { t, locale } = useLocale();
+  // W6 (Mos 5 Nov 2026): the desktop web shell (same 768px line as app/index.tsx) lays the cards out in two columns.
+  const { width: windowWidth } = useWindowDimensions();
+  const webColumns = Platform.OS === 'web' && windowWidth >= 768;
   const c = t.agent.leads;
   const { theme } = useMobileTheme();
   const agentColor = tokens.colors.roles.agent;
@@ -300,8 +312,9 @@ export function AgentLeadDetailBody({
   const visibleMatches = suggestions.slice(0, visibleCount);
   const moreCount = Math.min(MATCH_PAGE_SIZE, suggestions.length - visibleMatches.length);
   /** With viewings booked the suggestions are secondary, so they start folded; state cards stay visible. */
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  useEffect(() => setSuggestionsOpen(false), [lead.id]);
+  // Phone: folded once the lead has viewings. Desktop web (Mos 5 Nov 2026): open, there is room for it next to the lead card.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(webColumns);
+  useEffect(() => setSuggestionsOpen(webColumns), [lead.id, webColumns]);
   const suggestionsCollapsible = hasViewings && !booked && ready && !matchError && !!lastRun && suggestions.length > 0;
   const suggestionsCollapsed = suggestionsCollapsible && !suggestionsOpen;
   const suggestionsSummary =
@@ -738,6 +751,8 @@ export function AgentLeadDetailBody({
 
   return (
     <View style={styles.root}>
+      <LeadDetailColumns web={webColumns}>
+      <LeadDetailColumn web={webColumns} side="main">
       {leadError ? (
         <View style={[styles.banner, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.bannerText, { color: theme.textHeading }]}>{c.loadError}</Text>
@@ -769,6 +784,7 @@ export function AgentLeadDetailBody({
                 <LeadStatusBadge status={displayStatus} />
                 {statusTargets.length ? <MobileIcon name="chevron-down" size={12} color={statusTone.fg} /> : null}
               </Pressable>
+              <LeadNewBadge lead={lead} />
             </View>
             <Text style={[styles.meta, { color: theme.textSecondary }]} numberOfLines={1}>
               {c.leadCodeLine
@@ -834,7 +850,9 @@ export function AgentLeadDetailBody({
         onOpenMatch={onOpenMatch}
         onSaved={onViewingSaved}
       />
+      </LeadDetailColumn>
 
+      <LeadDetailColumn web={webColumns} side="rooms">
       <Animated.View layout={LinearTransition.duration(220)} style={styles.section}>
         <View style={styles.sectionHead}>
           <Pressable
@@ -908,6 +926,8 @@ export function AgentLeadDetailBody({
           renderMatches()
         )}
       </Animated.View>
+      </LeadDetailColumn>
+      </LeadDetailColumns>
 
       <MobileBottomSheet
         visible={sheetOpen}

@@ -5,3 +5,5 @@ export * from "./WebDialog";
 export * from "./WebMenu";
 export * from "./WebPageHeader";
 export * from "./WebCard";
+export * from "./WebState";
+export * from "./WebTable";

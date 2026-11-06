@@ -13,6 +13,7 @@ import {
 } from "@nestyk/feature-listing";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import type { AgentOverviewProps } from "./AgentOverview.types";
+import { WebState } from "./ui/WebState";
 import "./agent-overview.css";
 
 const WORK_ICONS: Record<AgentWorkItemKind, AppIconName> = {
@@ -108,7 +109,7 @@ export function AgentOverview({
     )
     .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   const nextAppointment = today.find(
-    (item) => Date.parse(item.startsAt) >= now.getTime(),
+    (item) => item.status !== "done" && Date.parse(item.startsAt) >= now.getTime(),
   );
   const work = snapshot.actionRequired.items
     .filter((item) => item.count > 0)
@@ -158,6 +159,7 @@ export function AgentOverview({
     content: React.ReactNode,
     empty = false,
     emptyText = t.common.noData,
+    emptyAction?: React.ReactNode,
   ) => {
     if (status === "loading")
       return (
@@ -191,7 +193,12 @@ export function AgentOverview({
           ) : null}
         </div>
       );
-    return empty ? <p className="aov-empty">{emptyText}</p> : content;
+    // Empty cards use the shared A7 state, with the next step when there is one (design audit, pass 3).
+    return empty ? (
+      <WebState kind="empty" compact title={emptyText} action={emptyAction} />
+    ) : (
+      content
+    );
   };
   const workTitle: Record<AgentWorkItemKind, string> = {
     overdue_payment: copy.overduePayments,
@@ -258,16 +265,6 @@ export function AgentOverview({
       status: snapshot.schedule.status,
       destination: { type: "tab", tab: "calendar" },
     },
-    {
-      label: copy.agentCommission,
-      value: money(snapshot.commission.total, snapshot.commission.currency),
-      sub: period(
-        snapshot.commission.periodYear,
-        snapshot.commission.periodMonth,
-      ),
-      icon: "wallet",
-      status: snapshot.commission.status,
-    },
   ];
   const activityText = {
     lead_added: copy.activityLeadAdded,
@@ -303,7 +300,6 @@ export function AgentOverview({
         ) : null}
         <header className="aov-intro">
           <div>
-            <p className="aov-eyebrow">{t.mobile.tabs.dashboard}</p>
             <h1>
               {interpolate(copy.welcome, { name: snapshot.greetingName })}
             </h1>
@@ -338,57 +334,6 @@ export function AgentOverview({
             <span>{copy.demoBanner}</span>
           </div>
         ) : null}
-        <section className="aov-kpis" aria-label={copy.businessOverview}>
-          {kpis.map((item) => {
-            const content = (
-              <>
-                <div className="aov-kpi-top">
-                  <span>{item.label}</span>
-                  <MobileIcon
-                    name={item.icon}
-                    size={21}
-                    color={theme.textSecondary}
-                  />
-                </div>
-                {isReady(item.status) ? (
-                  <>
-                    <strong className="aov-kpi-value">{item.value}</strong>
-                    <span className="aov-kpi-sub">{item.sub || "\u00a0"}</span>
-                  </>
-                ) : item.status === "loading" ? (
-                  <span
-                    className="aov-kpi-skeleton"
-                    role="status"
-                    aria-label={t.common.loading}
-                  />
-                ) : (
-                  <>
-                    <strong className="aov-kpi-value">—</strong>
-                    <span className="aov-kpi-sub">
-                      {item.status === 'error' ? web.loadFailed : copy.unavailableSection}
-                    </span>
-                  </>
-                )}
-              </>
-            );
-            const destination = item.destination;
-            return destination ? (
-              <button
-                type="button"
-                className="aov-kpi"
-                key={item.label}
-                onClick={() => onNavigate(destination)}
-              >
-                {content}
-              </button>
-            ) : (
-              <div className="aov-kpi" key={item.label}>
-                {content}
-              </div>
-            );
-          })}
-        </section>
-
         <div className="aov-grid aov-work-grid">
           <Panel
             title={copy.actionRequired}
@@ -468,20 +413,81 @@ export function AgentOverview({
                       ) : null}
                     </span>
                     <Pill
-                      tone={item.status === "confirmed" ? "success" : "warning"}
+                      tone={item.status === "done" ? "neutral" : item.status === "confirmed" ? "success" : "warning"}
                     >
-                      {item.status === "confirmed"
-                        ? copy.statusConfirmed
-                        : copy.statusPending}
+                      {item.status === "done"
+                        ? copy.statusDone
+                        : item.status === "confirmed"
+                          ? copy.statusConfirmed
+                          : copy.statusPending}
                     </Pill>
                   </button>
                 ))}
               </div>,
               today.length === 0,
               copy.noAppointments,
+              <button
+                type="button"
+                className="awu-btn"
+                onClick={() => onNavigate({ type: "tab", tab: "calendar" })}
+              >
+                {copy.viewCalendar}
+              </button>,
             )}
           </Panel>
         </div>
+
+        <section className="aov-kpis" aria-label={copy.businessOverview}>
+          {kpis.map((item) => {
+            const content = (
+              <>
+                <div className="aov-kpi-top">
+                  <span>{item.label}</span>
+                  <MobileIcon
+                    name={item.icon}
+                    size={21}
+                    color={theme.textSecondary}
+                  />
+                </div>
+                {isReady(item.status) ? (
+                  <>
+                    <strong className="aov-kpi-value">{item.value}</strong>
+                    <span className="aov-kpi-sub">{item.sub || "\u00a0"}</span>
+                  </>
+                ) : item.status === "loading" ? (
+                  <span
+                    className="aov-kpi-skeleton"
+                    role="status"
+                    aria-label={t.common.loading}
+                  />
+                ) : (
+                  <>
+                    <strong className="aov-kpi-value">—</strong>
+                    <span className="aov-kpi-sub">
+                      {item.status === 'error' ? web.loadFailed : copy.unavailableSection}
+                    </span>
+                  </>
+                )}
+              </>
+            );
+            const destination = item.destination;
+            return destination ? (
+              <button
+                type="button"
+                className="aov-kpi"
+                key={item.label}
+                onClick={() => onNavigate(destination)}
+              >
+                {content}
+              </button>
+            ) : (
+              <div className="aov-kpi" key={item.label}>
+                {content}
+              </div>
+            );
+          })}
+        </section>
+
 
         <div className="aov-grid aov-portfolio-grid">
           <Panel
@@ -572,10 +578,12 @@ export function AgentOverview({
                                 <span>
                                   <strong>{room.title}</strong>
                                   <small>
-                                    {interpolate(copy.bedsArea, {
-                                      beds: room.beds,
-                                      area: room.area,
-                                    })}
+                                    {room.beds === 0
+                                      ? `${t.masters.roomTypes.studio} · ${room.area}`
+                                      : interpolate(copy.bedsArea, {
+                                          beds: room.beds,
+                                          area: room.area,
+                                        })}
                                   </small>
                                 </span>
                               </button>
@@ -615,7 +623,20 @@ export function AgentOverview({
                     </table>
                   </div>
                 ) : (
-                  <p className="aov-empty">{t.common.noData}</p>
+                  <WebState
+                    kind="empty"
+                    compact
+                    title={t.common.noData}
+                    action={
+                      <button
+                        type="button"
+                        className="awu-btn awu-btn-primary"
+                        onClick={() => onNavigate({ type: "action", id: "addListing" })}
+                      >
+                        {copy.addListing}
+                      </button>
+                    }
+                  />
                 )}
               </>,
             )}
