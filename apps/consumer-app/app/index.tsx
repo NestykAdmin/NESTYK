@@ -1,4 +1,6 @@
 import { AgentCalendarScreen } from '../components/AgentCalendarScreen';
+import { AgentCalendarPage } from '../components/agent-web/AgentCalendarPage';
+import type { AgentCalendarPageProps } from '../components/agent-web/AgentCalendarPage.types';
 import { calendarDateKey } from '../lib/agent-calendar-demo';
 import { useAgentCalendarViewings } from '../lib/agent-calendar-viewings';
 import { getAgentLead } from '../lib/agent-leads-api';
@@ -1395,24 +1397,28 @@ export function AppHomeScreen() {
     }
 
     if (activeTab === 'calendar' && activeRole === 'agent') {
-      return <AgentCalendarScreen
-        key={session?.userId ?? 'guest'}
-        viewings={calendarViewings.viewings}
-        status={calendarViewings.status}
-        onRetry={() => setCalendarReloadToken(++refreshSequence.current)}
-        onSaved={viewing => {
+      const calendarProps: AgentCalendarPageProps = {
+        viewings: calendarViewings.viewings,
+        status: calendarViewings.status,
+        onRetry: () => setCalendarReloadToken(++refreshSequence.current),
+        onSaved: viewing => {
           if (viewing.status !== 'cancelled') {
             const date = calendarDateKey(new Date(viewing.scheduledAt));
             setCalendarSelectedDate(date);
             setCalendarMonth(date.slice(0, 7) + '-01');
           }
           setCalendarReloadToken(++refreshSequence.current);
-        }}
-        selectedDate={calendarSelectedDate}
-        onSelectDate={setCalendarSelectedDate}
-        visibleMonth={calendarMonth}
-        onMonthChange={setCalendarMonth}
-      />;
+        },
+        selectedDate: calendarSelectedDate,
+        onSelectDate: setCalendarSelectedDate,
+        visibleMonth: calendarMonth,
+        onMonthChange: setCalendarMonth,
+      };
+      // Desktop web (W13, Mos 6 Nov 2026): calendar page; phone and phone-width web keep the app screen.
+      if (isAgentWeb) {
+        return <AgentCalendarPage key={session?.userId ?? 'guest'} {...calendarProps} onOpenLeads={() => handleTabPress('listingLead')} />;
+      }
+      return <AgentCalendarScreen key={session?.userId ?? 'guest'} {...calendarProps} />;
     }
 
     if (activeTab === 'calendar') {

@@ -509,6 +509,31 @@ export interface TranslationSchema {
       pending: string;
       kind: string;
       saved: string;
+      web: {
+        headerHint: string;
+        openLeads: string;
+        pickDay: string;
+        statusTitle: string;
+        stateScheduled: string;
+        stateDone: string;
+        stateOverdue: string;
+        dayTitle: string;
+        monthCount: string;
+        searchPlaceholder: string;
+        searchLabel: string;
+        searchScope: string;
+        viewLabel: string;
+        viewMonth: string;
+        viewWeek: string;
+        viewWeekSoon: string;
+        viewAgenda: string;
+        moreCount: string;
+        monthGridLabel: string;
+        agendaLabel: string;
+        emptyMonth: string;
+        noMatch: string;
+        viewingOf: string;
+      };
     };
     tenants: {
       create: string;
