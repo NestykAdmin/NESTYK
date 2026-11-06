@@ -11,14 +11,18 @@ import type { ApiClient } from './api-client';
  *   - agent    นายหน้า (agent): สลิปที่ผู้เช่าส่งมา ยืนยันการชำระ หรือตีกลับ
  *
  * ข้อควรระวัง
- *   - GET mine, GET mine/next, GET received และ GET agent/tenants/:tenantId สร้างบิลเองก่อนตอบ
+ *   - ตั้งแต่ d2d4554 (QA 5 พ.ย. 2026) 4 เส้นทาง GET ด้านล่างอ่านอย่างเดียว และการออกบิลย้ายไปที่ POST mine/refresh กับ
+ *     POST received/refresh (billing/bill-refresh.controller.ts) ซึ่งเขียนข้อมูลแบบเดียวกับที่อธิบายด้านล่าง
+ *     ชุดเทสรู้รุ่นของ API ที่ยิงไม่ได้ จึงยังถือกติกาเดิมกับ GET ทั้ง 4 และถือกติกาเดียวกันกับ POST refresh ทั้ง 2
+ *   - (API รุ่นก่อน d2d4554) GET mine, GET mine/next, GET received และ GET agent/tenants/:tenantId สร้างบิลเองก่อนตอบ
  *     ถ้าผู้ใช้มีสัญญาเช่าที่ active และถึงรอบออกบิลแล้ว (ensureForUser, ensureForOwner, insertBills ใน tenant-billing.service.ts)
  *     และเปลี่ยนสถานะการเข้าพัก (room_tenancies) จาก prospect เป็น active เมื่อถึงวันเข้าอยู่ด้วย
  *     ตั้งแต่ 9644dd9 ยังเปลี่ยนหนังสือต่อสัญญาที่ลงนามแล้วเป็น active เมื่อถึงวันมีผล (insertBills บรรทัด 250-259
  *     กับ renewalActiveOn ใน rent-schedule.ts:92-95) เพราะ activeLeases (บรรทัด 228-237) เลือกหนังสือต่อสัญญาที่ออกเอกสารแล้ว
  *     และรอลงนามหรือรอนายหน้าตรวจด้วย การเก็บกวาดจึงต้องคืนทั้งบิล สถานะการเข้าพัก และสถานะของหนังสือต่อสัญญา
  *     เทสที่ไม่ต้องการสร้างข้อมูลจึงไม่ควรเรียก 4 เส้นทางนี้ด้วยบัญชีที่มีบทบาทที่เส้นทางรับ
- *     (ข้อยกเว้น: roles.spec.ts เรียก mine, mine/next และ received ด้วยบัญชี QA ที่ไม่มีบทบาทนั้นเท่านั้น
+ *     (ข้อยกเว้น: roles.spec.ts เรียก mine, mine/next, received และ POST refresh ทั้ง 2 ด้วยบัญชี QA ที่ไม่มีบทบาทนั้นเท่านั้น
+ *      และ bills.spec.ts เรียก POST refresh ทั้ง 2 โดยไม่ล็อกอิน (AuthGuard ตอบ 401 ก่อนถึง handler)
  *      RolesGuard ปฏิเสธด้วย 403 ก่อนถึง handler ความปลอดภัยของข้อนี้จึงขึ้นกับ guard ดู roles.spec.ts)
  *   - เส้นทาง POST บันทึกข้อมูลทันทีถ้าบิลมีอยู่จริงและอยู่ในสถานะที่ทำได้ เทสที่มีตอนนี้ใช้เฉพาะ id ที่ไม่มีอยู่จริง
  *   - id รับเป็นข้อความได้ด้วย เพื่อใช้ทดสอบ id ที่ผิดรูปแบบ
@@ -26,14 +30,22 @@ import type { ApiClient } from './api-client';
 export class BillsApi {
   constructor(private readonly client: ApiClient) {}
 
-  /** GET /bills/mine : บิลของผู้เช่าที่ล็อกอิน (สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
+  /** GET /bills/mine : บิลของผู้เช่าที่ล็อกอิน (API รุ่นก่อน d2d4554 สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
   mine(): Promise<APIResponse> {
     return this.client.get('bills/mine');
   }
 
-  /** GET /bills/mine/next : รอบค่าเช่าถัดไปของผู้เช่า (สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
+  /** GET /bills/mine/next : รอบค่าเช่าถัดไปของผู้เช่า (API รุ่นก่อน d2d4554 สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
   mineNext(): Promise<APIResponse> {
     return this.client.get('bills/mine/next');
+  }
+
+  /**
+   * POST /bills/mine/refresh : ออกบิลค่าเช่าที่ถึงกำหนดของผู้เช่า (@Roles('tenant') ระดับ method ใน bill-refresh.controller.ts ตั้งแต่ d2d4554)
+   * เขียนข้อมูลเมื่อผู้เรียกผ่าน guard ใช้ในชุดอ่านได้เฉพาะเคสที่ต้องถูกปฏิเสธ (ไม่ล็อกอิน หรือบัญชีที่ไม่มีบทบาท tenant)
+   */
+  refreshMine(): Promise<APIResponse> {
+    return this.client.post('bills/mine/refresh', {});
   }
 
   /** GET /bills/mine/:id/payment-slip : ลิงก์เปิดสลิปของบิลตัวเอง */
@@ -55,9 +67,17 @@ export class BillsApi {
     return this.client.post(`bills/mine/${id}/confirm`, {});
   }
 
-  /** GET /bills/received : บิลที่เจ้าของห้องได้รับ (สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
+  /** GET /bills/received : บิลที่เจ้าของห้องได้รับ (API รุ่นก่อน d2d4554 สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
   received(): Promise<APIResponse> {
     return this.client.get('bills/received');
+  }
+
+  /**
+   * POST /bills/received/refresh : ออกบิลค่าเช่าที่ถึงกำหนดของสัญญาที่ผู้เรียกเป็นเจ้าของ (@Roles('landlord') ระดับ method ตั้งแต่ d2d4554)
+   * เขียนข้อมูลเมื่อผู้เรียกผ่าน guard ใช้ในชุดอ่านได้เฉพาะเคสที่ต้องถูกปฏิเสธ (ไม่ล็อกอิน หรือบัญชีที่ไม่มีบทบาท landlord)
+   */
+  refreshReceived(): Promise<APIResponse> {
+    return this.client.post('bills/received/refresh', {});
   }
 
   /** GET /bills/received/:id/payment-slip : ลิงก์เปิดสลิปของบิลที่นายหน้ายืนยันแล้ว */
@@ -70,7 +90,7 @@ export class BillsApi {
     return this.client.get('bills/agent');
   }
 
-  /** GET /bills/agent/tenants/:tenantId : บิลและการชำระของผู้เช่า 1 ราย (สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
+  /** GET /bills/agent/tenants/:tenantId : บิลและการชำระของผู้เช่า 1 ราย (API รุ่นก่อน d2d4554 สร้างบิลเองก่อนตอบ ดูข้อควรระวัง) */
   agentTenantBilling(tenantId: number | string): Promise<APIResponse> {
     return this.client.get(`bills/agent/tenants/${tenantId}`);
   }

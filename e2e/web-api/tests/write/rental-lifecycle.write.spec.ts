@@ -1,6 +1,6 @@
 import type { APIResponse } from '@playwright/test';
 import { qaE2eLandlord, qaE2eTenant } from '../../src/config/qa-accounts';
-import { expectCodedError, expectJson } from '../../src/support/http';
+import { expectCodedError, expectError, expectJson } from '../../src/support/http';
 import {
   bangkokDate,
   DEAL,
@@ -33,6 +33,7 @@ import { expect, test, type LifecycleSession } from '../../src/write/write.fixtu
  *   - API ต้องต่อที่เก็บไฟล์ (Supabase Storage) ได้ เพราะเกือบทุกขั้นอัปโหลดหรือสร้าง PDF
  *   - ถ้าค่าคงที่เป็น false: SUPABASE_URL ใน .env.api ต้องชี้เครื่องนี้ด้วย (assertEnvFileStorageIsLocal ใน write-guard.ts ตรวจใน fixture)
  *   - ไม่เริ่มรันช่วง 23:50 ถึง 00:10 เวลากรุงเทพ (เทสข้ามพร้อมเหตุผล ดู nearMidnightReason ใน lifecycle-data.ts)
+ *   - API ตั้งแต่ d2d4554 (ขั้น 10 ใช้ POST /bills/mine/refresh) เทสตรวจก่อนเขียนและข้ามพร้อมเหตุผลถ้าเป็นรุ่นก่อน
  *
  * ข้อมูลที่ 1 รอบสร้างถาวร (ไม่มีเส้นทางลบ ทุกข้อความติดป้าย E2E-LC-<รหัสรอบ>)
  *   นับจากฐานข้อมูลในห้องทดลอง ก่อนกับหลังรัน 1 รอบ (2 พ.ย. 2026) รวม 43 แถวใน 21 ตาราง:
@@ -135,7 +136,8 @@ async function myContracts(response: Promise<APIResponse>): Promise<{ id: number
 
 /**
  * ป้ายที่ขึ้นต้นชื่อโครงการของทุกรอบ (lifecycleLabel + " Tower") ใช้แยกสัญญาของเทสออกจากสัญญาที่ทีมผูกกับบัญชี qa-*
- * ทำไมต้องตรวจ: ขั้น 10 เรียก GET /bills/mine และ /bills/received ซึ่งออกบิลให้ทุกสัญญาของบัญชีนั้น ไม่ใช่แค่ของรอบนี้
+ * ทำไมต้องตรวจ: ขั้น 10 เรียก POST /bills/mine/refresh ซึ่งออกบิลให้ทุกสัญญาของผู้เช่า ไม่ใช่แค่ของรอบนี้
+ *   (API รุ่นก่อน d2d4554 ออกบิลตอน GET /bills/mine และ /bills/received แทน)
  *   ข้อตกลงกับทีม (ฉบับที่ 8, 2 พ.ย. 2026) ครอบเฉพาะข้อมูล E2E- จึงหยุดก่อนเขียนถ้าบัญชี qa-e2e-tenant หรือ qa-e2e-landlord มีสัญญาอื่น
  */
 const RUN_PROPERTY_PREFIX = 'E2E-LC-';
@@ -171,6 +173,15 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
   ).toEqual([]);
   const tenantBefore = tenantExisting.map((contract) => contract.id);
   const landlordBefore = landlordExisting.map((contract) => contract.id);
+
+  // รุ่นของ API ก่อนเขียน: ขั้น 10 ต้องใช้ POST /bills/mine/refresh (ตั้งแต่ d2d4554) ถ้าไม่มี ขั้น 10 จะแดงหลังขั้น 1-9 เขียนไปแล้ว
+  //   และสัญญาเช่าของรอบจะค้างเป็น active (ขั้น 11-13 ไม่ได้รัน) จึงข้ามทั้งข้อตั้งแต่ตรงนี้ (ข้อเสนอของ test-reviewer)
+  //   ตรวจด้วย qa-agent ซึ่งไม่มีบทบาท tenant: API ใหม่ตอบ 403 ก่อนถึง handler API เก่าตอบ 404 ไม่มีอะไรถูกบันทึก
+  const probe = await agent.probeTenantBillRefresh();
+  //   ข้ามเฉพาะ 404 ของ NestJS ("Cannot POST ...") ส่วน 404 จากที่อื่นไปแดงที่ expect ถัดไป
+  const routeMissing = probe.status() === 404 && (await probe.text()).includes('Cannot POST');
+  test.skip(routeMissing, 'ต้องใช้ API ตั้งแต่ d2d4554 (POST /bills/mine/refresh) API นี้เป็นรุ่นก่อน ข้ามก่อนเขียนข้อมูล');
+  expect(await expectError(probe, 403), 'qa-agent ต้องถูกปฏิเสธจาก POST /bills/mine/refresh').toBe('Required role: tenant');
 
   try {
     await test.step('1. ข้อมูลอ้างอิงและห้อง scout ใหม่', async () => {
@@ -391,7 +402,11 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
 
     await test.step('10. บิลค่าเช่าเดือนนี้: ผู้เช่าส่งสลิป นายหน้ายืนยัน เจ้าของเห็นว่าชำระแล้ว', async () => {
       const id = created.leaseId!;
-      // GET /bills/mine สร้างบิลที่ถึงรอบก่อนตอบ (ข้อ ง.14 ใน README)
+      // ตั้งแต่ d2d4554 GET /bills/mine อ่านอย่างเดียว ต้องสั่งออกบิลที่ถึงกำหนดก่อน (แบบเดียวกับที่แอปเรียกก่อนเปิดหน้าบิล)
+      await expectJson(await tenant.refreshMyBills(), 200);
+      // เรียกซ้ำต้องไม่ออกบิลเพิ่ม: issued คือจำนวนแถวที่ INSERT ... orIgnore() คืนจริง (result.raw.length)
+      //   ใน insertBills ของ apps/api/src/billing/tenant-billing.service.ts บรรทัด 289-291 ที่ qa/e2e 648dd28 แถวที่ชนกันไม่ถูกนับ
+      expect(await expectJson<{ issued: number }>(await tenant.refreshMyBills(), 200), 'เรียก refresh ซ้ำ').toEqual({ issued: 0 });
       const bills = (await expectJson<BillView[]>(await tenant.myBills(), 200)).filter((bill) => bill.leaseContractId === id);
       const seen = JSON.stringify(bills.map((bill) => [bill.period, bill.status, bill.amount]));
       // วันเริ่มย้อนหลัง 1 เดือน: บิลเดือนแรก (หักเงินจองเต็มจำนวน จึงยอด 0 และ paid) กับบิลเดือนนี้ (ยอดเต็ม ยังไม่ชำระ)

@@ -192,8 +192,9 @@ test('qa-agent2 cannot make a deal offer or a tenant from a qa-agent lead and ro
     await intruder.tenants.update(NONEXISTENT_ID, edit),
     'PATCH /agent/tenants/:id',
   );
-  // GET ที่เขียนข้อมูล (กฎ ง.14): ค้นผู้เช่าด้วยเจ้าของแล้วตอบ 404 ก่อน insertBills (billing/tenant-billing.service.ts บรรทัด 587-592)
+  // GET ที่เขียนข้อมูลใน API รุ่นก่อน d2d4554 (กฎ ง.14): ค้นผู้เช่าด้วยเจ้าของแล้วตอบ 404 ก่อน insertBills (billing/tenant-billing.service.ts บรรทัด 587-592)
   //   อยู่ในไฟล์นี้ ไม่อยู่ใน tests/api เพราะถ้าระบบผิด จะออกบิล เปลี่ยนสัญญาต่ออายุเป็น active และเปลี่ยนการเข้าพักเป็น active
+  //   ตั้งแต่ d2d4554 เส้นทางนี้อ่านอย่างเดียว แต่ชุดเทสรู้รุ่นของ API ไม่ได้ จึงยังอยู่ในชุดเขียน
   await expectSameAsNonexistent(
     await intruder.bills.agentTenantBilling(targets.tenantId!),
     await intruder.bills.agentTenantBilling(NONEXISTENT_ID),

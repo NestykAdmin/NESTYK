@@ -17,7 +17,7 @@ import { letterLandlords, MAX_QUERY_LENGTH, searchOwners, STRIPPED_FROM_QUERY } 
  *   เช่น requireLead (agent-leads.service.ts บรรทัด 335-339), รายละเอียดห้อง (agent-listings.service.ts บรรทัด 355-363),
  *   ผู้เช่า (agent-tenants.service.ts บรรทัด 200-204), สัญญา query(agentId) (agent-contracts.service.ts บรรทัด 483-493)
  * owner-users (develop accb616 R1): ค้นจากหนังสือจองของนายหน้าที่เรียก (agent-contracts.service.ts บรรทัด 3168) qa-agent2 จึงต้องค้นเจ้าของห้องของ qa-agent ไม่เจอ
- * ทุกคำขอในไฟล์นี้เป็น GET ที่อ่านอย่างเดียว ส่วน GET /bills/agent/tenants/:id ที่เขียนข้อมูล (กฎ ง.14) อยู่ใน tests/write/cross-agent.write.spec.ts
+ * ทุกคำขอในไฟล์นี้เป็น GET ที่อ่านอย่างเดียว ส่วน GET /bills/agent/tenants/:id ที่เขียนข้อมูลใน API รุ่นก่อน d2d4554 (กฎ ง.14) อยู่ใน tests/write/cross-agent.write.spec.ts
  */
 
 test.skip(qaAgent2.uuid === null, `ยังไม่ได้ตั้ง ${qaAgent2.uuidVariable} (uuid ของ ${qaAgent2.email})`);

@@ -8,6 +8,8 @@ import { expectError, expectJson } from '../../src/support/http';
  * ที่มา: @Roles ของแต่ละ controller และ RolesGuard (apps/api/src/auth/guards/roles.guard.ts) ตรวจซ้ำที่ develop 9644dd9
  *   (เลขบรรทัดในไฟล์นี้เป็นของ 9644dd9 ส่วน "เพิ่มใน develop ..." บอกรุ่นที่เส้นทางนั้นเข้ามา)
  *   ทุก controller ที่ต้องล็อกอินกำหนดบทบาทระดับ class เทสจึงเรียกเส้นทางตัวแทนของแต่ละ controller
+ *   ยกเว้น bill-refresh.controller.ts (d2d4554) ที่ระดับ class มีแค่ @UseGuards และตั้ง @Roles ระดับ method ทั้ง 2 เส้นทาง
+ *   เทสจึงเรียกครบทั้ง 2 เส้นทาง ถ้าทีมเพิ่มเส้นทางใน controller นี้โดยไม่ใส่ @Roles เทสชุดนี้จับไม่ได้
  *   party-contracts.controller.ts มี @Roles('landlord') ระดับ method: GET mine/deal-offers กับ POST mine/deal-offers/:id/confirm
  *   (ตั้งแต่ develop f845ac6) และ GET mine/reminders (ตั้งแต่ develop 8a62e39) รวม 3 เส้นทาง (บรรทัด 102-103, 108-109, 120-121)
  *   RolesGuard อ่านบทบาทด้วย reflector.getAllAndOverride([handler, class]) ค่าระดับ method จึงใช้แทนระดับ class (ไม่รวมกัน)
@@ -24,10 +26,13 @@ import { expectError, expectJson } from '../../src/support/http';
  *     บัญชีที่ไม่ได้ตั้ง uuid: เทสที่ใช้บัญชีนั้นข้าม พร้อมเหตุผล
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
- *   - เรียกเส้นทาง GET (กับ POST 1 เส้นทางในข้อถัดไป) ด้วยบทบาทที่ต้องถูกปฏิเสธ ยกเว้นเส้นทางที่ไม่บันทึกอะไรเมื่อผ่าน (กลุ่ม "accepted")
- *   - POST 1 เส้นทาง: POST /contracts/mine/deal-offers/:id/confirm เรียกด้วยบทบาทที่ต้องได้ 403 ส่งเนื้อคำขอว่างกับ NO_SUCH_ID
+ *   - เรียกเส้นทาง GET (กับ POST 3 เส้นทางใน 2 ข้อถัดไป) ด้วยบทบาทที่ต้องถูกปฏิเสธ ยกเว้นเส้นทางที่ไม่บันทึกอะไรเมื่อผ่าน (กลุ่ม "accepted")
+ *   - POST /contracts/mine/deal-offers/:id/confirm เรียกด้วยบทบาทที่ต้องได้ 403 ส่งเนื้อคำขอว่างกับ NO_SUCH_ID
  *     ถ้า guard พังจนคำขอไปถึง service จะได้ 400 ก่อนแตะฐานข้อมูล (ที่มาเขียนไว้ที่ party-contracts.api.ts landlordConfirmDealOfferEmptyBody)
- *   - GET /bills/mine, /bills/mine/next และ /bills/received สร้างบิลเองก่อนตอบเมื่อผู้เรียกผ่าน (tenant-billing.service.ts insertBills)
+ *   - POST /bills/mine/refresh และ /bills/received/refresh (d2d4554) ออกบิลเมื่อผู้เรียกผ่าน เรียกด้วยบทบาทที่ต้องได้ 403 เท่านั้น
+ *     ทั้ง 2 เส้นทางตั้ง @Roles ระดับ method ใน bill-refresh.controller.ts (ระดับ class มีแค่ @UseGuards) และต้องใช้ API ตั้งแต่ d2d4554
+ *     ถ้า guard พังจนคำขอไปถึง service: ensureForUser/ensureForOwner ไม่ออกอะไรเมื่อผู้เรียกไม่มีสัญญา (เหตุผลเดียวกับข้อถัดไป)
+ *   - (API รุ่นก่อน d2d4554) GET /bills/mine, /bills/mine/next และ /bills/received สร้างบิลเองก่อนตอบเมื่อผู้เรียกผ่าน (tenant-billing.service.ts insertBills)
  *     และตั้งแต่ 9644dd9 เปลี่ยนหนังสือต่อสัญญาที่ถึงวันมีผลเป็น active ด้วย (บรรทัด 250-259)
  *     จึงเรียกด้วยบทบาทที่ต้องได้ 403 เท่านั้น RolesGuard ปฏิเสธก่อนถึง service (ลำดับของ NestJS: guard ก่อน pipe และ handler)
  *     ถ้า guard พังจนคำขอผ่านไปถึง service: insertBills คืน 0 โดยไม่บันทึกเมื่อไม่มีสัญญาที่ activeLeases เลือก (tenant-billing.service.ts:240)
@@ -45,6 +50,7 @@ import { expectError, expectJson } from '../../src/support/http';
  * ยังไม่ครอบคลุม: เส้นทาง POST/PUT/PATCH/DELETE (ถ้าบทบาทถูก คำขอจะบันทึกข้อมูลจริง) ยกเว้น POST mine/deal-offers/:id/confirm
  *   ซึ่งตั้ง @Roles('landlord') ระดับ method แยกเป็นของตัวเอง (party-contracts.controller.ts:109) GET mine/deal-offers จึงเป็นตัวแทนไม่ได้
  *   เทสในกลุ่ม "landlord contract routes" จับได้ถ้า @Roles บรรทัด 109 หายไป (qa-tenant จะได้ 400 แทน 403)
+ *   และยกเว้น POST /bills/mine/refresh กับ /bills/received/refresh (ต้องใช้ API ตั้งแต่ d2d4554 รุ่นก่อนได้ 404 "Cannot POST ...")
  *
  * เส้นทาง GET ที่เพิ่มใน develop f845ac6 และ 8a62e39 ไม่มี id ไว้หยุดการทำงาน 4 เส้นทาง (agent/dashboard, agent/reminders,
  *   contracts/mine/deal-offers, contracts/mine/reminders) ถ้า guard พังจนคำขอไปถึง service ก็ไม่บันทึกอะไร
@@ -138,6 +144,8 @@ const groups: GatedGroup[] = [
       { name: 'GET /bills/mine/:id/payment-slip', call: (s) => s.bills.minePaymentSlip(NO_SUCH_ID) },
       // tenant-bills.controller.ts บรรทัด 71 (เพิ่มใน develop 9644dd9)
       { name: 'GET /bills/mine/:id/late-fee/:kind', call: (s) => s.bills.mineLateFeeDocument(NO_SUCH_ID, 'invoice') },
+      // @Roles('tenant') ระดับ method: bill-refresh.controller.ts (d2d4554) ข้อความ 403 เดียวกับ tenant-bills.controller.ts
+      { name: 'POST /bills/mine/refresh', call: (s) => s.bills.refreshMine() },
     ],
   },
   {
@@ -150,6 +158,8 @@ const groups: GatedGroup[] = [
       { name: 'GET /bills/received/:id/payment-slip', call: (s) => s.bills.receivedPaymentSlip(NO_SUCH_ID) },
       // owner-bills.controller.ts บรรทัด 43 (เพิ่มใน develop 9644dd9)
       { name: 'GET /bills/received/:id/late-fee/:kind', call: (s) => s.bills.receivedLateFeeDocument(NO_SUCH_ID, 'invoice') },
+      // @Roles('landlord') ระดับ method: bill-refresh.controller.ts (d2d4554)
+      { name: 'POST /bills/received/refresh', call: (s) => s.bills.refreshReceived() },
     ],
   },
   {

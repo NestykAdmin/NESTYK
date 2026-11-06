@@ -24,6 +24,13 @@ export interface UploadPart {
 export class LifecycleAgentApi {
   constructor(private readonly client: ApiClient) {}
 
+  /**
+   * ตรวจรุ่นของ API ก่อนเขียนอะไร: POST /bills/mine/refresh มีตั้งแต่ d2d4554 และรับเฉพาะบทบาท tenant (@Roles ระดับ method)
+   * qa-agent ไม่มีบทบาท tenant (roles.spec.ts กลุ่ม tenant bill routes) API ที่มีเส้นทางนี้จึงตอบ 403 ก่อนถึง handler
+   * API รุ่นก่อนตอบ 404 "Cannot POST ..." ไม่มีอะไรถูกบันทึกทั้ง 2 กรณี
+   */
+  probeTenantBillRefresh = (): Promise<APIResponse> => this.client.post('bills/mine/refresh', {});
+
   // ---- ข้อมูลอ้างอิง (GET อ่านอย่างเดียว) ----
   contractTypes = (): Promise<APIResponse> => this.client.get('agent/rooms/contract-types');
   roomTypes = (): Promise<APIResponse> => this.client.get('agent/rooms/room-types');
@@ -131,12 +138,17 @@ export class LifecyclePartyApi {
   /** GET /contracts/mine/:id/deposit-settlement (PC 59) */
   settlement = (id: number): Promise<APIResponse> => this.client.get(`contracts/mine/${id}/deposit-settlement`);
 
-  /** GET /bills/mine (TB 30) : เส้นทาง GET นี้สร้างบิลที่ถึงรอบก่อนตอบ */
+  /**
+   * POST /bills/mine/refresh (billing/bill-refresh.controller.ts, ตั้งแต่ d2d4554) 200 { issued } : ออกบิลค่าเช่าที่ถึงกำหนดของผู้เช่า
+   * เรียกซ้ำได้โดยไม่ออกบิลซ้ำ (1 บิลต่อสัญญาต่องวด) และเปลี่ยนการเข้าพักจาก prospect เป็น active เมื่อถึงวันเข้าอยู่
+   */
+  refreshMyBills = (): Promise<APIResponse> => this.client.post('bills/mine/refresh', {});
+  /** GET /bills/mine (TB 30) : ตั้งแต่ d2d4554 อ่านอย่างเดียว บิลออกด้วย refreshMyBills หรืองานรอบ 00:05 */
   myBills = (): Promise<APIResponse> => this.client.get('bills/mine');
   /** POST /bills/mine/:id/payment-slip (TB 48-49) 200 */
   billSlip = (billId: number, file: UploadPart): Promise<APIResponse> => this.client.postMultipart(`bills/mine/${billId}/payment-slip`, { file });
   /** POST /bills/mine/:id/confirm (TB 61) : ผู้เช่ายืนยันส่งสลิปให้นายหน้าตรวจ */
   confirmBillSlip = (billId: number): Promise<APIResponse> => this.client.post(`bills/mine/${billId}/confirm`, {});
-  /** GET /bills/received (OB 18) : เจ้าของห้องดูบิลที่ได้รับ เส้นทาง GET นี้สร้างบิลที่ถึงรอบก่อนตอบ */
+  /** GET /bills/received (OB 18) : เจ้าของห้องดูบิลที่ได้รับ (ตั้งแต่ d2d4554 อ่านอย่างเดียว API รุ่นก่อนออกบิลให้ทุกสัญญาของเจ้าของก่อนตอบ) */
   receivedBills = (): Promise<APIResponse> => this.client.get('bills/received');
 }

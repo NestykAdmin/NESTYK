@@ -88,6 +88,8 @@ export interface Lead {
   budgetMin: number | null;
   budgetMax: number | null;
   createdAt: string;
+  /** เวลาแก้ล่าสุด (toLead ส่งตั้งแต่ pre/dev/review 9821d87 ใน packages/types/src/leads.ts เป็นช่องไม่บังคับ API รุ่นก่อนไม่ส่ง) */
+  updatedAt?: string;
   /** เวลานัดดูห้องครั้งถัดไป (รูปแบบ ISO) หรือ null ถ้าไม่มีนัดที่ยังไม่ถึงเวลา */
   nextViewingAt: string | null;
   /** ผลจับคู่ห้องครั้งล่าสุด (null = ยังไม่เคยจับคู่) มีเฉพาะในรายการ ส่วน GET /agent/leads/:id ไม่ส่งช่องนี้ */

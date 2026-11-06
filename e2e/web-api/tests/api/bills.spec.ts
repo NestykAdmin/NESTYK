@@ -19,7 +19,8 @@ import { expectError, expectJson } from '../../src/support/http';
  *     จะได้ 401 แทน "Cannot POST ..." ซึ่งไม่ใช่บั๊ก
  *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
- *   - ไม่เรียก GET mine, mine/next, received และ agent/tenants/:tenantId ด้วยบัญชีหรือ id ที่มีจริง เพราะ 4 เส้นทางนี้
+ *   - ไม่เรียก POST mine/refresh และ received/refresh ด้วยบัญชีใดเลย เพราะออกบิลจริง (d2d4554) เรียกเฉพาะในเทส 401 ซึ่งไม่ล็อกอิน
+ *   - ไม่เรียก GET mine, mine/next, received และ agent/tenants/:tenantId ด้วยบัญชีหรือ id ที่มีจริง เพราะใน API รุ่นก่อน d2d4554 4 เส้นทางนี้
  *     สร้างบิล เปิดสถานะการเข้าพัก (room_tenancies) และตั้งแต่ 9644dd9 เปลี่ยนหนังสือต่อสัญญาที่ถึงวันมีผลเป็น active
  *     เองก่อนตอบ (ดู bills.api.ts)
  *     ยกเว้นเทส 401 (ถูกปฏิเสธก่อนถึงฐานข้อมูล) และ agent/tenants/2147483647 (ตอบ 404 ก่อนขั้นสร้างบิล)
@@ -54,14 +55,20 @@ const LATE_FEE_BODY = { amount: 1 };
 /** เนื้อคำขอของการตีกลับสลิปค่าปรับ ไม่ต้องผ่านการตรวจ เพราะ returnLateFeeSlip หาบิลก่อนตรวจ 2 ช่องนี้ (tenant-billing.service.ts:727-737) */
 const LATE_FEE_RETURN_BODY = { reason: 'e2e', submittedAt: '2026-01-01T00:00:00.000Z' };
 
-/** เส้นทางกลุ่ม /bills ทั้งหมด 18 เส้นทาง (ใช้กับเทสที่ไม่ต้องล็อกอิน) รวมค่าปรับ 6 เส้นทาง (develop 9644dd9 เพิ่ม 7 เส้นทาง 1b16d32 ลบ 1) */
+/**
+ * เส้นทางกลุ่ม /bills ทั้งหมด 20 เส้นทาง (ใช้กับเทสที่ไม่ต้องล็อกอิน) รวมค่าปรับ 6 เส้นทาง (develop 9644dd9 เพิ่ม 7 เส้นทาง 1b16d32 ลบ 1)
+ * และ POST mine/refresh กับ received/refresh (d2d4554) ซึ่งต้องใช้ API ตั้งแต่ d2d4554 กับ API รุ่นก่อน 2 ข้อนี้ได้ 404 "Cannot POST ..."
+ */
 const allEndpoints: { name: string; call: (session: ApiSession) => Promise<APIResponse> }[] = [
   { name: 'GET /bills/mine', call: (s) => s.bills.mine() },
   { name: 'GET /bills/mine/next', call: (s) => s.bills.mineNext() },
   { name: 'GET /bills/mine/:id/payment-slip', call: (s) => s.bills.minePaymentSlip(NO_SUCH_ID) },
   { name: 'POST /bills/mine/:id/payment-slip', call: (s) => s.bills.uploadMinePaymentSlipWithoutFile(NO_SUCH_ID) },
   { name: 'POST /bills/mine/:id/confirm', call: (s) => s.bills.confirmMine(NO_SUCH_ID) },
+  // ไม่ล็อกอิน: AuthGuard ตอบ 401 ก่อนถึง handler ที่ออกบิล จึงไม่มีอะไรถูกบันทึก
+  { name: 'POST /bills/mine/refresh', call: (s) => s.bills.refreshMine() },
   { name: 'GET /bills/received', call: (s) => s.bills.received() },
+  { name: 'POST /bills/received/refresh', call: (s) => s.bills.refreshReceived() },
   { name: 'GET /bills/received/:id/payment-slip', call: (s) => s.bills.receivedPaymentSlip(NO_SUCH_ID) },
   { name: 'GET /bills/agent', call: (s) => s.bills.agentPending() },
   { name: 'GET /bills/agent/tenants/:tenantId', call: (s) => s.bills.agentTenantBilling(NO_SUCH_ID) },

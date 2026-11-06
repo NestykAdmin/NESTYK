@@ -144,9 +144,15 @@ test('PATCH notes saves the notes and keeps every other field', async ({ writer,
   expect(patched.notes).toBe(notes);
 
   // ขั้นที่ 3: อ่านกลับ notes ต้องเป็นค่าใหม่ และทุกช่องอื่นต้องเหมือนเดิม
+  //   ยกเว้น updatedAt (toLead ส่ง row.updated_at ตั้งแต่ pre/dev/review 9821d87) ซึ่งน่าจะขยับเมื่อ PATCH (อนุมาน: ยังไม่ได้เปิด lead.entity.ts)
+  //   จึงตรวจแค่ว่ามีหรือไม่มีเหมือนกันทั้ง 2 ครั้ง และไม่ถอยหลัง
   const read = await readLead(writer, id);
   expect(read.notes).toBe(notes);
-  expect({ ...read, notes: null }).toEqual({ ...beforePatch, notes: null });
+  expect({ ...read, notes: null, updatedAt: null }).toEqual({ ...beforePatch, notes: null, updatedAt: null });
+  expect(read.updatedAt === undefined, 'updatedAt ต้องมีหรือไม่มีเหมือนก่อน PATCH').toBe(beforePatch.updatedAt === undefined);
+  if (read.updatedAt && beforePatch.updatedAt) {
+    expect(Date.parse(read.updatedAt)).toBeGreaterThanOrEqual(Date.parse(beforePatch.updatedAt));
+  }
 });
 
 test('PATCH with a status field does not change the status', async ({ writer }) => {
