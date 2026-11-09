@@ -854,6 +854,29 @@ export const en: TranslationSchema = {
     },
     leads: {
       /** Agent web leads table (W2, 5 Nov 2026). */
+      /** W17: agent web add/edit lead page side panel. */
+      webForm: {
+        createHint: 'Add a lead with a first name and phone. A max budget and a pinned location let you match rooms.',
+        editHint: 'Edit this lead. Changing the budget or locations changes the room matches.',
+        readinessTitle: 'Room matching readiness',
+        matchReady: 'Ready to match rooms',
+        matchMissing: 'Needs a max budget and a pinned location',
+        itemFirstName: 'First name',
+        itemPhone: 'Phone',
+        itemBudgetMax: 'Max budget',
+        itemPins: 'Pinned location',
+        itemDone: 'done',
+        itemMissing: 'missing',
+        noteNeedContact: 'Add a first name and phone to save the lead.',
+        noteSaveFirst: 'You can save now. Add a max budget and a pin later to start matching.',
+        noteReady: 'After saving, open the lead to match rooms.',
+        statusOnSave: 'Status when saved',
+        newTag: 'New',
+        showPanel: 'Show checklist',
+        hidePanel: 'Hide checklist',
+        requiredForSave: 'Needed to save',
+        usedForMatch: 'Used for matching',
+      },
       web: {
         tableLabel: 'Leads',
         colLead: 'Lead',

@@ -843,6 +843,28 @@ export interface TranslationSchema {
       };
     };
     leads: {
+      webForm: {
+        createHint: string;
+        editHint: string;
+        readinessTitle: string;
+        matchReady: string;
+        matchMissing: string;
+        itemFirstName: string;
+        itemPhone: string;
+        itemBudgetMax: string;
+        itemPins: string;
+        itemDone: string;
+        itemMissing: string;
+        noteNeedContact: string;
+        noteSaveFirst: string;
+        noteReady: string;
+        statusOnSave: string;
+        newTag: string;
+        showPanel: string;
+        hidePanel: string;
+        requiredForSave: string;
+        usedForMatch: string;
+      };
       web: {
         tableLabel: string;
         colLead: string;

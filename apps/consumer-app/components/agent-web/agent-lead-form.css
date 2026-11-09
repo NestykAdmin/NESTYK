@@ -1,0 +1,61 @@
+/* Agent web add/edit lead (W17 option A, Mos 6 Nov 2026): F-Page = form 720 + side panel 320 (form standard 1.1). */
+.awlf-page { display: flex; flex-direction: column; gap: var(--aw-s4); min-width: 0; }
+.awlf-hint { margin: 0; color: var(--aw-muted); font-size: var(--aw-t-body); }
+.awlf-muted { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.awlf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 720px) 320px;
+  grid-template-areas: "form panel";
+  gap: var(--aw-s6);
+  align-items: start;
+}
+.awlf-form {
+  grid-area: form; min-width: 0; display: flex; flex-direction: column;
+  border-radius: var(--aw-r-lg); background: var(--aw-surface, #fff); box-shadow: 0 1px 3px #0f172a14; overflow: hidden;
+}
+.awlf-panel {
+  grid-area: panel; position: sticky; top: var(--aw-s4);
+  display: flex; flex-direction: column; border-radius: var(--aw-r-lg);
+  background: var(--aw-surface, #fff); color: var(--aw-ink); box-shadow: 0 1px 3px #0f172a14;
+}
+.awlf-panel-head { display: flex; align-items: center; gap: var(--aw-s3); padding: var(--aw-s4); }
+.awlf-panel-icon {
+  display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: var(--aw-r-sm);
+  background: var(--aw-brand-soft); color: var(--aw-brand-ink);
+}
+.awlf-panel-icon.is-ready { background: var(--aw-success-soft); color: var(--aw-success); }
+.awlf-panel-titles { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.awlf-panel-titles h2 { margin: 0; font-family: "Mitr_500Medium", sans-serif; font-weight: 500; font-size: var(--aw-t-title); }
+.awlf-toggle {
+  all: unset; box-sizing: border-box; display: none; height: 32px; padding: 0 var(--aw-s3);
+  border: 1px solid var(--aw-border); border-radius: var(--aw-r-sm); font-size: var(--aw-t-small); cursor: pointer; white-space: nowrap;
+}
+.awlf-toggle:focus-visible, .awlf-item:focus-visible { outline: 2px solid var(--aw-ring); outline-offset: 2px; }
+.awlf-panel-body { display: flex; flex-direction: column; gap: var(--aw-s3); padding: 0 var(--aw-s4) var(--aw-s4); }
+.awlf-group { display: flex; flex-direction: column; }
+.awlf-group-title { margin: 0 0 var(--aw-s1); color: var(--aw-muted); font-size: var(--aw-t-caption); font-weight: 600; }
+.awlf-item {
+  all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--aw-s3);
+  min-height: 36px; padding: 0 var(--aw-s2); border-radius: var(--aw-r-sm);
+  color: var(--aw-brand-ink); font-size: var(--aw-t-body); cursor: pointer;
+}
+.awlf-item:hover { background: var(--aw-bg); }
+.awlf-item.is-done { color: var(--aw-ink); }
+.awlf-mark {
+  display: grid; place-items: center; flex: none; width: 18px; height: 18px; box-sizing: border-box;
+  border: 2px solid var(--aw-brand); border-radius: 50%;
+}
+.awlf-item.is-done .awlf-mark { border: 0; background: var(--aw-success-soft); color: var(--aw-success); }
+.awlf-note { margin: 0; color: var(--aw-muted); font-size: var(--aw-t-small); }
+.awlf-status {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--aw-s1);
+  padding-top: var(--aw-s3); border-top: 1px solid var(--aw-border);
+}
+
+/* Form standard 1.2: under 1280 the panel moves above the form and folds. */
+@media (max-width: 1279px) {
+  .awlf-layout { grid-template-columns: minmax(0, 720px); grid-template-areas: "panel" "form"; gap: var(--aw-s4); }
+  .awlf-panel { position: static; }
+  .awlf-toggle { display: inline-flex; align-items: center; }
+  .awlf-panel-body.is-folded { display: none; }
+}

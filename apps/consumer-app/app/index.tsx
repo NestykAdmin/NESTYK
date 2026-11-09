@@ -1,6 +1,8 @@
 import { AgentCalendarScreen } from '../components/AgentCalendarScreen';
 import { AgentCalendarPage } from '../components/agent-web/AgentCalendarPage';
 import type { AgentCalendarPageProps } from '../components/agent-web/AgentCalendarPage.types';
+import { AgentLeadFormPage } from '../components/agent-web/AgentLeadFormPage';
+import type { LeadFormBind } from '../components/agent-web/AgentLeadFormPage.types';
 import { calendarDateKey } from '../lib/agent-calendar-demo';
 import { useAgentCalendarViewings } from '../lib/agent-calendar-viewings';
 import { getAgentLead } from '../lib/agent-leads-api';
@@ -98,12 +100,14 @@ import { APP_CONFIG } from '../lib/config';
 import {
   consumeGuestBrowse,
   consumePendingRole,
+  consumeSignOutLanding,
   roleRequiresAuth,
   setPendingRole,
 } from '../lib/auth/role-gate';
 import { ACCOUNT_DELETION_ENABLED, showAccountDeletion } from '../lib/account-deletion-flag';
 import { type AppRouteState, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
 import {
+  afterSignOutHref,
   landingRoleFor,
   loginHref,
   openRoleElsewhere,
@@ -179,10 +183,11 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
  * path (route plan R1, rule 21) and the "/" route renders nothing (see IndexRoute below).
  */
 /**
- * Where "Sign out" lands. Web (Mos 4 Nov 2026): the guest home "/", like any public site. Mobile (frozen): the
- * sign-in screen as before. A session that ran out still goes to /login with the "session expired" notice.
+ * Where "Sign out" lands. Web: a deploy setting (Mos 9 Nov 2026) — EXPO_PUBLIC_WEB_SIGN_OUT_TO = guest | login,
+ * unset = the guest home "/" on portal "all" and the sign-in page on a role portal (lib/route-access.ts).
+ * Mobile (frozen): the sign-in screen as before. A session that ran out still goes to /login with its notice.
  */
-const AFTER_SIGN_OUT_PATH = Platform.OS === 'web' ? '/' : '/login';
+const AFTER_SIGN_OUT_PATH = afterSignOutHref();
 /**
  * Web width where the desktop shell (sidebar + top bar) starts. Narrower web — a phone browser — shows the mobile
  * app's own screens and bottom tabs (Mos 4 Nov 2026). Mobile apps never read this.
@@ -655,6 +660,8 @@ export function AppHomeScreen() {
     if (consumeGuestBrowse()) {
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
+      // Signed out in another tab: land where "Sign out" lands in this tab ("/" needs nothing more).
+      if (consumeSignOutLanding() && AFTER_SIGN_OUT_PATH !== '/') router.replace(AFTER_SIGN_OUT_PATH as never);
       return;
     }
 
@@ -1487,32 +1494,43 @@ export function AppHomeScreen() {
     }
 
     if (activeTab === 'createLead') {
+      const leadForm = (bind: LeadFormBind) =>
+        leadEdit && activeLead ? (
+          <CreateLeadForm
+            key={activeLead.id}
+            initialLead={activeLead}
+            initialTab={leadEdit.tab}
+            onBusy={setCreateLeadBusy}
+            onSaved={(lead) => {
+              setActiveLead(lead);
+              setLeadEdit(null);
+              setActiveTab(leadEdit.returnTab);
+            }}
+            {...bind}
+          />
+        ) : (
+          <CreateLeadForm
+            onBusy={setCreateLeadBusy}
+            onSaved={() => {
+              Alert.alert(t.agent.leads.saved);
+              setSecondaryReturnTab(null);
+              setActiveTab('listingLead');
+            }}
+            {...bind}
+          />
+        );
       return (
         <Animated.View
           entering={FadeIn.duration(150)}
           style={[styles.wizardBody, styles.fullBleedBody]}
         >
-          {leadEdit && activeLead ? (
-            <CreateLeadForm
-              key={activeLead.id}
-              initialLead={activeLead}
-              initialTab={leadEdit.tab}
-              onBusy={setCreateLeadBusy}
-              onSaved={(lead) => {
-                setActiveLead(lead);
-                setLeadEdit(null);
-                setActiveTab(leadEdit.returnTab);
-              }}
-            />
+          {/* Desktop web (W17, Mos 6 Nov 2026): form + readiness panel; phone and phone-width web keep the app form. */}
+          {isAgentWeb ? (
+            <AgentLeadFormPage key={leadEdit && activeLead ? `edit-${activeLead.id}` : 'create'} mode={leadEdit && activeLead ? 'edit' : 'create'}>
+              {leadForm}
+            </AgentLeadFormPage>
           ) : (
-            <CreateLeadForm
-              onBusy={setCreateLeadBusy}
-              onSaved={() => {
-                Alert.alert(t.agent.leads.saved);
-                setSecondaryReturnTab(null);
-                setActiveTab('listingLead');
-              }}
-            />
+            leadForm({})
           )}
         </Animated.View>
       );

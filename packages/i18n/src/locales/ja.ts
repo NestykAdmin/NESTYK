@@ -854,6 +854,29 @@ export const ja: TranslationSchema = {
     },
     leads: {
       /** Agent web leads table (W2, 5 Nov 2026). */
+      /** W17: agent web add/edit lead page side panel. */
+      webForm: {
+        createHint: '名と電話番号でリードを追加 · 上限予算とピン留めした場所で部屋をマッチングします',
+        editHint: 'リードを編集 · 予算や場所を変えるとマッチング結果も変わります',
+        readinessTitle: '部屋マッチングの準備',
+        matchReady: '部屋をマッチングできます',
+        matchMissing: '上限予算またはピン留めした場所が未入力です',
+        itemFirstName: '名',
+        itemPhone: '電話番号',
+        itemBudgetMax: '上限予算',
+        itemPins: 'ピン留めした場所',
+        itemDone: '入力済み',
+        itemMissing: '未入力',
+        noteNeedContact: '名と電話番号を入力するとリードを保存できます',
+        noteSaveFirst: '今すぐ保存できます。上限予算とピンは後で追加してマッチングを始められます',
+        noteReady: '保存後、リードページで部屋をマッチングできます',
+        statusOnSave: '保存時のステータス',
+        newTag: '新規',
+        showPanel: 'チェックリストを表示',
+        hidePanel: 'チェックリストを隠す',
+        requiredForSave: '保存に必要',
+        usedForMatch: 'マッチングに使用',
+      },
       web: {
         tableLabel: 'リード一覧',
         colLead: 'リード',

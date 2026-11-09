@@ -853,6 +853,29 @@ export const zh: TranslationSchema = {
     },
     leads: {
       /** Agent web leads table (W2, 5 Nov 2026). */
+      /** W17: agent web add/edit lead page side panel. */
+      webForm: {
+        createHint: '填写名字和电话即可添加线索 · 最高预算和标记的位置用于匹配房源',
+        editHint: '编辑线索 · 修改预算或位置后匹配结果会随之更新',
+        readinessTitle: '房源匹配准备情况',
+        matchReady: '已可匹配房源',
+        matchMissing: '还缺最高预算或标记的位置',
+        itemFirstName: '名字',
+        itemPhone: '电话',
+        itemBudgetMax: '最高预算',
+        itemPins: '标记的位置',
+        itemDone: '已填写',
+        itemMissing: '未填写',
+        noteNeedContact: '填写名字和电话即可保存线索',
+        noteSaveFirst: '现在即可保存。之后补充最高预算和标记位置即可开始匹配',
+        noteReady: '保存后打开线索页面即可匹配房源',
+        statusOnSave: '保存时的状态',
+        newTag: '新',
+        showPanel: '显示检查清单',
+        hidePanel: '隐藏检查清单',
+        requiredForSave: '保存必填',
+        usedForMatch: '用于匹配',
+      },
       web: {
         tableLabel: '线索列表',
         colLead: '线索',

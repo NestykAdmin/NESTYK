@@ -568,6 +568,10 @@
 }
 /* W1 (Mos 5 Nov 2026): create forms (room, lead, tenant) in a centred column; the page header, body, bottom bar and
    footer all follow the same width. Lists and the Dashboard keep the full content width. */
+/* W17 (Mos 6 Nov 2026): add/edit lead = form 720 + gap 24 + panel 320. */
+.aw-main[data-page-width="form-aside"] {
+  --nestyk-web-content-max-width: 1064px;
+}
 .aw-main[data-page-width="form"] {
   --nestyk-web-content-max-width: var(--aw-form-max-width, 880px);
 }

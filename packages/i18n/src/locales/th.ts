@@ -854,6 +854,29 @@ export const th: TranslationSchema = {
     },
     leads: {
       /** Agent web leads table (W2, 5 Nov 2026). */
+      /** W17: agent web add/edit lead page side panel. */
+      webForm: {
+        createHint: 'เพิ่มลีดด้วยชื่อและเบอร์ติดต่อ · งบสูงสุดและตำแหน่งที่ปักหมุดใช้จับคู่ห้อง',
+        editHint: 'แก้ไขข้อมูลลีด · เปลี่ยนงบหรือตำแหน่งแล้วผลจับคู่ห้องจะเปลี่ยนตาม',
+        readinessTitle: 'ความพร้อมจับคู่ห้อง',
+        matchReady: 'พร้อมจับคู่ห้องแล้ว',
+        matchMissing: 'ยังขาดงบสูงสุดหรือตำแหน่งที่ปักหมุด',
+        itemFirstName: 'ชื่อ',
+        itemPhone: 'เบอร์ติดต่อ',
+        itemBudgetMax: 'งบสูงสุด',
+        itemPins: 'ตำแหน่งที่ปักหมุด',
+        itemDone: 'ครบแล้ว',
+        itemMissing: 'ยังไม่กรอก',
+        noteNeedContact: 'กรอกชื่อและเบอร์ติดต่อเพื่อบันทึกลีด',
+        noteSaveFirst: 'บันทึกลีดได้เลย กรอกงบสูงสุดกับปักหมุดทีหลังเพื่อเริ่มจับคู่',
+        noteReady: 'บันทึกแล้วเปิดหน้าลีดเพื่อจับคู่ห้องได้ทันที',
+        statusOnSave: 'สถานะเมื่อบันทึก',
+        newTag: 'ใหม่',
+        showPanel: 'แสดงรายการตรวจ',
+        hidePanel: 'ซ่อนรายการตรวจ',
+        requiredForSave: 'จำเป็นสำหรับบันทึก',
+        usedForMatch: 'ใช้จับคู่ห้อง',
+      },
       web: {
         tableLabel: 'รายการลีด',
         colLead: 'ลีด',

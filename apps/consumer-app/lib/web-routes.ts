@@ -20,6 +20,11 @@ export function loginHref(_nextPath?: string | null): string {
   return '/login';
 }
 
+/** Mobile (frozen): "Sign out" opens the sign-in screen, as before. The web reads EXPO_PUBLIC_WEB_SIGN_OUT_TO. */
+export function afterSignOutHref(): string {
+  return '/login';
+}
+
 export function postLoginHref(_next: unknown, _roles: readonly string[] | null | undefined): string {
   return '/';
 }
