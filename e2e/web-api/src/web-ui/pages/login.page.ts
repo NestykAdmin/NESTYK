@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { EN } from '../labels';
+import { AGENT_WEB, fill } from '../labels.agent-web';
 import { setInputValueHidden } from '../support/inputs';
 
 /**
@@ -47,5 +48,20 @@ export class LoginPage {
   /** ใส่รหัสผ่านโดยไม่ให้ค่าอยู่ในรายงาน (support/inputs.ts) */
   async setPasswordHidden(value: string): Promise<void> {
     await setInputValueHidden(this.password, value);
+  }
+
+  /** ปุ่ม social "Continue with <provider>" (aria-label: login.tsx:421-424 ที่ pre/dev/review 7a9bf48) */
+  socialButton(provider: 'Google' | 'Facebook' | 'Apple'): Locator {
+    return this.page.getByRole('button', { name: fill(AGENT_WEB.socialLogin, { provider }), exact: true });
+  }
+
+  /** ป้าย Coming soon ใต้ปุ่ม social อยู่ใน View ของปุ่มนั้น (:391, :438-442) จึงหาจากตัวแม่ของปุ่ม */
+  socialComingSoon(provider: 'Google' | 'Facebook' | 'Apple'): Locator {
+    return this.socialButton(provider).locator('xpath=..').getByText(AGENT_WEB.socialComingSoon, { exact: true });
+  }
+
+  /** ข้อความอธิบายเมื่อกดปุ่ม social ที่ยังไม่เปิด (mobile.auth.unavailable: :448-461) */
+  get socialUnavailable(): Locator {
+    return this.page.getByText(AGENT_WEB.socialUnavailable, { exact: true });
   }
 }

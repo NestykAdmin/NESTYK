@@ -478,6 +478,7 @@ unset E2E_QA_TENANT_PASSWORD E2E_QA_LANDLORD_PASSWORD E2E_QA_AGENT_PASSWORD E2E_
 | N10 | `party-guest.narrow.spec.ts` | ผู้เช่า: Payment history เพิ่ม `history=1` และ Back ลบออก ; N10b แสดงบิลจาก `GET /bills/mine` และ refresh ถูกตัด (ข้ามถ้า GET บิลไม่ได้รับอนุญาต) |
 | N11 | `party-guest.narrow.spec.ts` | ผู้ให้เช่า: หน้า Income แสดงบิลจาก `GET /bills/received` (ข้ามถ้า GET บิลไม่ได้รับอนุญาต) |
 | N12 | `party-guest.narrow.spec.ts` | guest: แท็บล่าง 4 แท็บ ส่วนท้ายหน้า และปุ่ม Sign in เปิดเมนูที่มีปุ่ม Sign In ไปหน้า `/login` |
+| N13 | `shell.narrow.spec.ts` | ผู้เช่า: แท็บ Living เป็น Coming soon กดไม่ได้ และกดแล้วหน้าไม่เปลี่ยน |
 
 ### รหัสผ่านกับรายงาน
 
@@ -518,6 +519,9 @@ for v in "$E2E_QA_TENANT_PASSWORD" "$E2E_QA_LANDLORD_PASSWORD" "$E2E_QA_AGENT_PA
 | `agent-dashboard.spec.ts` | การ์ดตัวเลข 4 ใบเทียบกับ `GET /agent/dashboard` การ์ดพาไปหน้ารายการ (จดตัวเลขของหน้ารายการไว้ใน annotation ยังไม่ตรวจ) และหน้า Coming soon 3 หน้า |
 | `agent-tenants-calendar.spec.ts` | ผู้เช่าของนายหน้า: แท็บ All tenants ตัวนับ ค้นในหน้าเว็บ รายละเอียดและกล่องบิล ; ปฏิทิน: `?date=` และช่วงของ `GET /agent/viewings` |
 | `party-pages.spec.ts` | ผู้เช่า: สัญญา หน้า `/tenant/home` ปุ่ม Payment history หน้าบิลและการ์ดบิลถัดไป ; ผู้ให้เช่า: สัญญา ประวัติผู้เช่า การ์ด Confirmed rent รายได้ และข้อความเมื่อโหลดบิลไม่ได้ |
+| `agent-calendar-web.spec.ts` | ปฏิทินเว็บ (C1-C6, C3b, C8; เดือนว่างของแผนข้อ C7 อยู่ในขั้นสุดท้ายของ C1): ตารางเริ่มวันจันทร์และจำนวนสัปดาห์ วันนี้ เดือนว่าง ปุ่มเดือนก่อน/ถัดไป/Today ชิป 3 ใบกับ "+N more" นัดที่ยกเลิกไม่แสดง สถานะ Past due ตัวกรองสถานะ ค้นหา Clear filters มุมมอง List กับปุ่ม Week ที่ยังกดไม่ได้ error กับปุ่มลองใหม่ และปุ่มไปหน้าลีด |
+| `lead-form-readiness.spec.ts` | แผงความพร้อมข้างฟอร์มเพิ่มลีด (L1-L3): เริ่มต้นยังไม่ครบทุกข้อ พิมพ์แล้วข้อนั้นครบ กดข้อแล้วฟอร์มเปิดแท็บ และเบอร์ 1 หลักที่ Save Lead ปฏิเสธโดยไม่ส่งคำขอ (ภาษาอังกฤษอย่างเดียว) |
+| `social-living.spec.ts` | ปุ่ม social ที่ขึ้น Coming soon ในหน้า login และสมัคร กดแล้วขึ้นคำอธิบายและไม่เริ่ม OAuth (S1-S2) ; เมนู Living ของผู้เช่ากดไม่ได้ (S3) |
 
 ไฟล์ `agent-*.spec.ts` กับ `party-pages.spec.ts` (เพิ่ม 6 พ.ย. 2026 ตามแผน `claude/nestyk-web-flows-readonly-plan-2026-11-06.md` ในโปรเจกต์ QA NESTYK) อ่านอย่างเดียวทั้งหมด
 - ค่าที่คาดเทียบกับคำตอบของ API ในรอบเดียวกัน (`src/web-ui/support/api.ts` รอคำตอบด้วย `waitForResponse`) เพราะข้อมูลของบัญชี QA ใน staging เปลี่ยนได้ทุกวัน ข้อที่ต้องมีข้อมูล (เช่น มีลีดเกิน 20 ราย) ข้ามพร้อมเหตุผลเมื่อไม่มี
@@ -525,6 +529,14 @@ for v in "$E2E_QA_TENANT_PASSWORD" "$E2E_QA_LANDLORD_PASSWORD" "$E2E_QA_AGENT_PA
   - ข้อค้นของหน้าลีดใช้คำแรกของชื่อลีดแถวแรกเป็นคำค้น จึงใส่ด้วย `setInputValueHidden` (`fill` บันทึกค่าในชื่อขั้นของรายงาน HTML) และตรวจค่าในช่องค้นแบบไม่พิมพ์คำนั้นในข้อความ error
   - คำค้นยังอยู่ใน URL ของคำขอ `GET /agent/leads?q=` ซึ่งรายงานไม่ได้เก็บ (ปิด trace ไว้) ห้ามรันไฟล์นี้ด้วย `--trace on`
 - ข้อที่ทำให้บิลโหลดไม่ได้ใช้ `page.route` ตัดคำขอเองในเบราว์เซอร์ จึงไม่มีคำขอนั้นออกไปที่ staging
+
+ไฟล์ `agent-calendar-web.spec.ts`, `lead-form-readiness.spec.ts`, `social-living.spec.ts` (เพิ่ม 9 พ.ย. 2026 ตามหน้าใหม่ของ pre/dev/review `fc1a351` ถึง `7a9bf48`) อ่านอย่างเดียวทั้งหมด
+- ปฏิทินให้เบราว์เซอร์ตอบ `GET /agent/viewings` เองด้วยนัดจำลอง (`mockViewings` ใน `src/web-ui/pages/agent-calendar.page.ts`) เพราะข้อที่ต้องมีหลายนัดในวันเดียวหรือหลายสถานะ ถ้าใช้ข้อมูลจริงต้องสร้างนัด ชื่อลีดและห้องในนัดจำลองขึ้นต้นด้วย "QA Mock" หน้าปฏิทินจึงไม่แสดงชื่อลูกค้าจริง
+  - นัดจำลองวางไว้ในเดือนถัดไป (อนาคตเสมอ) กับเดือนก่อน (อดีตเสมอ) ของวันรัน สถานะ Scheduled และ Past due จึงไม่ขึ้นกับวันที่รัน
+- ฟอร์มลีดพิมพ์ค่าของเทส ("QA Readiness") และไม่กดบันทึก ยกเว้น L3 ที่กด Save Lead ด้วยเบอร์ 1 หลักซึ่งฟอร์มปฏิเสธก่อนส่ง ข้อนี้จดสิ่งที่แผงแสดงไว้ใน annotation (แผงนับเบอร์เป็นครบทันทีที่มีตัวเลข 1 ตัว: `lib/lead-form-readiness.ts:21`) เป็นข้อสงสัยที่ส่งถามทีม ไม่ใช่ค่าที่คาด
+- ปุ่ม social ข้อ S1 กดเฉพาะปุ่มที่ขึ้น Coming soon ถ้าเว็บ build ด้วย `EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true` ปุ่ม Google กับ Facebook จะข้าม (กดแล้วออกไปหน้าผู้ให้บริการจริง) Apple เป็น Coming soon เสมอ
+- ข้อความที่คาดของ 3 ไฟล์นี้อยู่ใน `src/web-ui/labels.agent-web.ts` (มีทั้งภาษาอังกฤษและไทย)
+- `agent-calendar-web.spec.ts` ปิดภาพหน้าจอทั้งไฟล์ เพราะข้อ C8 ไปหน้าลีดจริงซึ่งแสดงชื่อลูกค้า
 
 เทสการหมดเวลาตั้ง `nestyk.web.lastActivity` ให้ย้อนหลังแทนการรอ 8 ชั่วโมงจริง (`src/web-ui/support/idle.ts`)
 - ข้อที่ไม่โหลดหน้าใหม่ ส่ง `visibilitychange` ให้ตัวตรวจทำงานทันที

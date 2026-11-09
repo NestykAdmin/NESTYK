@@ -149,3 +149,26 @@ test.describe('other roles', () => {
     });
   }
 });
+
+test('N13 the tenant Living tab is Coming soon and cannot be pressed', async ({ page, loginAs }) => {
+  // แท็บ living ของผู้เช่ามี comingSoon: true (mobileTabMatrix.ts:28 ที่ pre/dev/review 7a9bf48)
+  //   Pressable ได้ disabled (MobileBottomTabBar.tsx:162) ซึ่ง react-native-web แปลงเป็น aria-disabled ชื่อแท็บ "Living, Coming soon" (:166)
+  await loginAs('tenant', { next: '/tenant' });
+  await expect(page).toHaveURL((url) => url.pathname === '/tenant');
+  const shell = new MobileShell(page, 'tenant');
+  const living = shell.tab(TAB.livingSoon);
+  await expect(living).toBeVisible();
+  await expect(living).toBeDisabled();
+  // แท็บอื่นของผู้เช่ายังกดได้ (เทียบกับแท็บ Bills)
+  await expect(shell.tab(TAB.bills)).toBeEnabled();
+
+  // กดแล้วหน้าไม่เปลี่ยน (ถ้ากดได้จะไป /tenant/home) aria-disabled ไม่ได้กัน click ของเบราว์เซอร์ การกดจึงตรวจว่า Pressable ไม่เรียก onPress
+  //   แอปเปลี่ยน URL ใน effect หลังวาดหน้า จึงเฝ้า URL ไว้ 3 วินาที (ค่าเดียวกับ navigation.spec.ts 'menu items marked Coming soon do nothing'
+  //   ซึ่งการเปลี่ยน URL ของแอปในรอบที่ผ่านมาเกิดภายในไม่ถึง 1 วินาที) ไม่มีสัญญาณอื่นให้รอว่า "ไม่มีอะไรเกิดขึ้น"
+  await living.click({ force: true });
+  const navigated = await page.waitForURL((url) => url.pathname !== '/tenant', { timeout: 3_000 }).then(
+    () => true,
+    () => false,
+  );
+  expect(navigated, `หน้าเปลี่ยนไป ${new URL(page.url()).pathname}`).toBe(false);
+});
