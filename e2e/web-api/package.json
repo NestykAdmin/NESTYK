@@ -12,6 +12,7 @@
     "test:web-ui-write": "playwright test -c playwright.web-ui-write.config.ts",
     "test:web-ui:th": "playwright test -c playwright.web-ui-th.config.ts",
     "test:web-ui:narrow": "playwright test -c playwright.web-ui-narrow.config.ts",
+    "test:web-ui:portal-agent": "playwright test -c playwright.web-ui-portal-agent.config.ts",
     "typecheck": "tsc --noEmit",
     "report": "playwright show-report"
   },

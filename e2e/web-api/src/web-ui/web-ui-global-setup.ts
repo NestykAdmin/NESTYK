@@ -76,6 +76,10 @@ export default async function webUiGlobalSetup(): Promise<void> {
         ? `[เทส UI เว็บ] เว็บ ${webUiEnv.webUrl} เรียก API ที่ ${webUiEnv.apiOrigin} ตามที่กำหนด`
         : `[เทส UI เว็บ] หน้าแรกไม่เรียก API จึงยืนยันปลายทางจากหน้าแรกไม่ได้ ตัวกันใน guard.ts ยังตัดคำขอที่ไม่ได้ไป ${webUiEnv.apiOrigin} ในทุกข้อ`,
     );
+    await assertWebPortal(page);
+    if (foreign > 0) {
+      throw new Error(`หยุดก่อนล็อกอิน: ระหว่างตรวจ portal เว็บเรียก API ที่ ${[...new Set(seen)].join(', ')} ไม่ใช่ ${webUiEnv.apiOrigin} (คำขอถูกตัดไว้แล้ว)`);
+    }
   } finally {
     await browser.close();
   }
@@ -197,4 +201,52 @@ async function assertLocalQaAccountsLinked(): Promise<void> {
     await api.dispose();
   }
   console.log(`[เทส UI เว็บ] ตรวจบัญชีในฐานข้อมูลของ API บนเครื่องแล้ว ${roles.length} บัญชี (${roles.join(', ')})`);
+}
+
+/**
+ * ตรวจ portal ที่เว็บถูก build มา เทียบกับ webUiEnv.portal (E2E_WEB_PORTAL) ก่อนล็อกอิน (ข้อสังเกต test-reviewer 9 พ.ย. 2026)
+ *   ยังไม่ล็อกอินแล้วเปิด /tenant (คำขอ /api ยังถูกตัดทั้งหมดในขั้นนี้)
+ *   - portal agent: /tenant ไม่อยู่ใน portal จึงถูกส่งไป portalHome (/agent) ก่อนตรวจการล็อกอิน แล้วไป /login?next=/agent
+ *     (route-access.ts decideAccess, app/index.tsx loginHref ที่ pre/dev/review 163e354 อนุมานจากโค้ด)
+ *   - portal all: /login?next=/tenant
+ *   ผลตรงกับค่าตั้ง: ผ่าน ผลขัดกับค่าตั้ง: หยุดทั้งชุด ผลอื่น (ไม่ถึง /login หรือ next ไม่รู้จัก): ชุด portal agent หยุด ชุดอื่นพิมพ์เตือนแล้วไปต่อ
+ */
+async function assertWebPortal(page: import('@playwright/test').Page): Promise<void> {
+  const expected = webUiEnv.portal;
+  let seen: 'agent' | 'all' | null = null;
+  let detail = '';
+  try {
+    await page.goto(`${webUiEnv.webUrl}/tenant`, { timeout: 30_000 });
+    await page.waitForURL((url) => url.pathname === '/login', { timeout: 20_000 });
+    // แอปอาจผ่าน /login?next=/tenant ชั่วขณะก่อนพาไป /agent แล้ว /login?next=/agent (ข้อสังเกต test-reviewer รอบ 2)
+    // จึงรอหน้า login วาดเสร็จ แล้วรอให้ URL นิ่ง (เท่าเดิม 2 ครั้งติดกันห่าง 500 ms ภายใน 10 วินาที) ก่อนอ่าน next
+    await page.getByTestId('login.footer').waitFor({ timeout: 20_000 }).catch(() => undefined);
+    let last = '';
+    for (let i = 0; i < 20; i += 1) {
+      const now = page.url();
+      if (now === last) break;
+      last = now;
+      await page.waitForTimeout(500);
+    }
+    const next = new URL(page.url()).searchParams.get('next') ?? '';
+    const path = next.split('?')[0];
+    detail = `/tenant -> /login?next=${path}`;
+    if (path === '/agent' || path.startsWith('/agent/')) seen = 'agent';
+    else if (path === '/tenant' || path.startsWith('/tenant/')) seen = 'all';
+  } catch (error) {
+    detail = `เปิด /tenant แบบไม่ล็อกอินแล้วไม่ถึง /login (${(error as Error).name}) อยู่ที่ ${new URL(page.url()).pathname}`;
+  }
+  if (seen === expected) {
+    console.log(`[เทส UI เว็บ] portal ของเว็บ: ${seen} (${detail}) ตรงกับ E2E_WEB_PORTAL`);
+    return;
+  }
+  if (seen !== null || expected === 'agent') {
+    throw new Error(
+      `หยุดก่อนล็อกอิน: เว็บ ${webUiEnv.webUrl} ดูเป็น portal ${seen ?? 'ไม่รู้'} (${detail}) แต่ชุดเทสคาด portal ${expected}\n` +
+        (expected === 'agent'
+          ? 'ชุด web-ui-portal-agent ต้องรันกับเว็บที่ build ด้วย EXPO_PUBLIC_WEB_PORTAL=agent และตั้ง E2E_CONSUMER_WEB_URL ให้ชี้เว็บนั้น (README "เทสบนเว็บ portal agent")'
+          : 'ชุด web-ui อื่นคาดเว็บ portal all: เอา EXPO_PUBLIC_WEB_PORTAL ออกจาก .env แล้วเปิดเว็บใหม่ หรือ unset E2E_CONSUMER_WEB_URL ที่ชี้เว็บ portal agent'),
+    );
+  }
+  console.log(`[เทส UI เว็บ] ตรวจ portal ของเว็บไม่ได้ (${detail}) ชุดนี้คาด portal all จึงไปต่อ`);
 }

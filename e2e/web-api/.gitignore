@@ -12,4 +12,6 @@ playwright-report-web-ui-th/
 test-results-web-ui-th/
 playwright-report-web-ui-narrow/
 test-results-web-ui-narrow/
+playwright-report-web-ui-portal-agent/
+test-results-web-ui-portal-agent/
 blob-report/

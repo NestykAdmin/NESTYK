@@ -381,6 +381,7 @@ unset E2E_QA_TENANT_PASSWORD E2E_QA_LANDLORD_PASSWORD E2E_QA_AGENT_PASSWORD E2E_
 | ชื่อ | ค่าเริ่มต้น | ใช้ทำอะไร |
 | --- | --- | --- |
 | `E2E_CONSUMER_WEB_URL` | `http://localhost:8081` | ที่อยู่ของเว็บ consumer-app |
+| `E2E_WEB_PORTAL` | ไม่ตั้ง (portal all) | `agent` = เว็บ build ด้วย `EXPO_PUBLIC_WEB_PORTAL=agent` ใช้กับ `npm run test:web-ui:portal-agent` เท่านั้น (หัวข้อ "เทสบนเว็บ portal agent") |
 | `E2E_WEB_SIGN_OUT_TO` | ไม่ตั้ง | `login` = เว็บถูก build ด้วย `EXPO_PUBLIC_WEB_SIGN_OUT_TO=login` (ต้องตั้งให้ตรงกันเอง ชุดเทสไม่อ่าน `.env`) ข้อ 'signing out sends the tab that signed out to the login page' ใน `session-idle.spec.ts` เป็นเทสปกติ ไม่ตั้ง = ข้อนั้นเป็น known-bug (ทีมแก้ใน `7a9bf48` เฉพาะเมื่อตั้งค่านี้ ยังไม่รู้ว่าเว็บจริงตั้งค่าอะไร) |
 | `E2E_WEB_LOCAL_API` | ไม่ตั้ง (บังคับ staging) | `yes` = ใช้ API บนเครื่องที่ `http://localhost:4000` ตามหัวข้อ "ใช้ API บนเครื่อง" ต้องตั้ง uuid ของทุกบัญชีที่ตั้งรหัสผ่านด้วย |
 | `E2E_WEB_API_ORIGIN` | `https://nestyk-dev.up.railway.app` (ตั้ง `E2E_WEB_LOCAL_API=yes`: `http://localhost:4000` และต้องเป็นค่านี้เท่านั้น) | API ที่เว็บต้องเรียก คำขอ `/api/...` ที่ไปที่อื่นถูกตัด ต้องเป็น https ไม่ใช่เครื่องนี้หรือเครื่องในวง LAN และชื่อเครื่องต้องอยู่ใน `ALLOWED_API_HOSTS` ของ `src/web-ui/web-ui-env.ts` (ตอนนี้มีแค่ `nestyk-dev.up.railway.app` เพราะ tunnel ที่ชี้กลับมาเครื่องนี้ เช่น ngrok ตรวจจากชื่อไม่ได้) ไม่อย่างนั้น global-setup หยุดทั้งชุด |
@@ -449,6 +450,22 @@ unset E2E_QA_TENANT_PASSWORD E2E_QA_LANDLORD_PASSWORD E2E_QA_AGENT_PASSWORD E2E_
 - ข้อความดิบที่ไม่ควรถึงผู้ใช้ (`RAW_ERRORS`) และข้อความที่เขียนตรงในโค้ด (`HARDCODED`) ยังเทียบกับภาษาอังกฤษ เพราะไม่ผ่าน i18n
 - ผลอยู่ที่ `playwright-report-web-ui-th/` และ `test-results-web-ui-th/` (git ไม่เก็บ) ข้อตกลงเรื่องรหัสผ่านในรายงานเหมือนชุดภาษาอังกฤษ คำสั่งนับรหัสผ่านในหัวข้อ "รหัสผ่านกับรายงาน" ครอบโฟลเดอร์ของรอบภาษาไทยแล้ว
 - ชุดเทสเขียนข้อมูลบนเว็บยังรันเป็นภาษาอังกฤษอย่างเดียว
+
+### เทสบนเว็บ portal agent
+
+`npm run test:web-ui:portal-agent` รันชุด `tests/web-ui-portal-agent` กับเว็บที่ build แบบ agent.nestyk.com (เพิ่ม 9 พ.ย. 2026 ตามข้อ B4 ของ `docs/qa-fixes/2026-11-09-qa-handoff-review-0a21689.md`) อ่านอย่างเดียว
+
+1. เว็บ: ใน `~/NESTYK/.env` เพิ่ม `EXPO_PUBLIC_WEB_PORTAL=agent` (ค่าอื่นตาม "ใช้ API บนเครื่อง" และต้องไม่ตั้ง `EXPO_PUBLIC_HCAPTCHA_SITE_KEY`) แล้ว `cd apps/consumer-app && npm run build:web && npm run serve:web` (พอร์ต 8090 ตาม `scripts/serve-web-dist.cjs`) รันเสร็จแล้วเอาบรรทัด `EXPO_PUBLIC_WEB_PORTAL` ออก ชุด web-ui อื่นคาด portal `all`
+2. Terminal: ตั้งตัวแปรของ "ใช้ API บนเครื่อง" ตามเดิม เพิ่ม `export E2E_WEB_PORTAL=agent E2E_CONSUMER_WEB_URL=http://localhost:8090` และรหัสผ่านกับ uuid ของ qa-agent และ qa-tenant
+3. ไม่ตั้ง `E2E_WEB_PORTAL=agent` = ทุกข้อในชุดนี้ข้าม
+4. global-setup ของทุกชุด UI เว็บตรวจ portal ของเว็บก่อนล็อกอิน (ยังไม่ล็อกอินเปิด `/tenant`: portal agent ไป `/login?next=/agent` ส่วน portal all ไป `/login?next=/tenant`) ถ้าไม่ตรงกับ `E2E_WEB_PORTAL` หยุดทั้งชุด กันการรันชุดอื่นกับเว็บ portal agent ด้วย ถ้าตรวจไม่ได้ (ไม่ถึง `/login` หรือ next ไม่รู้จัก) ชุด portal agent หยุด ส่วนชุดอื่นพิมพ์เตือนแล้วไปต่อ (รอนานสุดประมาณ 1 นาที)
+5. Metro (`npm run web`) อ่าน `.env` ตอนเริ่ม ถ้าเปิด Metro ตอนยังมี `EXPO_PUBLIC_WEB_PORTAL=agent` เว็บ 8081 จะเป็น portal agent จนกว่าจะเอาบรรทัดออกแล้วเปิดใหม่ (ข้อ 4 จะหยุดชุดอื่นให้)
+
+| ข้อ | ตรวจอะไร |
+| --- | --- |
+| P1 | agent ล็อกอินแล้วเปิด `/tenant`, `/admin`, `/login` ตรง ๆ ทุกหน้าพากลับ `/agent` |
+| P2 | ยังไม่ล็อกอินเปิด `/agent/calendar` ไป `/login?next=/agent/calendar` ล็อกอินแล้วกลับมาที่ปฏิทิน |
+| P3 | qa-tenant (มีแต่บทบาทผู้เช่า) ล็อกอินแล้วไป `/no-access` และไม่มีคำขอ `/auth/dev/roles` ข้อนี้ล็อกอินด้วยบัญชีที่ไม่ใช่นายหน้าบน API บนเครื่อง Aof อนุมัติ 9 พ.ย. 2026 เพราะ global-setup ยืนยันว่า API ปิดการขอบทบาทแล้ว (กฎ 4 พ.ย. ใน "กฎความปลอดภัย") |
 
 ### เทสบนจอแคบ
 

@@ -71,6 +71,14 @@ export const webUiEnv = {
    *   'default' = ไม่ตั้ง หรือค่าอื่น: เว็บใช้ค่าเริ่มต้น (portal all ไป "/") ข้อในชุดเทสที่คาด /login ยังเป็น known-bug
    */
   signOutTo: (process.env.E2E_WEB_SIGN_OUT_TO?.trim().toLowerCase() === 'login' ? 'login' : 'default') as 'login' | 'default',
+
+  /**
+   * portal ที่เว็บถูก build มา (ต้องตรงกับ EXPO_PUBLIC_WEB_PORTAL ของเว็บ ชุดเทสไม่อ่าน .env)
+   *   'agent' = Aof ตั้ง E2E_WEB_PORTAL=agent: ใช้กับชุด tests/web-ui-portal-agent เท่านั้น (build ด้วย npm run build:web)
+   *   'all' = ไม่ตั้ง หรือค่าอื่น: ชุด web-ui อื่นทั้งหมดคาดเว็บ portal all (dev build ที่ไม่ตั้ง EXPO_PUBLIC_WEB_PORTAL)
+   *   ที่มา: portalFrom ใน apps/consumer-app/lib/route-access.ts (ค่าที่ไม่รู้จักเป็น all) ที่ pre/dev/review 163e354
+   */
+  portal: (process.env.E2E_WEB_PORTAL?.trim().toLowerCase() === 'agent' ? 'agent' : 'all') as 'agent' | 'all',
 } as const;
 
 /** อีเมลของบัญชี QA ตามบทบาท (ใช้ค่าเดียวกับชุด API ใน qa-accounts.ts) */

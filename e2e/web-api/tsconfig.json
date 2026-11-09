@@ -12,5 +12,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["playwright.config.ts", "playwright.write.config.ts", "playwright.web-ui.config.ts", "playwright.web-ui-write.config.ts", "playwright.web-ui-th.config.ts", "playwright.web-ui-narrow.config.ts", "src/**/*.ts", "tests/**/*.ts"]
+  "include": ["playwright.config.ts", "playwright.write.config.ts", "playwright.web-ui.config.ts", "playwright.web-ui-write.config.ts", "playwright.web-ui-th.config.ts", "playwright.web-ui-narrow.config.ts", "playwright.web-ui-portal-agent.config.ts", "src/**/*.ts", "tests/**/*.ts"]
 }
