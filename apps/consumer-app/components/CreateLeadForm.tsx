@@ -4,8 +4,7 @@ import { PhoneField } from './PhoneField';
 import {
   countryForNationality,
   parseStoredPhone,
-  phoneDraftToE164,
-  samePhoneDraft,
+  savablePhone,
   type PhoneDraft,
 } from '../lib/phone';
 import React, { useEffect, useRef, useState } from 'react';
@@ -237,15 +236,17 @@ export function CreateLeadForm({
     scroll.current?.scrollTo({ y: 0, animated: false });
   };
 
+  // Same rule as `submit` (savablePhone), so the web readiness panel never says "saved" for a number Save refuses.
+  const phoneOk = phone.digits !== '' && savablePhone(phone, initialPhone, initialLead?.phone) !== '';
   useEffect(() => {
     onDraftChange?.({
       firstName: form.firstName,
-      phoneDigits: phone.digits,
+      phoneOk,
       budgetMax: form.budgetMax,
       pinCount: pins.length,
       tab,
     });
-  }, [onDraftChange, form.firstName, phone.digits, form.budgetMax, pins.length, tab]);
+  }, [onDraftChange, form.firstName, phoneOk, form.budgetMax, pins.length, tab]);
 
   useEffect(() => {
     if (requestedTab) switchTab(requestedTab.tab);
@@ -476,9 +477,8 @@ export function CreateLeadForm({
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
     if (!firstName) next.firstName = c.required;
-    const phoneE164 = phoneDraftToE164(phone);
     // Unedited legacy numbers (free text before the picker) save as-is so other edits aren't blocked.
-    const phoneValue = phoneE164 ?? (initialLead && samePhoneDraft(phone, initialPhone) ? initialLead.phone : '');
+    const phoneValue = savablePhone(phone, initialPhone, initialLead?.phone);
     if (!phone.digits) next.phone = c.required;
     else if (!phoneValue) next.phone = c.invalidPhone;
     const email = form.email.trim();

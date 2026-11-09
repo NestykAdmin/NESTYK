@@ -1,12 +1,14 @@
 /**
  * W17 (Mos 6 Nov 2026): what the agent web add/edit lead panel shows. Same rules as `CreateLeadForm`:
- * saving needs a first name and phone; room matching needs a max budget above 0 and at least one pin
+ * saving needs a first name and a phone the form accepts (`phoneOk`, from `savablePhone`: valid for the country, or the
+ * stored number of an unedited lead; QA 9 Nov 2026); room matching needs a max budget above 0 and at least one pin
  * (`matchingReady` in the form, `leadMatchReady` in lead-match-preview). There is no province field.
  */
 export type LeadFormTabKey = 'profile' | 'matching';
 export type LeadFormDraft = {
   firstName: string;
-  phoneDigits: string;
+  /** The form can save this phone (same rule as the Save button), not just "something is typed". */
+  phoneOk: boolean;
   budgetMax: string;
   pinCount: number;
   tab: LeadFormTabKey;
@@ -18,7 +20,7 @@ export function leadFormReadiness(draft: LeadFormDraft): { canSave: boolean; mat
   const raw = draft.budgetMax.trim();
   const budget = Number(raw);
   const hasName = draft.firstName.trim() !== '';
-  const hasPhone = draft.phoneDigits !== '';
+  const hasPhone = draft.phoneOk;
   const hasBudget = raw !== '' && Number.isFinite(budget) && budget > 0;
   const hasPins = draft.pinCount > 0;
   return {

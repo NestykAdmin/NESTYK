@@ -124,6 +124,15 @@ export function samePhoneDraft(a: PhoneDraft, b: PhoneDraft): boolean {
   return a.region === b.region && a.digits === b.digits;
 }
 
+/**
+ * The phone the lead form can save, or '' when it cannot: a number that is valid for its country or, when editing and
+ * the number is untouched, the stored one (free text from before the country picker, so other edits are not blocked).
+ * The Save button and the agent web readiness panel both ask this, so they cannot disagree.
+ */
+export function savablePhone(phone: PhoneDraft, initial: PhoneDraft, stored: string | null | undefined): string {
+  return phoneDraftToE164(phone) ?? (stored != null && samePhoneDraft(phone, initial) ? stored : '');
+}
+
 /** Thai numbers in local format ("081 234 5678"); others with their country code. */
 export function formatPhoneDisplay(raw: string): string {
   const parsed = parsePhoneNumberFromString(raw.trim(), DEFAULT_COUNTRY);

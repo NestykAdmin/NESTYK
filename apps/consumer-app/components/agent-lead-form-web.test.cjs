@@ -11,8 +11,11 @@ test('CreateLeadForm: the web props are optional and only report or switch tabs'
   const form = read('CreateLeadForm.tsx');
   assert.match(form, /onDraftChange\?: \(draft: LeadFormDraft\) => void;/);
   assert.match(form, /requestedTab\?: \{ tab: LeadFormTab; nonce: number \};/);
-  assert.match(form, /onDraftChange\?\.\(\{\s*firstName: form\.firstName,\s*phoneDigits: phone\.digits,\s*budgetMax: form\.budgetMax,\s*pinCount: pins\.length,\s*tab,\s*\}\);/);
-  assert.match(form, /\}, \[onDraftChange, form\.firstName, phone\.digits, form\.budgetMax, pins\.length, tab\]\);/);
+  assert.match(form, /onDraftChange\?\.\(\{\s*firstName: form\.firstName,\s*phoneOk,\s*budgetMax: form\.budgetMax,\s*pinCount: pins\.length,\s*tab,\s*\}\);/);
+  assert.match(form, /\}, \[onDraftChange, form\.firstName, phoneOk, form\.budgetMax, pins\.length, tab\]\);/);
+  // QA 9 Nov 2026: the panel and Save share one phone rule (savablePhone), so they cannot disagree.
+  assert.match(form, /const phoneValue = savablePhone\(phone, initialPhone, initialLead\?\.phone\);/);
+  assert.match(form, /const phoneOk = phone\.digits !== '' && savablePhone\(phone, initialPhone, initialLead\?\.phone\) !== '';/);
   // A tab request goes through the existing switchTab (scroll to top), nothing else.
   assert.match(form, /if \(requestedTab\) switchTab\(requestedTab\.tab\);/);
   // Validation, body and save stay as they were.
@@ -102,7 +105,21 @@ function harness(mode = 'create') {
   h.render = () => { current = h; h.cursor = 0; return nodes(load(path.join(__dirname, 'agent-web/AgentLeadFormPage.web.tsx')).AgentLeadFormPage(h.props)); };
   return h;
 }
-const draft = (over = {}) => ({ firstName: '', phoneDigits: '', budgetMax: '', pinCount: 0, tab: 'profile', ...over });
+const draft = (over = {}) => ({ firstName: '', phoneOk: false, budgetMax: '', pinCount: 0, tab: 'profile', ...over });
+
+test('web: a phone the form refuses (QA L3) keeps the phone item open and asks for the phone, not "You can save now"', () => {
+  const h = harness();
+  h.render();
+  h.binds.at(-1).onDraftChange(draft({ firstName: 'Nalin', phoneOk: false }));
+  const tree = h.render();
+  assert.equal(byTestId(tree, 'leadForm.readiness.phone').props['data-done'], 'false');
+  assert.ok(tree.includes(copy().noteNeedContact));
+  assert.ok(!tree.includes(copy().noteSaveFirst));
+  h.binds.at(-1).onDraftChange(draft({ firstName: 'Nalin', phoneOk: true }));
+  const ready = h.render();
+  assert.equal(byTestId(ready, 'leadForm.readiness.phone').props['data-done'], 'true');
+  assert.ok(ready.includes(copy().noteSaveFirst));
+});
 
 test('web: the form gets a draft reporter; the panel follows what is typed', () => {
   const h = harness();
@@ -111,13 +128,13 @@ test('web: the form gets a draft reporter; the panel follows what is typed', () 
   assert.equal(typeof h.binds.at(-1).onDraftChange, 'function');
   assert.equal(byTestId(tree, 'leadForm.readiness.firstName').props['data-done'], 'false');
   assert.ok(tree.includes(copy().noteNeedContact));
-  h.binds.at(-1).onDraftChange(draft({ firstName: 'Nalin', phoneDigits: '812345678' }));
+  h.binds.at(-1).onDraftChange(draft({ firstName: 'Nalin', phoneOk: true }));
   tree = h.render();
   assert.equal(byTestId(tree, 'leadForm.readiness.firstName').props['data-done'], 'true');
   assert.equal(byTestId(tree, 'leadForm.readiness.pins').props['data-done'], 'false');
   assert.ok(tree.includes(copy().noteSaveFirst));
   assert.ok(tree.includes(copy().matchMissing));
-  h.binds.at(-1).onDraftChange(draft({ firstName: 'Nalin', phoneDigits: '812345678', budgetMax: '18000', pinCount: 1 }));
+  h.binds.at(-1).onDraftChange(draft({ firstName: 'Nalin', phoneOk: true, budgetMax: '18000', pinCount: 1 }));
   tree = h.render();
   assert.ok(tree.includes(copy().matchReady));
   assert.ok(tree.includes(copy().noteReady));

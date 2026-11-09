@@ -6,7 +6,7 @@ import { StatusBadge } from "./ui";
 import type { AgentLeadFormPageProps } from "./AgentLeadFormPage.types";
 import "./agent-lead-form.css";
 
-const EMPTY: LeadFormDraft = { firstName: "", phoneDigits: "", budgetMax: "", pinCount: 0, tab: "profile" };
+const EMPTY: LeadFormDraft = { firstName: "", phoneOk: false, budgetMax: "", pinCount: 0, tab: "profile" };
 
 /**
  * Agent web add/edit lead (W17 option A, Mos 6 Nov 2026): the app's `CreateLeadForm` in a 720px column and a
