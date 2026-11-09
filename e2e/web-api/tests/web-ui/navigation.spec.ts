@@ -5,6 +5,7 @@ import { LoginPage } from '../../src/web-ui/pages/login.page';
 import { LegalPage, notFoundMessage } from '../../src/web-ui/pages/public.page';
 import { EN } from '../../src/web-ui/labels';
 import { webUiEnv } from '../../src/web-ui/web-ui-env';
+import { hasStoredSession } from '../../src/web-ui/support/idle';
 
 /**
  * URL และการนำทางของเว็บ consumer-app (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "URL และการนำทาง" และบั๊กข้อ 9)
@@ -122,17 +123,32 @@ test.describe('history', () => {
   });
 
   test('Back after signing out does not show the signed-in page', async ({ page, loginAs }) => {
-    // ขั้นที่ 1: ล็อกอินแล้วออกจากระบบ ที่ qa/e2e a02e532 ไปหน้าแรกของผู้เยี่ยมชม (AFTER_SIGN_OUT_PATH index.tsx:183)
-    // ทีมตอบ 6 พ.ย. 2026 ว่าจะให้ไปหน้า login จึงรับได้ทั้ง 2 หน้า ข้อนี้ตรวจแค่ปุ่ม Back (ปลายทางตรวจใน session-idle.spec.ts)
+    // ขั้นที่ 1: ล็อกอินแล้วออกจากระบบ เว็บค่าเริ่มต้นไปหน้าแรกของผู้เยี่ยมชม "/" ส่วนเว็บที่ตั้ง EXPO_PUBLIC_WEB_SIGN_OUT_TO=login ไป /login
+    // (7a9bf48) จึงรับได้ทั้ง 2 หน้า ข้อนี้ตรวจแค่ปุ่ม Back (ปลายทางตรวจใน session-idle.spec.ts)
     await loginAs('agent');
     const shell = new AgentShell(page);
     await expect(shell.createMenu).toBeVisible();
     await shell.signOut();
     await expect(page).toHaveURL((url) => url.pathname === '/' || url.pathname === '/login');
-    // ขั้นที่ 2: กด Back ต้องไปหน้า login ไม่เห็นหน้าเดิม: หน้านายหน้าที่ Back พากลับไปถูกส่งต่อเป็น /login?next=/agent (index.tsx:659-662)
-    // ตรวจ next=/agent ด้วย เพื่อแยกจากกรณีที่ Back ไม่ได้พาไปไหนแล้วค้างที่ /login ของการออกจากระบบ (ข้อสังเกตของ test-reviewer)
+    // ขณะยังอยู่บนเว็บ: Sign Out ต้องล้าง session ที่เก็บไว้ (ข้อสังเกต test-reviewer 9 พ.ย. 2026: ถ้า Back ออกจากเว็บ จะไม่มีการตรวจอื่นแทน)
+    await expect.poll(() => hasStoredSession(page), { message: 'หลัง Sign Out ต้องไม่มี session ในเบราว์เซอร์' }).toBe(false);
+    // ขั้นที่ 2: กด Back ต้องไม่เห็นหน้าเดิม คำตอบที่คาดเลือกตามค่าตั้ง E2E_WEB_SIGN_OUT_TO
     await page.goBack();
-    await expect(page).toHaveURL((url) => url.pathname === '/login' && url.searchParams.get('next') === '/agent');
+    if (webUiEnv.signOutTo === 'login') {
+      // เว็บที่ตั้ง SIGN_OUT_TO=login (7a9bf48): ออกจากระบบด้วย router.replace("/login") ทับหน้านายหน้า Back จึงออกจากเว็บ
+      //   ไปหน้าก่อนเปิดเว็บ (ในเทสคือ about:blank ผลรัน 9 พ.ย. 2026) แล้ว Forward กลับมาต้องเป็นหน้า login ที่ไม่มีเมนูของนายหน้า
+      await expect(page, 'ถ้าได้ /login?next=/agent แปลว่าเว็บไม่ได้ตั้ง EXPO_PUBLIC_WEB_SIGN_OUT_TO=login ให้ตรงกับ E2E_WEB_SIGN_OUT_TO').toHaveURL(
+        (url) => url.href === 'about:blank',
+      );
+      await page.goForward();
+      await expect(page).toHaveURL((url) => url.pathname === '/login');
+    } else {
+      // เว็บค่าเริ่มต้น: Back พากลับไปหน้านายหน้า ซึ่งถูกส่งต่อเป็น /login?next=/agent (index.tsx)
+      //   ตรวจ next=/agent ด้วย เพื่อแยกจากกรณีที่ Back ไม่ได้พาไปไหนแล้วค้างที่ /login ของการออกจากระบบ (ข้อสังเกตของ test-reviewer)
+      await expect(page, 'ถ้าได้ about:blank แปลว่าเว็บตั้ง EXPO_PUBLIC_WEB_SIGN_OUT_TO=login ให้ตั้ง E2E_WEB_SIGN_OUT_TO=login ด้วย').toHaveURL(
+        (url) => url.pathname === '/login' && url.searchParams.get('next') === '/agent',
+      );
+    }
     await expect(shell.createMenu).toHaveCount(0);
   });
 

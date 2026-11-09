@@ -4,6 +4,7 @@ import { AgentShell } from '../../src/web-ui/pages/agent-shell.page';
 import { LoginPage } from '../../src/web-ui/pages/login.page';
 import { IdleWarning } from '../../src/web-ui/pages/session.page';
 import { EN } from '../../src/web-ui/labels';
+import { webUiEnv } from '../../src/web-ui/web-ui-env';
 import { ACTIVITY_WRITE_MS, hasStoredSession, IN_WARNING_WINDOW, PAST_LIMIT, readAuthEvent, setLastActivityAgo } from '../../src/web-ui/support/idle';
 
 /**
@@ -131,10 +132,12 @@ test.describe('two tabs', () => {
 
   // ออกจากระบบเมื่อเปิดไว้ 2 แท็บ: ทีมตอบ 6 พ.ย. 2026 ว่าทุกแท็บไปหน้า login รวมแท็บที่กด Sign Out
   //   (claude/nestyk-web-review-648dd28-for-dev-2026-11-06.md เรื่องที่ 1) ผลรันก่อนตอบ: แท็บที่กดไป "/" แท็บอื่นไป /login?next=%2Fagent
-  //   พร้อมข้อความหมดเวลา โค้ดที่ qa/e2e a02e532 ยังพาแท็บที่กดไป "/" (AFTER_SIGN_OUT_PATH app/index.tsx:183)
+  //   พร้อมข้อความหมดเวลา เว็บค่าเริ่มต้นยังพาแท็บที่กดไป "/" (afterSignOutHref: lib/route-access.ts) ส่วนเว็บที่ตั้ง
+//   EXPO_PUBLIC_WEB_SIGN_OUT_TO=login ไป /login ตั้งแต่ 7a9bf48 (ข้อแท็บที่กดเป็น known-bug เฉพาะเมื่อไม่ได้ตั้ง E2E_WEB_SIGN_OUT_TO=login)
   // ทั้ง 3 ข้อออกจากระบบด้วยปุ่ม Sign Out ในเมนูบัญชี (scope local: AuthContext.tsx:344) ไม่ตัด session ของคนอื่น
   // ข้อแรกกับข้อที่ 3 ผูกกัน (อนุมานจากโค้ด): ตอนนี้แท็บอื่นไปหน้า login ได้เพราะถูกนับเป็นหมดเวลา ซึ่งคือบั๊กของข้อที่ 3
-  //   เมื่อออกจากระบบตามปกติ โค้ดยังพาแท็บอื่นไป "/" (cross-tab-rules.ts:6-8, AuthContext.tsx:158-160) ถ้าทีมแก้ข้อที่ 3 แต่ไม่แก้ทางนี้ ข้อแรกจะแดง
+  //   เมื่อออกจากระบบตามปกติ เว็บค่าเริ่มต้นยังพาแท็บอื่นไป "/" (cross-tab-rules.ts:6-8, AuthContext.tsx:158-160) ถ้าทีมแก้ข้อที่ 3 แต่ไม่แก้ทางนี้ ข้อแรกจะแดง
+//   (เว็บที่ตั้ง login พาแท็บอื่นไป /login ทาง landElsewhere ใน app/index.tsx ที่ 7a9bf48 อยู่แล้ว)
 
   test('signing out in one tab sends the other tab to the login page', async ({ page, loginAs }) => {
     // ขั้นที่ 1: ล็อกอินในแท็บที่ 1 แล้วเปิดแท็บที่ 2
@@ -145,17 +148,24 @@ test.describe('two tabs', () => {
     await expect(second).toHaveURL((url) => url.pathname === '/login', { timeout: 30_000 });
   });
 
-  test('signing out sends the tab that signed out to the login page', { tag: '@known-bug' }, async ({ page, loginAs }) => {
+  // ข้อนี้เป็น known-bug เฉพาะเมื่อไม่ได้ตั้ง E2E_WEB_SIGN_OUT_TO=login (เว็บที่ใช้ค่าเริ่มต้นไป "/")
+  //   ทีมแก้ที่ pre/dev/review 7a9bf48: เมื่อเว็บตั้ง EXPO_PUBLIC_WEB_SIGN_OUT_TO=login แท็บที่กดไปถึง /login จริง
+  //   ผลรัน 9 พ.ย. 2026 (เว็บตั้ง login) ข้อนี้ขึ้น "Expected to fail, but passed" จึงเปลี่ยนเป็นเทสปกติเมื่อตั้งค่านี้
+  const signOutKnownBug = webUiEnv.signOutTo !== 'login';
+  test('signing out sends the tab that signed out to the login page', { tag: signOutKnownBug ? '@known-bug' : [] }, async ({ page, loginAs }) => {
     // ขั้นที่ 1: ล็อกอินในแท็บที่ 1 แล้วเปิดแท็บที่ 2
     await signInAsAgent(page, loginAs);
     await openSecondAgentTab(page);
-    // ขั้นที่ 2: ออกจากระบบในแท็บที่ 1 รอให้ถึงหน้าใดหน้าหนึ่งที่รู้จัก (ตอนนี้ "/" ตาม AFTER_SIGN_OUT_PATH หรือ /login เมื่อทีมแก้แล้ว)
+    // ขั้นที่ 2: ออกจากระบบในแท็บที่ 1 รอให้ถึงหน้าใดหน้าหนึ่งที่รู้จัก ("/" ของเว็บค่าเริ่มต้น หรือ /login ของเว็บที่ตั้ง login)
     // ถ้าไปหน้าอื่น ข้อนี้แดงที่ขั้นนี้ ไม่ถูกนับเป็นบั๊กที่รู้แล้ว (ข้อสังเกตของ test-reviewer)
     await new AgentShell(page).signOut();
     await expect(page).toHaveURL((url) => url.pathname === '/' || url.pathname === '/login', { timeout: 30_000 });
     // ขั้นที่ 3: แท็บที่กดต้องอยู่ที่หน้า login
-    test.fail(true, 'แท็บที่กด Sign Out ไป "/" ทีมตอบ 6 พ.ย. ว่าต้องไปหน้า login (AFTER_SIGN_OUT_PATH app/index.tsx:183)');
-    await expect(page).toHaveURL((url) => url.pathname === '/login', { timeout: 10_000 });
+    test.fail(signOutKnownBug, 'ไม่ได้ตั้ง E2E_WEB_SIGN_OUT_TO=login: เว็บค่าเริ่มต้นพาแท็บที่กด Sign Out ไป "/" ทีมตอบ 6 พ.ย. ว่าต้องไปหน้า login');
+    await expect(page, 'ถ้าค้างที่ "/" ให้ตรวจว่าเว็บตั้ง EXPO_PUBLIC_WEB_SIGN_OUT_TO=login ตรงกับ E2E_WEB_SIGN_OUT_TO').toHaveURL(
+      (url) => url.pathname === '/login',
+      { timeout: 10_000 },
+    );
   });
 
   test('the other tab does not say the session expired after a sign out', { tag: '@known-bug' }, async ({ page, loginAs }) => {

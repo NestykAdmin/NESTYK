@@ -83,6 +83,7 @@ export default async function webUiGlobalSetup(): Promise<void> {
   const billReads = await probeBillReads();
   process.env[BILL_READS_VARIABLE] = billReads.result;
   console.log(`[เทส UI เว็บ] API: ${webUiEnv.apiOrigin}${localApiMode() ? ' (API บนเครื่อง ต่อฐานข้อมูลของทีม ตรวจแล้วว่าปิดการขอบทบาท)' : ''}`);
+  console.log(`[เทส UI เว็บ] ปลายทางหลัง Sign Out ที่คาด: ${webUiEnv.signOutTo} (ต้องตรงกับ EXPO_PUBLIC_WEB_SIGN_OUT_TO ของเว็บ ตั้ง E2E_WEB_SIGN_OUT_TO=login ถ้าเว็บตั้ง login)`);
   console.log(`[เทส UI เว็บ] ภาษาของเว็บ: ${process.env.E2E_WEB_LOCALE === 'th' ? 'ไทย (th)' : 'อังกฤษ (en)'}`);
   console.log(`[เทส UI เว็บ] GET บิล: ${billReads.result === 'allowed' ? 'ปล่อยผ่าน' : 'ตัด'} (${billReads.reason})`);
 

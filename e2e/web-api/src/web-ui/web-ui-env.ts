@@ -63,6 +63,14 @@ export const webUiEnv = {
    * ยกเว้นเมื่อตั้ง E2E_WEB_LOCAL_API=yes: ค่าเริ่มต้นเป็น LOCAL_API_ORIGIN และต้องเป็นค่านั้นเท่านั้น
    */
   apiOrigin: new URL(fromEnv('E2E_WEB_API_ORIGIN', localApiMode() ? LOCAL_API_ORIGIN : 'https://nestyk-dev.up.railway.app')).origin,
+
+  /**
+   * ปลายทางหลังกด Sign Out ที่เว็บถูก build มา (ต้องตั้งให้ตรงกับ EXPO_PUBLIC_WEB_SIGN_OUT_TO ใน .env ของเว็บ ชุดเทสไม่อ่าน .env)
+   *   'login' = Aof ตั้ง E2E_WEB_SIGN_OUT_TO=login: แท็บที่กด Sign Out ต้องไป /login (lib/route-access.ts afterSignOutHref,
+   *             app/index.tsx holdGuestHomeForSignOut ที่ pre/dev/review 7a9bf48)
+   *   'default' = ไม่ตั้ง หรือค่าอื่น: เว็บใช้ค่าเริ่มต้น (portal all ไป "/") ข้อในชุดเทสที่คาด /login ยังเป็น known-bug
+   */
+  signOutTo: (process.env.E2E_WEB_SIGN_OUT_TO?.trim().toLowerCase() === 'login' ? 'login' : 'default') as 'login' | 'default',
 } as const;
 
 /** อีเมลของบัญชี QA ตามบทบาท (ใช้ค่าเดียวกับชุด API ใน qa-accounts.ts) */
