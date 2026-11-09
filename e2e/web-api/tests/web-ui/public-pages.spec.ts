@@ -4,7 +4,7 @@ import { LoginPage } from '../../src/web-ui/pages/login.page';
 import { GuestHome, LegalPage } from '../../src/web-ui/pages/public.page';
 import { RegisterPage } from '../../src/web-ui/pages/register.page';
 import { ResetPasswordPage } from '../../src/web-ui/pages/reset-password.page';
-import { EN, LEGAL, LEGAL_SECTION_COUNT, LOCALES } from '../../src/web-ui/labels';
+import { EN, LEGAL, LEGAL_SECTION_COUNT, LOCALES, UI_LOCALE } from '../../src/web-ui/labels';
 
 /**
  * footer หน้ากฎหมาย การสลับภาษา และหน้าสมัคร (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "Footer, หน้ากฎหมาย และการสมัคร")
@@ -77,8 +77,8 @@ test.describe('legal pages', () => {
       const legal = new LegalPage(page, doc);
       await legal.goto();
       await expect(legal.root).toBeVisible();
-      // ขั้นที่ 2: มีแถบ Draft และจำนวนหัวข้อตรงกับ packages/i18n/src/locales/legal/en.ts
-      await expect(legal.draftBanner).toContainText(LEGAL.en.draftBadge);
+      // ขั้นที่ 2: มีแถบ Draft และจำนวนหัวข้อตรงกับ packages/i18n/src/locales/legal/<ภาษาที่รัน>.ts
+      await expect(legal.draftBanner).toContainText(LEGAL[UI_LOCALE].draftBadge);
       await expect(legal.sectionHeadings).toHaveCount(LEGAL_SECTION_COUNT[doc]);
     });
   }

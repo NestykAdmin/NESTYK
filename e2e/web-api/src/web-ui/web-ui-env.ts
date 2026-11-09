@@ -35,6 +35,21 @@ export function passwordOf(role: WebUiRole): string | null {
   return process.env[PASSWORD_VARIABLES[role]] || null;
 }
 
+/**
+ * สวิตช์ให้เทส UI ใช้ API บนเครื่อง Aof แทน staging (เพิ่ม 9 พ.ย. 2026 หลังทีมแจ้งว่า Railway ใช้ไม่ได้)
+ *   ตั้ง E2E_WEB_LOCAL_API=yes แล้ว API ต้องเป็น LOCAL_API_ORIGIN เท่านั้น (ค่าอื่นเช่น 127.0.0.1, IP ในวง LAN หรือพอร์ตอื่นหยุดทั้งชุด)
+ *   ไม่ตั้ง หรือค่าอื่น = บังคับ staging เหมือนเดิม
+ *   API บนเครื่องต่อฐานข้อมูลของทีม global-setup จึงตรวจก่อนเริ่มทั้งชุดว่า API นี้ปิดการขอบทบาทแบบนักพัฒนาแล้ว
+ *   (assertLocalDevRoleGrantOff ใน web-ui-global-setup.ts) ถ้ายังเปิดอยู่ หยุดทั้งชุดก่อนเปิดเว็บ
+ */
+export const LOCAL_API_SWITCH = 'E2E_WEB_LOCAL_API';
+export const LOCAL_API_ORIGIN = 'http://localhost:4000';
+
+/** true = Aof ตั้ง E2E_WEB_LOCAL_API=yes */
+export function localApiMode(): boolean {
+  return process.env[LOCAL_API_SWITCH]?.trim() === 'yes';
+}
+
 export const webUiEnv = {
   /** ที่อยู่ของเว็บ consumer-app ที่เปิดด้วย npm run web */
   webUrl: withoutTrailingSlash(fromEnv('E2E_CONSUMER_WEB_URL', 'http://localhost:8081')),
@@ -45,8 +60,9 @@ export const webUiEnv = {
    * คำขอ /api/... ที่ไปที่อื่นจะถูกตัด (ตัวกันชั้นที่ 2 ใน guard.ts)
    * ห้ามตั้งค่านี้เป็น API บนเครื่อง (localhost:4000 หรือ localhost:8081) เพราะ API บนเครื่องของ Aof
    * ตั้ง ALLOW_DEV_ROLE_GRANT=true และต่อฐานข้อมูลของทีม global-setup ตรวจด้วย unsafeApiOriginReason ก่อนเริ่มทั้งชุด
+   * ยกเว้นเมื่อตั้ง E2E_WEB_LOCAL_API=yes: ค่าเริ่มต้นเป็น LOCAL_API_ORIGIN และต้องเป็นค่านั้นเท่านั้น
    */
-  apiOrigin: new URL(fromEnv('E2E_WEB_API_ORIGIN', 'https://nestyk-dev.up.railway.app')).origin,
+  apiOrigin: new URL(fromEnv('E2E_WEB_API_ORIGIN', localApiMode() ? LOCAL_API_ORIGIN : 'https://nestyk-dev.up.railway.app')).origin,
 } as const;
 
 /** อีเมลของบัญชี QA ตามบทบาท (ใช้ค่าเดียวกับชุด API ใน qa-accounts.ts) */
@@ -78,9 +94,13 @@ const ALLOWED_API_HOSTS: readonly string[] = ['nestyk-dev.up.railway.app'];
 /**
  * เหตุผลที่ห้ามใช้ origin นี้เป็น API ของเทส UI (null = ใช้ได้)
  * ต้องเป็น https ชื่อเครื่องต้องไม่ใช่เครื่องนี้หรือเครื่องในวง LAN และต้องอยู่ใน ALLOWED_API_HOSTS
+ * เมื่อ local = true (E2E_WEB_LOCAL_API=yes) ต้องเป็น LOCAL_API_ORIGIN ตรงตัวเท่านั้น
  */
-export function unsafeApiOriginReason(origin: string): string | null {
+export function unsafeApiOriginReason(origin: string, local: boolean = localApiMode()): string | null {
   const url = new URL(origin);
+  if (local) {
+    return url.origin === LOCAL_API_ORIGIN ? null : `ตั้ง ${LOCAL_API_SWITCH}=yes แล้ว API ต้องเป็น ${LOCAL_API_ORIGIN} เท่านั้น (ได้ ${url.origin})`;
+  }
   if (url.protocol !== 'https:') return `ต้องเป็น https (ได้ ${url.protocol})`;
   if (LOCAL_HOST_PATTERNS.some((pattern) => pattern.test(url.hostname))) return `${url.hostname} เป็นเครื่องนี้หรือเครื่องในวง LAN`;
   if (!ALLOWED_API_HOSTS.includes(url.hostname.toLowerCase())) return `${url.hostname} ไม่อยู่ใน ALLOWED_API_HOSTS (web-ui-env.ts)`;

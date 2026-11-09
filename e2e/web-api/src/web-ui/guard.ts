@@ -141,9 +141,37 @@ function roleOf(kind: BlockedKind, body: string | null): string | null {
   }
 }
 
+/**
+ * คำขอเขียนที่เทสเขียนข้อมูลบนเว็บ (tests/web-ui-write) ยอมให้ผ่านเฉพาะข้อนั้น: METHOD + path ต่อจาก /api/v1 ที่ตรง RegExp ทั้ง path
+ * ชุดอ่านอย่างเดียว (tests/web-ui) ไม่เรียก allowWrites จึงยังตัดคำขอเขียนทุกตัวเหมือนเดิม
+ */
+export interface WriteRule {
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  path: RegExp;
+}
+
+/** คำขอเขียนที่ห้ามผ่านแม้อยู่ใน allowWrites (อัปโหลดรูป AI ปรับรูป AI เขียนโปรโมต: ค้างใน Storage หรือมีค่าใช้จ่าย) */
+const NEVER_WRITABLE: readonly RegExp[] = [/^\/agent\/rooms\/media\//, /^\/agent\/rooms\/generate-listing-promo$/];
+
 export class RequestGuard {
   readonly blocked: BlockedRequest[] = [];
+  /** คำขอเขียนที่ปล่อยผ่านตาม allowWrites (METHOD + path) เทสใช้ตรวจว่าเขียนเฉพาะที่ตั้งใจ */
+  readonly allowedWrites: string[] = [];
   private ownerBillsAllowed = false;
+  private writeRules: WriteRule[] = [];
+
+  /** ให้คำขอเขียนที่ตรงกฎผ่านไปถึง API (ใช้ได้เฉพาะเทสเขียนข้อมูล: tests/web-ui-write) เรียกซ้ำได้ กฎสะสม */
+  allowWrites(...rules: WriteRule[]): void {
+    this.writeRules.push(...rules);
+  }
+
+  /** คำขอเขียนนี้ตรงกฎของ allowWrites และไม่อยู่ในรายการห้ามเสมอ */
+  private writeAllowed(url: URL, method: string): boolean {
+    if (url.origin !== webUiEnv.apiOrigin) return false;
+    const apiPath = url.pathname.replace(/^\/api\/v\d+/, '').replace(/\/+$/, '');
+    if (NEVER_WRITABLE.some((pattern) => pattern.test(apiPath))) return false;
+    return this.writeRules.some((rule) => rule.method === method.toUpperCase() && rule.path.test(apiPath));
+  }
 
   /**
    * ให้ GET /bills/received ผ่าน (เฉพาะ GET method อื่นยังถูกตัดเป็น owner-bills) ใช้ได้เฉพาะเมื่อตรวจแล้วว่าบัญชีที่ล็อกอินไม่มีบทบาท landlord
@@ -164,6 +192,11 @@ export class RequestGuard {
         const kind = classifyRequest(url, webUiEnv.apiOrigin, request.method());
         const billRead = (kind === 'bill-write' || kind === 'owner-bills') && billReadsAllowed() && isBillRead(url, request.method());
         if (kind === null || billRead || (kind === 'owner-bills' && this.ownerBillsAllowed && request.method() === 'GET')) {
+          await route.continue();
+          return;
+        }
+        if (kind === 'unexpected-write' && this.writeAllowed(url, request.method())) {
+          this.allowedWrites.push(`${request.method()} ${url.pathname.replace(/^\/api\/v\d+/, '')}`);
           await route.continue();
           return;
         }

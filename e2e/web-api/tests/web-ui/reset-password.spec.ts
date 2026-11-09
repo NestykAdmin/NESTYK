@@ -1,7 +1,7 @@
 import type { Page, Request } from '@playwright/test';
 import { test, expect, LOCALE_KEY } from '../../src/web-ui/web-ui.fixture';
 import { ResetPasswordPage } from '../../src/web-ui/pages/reset-password.page';
-import { EN, RAW_ERRORS, RETIRED_RESET_SEND, TH_EMAIL, TH_RESET_SEND } from '../../src/web-ui/labels';
+import { EN, RAW_ERRORS, RETIRED_RESET_SEND, TH_EMAIL, TH_RESET_SEND, UI_LOCALE } from '../../src/web-ui/labels';
 
 /**
  * หน้าลืมรหัสผ่านและตั้งรหัสใหม่ (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "รีเซ็ตรหัสผ่าน" และบั๊กข้อ 4, 6, 7)
@@ -52,6 +52,7 @@ test.describe('email step', () => {
 
   // บั๊กข้อ 6 แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): ปุ่มเขียนว่าส่งลิงก์ และไม่มีปุ่มที่เขียนว่าส่งรหัส
   test('the email button says "Send link" in English', async ({ page }) => {
+    test.skip(UI_LOCALE !== 'en', 'ข้อนี้ตรวจภาษาอังกฤษ ข้อถัดไปตรวจภาษาไทยอยู่แล้ว');
     const reset = new ResetPasswordPage(page);
     await reset.goto();
     await expect(reset.email()).toBeVisible();

@@ -40,6 +40,11 @@ export class AgentShell {
     return this.createMenu.getByRole('menu');
   }
 
+  /** รายการในเมนู Create ตามชื่อ (WebMenu.tsx:109-112 เป็น <button role="menuitem"> จึงหาด้วย role menuitem ไม่ใช่ button) */
+  createItem(label: string): Locator {
+    return this.createList.getByRole('menuitem', { name: label, exact: true });
+  }
+
   /** รายการแรกในเมนู Create ที่กดได้ (ตอนเปิดเมนู โฟกัสย้ายมาที่นี่: WebMenu.tsx:64) */
   get createFirstItem(): Locator {
     return this.createList.locator('button:not(:disabled)').first();

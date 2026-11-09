@@ -1,7 +1,7 @@
 import { test, expect } from '../../src/web-ui/web-ui.fixture';
 import { AgentOverview } from '../../src/web-ui/pages/agent-overview.page';
 import { enNumber } from '../../src/web-ui/pages/leads.page';
-import { FLOW, HARDCODED } from '../../src/web-ui/labels';
+import { alsoEnglish, FLOW, FLOW_EN, HARDCODED } from '../../src/web-ui/labels';
 import { okJson, waitForApi } from '../../src/web-ui/support/api';
 
 /**
@@ -48,7 +48,7 @@ test('the dashboard cards show the numbers from GET /agent/dashboard', async ({ 
   const today = bangkokDay(new Date());
   const viewingsToday = data.schedule.items.filter((item) => item.kind === 'viewing' && bangkokDay(new Date(item.startsAt)) === today).length;
   await expect(overview.kpiValue(FLOW.kpiViewingsToday)).toHaveText(enNumber(viewingsToday));
-  await expect(overview.root.getByText(FLOW.kpiLoadFailed, { exact: true })).toHaveCount(0);
+  for (const text of alsoEnglish(FLOW.kpiLoadFailed, FLOW_EN.kpiLoadFailed)) await expect(overview.root.getByText(text, { exact: true })).toHaveCount(0);
 });
 
 test('each card opens its list page', async ({ page, loginAs }) => {

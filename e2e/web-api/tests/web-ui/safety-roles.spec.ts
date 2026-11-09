@@ -3,8 +3,13 @@ import { test, expect } from '../../src/web-ui/web-ui.fixture';
 import { AgentShell } from '../../src/web-ui/pages/agent-shell.page';
 import { AdminHome, RawApiErrors } from '../../src/web-ui/pages/app.page';
 import { EN } from '../../src/web-ui/labels';
+import { localApiMode } from '../../src/web-ui/web-ui-env';
 import { storedRoles } from '../../src/web-ui/support/idle';
 import { waitForStableValue, watchForRequest } from '../../src/web-ui/support/wait';
+
+// กฎ 4 พ.ย. 2026 (README "กฎความปลอดภัย"): วันที่ให้เว็บเรียก API บนเครื่อง ห้ามเปิด /agent/... ด้วยบัญชีที่ไม่ใช่นายหน้า
+//   ไฟล์นี้ทำแบบนั้น และข้อ known-bug 2 ข้อจะกลับผลเมื่อ build ตั้ง EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=false จึงข้ามทั้งไฟล์ในโหมดนี้
+test.skip(localApiMode(), 'E2E_WEB_LOCAL_API=yes: ไฟล์นี้เปิด /agent ด้วยบัญชีที่ไม่ใช่นายหน้า ซึ่งกฎ 4 พ.ย. 2026 ห้ามเมื่อใช้ API บนเครื่อง');
 
 /**
  * บทบาทกับ URL ของเว็บ consumer-app (ผลเทสด้วยมือ 4 พ.ย. 2026 ข้อ 1, 2, 7, 8 ใน claude/nestyk-web-test-results-for-dev-2026-11-04.md)

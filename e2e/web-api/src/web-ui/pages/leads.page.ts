@@ -1,14 +1,14 @@
 import type { Locator, Page } from '@playwright/test';
-import { FLOW } from '../labels';
+import { FLOW, UI_LOCALE_TAG } from '../labels';
 
 /** ใช้ข้อความเป็นส่วนหนึ่งของ RegExp โดยไม่ให้อักขระพิเศษมีความหมาย */
 export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** ตัวเลขแบบที่หน้าเว็บแสดงในภาษา en (toLocaleString('en'): 1,234) */
+/** ตัวเลขแบบที่หน้าเว็บแสดงในภาษาที่รัน (toLocaleString(localeTag): 1,234) ชื่อเดิม en คงไว้เพื่อไม่ต้องแก้ไฟล์เทส */
 export function enNumber(value: number): string {
-  return value.toLocaleString('en');
+  return value.toLocaleString(UI_LOCALE_TAG);
 }
 
 /**

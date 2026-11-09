@@ -1,6 +1,7 @@
 /// <reference lib="dom" />  // โค้ดใน addInitScript ทำงานในเบราว์เซอร์ (tsconfig ของชุดนี้ใช้ lib ES2022 อย่างเดียว)
 import { test as base, expect, type Page } from '@playwright/test';
 import { NEVER_ALLOWED, RequestGuard, type BlockedRequest } from './guard';
+import { UI_LOCALE } from './labels';
 import { LoginPage } from './pages/login.page';
 import { emailOf, passwordOf, PASSWORD_VARIABLES, type WebUiRole } from './web-ui-env';
 
@@ -49,14 +50,14 @@ export const test = base.extend<WebUiFixtures, WebUiWorkerFixtures>({
     async ({ context, forbiddenLog }, use, testInfo) => {
       const guard = new RequestGuard();
       await guard.install(context);
-      // เปิดเว็บเป็นภาษาอังกฤษ ถ้ายังไม่ได้เลือกภาษาในแท็บนี้ (ถ้าเทสเลือกภาษาเอง การโหลดหน้าใหม่ไม่ทับค่าที่เลือก)
-      await context.addInitScript((key) => {
+      // เปิดเว็บเป็นภาษาของ UI_LOCALE (labels.ts ค่าเริ่มต้น en) ถ้ายังไม่ได้เลือกภาษาในแท็บนี้ (ถ้าเทสเลือกภาษาเอง การโหลดหน้าใหม่ไม่ทับค่าที่เลือก)
+      await context.addInitScript(({ key, locale }) => {
         try {
-          if (!window.localStorage.getItem(key)) window.localStorage.setItem(key, 'en');
+          if (!window.localStorage.getItem(key)) window.localStorage.setItem(key, locale);
         } catch {
           // storage ถูกปิด: แอปใช้ภาษาของเบราว์เซอร์ (ค่าตั้ง locale en-US ใน playwright.web-ui.config.ts)
         }
-      }, LOCALE_KEY);
+      }, { key: LOCALE_KEY, locale: UI_LOCALE });
       await use(guard);
       const forbidden = guard.blocked.filter((entry) => NEVER_ALLOWED.includes(entry.kind));
       if (forbidden.length > 0) forbiddenLog.push({ title: testInfo.titlePath.join(' › '), blocked: forbidden });

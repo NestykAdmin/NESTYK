@@ -1,6 +1,7 @@
 import { test, expect } from '../../src/web-ui/web-ui.fixture';
 import { AgentTenantsPage } from '../../src/web-ui/pages/agent-tenants.page';
-import { FLOW, fill } from '../../src/web-ui/labels';
+import { AgentCalendarPage } from '../../src/web-ui/pages/agent-calendar.page';
+import { alsoEnglish, FLOW, FLOW_EN, fill } from '../../src/web-ui/labels';
 import { billReadsAllowed } from '../../src/web-ui/guard';
 import { apiPathOf, okJson, waitForApi } from '../../src/web-ui/support/api';
 import { watchForRequest } from '../../src/web-ui/support/wait';
@@ -9,6 +10,7 @@ import { watchForRequest } from '../../src/web-ui/support/wait';
  * ผู้เช่าและปฏิทินของนายหน้าบนจอกว้าง (แผน claude/nestyk-web-flows-readonly-plan-2026-11-06.md ข้อ T1-T2, C1-C2 และ B5 ของระยะ 2)
  * โค้ด: apps/consumer-app/components/AgentTenantsScreen.tsx, agent-web/TenantDirectoryTable.web.tsx, AgentCalendarScreen.tsx,
  *   lib/agent-calendar-viewings.ts ที่ qa/e2e d6370ee (แอปเท่ากับ 648dd28)
+ *   ปฏิทินบนจอ 1280 เปลี่ยนเป็น agent-web/AgentCalendarPage.web.tsx ที่ pre/dev/review fc1a351 (ข้อ C1 ขั้นที่ 2)
  *
  * สิ่งที่ต้องมีก่อนรัน: เว็บเปิดด้วย npm run web และเรียก API ของ staging, ตั้ง E2E_QA_AGENT_PASSWORD
  * ทุกข้ออ่านอย่างเดียว: ไม่กดปุ่มแก้ไข ยืนยันสลิป สร้างสัญญา หรือปุ่มในคอลัมน์ action ของตารางงาน
@@ -70,7 +72,7 @@ test.describe('tenants', () => {
     if (billing) {
       // ระยะ 2 (B5): API อ่านอย่างเดียว ตัวกันปล่อยผ่าน คำตอบต้องสำเร็จ และไม่ขึ้นข้อความโหลดบิลไม่ได้
       await okJson<unknown>(await billing);
-      await expect(screen.alert(FLOW.tenantsSlipsLoadError)).toHaveCount(0);
+      for (const text of alsoEnglish(FLOW.tenantsSlipsLoadError, FLOW_EN.tenantsSlipsLoadError)) await expect(screen.alert(text)).toHaveCount(0);
     } else {
       // ระยะ 1: ตัวกันตัดคำขอนี้ หน้าเว็บจึงขึ้นข้อความโหลดสลิปไม่ได้ (ผลของตัวกัน ไม่ใช่บั๊กของแอป)
       await expect(screen.alert(FLOW.tenantsSlipsLoadError)).toBeVisible();
@@ -112,10 +114,15 @@ test.describe('calendar', () => {
     // API รับช่วงไม่เกิน 62 วัน (คอมเมนต์ของ calendarViewingRange)
     expect(to - from, 'ช่วงที่ขอต้องไม่เกิน 62 วัน').toBeLessThanOrEqual(62 * 24 * 60 * 60 * 1000);
 
-    // ขั้นที่ 2: หัวข้อของวันที่เลือกเป็นวันนั้น (Intl en-GB weekday long day numeric month long: AgentCalendarScreen.tsx:31, :43)
-    const heading = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).format(target);
-    await expect(page.getByText(heading, { exact: true })).toBeVisible();
-    await expect(page.getByText(FLOW.calendarLoadError, { exact: true })).toHaveCount(0);
+    // ขั้นที่ 2: วันที่เลือกเป็นวันนั้น (ปฏิทินเว็บ AgentCalendarPage.web.tsx ที่ fc1a351)
+    //   มินิปฏิทิน: ปุ่มของวันนั้นถูกเลือก (aria-pressed) และชื่อเป็น dayLabel
+    //   หัวการ์ดรายการของวัน: "<dayLabel> · <จำนวนนัด>" เมื่อโหลดเสร็จ (ระหว่างโหลดเป็นแค่ dayLabel จึงรอให้มี " · " ตามหลัง)
+    const calendar = new AgentCalendarPage(page);
+    const heading = await calendar.dayLabel(key);
+    await expect(calendar.miniDay(key)).toHaveAttribute('aria-pressed', 'true');
+    await expect(calendar.miniDay(key)).toHaveAttribute('aria-label', heading);
+    await expect(calendar.dayTitle).toHaveText(AgentCalendarPage.loadedTitle(heading));
+    for (const text of alsoEnglish(FLOW.calendarLoadError, FLOW_EN.calendarLoadError)) await expect(page.getByText(text, { exact: true })).toHaveCount(0);
     await expect(page).toHaveURL((url) => url.pathname === '/agent/calendar' && url.searchParams.get('date') === key);
   });
 

@@ -6,11 +6,34 @@
  * ชุดเทสเก็บข้อความเอง ไม่ import จากโค้ดของแอป แบบเดียวกับชุด e2e/mobile (src/labels/)
  *   เหตุผลของชุดนี้: ถ้าทีมแก้ข้อความ เทสต้องแดงให้เห็น ไม่ใช่เปลี่ยนตามเงียบ ๆ และ tsconfig ของชุดนี้ไม่รวมโค้ดนอก e2e/web-api
  *
- * ชุดเทสเปิดเว็บเป็นภาษาอังกฤษ: fixture ตั้ง localStorage '@nestyk/preferred_locale' = 'en' ก่อนโหลดหน้า
+ * ชุดเทสเปิดเว็บเป็นภาษาของ UI_LOCALE: fixture ตั้ง localStorage '@nestyk/preferred_locale' ก่อนโหลดหน้า
  *   (apps/consumer-app/lib/locale-storage.ts:4 และ AsyncStorage บนเว็บเก็บใน localStorage ด้วยชื่อเดียวกัน)
+ * ค่าเริ่มต้นเป็นภาษาอังกฤษ ตั้ง E2E_WEB_LOCALE=th (npm run test:web-ui:th) แล้ว EN, FLOW, PARTY_COPY จะเป็นข้อความภาษาไทยจาก labels.th.ts
+ *   ชื่อ EN คงไว้เพื่อไม่ต้องแก้ไฟล์เทส แม้ตอนรันภาษาไทยค่าข้างในจะเป็นภาษาไทย
+ *   WRITE และค่าคงที่อื่นในไฟล์นี้เป็นภาษาอังกฤษเสมอ (ชุดเทสเขียนข้อมูลยังรันภาษาอังกฤษอย่างเดียว)
  */
 
-export const EN = {
+import { EN_TH, FLOW_TH, PARTY_COPY_TH } from './labels.th';
+
+/** ภาษาที่ชุดเทส UI เว็บเปิดหน้า */
+export const UI_LOCALE: 'en' | 'th' = process.env.E2E_WEB_LOCALE === 'th' ? 'th' : 'en';
+
+/**
+ * แท็กภาษาที่ใช้จัดรูปแบบตัวเลขและวันที่ให้ตรงกับแอป ที่ 648dd28
+ *   ปฏิทิน: th-TH / en-GB (localeTag: AgentCalendarScreen.tsx:31 บนจอแคบ, LOCALE_TAG: agent-web/AgentCalendarPage.web.tsx บนจอ 1280 ที่ fc1a351)
+ *   หน้าลีดและห้อง: th-TH / en (AgentLeadsPage.web.tsx:44, AgentRoomsPage.web.tsx:77) ตัวเลขจำนวนเต็มของ en กับ en-GB เหมือนกัน (1,234)
+ */
+export const UI_LOCALE_TAG = UI_LOCALE === 'th' ? 'th-TH' : 'en-GB';
+
+/**
+ * ข้อความที่ต้องไม่อยู่บนหน้า ตอนรันภาษาไทยตรวจคู่ภาษาอังกฤษด้วย เพื่อจับข้อความผิดพลาดที่แอปลืมแปล
+ * ใช้ว่า: for (const text of alsoEnglish(FLOW.x, FLOW_EN.x)) await expect(...text...).toHaveCount(0)
+ */
+export function alsoEnglish(current: string, english: string): string[] {
+  return UI_LOCALE === 'en' || current === english ? [current] : [current, english];
+}
+
+export const EN_EN = {
   // packages/i18n/src/locales/en.ts (mobile.auth.*)
   email: 'Email', // mobile.auth.email :365 (aria-label ของช่องอีเมลในหน้า login, register และ reset-password)
   password: 'Password', // mobile.auth.password :366
@@ -57,13 +80,16 @@ export const EN = {
   signOutAllTitle: 'Sign out of all devices?', // signOutAllTitle :5
 } as const;
 
+/** ข้อความของภาษาที่รัน (ชื่อเดิม EN ใช้ทั้ง 2 ภาษา) */
+export const EN: Record<keyof typeof EN_EN, string> = UI_LOCALE === 'th' ? EN_TH : EN_EN;
+
 /**
  * ข้อความของหน้างาน (flow) ที่เทสอ่านอย่างเดียวใช้ (tests/web-ui/agent-*.spec.ts, party-pages.spec.ts)
  * ที่มาเดียวกับ EN: packages/i18n/src/locales/en.ts ที่ 648dd28 (เท่ากับ qa/e2e d6370ee) คอมเมนต์คือ key และเลขบรรทัด
  *   ตรวจค่าตาม key ด้วยการโหลดไฟล์ locale จริง และหาเลขบรรทัดจากโครงไฟล์ (ห้องทดลอง 6 พ.ย. 2026)
  * ข้อความที่มี {count} {from} ใช้กับ fill() ด้านล่าง
  */
-export const FLOW = {
+export const FLOW_EN = {
   // หน้าลีด (components/agent-web/AgentLeadsPage.web.tsx)
   leadsCount: '{count} leads', // agent.leads.count :896 (ตัวนับ aria-live ของแถบเครื่องมือ)
   leadsSearch: 'Search name, phone or location', // agent.leads.search :894 (aria-label ของช่องค้น)
@@ -110,7 +136,7 @@ export const FLOW = {
   tenantsShowing: 'Showing {shown} of {total}', // agent.tenants.list.showing :820
   tenantsSlipsLoadError: 'Could not load slips to review', // agent.tenants.list.slipsLoadError :824 (AgentTenantsScreen.tsx:176 เมื่อ GET /bills/agent/tenants/:id ล้ม)
 
-  // ปฏิทิน (components/AgentCalendarScreen.tsx copy = t.agent.calendar)
+  // ปฏิทิน (copy = t.agent.calendar: components/AgentCalendarScreen.tsx บนจอแคบ และ agent-web/AgentCalendarPage.web.tsx บนจอ 1280 ที่ fc1a351)
   calendarLoadError: 'Unable to load appointments. Please try again.', // agent.calendar.loadError :493
 
   // บิล (components/TenantBillsScreen.tsx, TenantNextBillCard.tsx, OwnerConfirmedRent.tsx)
@@ -127,14 +153,105 @@ export const FLOW = {
   landlordHomeTitle: 'Landlord home', // mobile.roleHome.landlordTitle :47
 } as const;
 
+export const FLOW: typeof FLOW_TH = UI_LOCALE === 'th' ? FLOW_TH : FLOW_EN;
+
+/**
+ * ข้อความของเทสเขียนข้อมูลบนเว็บ (tests/web-ui-write) ที่มาเดียวกับ FLOW: packages/i18n/src/locales/en.ts ที่ 648dd28 (key :บรรทัด)
+ */
+export const WRITE = {
+  // เมนู Create ของ shell (AgentWorkspace.web.tsx:532-533)
+  menuNewLead: 'New lead', // agent.dashboard.newLead :2113
+  menuAddListing: 'Add listing', // agent.dashboard.addListing :2112
+
+  // ฟอร์มลีด (components/CreateLeadForm.tsx)
+  tabProfile: 'Lead info', // agent.leads.tabProfile :958
+  tabMatching: 'Room matching', // agent.leads.tabMatching :959
+  firstNamePlaceholder: 'e.g. Somchai', // agent.leads.firstNamePlaceholder :963
+  lastNamePlaceholder: 'e.g. Jaidee', // agent.leads.lastNamePlaceholder :964
+  phone: 'Contact phone', // agent.leads.phone :869 (aria-label ของช่องเบอร์: PhoneField.tsx:74)
+  emailPlaceholder: 'e.g. name@email.com', // agent.leads.emailPlaceholder :974
+  notesPlaceholder: 'e.g. best time to call, special needs', // agent.leads.notesPlaceholder :1020
+  budgetMinPlaceholder: 'e.g. 10,000', // agent.leads.budgetMinPlaceholder :1025
+  budgetMaxPlaceholder: 'e.g. 20,000', // agent.leads.budgetMaxPlaceholder :1024
+  saveLead: 'Save Lead', // agent.leads.save :887 (ปุ่มบันทึกตอนสร้าง)
+  saveChanges: 'Save changes', // agent.listings.saveChanges :1979 (ปุ่มบันทึกตอนแก้ลีด) และ agent.leads.viewing.saveChange :1113
+  required: 'This field is required', // agent.leads.required :891
+  invalidEmail: 'Enter a valid email address', // agent.leads.invalidEmail :975
+  budgetError: 'Minimum budget must not exceed maximum', // agent.leads.budgetError :893
+  saveLeadError: 'Could not save lead', // agent.leads.saveError :890 (ท้ายฟอร์ม "<ข้อความนี้>: <สาเหตุ>" CreateLeadForm.tsx:786-793 และหัว Alert ตอนเปลี่ยนสถานะลีดล้ม: AgentLeadDetailBody.tsx changeStatus ที่ fc1a351)
+
+  // รายละเอียดลีด (components/AgentLeadDetailBody.tsx)
+  viewFullInfo: 'View full lead info', // agent.leads.viewFullInfo :1059
+  editLead: 'Edit lead', // agent.leads.editLead :924 (ปุ่มบนหัวหน้าข้อมูลทั้งหมด: app/index.tsx:873-884)
+  changeStatus: 'Change status', // agent.leads.changeStatus :1150 (aria-label "<ข้อความนี้>: <สถานะ>" :779)
+  markInProgress: 'Start caring', // agent.leads.markInProgress :937
+  markLost: 'Not proceeding', // agent.leads.markLost :938 (ค่าเดียวกับป้ายสถานะ lost)
+  lostReasonPlaceholder: 'e.g. chose another place / budget mismatch / unreachable', // agent.leads.lostReasonPlaceholder :941
+  confirmLost: 'Confirm not proceeding', // agent.leads.confirmLost :943
+  lostReasonRequired: 'Please enter a reason', // agent.leads.lostReasonRequired :942 (แอปแจ้งด้วย Alert ซึ่งบนเว็บเป็น toast: :395)
+  matchNotReadyTitle: 'Needs a max budget and 1 pin', // agent.leads.matchNotReadyTitle :1078
+  matchCompleteInfo: 'Add matching info', // agent.leads.matchCompleteInfo :1079
+  matchRun: 'Match rooms', // agent.leads.matchRun :1083
+  loadError: 'Could not load data', // agent.leads.loadError :1054 (เดิมเป็นหัว Alert ตอนเปลี่ยนสถานะล้ม ตั้งแต่ fc1a351 เป็น saveLeadError แล้ว ชุดนี้ไม่ได้ใช้ค่านี้)
+  sheetClose: 'Cancel', // common.cancel :13 (ปุ่มปิด sheet: SheetHeader AgentLeadDetailBody.tsx:1089)
+
+  // นัดดูห้อง (components/LeadViewingSheet.tsx, ปฏิทินตามข้างบน)
+  calendarManage: 'Reschedule / cancel', // agent.calendar.manage :491
+  loading: 'Loading…', // common.loading :15 (ปฏิทินเว็บที่ fc1a351 ใช้โครงโหลดแทนข้อความนี้ ชุดนี้ไม่ได้ใช้ค่านี้แล้ว)
+  viewingEditTitle: 'Edit viewing', // agent.leads.viewing.editTitle :1100
+  viewingTime: 'Time', // agent.leads.viewing.time :1102
+  viewingCancel: 'Cancel viewing', // agent.leads.viewing.cancel :1114 (ทั้งลิงก์ในฟอร์มและปุ่มยืนยัน)
+  viewingCancelConfirm: 'Cancel this viewing?', // agent.leads.viewing.cancelConfirm :1115
+
+  // ตัวช่วยสร้างห้อง (packages/feature-listing/src/components/MobileCreateListingWizardBody.tsx)
+  sourceOwner: 'Room owner', // agent.createRoom.sourceOwner :1505
+  wizardNext: 'Next', // agent.createRoom.next :1491
+  saveRoom: 'Save room', // agent.createRoom.saveRoom :1535
+  saveMissingBanner: 'Complete the required sections before saving', // agent.createRoom.setupSaveMissingBanner :1532
+  // ระยะ B: สร้างห้องผ่านตัวช่วยและแก้ห้อง (packages/feature-listing/src/components/MobileCreateListingWizardBody.tsx)
+  stepProperty: 'Property & location', // agent.createRoom.steps.property :1538
+  stepLayout: 'Room details', // agent.createRoom.steps.layout :1539
+  stepPricing: 'Rent & terms', // agent.createRoom.steps.pricing :1542
+  stepSource: 'Room source', // agent.createRoom.sourceSection :1502 (แถวบน hub ใช้ cr.sourceSection: W:1778)
+  sectionDone: 'Done', // agent.createRoom.sectionDone :1534
+  propertyType: 'Property type', // agent.createRoom.propertyType :1577
+  propertyCondo: 'Condo', // masters.propertyTypes.condo :2225
+  enterManually: 'Enter location manually', // agent.createRoom.enterManually :1560
+  projectPlaceholder: 'e.g. Life Asoke', // agent.createRoom.projectOrBuildingPlaceholder :1558
+  addressPlaceholder: 'Street / soi', // agent.createRoom.addressPlaceholder :1573
+  district: 'District', // agent.createRoom.district :1575
+  province: 'Province', // agent.createRoom.province :1576
+  listingTitlePlaceholder: 'e.g. Life Asoke · 1804', // agent.createRoom.listingTitlePlaceholder :1581
+  selectRoomType: 'Select room type', // agent.createRoom.selectRoomType :1553
+  roomTypeStudio: 'Studio', // masters.roomTypes.studio :2230
+  addLease: 'Add lease', // agent.createRoom.addLease :1724
+  addTerms: 'Add terms', // agent.createRoom.addTerms :1725
+  contractMonths: '{months} months', // agent.createRoom.contractMonths :1713
+  leaseCardTitle: '{months}-month lease', // agent.createRoom.leaseCardTitle :1730
+  applyLeaseChanges: 'Apply changes', // agent.createRoom.applyLeaseChanges :1726
+  chooseContact: 'Choose contact', // agent.createRoom.chooseContactTitle :1835
+  contactSearchPlaceholder: 'Search name or phone', // agent.createRoom.ownerSearchPlaceholder :1852
+  useSelectedContact: 'Use selected contact', // agent.createRoom.useSelectedContact :1838
+  addNewContact: 'Add new contact', // agent.createRoom.ownerAddNew :1853
+  contactNamePlaceholder: 'e.g. Alex Morgan', // agent.createRoom.ownerNamePlaceholder :1845
+  contactPhonePlaceholder: 'e.g. 0812345678', // agent.createRoom.ownerPhonePlaceholder :1846
+  useThisContact: 'Use this contact', // agent.createRoom.ownerUseThis :1863
+  roomCreated: 'Room created', // agent.createRoom.successTitle :1495
+  roomEdit: 'Edit', // agent.listings.edit :2055
+  roomSaveChanges: 'Save changes', // agent.listings.saveChanges :1979
+  leadSaved: 'Lead saved', // agent.leads.saved :889
+} as const;
+
 /**
  * ข้อความของหน้าผู้เช่าและผู้ให้เช่า ที่ไม่อยู่ใน packages/i18n: apps/consumer-app/lib/tenant-workspace-copy.ts (ภาษา en เริ่มที่ :99) ที่ 648dd28
  */
-export const PARTY_COPY = {
+export const PARTY_COPY_EN = {
   emptyContracts: 'No contracts delivered to this account yet', // emptyContracts :180
   emptyTenantHistory: 'No tenant history yet', // emptyTenantHistory :142
   paymentHistory: 'Payment history', // paymentHistory :150 (ปุ่มบนหัวหน้าบิล app/index.tsx:1887)
 } as const;
+
+export const PARTY_COPY: typeof PARTY_COPY_TH = UI_LOCALE === 'th' ? PARTY_COPY_TH : PARTY_COPY_EN;
 
 /**
  * ข้อความที่เขียนตรงในโค้ด ไม่ผ่าน i18n (apps/consumer-app/app/index.tsx ที่ 648dd28) ใช้ตรวจว่าไม่ควรอยู่บนหน้า

@@ -185,7 +185,8 @@ async function checkQaAccounts(api: APIRequestContext): Promise<void> {
   );
 }
 
-async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promise<void> {
+// export เพื่อให้ global-setup ของชุด UI เว็บใช้ตรวจบัญชีก่อนล็อกอินเมื่อใช้ API บนเครื่อง (E2E_WEB_LOCAL_API=yes)
+export async function checkQaAccount(api: APIRequestContext, account: QaAccount): Promise<void> {
   // ที่มาของบัญชีและบทบาทที่คาด: 5 บัญชีตามบทบาทมาจาก migration ส่วนบัญชีใน requestedQaAccounts ทีมสร้างให้เองตามคำขอ
   //   (qa-agent2 ฉบับที่ 8 วันที่ 2 พ.ย. 2026 ; qa-e2e-tenant กับ qa-e2e-landlord ฉบับที่ 10 ส่งวันที่ 3 พ.ย. 2026)
   const requested = requestedQaAccounts.some((other) => other.uuidVariable === account.uuidVariable);

@@ -1,7 +1,7 @@
 import type { Page, Response } from '@playwright/test';
 import { test, expect } from '../../src/web-ui/web-ui.fixture';
 import { PartyPage } from '../../src/web-ui/pages/party.page';
-import { FLOW, HARDCODED, PARTY_COPY } from '../../src/web-ui/labels';
+import { alsoEnglish, EN, FLOW, FLOW_EN, HARDCODED, PARTY_COPY } from '../../src/web-ui/labels';
 import { billReadsAllowed } from '../../src/web-ui/guard';
 import { okJson, waitForApi } from '../../src/web-ui/support/api';
 
@@ -22,7 +22,8 @@ import { okJson, waitForApi } from '../../src/web-ui/support/api';
 test.use({ screenshot: 'off' });
 
 /** ชื่อของบิลใบใดก็ได้บนหน้า "Rent <เดือน ปี>" (rentFor ใช้ทั้งหน้าบิลของผู้เช่าและหน้ารายได้: TenantBillsScreen.tsx:215, :259, TenantBillsContent.tsx:478) */
-const BILL_TITLE = new RegExp(`^${FLOW.rentFor.replace('{month}', '[A-Z]')}`);
+//   เดือนจัดรูปแบบตามภาษา (lib/bill-format.ts: Intl month long) ภาษาไทยเป็นชื่อเดือนไทย จึงรับตัวอักษรใดก็ได้ที่ไม่ใช่ช่องว่างหรือ { (ถ้าแอปลืมแทนค่า ข้อความ {month} จะไม่นับเป็นชื่อบิล)
+const BILL_TITLE = new RegExp(`^${FLOW.rentFor.replace('{month}', '[^\\s{]')}`);
 
 /** อ่าน JSON ของคำตอบที่อาจว่าง (GET /bills/mine/next ตอบ null ได้เมื่อไม่มีบิลถัดไป) */
 async function okJsonOrNull<T>(response: Response): Promise<T | null> {
@@ -57,20 +58,21 @@ test.describe('tenant', () => {
     await expect(party.alerts).toHaveCount(0);
   });
 
-  test('/tenant/home does not show a sample lease to every account', { tag: '@known-bug' }, async ({ page, loginAs }) => {
-    // แท็บ living (/tenant/home: app-routes.ts:202) แสดงสัญญาที่เขียนตรงในโค้ด "The Base Sukhumvit 77 (Room 1804)"
-    // กับ "Lease: Sep 1, 2026 – Aug 31, 2027" ให้ทุกบัญชี ไม่ได้อ่านจาก API (app/index.tsx:1207-1220)
+  test('/tenant/home does not show a sample lease to every account', async ({ page, loginAs }) => {
+    // เดิมแท็บ living (/tenant/home: app-routes.ts:202) แสดงสัญญาที่เขียนตรงในโค้ด "The Base Sukhumvit 77 (Room 1804)" ให้ทุกบัญชี
+    // ทีมแก้ที่ pre/dev/review fc1a351: หน้านี้แสดง "Coming soon" (agent.dashboard.comingSoon + unavailableSection: app/index.tsx)
+    //   ยืนยันด้วยผลรัน 9 พ.ย. 2026 (API บนเครื่อง qa/e2e 03a45a3) ว่าข้อนี้ขึ้น "Expected to fail, but passed" จึงเอา test.fail ออก
     await loginAs('tenant', { next: '/tenant/home' });
     await expect(page).toHaveURL((url) => url.pathname === '/tenant/home');
     // ขั้นเตรียม: รอให้พื้นที่เนื้อหาของหน้ามีข้อความแล้ว (.aw-page-content: AgentWorkspace.web.tsx:1178) และไม่มีตัวหมุนโหลด
     // ไม่อย่างนั้นการตรวจด้านล่างผ่านได้ตั้งแต่หน้ายังว่าง ไม่มีข้อความอื่นของหน้านี้ที่ไม่ใช่ข้อความตัวอย่าง จึงยึดได้แค่นี้
-    // ถ้าข้อนี้ขึ้นว่า "Expected to fail, but passed" ให้เปิด /tenant/home ดูเองก่อนว่าหน้าแสดงข้อมูลจริงหรือหน้าว่าง แล้วจึงเอา test.fail ออก
     const content = page.locator('.aw-page-content');
     await expect(content).toContainText(/\S/);
     await expect(content.getByRole('progressbar')).toHaveCount(0);
     // และต้องไม่ใช่หน้าแรกของผู้เช่า (/tenant แสดง "Tenant home": index.tsx:1135-1150) ที่อาจค้างก่อนแอปเปลี่ยนแท็บตาม URL
     await expect(content.getByText(FLOW.tenantHomeTitle, { exact: true })).toHaveCount(0);
-    test.fail(true, 'บั๊กข้อสงสัยข้อ 1 ของแผน 6 พ.ย. 2026: /tenant/home แสดงสัญญาตัวอย่างที่เขียนตรงในโค้ด');
+    // หน้าต้องแสดง Coming soon (หัวเรื่องกับคำอธิบายเป็นข้อความเดียวกันในภาษา en และ th จึงใช้ตัวแรก) และไม่มีสัญญาตัวอย่าง
+    await expect(content.getByText(EN.comingSoon, { exact: true }).first()).toBeVisible();
     await expect(page.getByText(HARDCODED.sampleLease, { exact: true })).toHaveCount(0, { timeout: 15_000 });
   });
 
@@ -83,16 +85,16 @@ test.describe('tenant', () => {
     await expect(page).toHaveURL((url) => url.pathname === '/tenant/bills' && url.searchParams.get('history') === '1');
   });
 
-  test('a failed bill request shows the translated message, not the browser error', { tag: '@known-bug' }, async ({ page, loginAs }) => {
-    // GET /bills/mine ล้มแบบเครือข่ายขาด: TypeError "Failed to fetch" เป็นตัวอักษรละติน localizedError จึงส่งข้อความดิบนี้ในภาษา en
-    // (packages/i18n/src/error-message.ts:40-43 isInLocale) แทนข้อความสำรอง "Could not load bills" (TenantBillsScreen.tsx:72-74)
+  test('a failed bill request shows the translated message, not the browser error', async ({ page, loginAs }) => {
+    // GET /bills/mine ล้มแบบเครือข่ายขาด เดิมภาษา en ขึ้นข้อความดิบ "Failed to fetch" แทนข้อความสำรอง "Could not load bills" (TenantBillsScreen.tsx:72-74)
+    // ทีมแก้ที่ fc1a351: lib/api.ts ห่อเป็น NETWORK_ERROR และ localizedError ใช้ข้อความสำรองทุกภาษา (packages/i18n/src/error-message.ts developerOnly)
+    //   ยืนยันด้วยผลรัน 9 พ.ย. 2026 ว่าข้อนี้ขึ้น "Expected to fail, but passed" จึงเอา test.fail ออก
     await failApi(page, '/bills/mine');
     await loginAs('tenant', { next: '/tenant/bills' });
     const party = new PartyPage(page);
     // ขั้นเตรียม: ข้อความผิดพลาดต้องเป็นของการโหลดบิล (ข้อความสำรองที่แปลแล้ว หรือข้อความดิบ) ไม่ใช่ alert เรื่องอื่น
     const billAlert = party.alerts.filter({ hasText: new RegExp(`^(${FLOW.tenantBillsLoadFailed}|${RAW_NETWORK_ERROR})$`) });
     await expect(billAlert).toHaveCount(1, { timeout: 20_000 });
-    test.fail(true, 'บั๊กข้อสงสัยข้อ 3 ของแผน 6 พ.ย. 2026: ข้อความผิดพลาดเครือข่ายในภาษา en เป็นข้อความดิบของเบราว์เซอร์');
     await expect(billAlert).toHaveText(FLOW.tenantBillsLoadFailed);
   });
 
@@ -116,9 +118,9 @@ test.describe('tenant', () => {
     } else {
       // ชื่อบิลต้องมีไม่น้อยกว่าจำนวนบิลในคำตอบ (อาจมีชื่อของบิลถัดไปที่คำนวณจากสัญญาเพิ่ม: TenantBillsScreen.tsx:65)
       await expect.poll(() => page.getByText(BILL_TITLE).count(), { message: 'จำนวนชื่อบิล "Rent <เดือน>" บนหน้า' }).toBeGreaterThanOrEqual(rows.length);
-      await expect(party.text(FLOW.tenantBillsEmpty)).toHaveCount(0);
+      for (const text of alsoEnglish(FLOW.tenantBillsEmpty, FLOW_EN.tenantBillsEmpty)) await expect(party.text(text)).toHaveCount(0);
     }
-    await expect(party.text(FLOW.tenantBillsLoadFailed)).toHaveCount(0);
+    for (const text of alsoEnglish(FLOW.tenantBillsLoadFailed, FLOW_EN.tenantBillsLoadFailed)) await expect(party.text(text)).toHaveCount(0);
     expect(guard.of('bill-write').map((entry) => new URL(entry.target).pathname)).toContain('/api/v1/bills/mine/refresh');
   });
 
@@ -136,9 +138,9 @@ test.describe('tenant', () => {
       await expect(party.text(FLOW.tenantNoUpcomingBill)).toBeVisible();
     } else {
       await expect(party.text(FLOW.tenantNextBill)).toBeVisible();
-      await expect(party.text(FLOW.tenantNoUpcomingBill)).toHaveCount(0);
+      for (const text of alsoEnglish(FLOW.tenantNoUpcomingBill, FLOW_EN.tenantNoUpcomingBill)) await expect(party.text(text)).toHaveCount(0);
     }
-    await expect(party.text(FLOW.tenantBillsLoadFailed)).toHaveCount(0);
+    for (const text of alsoEnglish(FLOW.tenantBillsLoadFailed, FLOW_EN.tenantBillsLoadFailed)) await expect(party.text(text)).toHaveCount(0);
   });
 });
 
@@ -166,9 +168,9 @@ test.describe('landlord', () => {
     await expect(party.alerts).toHaveCount(0);
   });
 
-  test('Confirmed rent does not say "no rent yet" when the bills failed to load', { tag: '@known-bug' }, async ({ page, loginAs }) => {
-    // OwnerConfirmedRent.tsx:73-74 แสดงข้อความผิดพลาด และข้อความว่างเมื่อ !loading && !rows.length ซึ่งจริงด้วยตอนโหลดล้ม
-    // ผู้ให้เช่าจึงเห็นทั้ง "โหลดไม่ได้" และ "ค่าเช่าจะขึ้นที่นี่หลังนายหน้ายืนยันสลิป" พร้อมกัน
+  test('Confirmed rent does not say "no rent yet" when the bills failed to load', async ({ page, loginAs }) => {
+    // เดิม OwnerConfirmedRent.tsx แสดงทั้งข้อความผิดพลาดและข้อความว่างตอนโหลดล้ม ทีมแก้ที่ fc1a351 (เพิ่ม && !error)
+    //   ยืนยันด้วยผลรัน 9 พ.ย. 2026 ว่าข้อนี้ขึ้น "Expected to fail, but passed" จึงเอา test.fail ออก
     await failApi(page, '/bills/received');
     await loginAs('landlord');
     await expect(page).toHaveURL((url) => url.pathname === '/landlord');
@@ -176,19 +178,19 @@ test.describe('landlord', () => {
     await expect(party.confirmedRentTitle).toBeVisible();
     // ข้อความผิดพลาดของการ์ดไม่มี role ใช้ข้อความ: ข้อความสำรองที่แปลแล้ว หรือข้อความดิบ (ดูข้อ E1 ของผู้ให้เช่าด้านล่าง)
     await expect(party.text(FLOW.ownerLoadFailed).or(party.text(RAW_NETWORK_ERROR))).toBeVisible({ timeout: 20_000 });
-    test.fail(true, 'บั๊กข้อสงสัยข้อ 2 ของแผน 6 พ.ย. 2026: การ์ด Confirmed rent แสดงข้อความผิดพลาดพร้อมข้อความว่าง');
     await expect(party.text(FLOW.ownerConfirmedEmpty)).toHaveCount(0);
   });
 
-  test('a failed income request on the landlord home shows the translated message', { tag: '@known-bug' }, async ({ page, loginAs }) => {
+  test('a failed income request on the landlord home shows the translated message', async ({ page, loginAs }) => {
     // แบบเดียวกับข้อ E1 ของผู้เช่า: ข้อความสำรองของการ์ดคือ owner.bills.loadFailed (OwnerConfirmedRent.tsx:34)
     await failApi(page, '/bills/received');
     await loginAs('landlord');
     const party = new PartyPage(page);
     await expect(party.confirmedRentTitle).toBeVisible();
     await expect(party.text(FLOW.ownerLoadFailed).or(party.text(RAW_NETWORK_ERROR))).toBeVisible({ timeout: 20_000 });
-    test.fail(true, 'บั๊กข้อสงสัยข้อ 3 ของแผน 6 พ.ย. 2026: ข้อความผิดพลาดเครือข่ายในภาษา en เป็นข้อความดิบของเบราว์เซอร์');
+    // ทีมแก้ที่ fc1a351 (NETWORK_ERROR + localizedError) ยืนยันด้วยผลรัน 9 พ.ย. 2026 จึงเอา test.fail ออก และตรวจข้อความสำรองเพิ่ม
     await expect(party.text(RAW_NETWORK_ERROR)).toHaveCount(0);
+    await expect(party.text(FLOW.ownerLoadFailed)).toBeVisible();
   });
 
   test('Income shows the bills from GET /bills/received', async ({ page, loginAs }) => {
@@ -205,9 +207,9 @@ test.describe('landlord', () => {
       await expect(party.text(FLOW.ownerIncomeEmpty)).toBeVisible();
     } else {
       await expect(page.getByText(BILL_TITLE).first()).toBeVisible();
-      await expect(party.text(FLOW.ownerIncomeEmpty)).toHaveCount(0);
+      for (const text of alsoEnglish(FLOW.ownerIncomeEmpty, FLOW_EN.ownerIncomeEmpty)) await expect(party.text(text)).toHaveCount(0);
     }
-    await expect(party.text(FLOW.ownerLoadFailed)).toHaveCount(0);
+    for (const text of alsoEnglish(FLOW.ownerLoadFailed, FLOW_EN.ownerLoadFailed)) await expect(party.text(text)).toHaveCount(0);
     await expect(party.alerts).toHaveCount(0);
   });
 });

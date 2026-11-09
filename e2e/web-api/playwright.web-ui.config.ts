@@ -7,6 +7,10 @@ import { webUiEnv } from './src/web-ui/web-ui-env';
  *   - รันด้วย npm run test:web-ui เท่านั้น ต้องเปิดเว็บไว้ก่อนด้วย npm run web ใน apps/consumer-app (ดู README หัวข้อ "เทส UI เว็บ consumer-app")
  *   - global-setup ของชุดนี้ไม่เรียกตัวตรวจของชุด API (ไม่ต้องเปิด API บนเครื่อง และไม่ใช้ uuid) เว็บล็อกอินด้วยรหัสผ่านผ่าน Supabase
  */
+// ภาษาของชุดนี้เป็นภาษาอังกฤษเสมอ แม้มี E2E_WEB_LOCALE ค้างใน Terminal (ชุดเขียนข้อมูลใช้ค่าตั้งนี้ด้วยและหาชิ้นส่วนด้วยข้อความภาษาอังกฤษ)
+//   ชุดภาษาไทย (playwright.web-ui-th.config.ts) import ไฟล์นี้ก่อนแล้วตั้ง th ทับ
+process.env.E2E_WEB_LOCALE = 'en';
+
 export default defineConfig({
   testDir: './tests/web-ui',
 
