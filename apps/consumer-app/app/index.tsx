@@ -819,6 +819,9 @@ export function AppHomeScreen() {
       );
     }
 
+    // W13 calendar page carries its own hint row and toolbar; the shell heading would be an empty 84px band.
+    if (isAgentWeb && activeTab === 'calendar') return null;
+
     if (agentSectionTabs.includes(activeTab)) {
       const isCreateLead = activeTab === 'createLead';
       const isCreateTenant = activeTab === 'clients' && creatingTenant;
