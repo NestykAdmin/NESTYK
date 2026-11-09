@@ -24,7 +24,7 @@ import {
   StoredAuthSession,
 } from './session-storage';
 import { clearExpiryNotice, markAuthEvent, markFreshSignIn, subscribeCrossTab, takeExpiryNotice } from './cross-tab';
-import { requestGuestBrowse } from './role-gate';
+import { requestSignOutLanding } from './role-gate';
 
 export type AuthUserResponse = {
   id: number;
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (action.kind === 'signOut') {
             sessionRef.current = null;
             if (action.reason === 'signedOut') {
-              requestGuestBrowse(); // the home shell then opens "/" like a sign out in this tab
+              requestSignOutLanding(); // the home shell then lands where a sign out in this tab lands
               setSessionExpired(false);
             } else {
               setSessionExpired(true); // the home shell sends a signed-in page to /login?next=

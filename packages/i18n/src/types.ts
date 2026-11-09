@@ -317,6 +317,8 @@ export interface TranslationSchema {
       registerOr: string;
       registerWithGoogle: string;
       registerWithFacebook: string;
+      registerWithApple: string;
+      socialComingSoon: string;
       backToLogin: string;
       emailConfirmationTitle: string;
       emailConfirmationBody: string;
@@ -509,6 +511,31 @@ export interface TranslationSchema {
       pending: string;
       kind: string;
       saved: string;
+      web: {
+        headerHint: string;
+        openLeads: string;
+        pickDay: string;
+        statusTitle: string;
+        stateScheduled: string;
+        stateDone: string;
+        stateOverdue: string;
+        dayTitle: string;
+        monthCount: string;
+        searchPlaceholder: string;
+        searchLabel: string;
+        searchScope: string;
+        viewLabel: string;
+        viewMonth: string;
+        viewWeek: string;
+        viewWeekSoon: string;
+        viewAgenda: string;
+        moreCount: string;
+        monthGridLabel: string;
+        agendaLabel: string;
+        emptyMonth: string;
+        noMatch: string;
+        viewingOf: string;
+      };
     };
     tenants: {
       create: string;
@@ -818,6 +845,28 @@ export interface TranslationSchema {
       };
     };
     leads: {
+      webForm: {
+        createHint: string;
+        editHint: string;
+        readinessTitle: string;
+        matchReady: string;
+        matchMissing: string;
+        itemFirstName: string;
+        itemPhone: string;
+        itemBudgetMax: string;
+        itemPins: string;
+        itemDone: string;
+        itemMissing: string;
+        noteNeedContact: string;
+        noteSaveFirst: string;
+        noteReady: string;
+        statusOnSave: string;
+        newTag: string;
+        showPanel: string;
+        hidePanel: string;
+        requiredForSave: string;
+        usedForMatch: string;
+      };
       web: {
         tableLabel: string;
         colLead: string;

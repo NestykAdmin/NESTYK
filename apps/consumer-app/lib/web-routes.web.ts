@@ -14,6 +14,7 @@ import {
   roleHomePath,
 } from './app-routes';
 import {
+  afterSignOutPath,
   decideAccess,
   decideRoleAccess,
   elsewhereRoles,
@@ -21,6 +22,7 @@ import {
   portalFrom,
   portalUrlsFrom,
   roleElsewhere,
+  signOutLandingFrom,
   switcherRoles,
   type Portal,
 } from './route-access';
@@ -36,6 +38,12 @@ const LAST_ROLE_KEY = 'nestyk.web.lastRole';
 export const WEB_PORTAL: Portal = portalFrom(process.env.EXPO_PUBLIC_WEB_PORTAL);
 /** The other portals' sites, e.g. "all=https://app.nestyk.com". Unset = roles of other portals are not offered. */
 const PORTAL_URLS = portalUrlsFrom(process.env.EXPO_PUBLIC_WEB_PORTAL_URLS);
+/** Where "Sign out" lands: EXPO_PUBLIC_WEB_SIGN_OUT_TO = guest | login, unset = by portal (route-access.ts). */
+const AFTER_SIGN_OUT = afterSignOutPath(WEB_PORTAL, signOutLandingFrom(process.env.EXPO_PUBLIC_WEB_SIGN_OUT_TO));
+
+export function afterSignOutHref(): string {
+  return AFTER_SIGN_OUT;
+}
 
 function currentLocation(): string {
   try {

@@ -41,7 +41,8 @@ test('wiring: same storage key, reason written before clearing, mobile is a no-o
   assert.match(ctx, /markAuthEvent\(reason\);[^\n]*\n\s*await clearAuthSession\(\);/);
   assert.match(ctx, /markAuthEvent\('expired'\);[^\n]*\n\s*await clearAuthSession\(\);/);
   assert.match(ctx, /subscribeCrossTab\(/);
-  assert.match(ctx, /requestGuestBrowse\(\);/);
+  // 9 Nov 2026: signed out in another tab = guest, then where "Sign out" lands (EXPO_PUBLIC_WEB_SIGN_OUT_TO).
+  assert.match(ctx, /requestSignOutLanding\(\);/);
   const native = read('cross-tab.ts');
   assert.match(native, /export function markAuthEvent\(_reason: AuthEventReason\): void \{\}/);
   assert.match(native, /return \(\) => undefined;/);

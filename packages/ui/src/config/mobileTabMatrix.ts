@@ -7,6 +7,8 @@ export type ExtendedTabRole = UserRole;
 export interface MobileTabConfig {
   key: MobileAppTab;
   icon: AppIconName;
+  /** Page not ready yet: the tab shows dimmed with a "coming soon" badge and cannot be pressed. */
+  comingSoon?: boolean;
 }
 
 const SERVICES_TAB: MobileTabConfig = { key: 'services', icon: 'grid' };
@@ -21,7 +23,9 @@ const TAB_MATRIX: Record<ExtendedTabRole, MobileTabConfig[]> = {
   ],
   tenant: [
     { key: 'dashboard', icon: 'grid' },
-    { key: 'living', icon: 'home' },
+    // The Living page was a sample (the same lease for every tenant): coming soon until it reads the tenant's own
+    // lease (QA web flow bugs 6 Nov 2026 item 1).
+    { key: 'living', icon: 'home', comingSoon: true },
     SERVICES_TAB,
     { key: 'bills', icon: 'credit-card' },
     MENU_TAB,

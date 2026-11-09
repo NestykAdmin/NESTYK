@@ -46,6 +46,7 @@ import {
   LEAD_OTHER_OPTION,
   presetCodeFor,
 } from '../lib/lead-profile-options';
+import type { LeadFormDraft } from '../lib/lead-form-readiness';
 
 type TextKey =
   | 'firstName'
@@ -90,11 +91,17 @@ export function CreateLeadForm({
   initialTab = 'profile',
   onSaved,
   onBusy,
+  onDraftChange,
+  requestedTab,
 }: {
   initialLead?: AgentLead;
   initialTab?: FormTab;
   onSaved: (lead: AgentLead) => void;
   onBusy: (busy: boolean) => void;
+  /** Agent web side panel (W17): what the form holds now. The app does not pass it. */
+  onDraftChange?: (draft: LeadFormDraft) => void;
+  /** Agent web side panel (W17): open a tab; a new `nonce` repeats the request. The app does not pass it. */
+  requestedTab?: { tab: LeadFormTab; nonce: number };
 }) {
   const { t, locale } = useLocale();
   const c = t.agent.leads;
@@ -229,6 +236,22 @@ export function CreateLeadForm({
     setTab(next);
     scroll.current?.scrollTo({ y: 0, animated: false });
   };
+
+  useEffect(() => {
+    onDraftChange?.({
+      firstName: form.firstName,
+      phoneDigits: phone.digits,
+      budgetMax: form.budgetMax,
+      pinCount: pins.length,
+      tab,
+    });
+  }, [onDraftChange, form.firstName, phone.digits, form.budgetMax, pins.length, tab]);
+
+  useEffect(() => {
+    if (requestedTab) switchTab(requestedTab.tab);
+    // Only a new request (nonce) switches; the tab the user picks afterwards is kept.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedTab?.nonce]);
 
   const field = (
     key: TextKey,

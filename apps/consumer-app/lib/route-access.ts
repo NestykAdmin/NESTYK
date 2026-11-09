@@ -152,3 +152,23 @@ export function decideAccess(pathname: string, search: string, ctx: AccessContex
   if (parsed.kind !== 'app') return { kind: 'allow' };
   return decideRoleAccess(parsed.role, `${pathname}${search}`, ctx);
 }
+
+/**
+ * Where "Sign out" lands on the web (Mos 9 Nov 2026): a deploy setting, so it can change later without code.
+ * EXPO_PUBLIC_WEB_SIGN_OUT_TO = "guest" (the public home "/") or "login" (the sign-in page). Anything else = default.
+ */
+export type SignOutLanding = 'guest' | 'login';
+
+export function signOutLandingFrom(raw: unknown): SignOutLanding | null {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return value === 'guest' || value === 'login' ? value : null;
+}
+
+/**
+ * Default: the guest home on portal "all" (dev, QA, app.<domain>); the sign-in page on a role portal such as
+ * agent.nestyk.com, whose own pages need an account. After signing in, that portal opens its role's home.
+ */
+export function afterSignOutPath(portal: Portal, landing: SignOutLanding | null): string {
+  const choice = landing ?? (portal === 'all' ? 'guest' : 'login');
+  return choice === 'guest' ? '/' : '/login';
+}

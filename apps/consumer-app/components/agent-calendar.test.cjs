@@ -141,9 +141,11 @@ test('the application calendar passes only API rows and follows a rescheduled ap
   }
   visit(ast);
   const rows = [record()];
-  const selected = [], months = [], reloads = [];
+  const selected = [], months = [], reloads = [], tabs = [];
   const env = {
     React, AgentCalendarScreen: 'AgentCalendarScreen', activeTab: 'calendar', activeRole: 'agent', session: { userId: 'account-a' },
+    // W13 (Mos 6 Nov 2026): desktop agent web renders AgentCalendarPage with the same props; this run is the phone.
+    isAgentWeb: false, AgentCalendarPage: 'AgentCalendarPage', handleTabPress: tab => tabs.push(tab),
     calendarViewings: Object.assign([...rows], { viewings: rows, status: 'available' }),
     calendarEvents: [{ id: 'local-demo' }], calendarDraft: {}, setCalendarEvents() {}, setCalendarDraft() {},
     calendarSelectedDate: '2026-10-22', calendarMonth: '2026-10-01', refreshSequence: { current: 0 },
@@ -155,6 +157,8 @@ test('the application calendar passes only API rows and follows a rescheduled ap
     compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const screen = new Function(...Object.keys(env), output)(...Object.values(env));
+  assert.equal(screen.type, 'AgentCalendarScreen');
+  assert.equal(screen.props.onOpenLeads, undefined);
   assert.deepEqual(screen.props.viewings, rows);
   assert.equal(screen.props.status, 'available');
   assert.equal(screen.key, 'account-a');
@@ -167,6 +171,18 @@ test('the application calendar passes only API rows and follows a rescheduled ap
   assert.deepEqual(reloads, [1, 2]);
   screen.props.onRetry();
   assert.deepEqual(reloads, [1, 2, 3]);
+
+  const page = new Function(...Object.keys(env), output)(...Object.values({ ...env, isAgentWeb: true }));
+  assert.equal(page.type, 'AgentCalendarPage');
+  assert.equal(page.key, 'account-a');
+  assert.deepEqual(page.props.viewings, rows);
+  assert.equal(page.props.status, 'available');
+  for (const prop of ['selectedDate', 'visibleMonth']) assert.equal(page.props[prop], screen.props[prop]);
+  page.props.onSaved(record({ scheduledAt: '2026-12-03T10:00:00+07:00' }));
+  assert.deepEqual(selected.at(-1), '2026-12-03');
+  assert.deepEqual(months.at(-1), '2026-12-01');
+  page.props.onOpenLeads();
+  assert.deepEqual(tabs, ['listingLead']);
 });
 
 test('calendar exposes the shared desktop refresh and mobile pull-to-refresh callback', () => {

@@ -34,8 +34,22 @@ test('tenant desktop menu follows the mobile destinations', () => {
   );
   assert.deepEqual(
     nav.TENANT_WEB_MENU.filter(item => item.target.type === 'soon').map(item => item.id),
-    ['leaseDoc', 'receipts'],
+    ['living', 'leaseDoc', 'receipts'],
   );
+});
+
+// QA web flow bugs 6 Nov 2026 item 1: Living (/tenant/home) showed one sample lease ("The Base Sukhumvit 77
+// (Room 1804)") to every tenant. It is "coming soon" in the web sidebar and the mobile tab bar until it is real.
+test('Living is coming soon on web and in the mobile tab bar, and the sample lease is gone', () => {
+  const { getTabsForRole } = load(path.join(root, 'packages/ui/src/config/mobileTabMatrix.ts'));
+  const tenantTabs = getTabsForRole('tenant');
+  assert.deepEqual(tenantTabs.filter(tab => tab.comingSoon).map(tab => tab.key), ['living']);
+  for (const role of ['guest', 'landlord', 'agent', 'admin']) {
+    assert.deepEqual(getTabsForRole(role).filter(tab => tab.comingSoon), [], role);
+  }
+  const home = fs.readFileSync(path.join(__dirname, '../app/index.tsx'), 'utf8');
+  assert.ok(!home.includes('The Base Sukhumvit 77'));
+  assert.ok(!home.includes('Active Lease'));
 });
 
 test('tenant sidebar highlight keeps room history on Contracts', () => {

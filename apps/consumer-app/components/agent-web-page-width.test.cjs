@@ -15,7 +15,8 @@ const { agentWebPageWidth } = mod.exports;
 
 test('add room, add lead and create tenant are form pages', () => {
   assert.equal(agentWebPageWidth('createListing'), 'form');
-  assert.equal(agentWebPageWidth('createLead'), 'form');
+  // W17 (Mos 6 Nov 2026): add lead also has the readiness panel beside the form.
+  assert.equal(agentWebPageWidth('createLead'), 'form-aside');
   assert.equal(agentWebPageWidth('clients', 'tenant'), 'form');
 });
 
