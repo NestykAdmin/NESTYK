@@ -67,10 +67,31 @@ test('a sign out in another tab lands in the same place; "continue as guest" on 
   const login = fs.readFileSync(path.join(__dirname, '..', 'app', 'login.tsx'), 'utf8');
   assert.doesNotMatch(login, /requestSignOutLanding/);
   const index = fs.readFileSync(path.join(__dirname, '..', 'app', 'index.tsx'), 'utf8');
-  assert.match(index, /if \(consumeGuestBrowse\(\)\) \{[\s\S]{0,400}if \(consumeSignOutLanding\(\) && AFTER_SIGN_OUT_PATH !== '\/'\) router\.replace\(AFTER_SIGN_OUT_PATH as never\);/);
+  assert.match(index, /if \(consumeGuestBrowse\(\)\) \{[\s\S]{0,300}const landElsewhere = consumeSignOutLanding\(\) && AFTER_SIGN_OUT_PATH !== '\/';[\s\S]{0,300}if \(landElsewhere\) router\.replace\(AFTER_SIGN_OUT_PATH as never\);/);
 });
 
 test('.env.example documents the setting', () => {
   const env = fs.readFileSync(path.join(__dirname, '..', '..', '..', '.env.example'), 'utf8');
   assert.match(env, /# EXPO_PUBLIC_WEB_SIGN_OUT_TO=/);
+});
+
+test('sign out to /login holds the shell move to "/" instead of pushing it over the login page', () => {
+  // A0.1 9 Nov 2026: Sign Out reset the shell to guest and replaced to /login in one step; the route sync ran before
+  // the router moved and pushed "/" on top, so /login never showed. The sign-out code now holds that one move.
+  const web = read('web-routes.web.ts');
+  const sync = web.slice(web.indexOf('export function useAppRouteSync'));
+  const shellMove = sync.slice(sync.indexOf('if (!routeHref || routeHref === synced.current) return;'));
+  assert.ok(shellMove.indexOf('heldShellMove === routeHref') < shellMove.indexOf('router.push(routeHref'), 'held before any push');
+  assert.match(sync, /heldShellMove = null; \/\/ a new URL from outside/);
+  assert.match(read('web-routes.ts'), /export function holdShellMove\(_href: string\): void \{\}/, 'mobile no-op');
+
+  const index = fs.readFileSync(path.join(__dirname, '..', 'app', 'index.tsx'), 'utf8');
+  assert.match(index, /if \(AFTER_SIGN_OUT_PATH !== '\/'\) holdShellMove\(roleHomePath\('guest'\)\);/);
+  const auth = index.slice(index.indexOf('const handleAuthAction = async'), index.indexOf('const handleRequireAuth'));
+  assert.equal((auth.match(/holdGuestHomeForSignOut\(\);\n\s+setActiveRole\('guest'\);/g) || []).length, 3, 'sign out (ok + fail) and sign out everywhere');
+  assert.match(index, /if \(landElsewhere\) holdGuestHomeForSignOut\(\);\n\s+setActiveRole\('guest'\);/, 'another tab');
+
+  // The held href is exactly what the shell produces for the guest home.
+  const home = routes.routeToState('/', {});
+  assert.equal(routes.stateToRoute({ ...home.state, partyInbox: null }), routes.roleHomePath('guest'));
 });

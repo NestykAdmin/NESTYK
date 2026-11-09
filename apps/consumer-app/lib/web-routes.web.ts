@@ -114,6 +114,16 @@ function trackUrl(stack: SeenStack, key: string): void {
  *   going back up to the page we just came from is a browser back, so history does not fill with loops.
  * `routeHref` null = the shell shows a page without a path yet (R3 detail): the URL is left as it is.
  */
+/**
+ * Sign out to a page other than "/" (EXPO_PUBLIC_WEB_SIGN_OUT_TO=login): the shell resets to guest ("/") in the same
+ * step as router.replace("/login"). The router has not moved yet when the sync effect runs, so it pushed "/" on top
+ * and the user never saw /login (A0.1, 9 Nov 2026). The sign-out code holds that one shell move instead.
+ */
+let heldShellMove: string | null = null;
+export function holdShellMove(href: string): void {
+  heldShellMove = href;
+}
+
 export function useAppRouteSync(
   routeHref: string | null,
   activeRole: UserRole,
@@ -129,6 +139,7 @@ export function useAppRouteSync(
   useEffect(() => {
     if (!target) return;
     if (target.href !== synced.current) {
+      heldShellMove = null; // a new URL from outside: nothing left to hold
       trackUrl(stack.current, routeEntryKey(target.href));
       synced.current = target.href;
       applyRoute(target.state);
@@ -140,6 +151,11 @@ export function useAppRouteSync(
 
   useEffect(() => {
     if (!routeHref || routeHref === synced.current) return;
+    if (heldShellMove === routeHref) {
+      heldShellMove = null;
+      synced.current = routeHref; // the shell is there now; the URL is the sign-out page's business
+      return;
+    }
     const from = synced.current;
     const key = routeEntryKey(routeHref);
     const seen = stack.current;

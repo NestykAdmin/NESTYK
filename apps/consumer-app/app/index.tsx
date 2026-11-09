@@ -108,6 +108,7 @@ import { ACCOUNT_DELETION_ENABLED, showAccountDeletion } from '../lib/account-de
 import { type AppRouteState, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
 import {
   afterSignOutHref,
+  holdShellMove,
   landingRoleFor,
   loginHref,
   openRoleElsewhere,
@@ -188,6 +189,10 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
  * Mobile (frozen): the sign-in screen as before. A session that ran out still goes to /login with its notice.
  */
 const AFTER_SIGN_OUT_PATH = afterSignOutHref();
+/** Sign out to /login (EXPO_PUBLIC_WEB_SIGN_OUT_TO=login): the shell's reset to guest must not push "/" over it. */
+function holdGuestHomeForSignOut(): void {
+  if (AFTER_SIGN_OUT_PATH !== '/') holdShellMove(roleHomePath('guest'));
+}
 /**
  * Web width where the desktop shell (sidebar + top bar) starts. Narrower web — a phone browser — shows the mobile
  * app's own screens and bottom tabs (Mos 4 Nov 2026). Mobile apps never read this.
@@ -658,10 +663,12 @@ export function AppHomeScreen() {
     }
 
     if (consumeGuestBrowse()) {
+      // Signed out in another tab: land where "Sign out" lands in this tab ("/" needs nothing more).
+      const landElsewhere = consumeSignOutLanding() && AFTER_SIGN_OUT_PATH !== '/';
+      if (landElsewhere) holdGuestHomeForSignOut();
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
-      // Signed out in another tab: land where "Sign out" lands in this tab ("/" needs nothing more).
-      if (consumeSignOutLanding() && AFTER_SIGN_OUT_PATH !== '/') router.replace(AFTER_SIGN_OUT_PATH as never);
+      if (landElsewhere) router.replace(AFTER_SIGN_OUT_PATH as never);
       return;
     }
 
@@ -1668,6 +1675,7 @@ export function AppHomeScreen() {
       setPartyInbox(false);
       setSelectedPartyRoom(null);
       setOpenedPartyContract(null);
+      holdGuestHomeForSignOut();
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
@@ -1676,6 +1684,7 @@ export function AppHomeScreen() {
       setPartyInbox(false);
       setSelectedPartyRoom(null);
       setOpenedPartyContract(null);
+      holdGuestHomeForSignOut();
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
@@ -1690,6 +1699,7 @@ export function AppHomeScreen() {
     setPartyInbox(false);
     setSelectedPartyRoom(null);
     setOpenedPartyContract(null);
+    holdGuestHomeForSignOut();
     setActiveRole('guest');
     setActiveTab(getDefaultTabForRole('guest'));
     router.replace(AFTER_SIGN_OUT_PATH);

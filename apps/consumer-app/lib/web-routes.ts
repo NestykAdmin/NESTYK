@@ -54,6 +54,9 @@ export function roleSiteHref(_role: UserRole): string | null {
   return null;
 }
 
+/** Web only (sign out to /login): mobile has no URL to keep. */
+export function holdShellMove(_href: string): void {}
+
 export function openRoleElsewhere(_role: UserRole): boolean {
   return false;
 }
