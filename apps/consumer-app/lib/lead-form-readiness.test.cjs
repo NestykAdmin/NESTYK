@@ -19,13 +19,19 @@ function loadTs(file, deps = {}) {
 const { leadFormReadiness } = loadTs(path.join(__dirname, 'lead-form-readiness.ts'));
 const { leadMatchReady } = loadTs(path.join(__dirname, 'lead-match-preview.ts'), new Proxy({}, { has: () => true, get: () => ({}) }));
 
-const draft = (over = {}) => ({ firstName: 'Nalin', phoneDigits: '812345678', budgetMax: '18000', pinCount: 1, tab: 'profile', ...over });
+const draft = (over = {}) => ({ firstName: 'Nalin', phoneOk: true, budgetMax: '18000', pinCount: 1, tab: 'profile', ...over });
 
-test('save needs a first name and phone digits (as CreateLeadForm)', () => {
+test('save needs a first name and a phone the form accepts (as CreateLeadForm)', () => {
   assert.equal(leadFormReadiness(draft()).canSave, true);
   assert.equal(leadFormReadiness(draft({ firstName: '   ' })).canSave, false);
-  assert.equal(leadFormReadiness(draft({ phoneDigits: '' })).canSave, false);
+  assert.equal(leadFormReadiness(draft({ phoneOk: false })).canSave, false);
   assert.equal(leadFormReadiness(draft({ budgetMax: '', pinCount: 0 })).canSave, true);
+});
+
+test('a phone the form does not accept (1 or 5 digits, QA L3) is not ready, even though something is typed', () => {
+  const r = leadFormReadiness(draft({ phoneOk: false }));
+  assert.equal(r.canSave, false);
+  assert.equal(r.items.find((item) => item.key === 'phone').done, false);
 });
 
 test('matching needs a max budget above 0 and at least one pin', () => {
@@ -37,7 +43,7 @@ test('matching needs a max budget above 0 and at least one pin', () => {
 });
 
 test('items: first name, phone, max budget, pins, each with its tab and done flag', () => {
-  const r = leadFormReadiness(draft({ phoneDigits: '', pinCount: 0 }));
+  const r = leadFormReadiness(draft({ phoneOk: false, pinCount: 0 }));
   assert.deepEqual(r.items, [
     { key: 'firstName', tab: 'profile', done: true },
     { key: 'phone', tab: 'profile', done: false },
