@@ -268,3 +268,32 @@ test('a handler that throws does not replace the SESSION_EXPIRED error', async (
     await assert.rejects(() => api.apiGet('/x'), (e) => e instanceof api.ApiError && e.code === api.SESSION_EXPIRED);
   });
 });
+
+// QA web flow bugs 6 Nov 2026 item 3: a request with no answer showed the browser's "Failed to fetch" to users.
+test('no answer at all (offline, server down): ApiError NETWORK_ERROR with status 0, the browser text kept for logs', async () => {
+  const { api } = makeApi({ live: liveSession('token') });
+  let expired = 0;
+  api.setSessionExpiredHandler(() => { expired += 1; });
+  const realFetch = global.fetch;
+  try {
+    for (const message of ['Failed to fetch', 'Load failed', 'Network request failed']) {
+      global.fetch = async () => { throw new TypeError(message); };
+      await assert.rejects(() => api.apiGet('/bills/mine'), (e) =>
+        e instanceof api.ApiError && e.status === 0 && e.code === api.NETWORK_ERROR && e.message === message);
+    }
+  } finally {
+    global.fetch = realFetch;
+  }
+  assert.equal(expired, 0, 'being offline is not a session expiry');
+});
+
+test('a request the caller cancelled still rejects with its AbortError', async () => {
+  const realFetch = global.fetch;
+  const abort = Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
+  try {
+    global.fetch = async () => { throw abort; };
+    await assert.rejects(() => api.apiGet('/agent/rooms'), (e) => e === abort);
+  } finally {
+    global.fetch = realFetch;
+  }
+});

@@ -26,6 +26,7 @@ export function OwnerConfirmedRent({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError("");
     listReceivedBills()
       .then((next) => {
         if (!cancelled) setRows(next.filter((bill) => bill.status === "paid"));
@@ -71,7 +72,8 @@ export function OwnerConfirmedRent({
       <Text style={[styles.heading, title]}>{copy.confirmedTitle}</Text>
       {loading ? <ActivityIndicator color={tokens.colors.roles.landlord} /> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {!loading && !rows.length ? <Text style={[styles.copy, body]}>{copy.confirmedEmpty}</Text> : null}
+      {/* A failed load is not "no rent yet" (QA web flow bugs 6 Nov 2026 item 2). */}
+      {!loading && !rows.length && !error ? <Text style={[styles.copy, body]}>{copy.confirmedEmpty}</Text> : null}
       {rows.map((bill) => (
         <View key={bill.id} style={styles.item}>
           <View style={styles.grow}>

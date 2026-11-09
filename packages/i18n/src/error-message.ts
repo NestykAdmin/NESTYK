@@ -25,10 +25,14 @@ export function isInLocale(text: string, locale: SupportedLocale): boolean {
  *   "Dev role grant is disabled"). The API's 403s meant for users are written in Thai.
  * - AGENT_ROLE_REQUIRED from lib/agent-session.ts (an account without the agent role).
  * - "HTTP 409" and the like: the API sent no message (lib/api.ts).
+ * - no answer at all: NETWORK_ERROR from lib/api.ts, Supabase's AuthRetryableFetchError, or a bare TypeError from
+ *   fetch. Their text is the browser's ("Failed to fetch", "Load failed"), Latin script, so English readers saw it as
+ *   is (QA web flow bugs 6 Nov 2026 item 3).
  */
 function developerOnly(error: Error, message: string): boolean {
-  const { status, code } = error as Error & { status?: unknown; code?: unknown };
-  if (code === 'AGENT_ROLE_REQUIRED') return true;
+  const { status, code, name } = error as Error & { status?: unknown; code?: unknown };
+  if (code === 'AGENT_ROLE_REQUIRED' || code === 'NETWORK_ERROR') return true;
+  if (name === 'AuthRetryableFetchError' || error instanceof TypeError) return true;
   if (/^HTTP \d{3}$/.test(message)) return true;
   return status === 403 && !THAI.test(message);
 }

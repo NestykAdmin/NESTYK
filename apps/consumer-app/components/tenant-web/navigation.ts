@@ -22,7 +22,8 @@ export interface TenantWebItem {
 
 export const TENANT_WEB_MENU: ReadonlyArray<TenantWebItem> = [
   { id: "dashboard", icon: "grid", section: "main", target: { type: "tab", tab: "dashboard" } },
-  { id: "living", icon: "home", section: "main", target: { type: "tab", tab: "living" } },
+  // Coming soon: the page was a sample lease shown to every tenant (QA web flow bugs 6 Nov 2026 item 1).
+  { id: "living", icon: "home", section: "main", target: { type: "soon" } },
   { id: "contracts", icon: "clipboard", section: "main", target: { type: "contracts" } },
   { id: "bills", icon: "credit-card", section: "main", target: { type: "tab", tab: "bills" } },
   { id: "services", icon: "buildings", section: "more", target: { type: "tab", tab: "services" } },

@@ -153,37 +153,48 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
         const isActive = activeTab === tab.key;
         const label = t.mobile.tabs[tab.key];
         const isServices = tab.key === 'services';
+        const soon = Boolean(tab.comingSoon);
         return (
           <Pressable
             key={tab.key}
-            style={({ pressed }) => [styles.tabItem, pressed && Platform.OS === 'ios' ? styles.pressed : null]}
+            style={({ pressed }) => [styles.tabItem, pressed && !soon && Platform.OS === 'ios' ? styles.pressed : null]}
             onPress={() => onTabPress(tab.key)}
-            android_ripple={{ color: 'rgba(33,30,30,0.08)', borderless: true, radius: 32 }}
+            disabled={soon}
+            android_ripple={soon ? undefined : { color: 'rgba(33,30,30,0.08)', borderless: true, radius: 32 }}
             accessibilityRole="tab"
-            accessibilityState={{ selected: isActive }}
-            accessibilityLabel={label}
+            accessibilityState={{ selected: isActive, disabled: soon }}
+            accessibilityLabel={soon ? `${label}, ${t.agent.dashboard.comingSoon}` : label}
           >
-            {isServices ? (
-              <ServicesTabIcon isActive={isActive} tintColor={resolvedActive} />
-            ) : (
-              <RegularTabIcon
-                name={tab.icon}
-                isActive={isActive}
-                activeColor={resolvedActive}
-                mutedColor={theme.textSecondary}
-              />
-            )}
-            <Text
-              style={[
-                styles.tabLabel,
-                isActive
-                  ? { color: resolvedActive, fontWeight: '600' }
-                  : { color: theme.textSecondary },
-              ]}
-              numberOfLines={1}
-            >
-              {label}
-            </Text>
+            {soon ? (
+              <View style={styles.soonBadge} pointerEvents="none">
+                <Text style={styles.soonBadgeText} numberOfLines={1}>
+                  {t.agent.dashboard.comingSoon}
+                </Text>
+              </View>
+            ) : null}
+            <View style={[styles.tabBody, soon ? styles.dimmed : null]}>
+              {isServices ? (
+                <ServicesTabIcon isActive={isActive} tintColor={resolvedActive} />
+              ) : (
+                <RegularTabIcon
+                  name={tab.icon}
+                  isActive={isActive}
+                  activeColor={resolvedActive}
+                  mutedColor={theme.textSecondary}
+                />
+              )}
+              <Text
+                style={[
+                  styles.tabLabel,
+                  isActive
+                    ? { color: resolvedActive, fontWeight: '600' }
+                    : { color: theme.textSecondary },
+                ]}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+            </View>
             {useUnderline ? (
               <View
                 style={[
@@ -220,6 +231,24 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   pressed: { opacity: 0.7 },
+  tabBody: { alignItems: 'center', gap: 2 },
+  dimmed: { opacity: 0.45 },
+  soonBadge: {
+    position: 'absolute',
+    top: -2,
+    alignSelf: 'center',
+    zIndex: 1,
+    borderRadius: 999,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    backgroundColor: '#F1F5F9',
+  },
+  soonBadgeText: {
+    fontFamily: tokens.typography.native.body,
+    fontSize: 9,
+    lineHeight: 12,
+    color: '#475569',
+  },
   tabItem: {
     flex: 1,
     alignItems: 'center',
