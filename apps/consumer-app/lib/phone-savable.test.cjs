@@ -11,7 +11,7 @@ const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(require, mod, mod.exports);
-const { savablePhone, parseStoredPhone } = mod.exports;
+const { savablePhone, parseStoredPhone, switchPhoneRegion, nextPhoneDraft } = mod.exports;
 
 const th = (digits) => ({ region: 'TH', digits });
 const empty = th('');
@@ -55,4 +55,40 @@ test('editing: changing it to a valid number saves the new one', () => {
 test('creating (no stored number): the legacy path is never taken', () => {
   assert.equal(savablePhone(th('12345'), th('12345'), undefined), '');
   assert.equal(savablePhone(th('12345'), th('12345'), null), '');
+});
+
+test('OTHER ("+code") mode: a valid international number saves, a short one does not', () => {
+  const other = (digits) => ({ region: 'OTHER', digits });
+  assert.equal(savablePhone(other('8613800138000'), empty, null), '+8613800138000');
+  assert.equal(savablePhone(other('86'), empty, null), '');
+  assert.equal(savablePhone(other('1'), empty, null), '');
+});
+
+test('switching the country keeps the typed digits and re-decides by the new country', () => {
+  const typed = th('812345678');
+  assert.equal(savablePhone(typed, empty, null), '+66812345678');
+  const toOther = switchPhoneRegion(typed, 'OTHER');
+  assert.equal(savablePhone(toOther, empty, null), '+66812345678');
+  const toUs = switchPhoneRegion(typed, 'US');
+  assert.equal(savablePhone(toUs, empty, null), '');
+  assert.equal(savablePhone(switchPhoneRegion(toOther, 'TH'), empty, null), '+66812345678');
+});
+
+test('typing digit by digit: not savable until the number is complete', () => {
+  let draft = empty;
+  const seen = [];
+  for (const ch of '0812345678') {
+    draft = nextPhoneDraft(draft, `${draft.digits}${ch}`);
+    seen.push(savablePhone(draft, empty, null) !== '');
+  }
+  assert.equal(seen.slice(0, 5).some(Boolean), false);
+  assert.equal(seen.at(-1), true);
+});
+
+test('an unedited legacy number stays savable after switching country away and back', () => {
+  const stored = '12345';
+  const initial = parseStoredPhone(stored);
+  const away = switchPhoneRegion(initial, 'US');
+  assert.equal(savablePhone(away, initial, stored), '');
+  assert.equal(savablePhone(switchPhoneRegion(away, initial.region), initial, stored), stored);
 });
