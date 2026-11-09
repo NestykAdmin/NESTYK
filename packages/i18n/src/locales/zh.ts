@@ -323,6 +323,9 @@ export const zh: TranslationSchema = {
       registerOr: '或',
       registerWithGoogle: '使用 Google 注册',
       registerWithFacebook: '使用 Facebook 注册',
+      registerWithApple: '使用 Apple 注册',
+      /** Social sign-in buttons while EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN is off (Apple always). */
+      socialComingSoon: '即将推出',
       backToLogin: '返回登录',
       emailConfirmationTitle: '请查收邮件',
       emailConfirmationBody: '我们已向这个邮箱发送 6 位验证码。请输入验证码。如果已有账户，请登录。',

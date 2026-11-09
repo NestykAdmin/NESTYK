@@ -324,6 +324,9 @@ export const th: TranslationSchema = {
       registerOr: 'หรือ',
       registerWithGoogle: 'สมัครด้วย Google',
       registerWithFacebook: 'สมัครด้วย Facebook',
+      registerWithApple: 'สมัครด้วย Apple',
+      /** Social sign-in buttons while EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN is off (Apple always). */
+      socialComingSoon: 'เร็ว ๆ นี้',
       backToLogin: 'กลับไปเข้าสู่ระบบ',
       emailConfirmationTitle: 'ตรวจสอบอีเมลของคุณ',
       emailConfirmationBody: 'เราส่งรหัส 6 หลักไปที่อีเมลนี้แล้ว กรุณากรอกรหัส หากมีบัญชีอยู่แล้ว ให้เข้าสู่ระบบ',

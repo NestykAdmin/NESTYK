@@ -324,6 +324,9 @@ export const en: TranslationSchema = {
       registerOr: 'or',
       registerWithGoogle: 'Sign up with Google',
       registerWithFacebook: 'Sign up with Facebook',
+      registerWithApple: 'Sign up with Apple',
+      /** Social sign-in buttons while EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN is off (Apple always). */
+      socialComingSoon: 'Coming soon',
       backToLogin: 'Back to login',
       emailConfirmationTitle: 'Check your email',
       emailConfirmationBody: 'We sent a 6-digit code to this email. Enter the code. If you already have an account, log in.',

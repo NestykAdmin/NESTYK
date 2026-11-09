@@ -384,9 +384,12 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.socialRow}>
-                {(["Google", "Facebook", "Apple"] as const).map((provider) => (
+                {(["Google", "Facebook", "Apple"] as const).map((provider) => {
+                  // Mos 9 Nov 2026: not ready = faded + "coming soon"; a tap still explains it (e2e login-form.spec.ts).
+                  const ready = socialLoginProvider(provider, process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN) !== null;
+                  return (
+                  <View key={provider} style={styles.socialItem}>
                   <TouchableOpacity
-                    key={provider}
                     style={[
                       styles.socialButton,
                       compact && styles.socialButtonCompact,
@@ -394,6 +397,7 @@ export default function LoginScreen() {
                         borderColor: theme.border,
                         backgroundColor: isDark ? "#F8FAFC" : theme.card,
                       },
+                      !ready && styles.socialSoon,
                     ]}
                     disabled={loading}
                     onPress={() => {
@@ -418,6 +422,7 @@ export default function LoginScreen() {
                       "{provider}",
                       provider,
                     )}
+                    accessibilityHint={ready ? undefined : copy.socialComingSoon}
                   >
                     {provider === "Google" ? (
                       <GoogleMark />
@@ -430,7 +435,14 @@ export default function LoginScreen() {
                       />
                     )}
                   </TouchableOpacity>
-                ))}
+                  {!ready ? (
+                    <Text style={[styles.socialSoonText, { color: theme.textSecondary }]}>
+                      {copy.socialComingSoon}
+                    </Text>
+                  ) : null}
+                  </View>
+                  );
+                })}
               </View>
 
               {notice ? (
@@ -662,6 +674,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  socialItem: { alignItems: "center", gap: 4 },
+  socialSoon: { opacity: 0.45 },
+  socialSoonText: { fontSize: 11, lineHeight: 16 },
   socialButtonCompact: {
     width: 40,
     height: 40,

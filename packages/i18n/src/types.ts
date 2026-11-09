@@ -317,6 +317,8 @@ export interface TranslationSchema {
       registerOr: string;
       registerWithGoogle: string;
       registerWithFacebook: string;
+      registerWithApple: string;
+      socialComingSoon: string;
       backToLogin: string;
       emailConfirmationTitle: string;
       emailConfirmationBody: string;

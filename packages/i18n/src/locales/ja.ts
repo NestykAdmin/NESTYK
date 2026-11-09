@@ -324,6 +324,9 @@ export const ja: TranslationSchema = {
       registerOr: 'または',
       registerWithGoogle: 'Google で登録',
       registerWithFacebook: 'Facebook で登録',
+      registerWithApple: 'Apple で登録',
+      /** Social sign-in buttons while EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN is off (Apple always). */
+      socialComingSoon: '近日公開',
       backToLogin: 'ログインに戻る',
       emailConfirmationTitle: 'メールをご確認ください',
       emailConfirmationBody: 'このメールアドレスに 6 桁のコードを送りました。コードを入力してください。アカウントをお持ちの場合はログインしてください。',
