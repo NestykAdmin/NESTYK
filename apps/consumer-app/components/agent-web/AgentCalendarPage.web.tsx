@@ -75,6 +75,8 @@ export function AgentCalendarPage({
   const fmt = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(tag, options);
   const monthLabel = fmt({ month: "long", year: "numeric" }).format(calendarLocalDate(visibleMonth));
   const weekdays = cells.slice(0, 7).map((cell) => fmt({ weekday: "short" }).format(calendarLocalDate(cell.dateKey)));
+  // Mini picker columns are ~31px: Thai "short" is the full name (อาทิตย์), so use narrow (อา / S / 日).
+  const miniWeekdays = cells.slice(0, 7).map((cell) => fmt({ weekday: "narrow" }).format(calendarLocalDate(cell.dateKey)));
   const dayLabel = (key: string) => fmt({ weekday: "long", day: "numeric", month: "long" }).format(calendarLocalDate(key));
   const countLabel = (count: number) => copy.eventCount.replace("{count}", String(count));
   const stateLabel: Record<ViewingStateKey, string> = {
@@ -84,7 +86,8 @@ export function AgentCalendarPage({
   };
   const stateOf = (event: CalendarViewingEvent): ViewingStateKey => viewingStateKey(event.viewing, now) ?? "scheduled";
   const intentOf = (event: CalendarViewingEvent) => viewingIntent(event.viewing.status, event.viewing.scheduledAt, now);
-  const dotStyle = (intent: StatusIntent) => ({ background: STATUS_INTENT_TONES[intent].dot });
+  // data-intent lets dark mode lift the near-black "prog" dot (agent-calendar.css); badges keep their own light fill.
+  const dotProps = (intent: StatusIntent) => ({ style: { background: STATUS_INTENT_TONES[intent].dot }, "data-intent": intent });
 
   const pickDay = (key: string) => {
     onSelectDate(key);
@@ -143,7 +146,7 @@ export function AgentCalendarPage({
               {monthButtons}
             </div>
             <div className="awc-mini" role="group" aria-label={monthLabel}>
-              {weekdays.map((day, index) => (
+              {miniWeekdays.map((day, index) => (
                 <span key={`dow-${index}`} className="awc-mini-dow" aria-hidden="true">
                   {day}
                 </span>
@@ -181,7 +184,7 @@ export function AgentCalendarPage({
                   onChange={() => toggleState(key)}
                   data-testid={`calendar.status.${key}`}
                 />
-                <span className="awc-dot" style={dotStyle(STATE_INTENT[key])} aria-hidden="true" />
+                <span className="awc-dot" {...dotProps(STATE_INTENT[key])} aria-hidden="true" />
                 <span className="awc-check-label">{stateLabel[key]}</span>
                 <b>{ready ? counts[key] : "–"}</b>
               </label>
@@ -207,7 +210,7 @@ export function AgentCalendarPage({
               <ul className="awc-day-list">
                 {dayList.map((event) => (
                   <li key={event.id} className="awc-day-item">
-                    <i className="awc-bar" style={dotStyle(intentOf(event))} aria-hidden="true" />
+                    <i className="awc-bar" {...dotProps(intentOf(event))} aria-hidden="true" />
                     <div className="awc-day-main">
                       <strong>{event.location}</strong>
                       <span className="awc-muted">{`${event.time} · ${event.viewing.leadName}`}</span>
@@ -332,7 +335,7 @@ export function AgentCalendarPage({
                               <span className="awc-num">{cell.day}</span>
                               {list.slice(0, CHIPS_PER_DAY).map((event) => (
                                 <span key={event.id} className={`awc-chip is-${stateOf(event)}`} title={`${event.time} · ${event.title}`}>
-                                  <span className="awc-dot" style={dotStyle(intentOf(event))} aria-hidden="true" />
+                                  <span className="awc-dot" {...dotProps(intentOf(event))} aria-hidden="true" />
                                   <span className="awc-chip-time">{event.time}</span>
                                   <span className="awc-chip-text">{event.viewing.roomTitle}</span>
                                 </span>
@@ -360,7 +363,7 @@ export function AgentCalendarPage({
                         <ul className="awc-ag-list">
                           {list.map((event) => (
                             <li key={event.id} className="awc-ag-item">
-                              <i className="awc-bar" style={dotStyle(intentOf(event))} aria-hidden="true" />
+                              <i className="awc-bar" {...dotProps(intentOf(event))} aria-hidden="true" />
                               <span className="awc-ag-time">{event.time}</span>
                               <span className="awc-ag-main">
                                 <strong>{web.viewingOf.replace("{room}", event.location)}</strong>

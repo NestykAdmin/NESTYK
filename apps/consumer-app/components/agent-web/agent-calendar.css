@@ -130,3 +130,7 @@
   .awc-cell { min-height: 96px; }
   .awc-chip-text { display: none; }
 }
+
+/* Dark mode: the shared "prog" tone dot is #211E1E (made for light pills) and vanished on the dark panel. */
+[data-theme="dark"] .awc-dot[data-intent="prog"],
+[data-theme="dark"] .awc-bar[data-intent="prog"] { background: var(--aw-ink) !important; }
