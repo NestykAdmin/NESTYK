@@ -329,6 +329,8 @@ export interface TranslationSchema {
       phoneRequired: string;
       acceptTerms: string;
       acceptTermsRequired: string;
+      /** Under the register button: the privacy policy is shown (PDPA notice), not accepted. */
+      privacyNotice: string;
       otpCode: string;
       otpInvalid: string;
       resendCode: string;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fillTemplate, useLocale } from "@nestyk/i18n";
 import { MobileIcon, useMobileTheme } from "@nestyk/ui/native";
 import { SUPPORT_EMAIL, SUPPORT_LINE_OA, buildBadge, legalHref, lineOaUrl, supportMailto } from "../../lib/legal-footer";
+import { COOKIE_SETTINGS_HREF } from "../../lib/cookie-notice";
 import { WebMenu } from "./ui";
 import "./agent-workspace-footer.css";
 
@@ -50,6 +51,12 @@ export function AgentWorkspaceFooter({ page }: AgentWorkspaceFooterProps) {
           <span aria-hidden className="awf-dot">·</span>
           <a href={legalHref("terms")} target="_blank" rel="noopener" data-testid="shell.footer.terms">
             {copy.terms}
+          </a>
+        </span>
+        <span className="awf-item">
+          <span aria-hidden className="awf-dot">·</span>
+          <a href={COOKIE_SETTINGS_HREF} data-testid="shell.footer.cookies">
+            {copy.cookies}
           </a>
         </span>
         <span className="awf-item">

@@ -173,6 +173,49 @@
   margin: 0;
   color: #334155;
 }
+/* PDPA plan FE2: cookies and browser storage tables on /privacy. */
+.lg-cookies h3 {
+  margin: 18px 0 8px;
+  font-size: 15px;
+  color: #1a2b48;
+}
+.lg-cookies > p + p,
+.lg-cookies .lg-table-wrap + p {
+  margin-top: 12px;
+}
+.lg-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+.lg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 19px;
+}
+.lg-table th,
+.lg-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #eef2f6;
+  color: #334155;
+}
+.lg-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lg-table tr:last-child td {
+  border-bottom: 0;
+}
+.lg-table code {
+  font-size: 12px;
+  white-space: nowrap;
+  color: #1a2b48;
+}
 .lg-other {
   margin: 24px 0 0;
   font-size: 14px;
@@ -241,4 +284,23 @@
     border: 0;
     padding: 0;
   }
+}
+.lg-cookie-settings {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #1a2b48;
+  color: #ffffff;
+  text-decoration: none;
+  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
+}
+.lg-cookie-settings:hover {
+  background: #24395e;
+}
+.lg-cookie-settings:focus-visible {
+  outline: 2px solid #f8b615;
+  outline-offset: 2px;
 }

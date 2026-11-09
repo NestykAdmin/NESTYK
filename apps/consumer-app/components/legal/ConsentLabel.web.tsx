@@ -8,12 +8,16 @@ import type { ConsentLabelProps } from './ConsentLabel.types';
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
 
 /**
- * Web: "I accept the {terms} and the {privacy}" with both words as links that open in a new tab (footer plan F3),
- * so the form being filled in is not lost. The sentence order comes from i18n (`legal.consent`).
+ * Web: "I accept the {terms}" (checkbox) or "Read how we … in our {privacy}" (notice line), with the document word as a
+ * link that opens in a new tab (footer plan F3), so the form being filled in is not lost. Sentences come from i18n
+ * (`legal.consent`, `legal.privacyNotice`).
  */
-export function ConsentLabel({ style, linkColor }: ConsentLabelProps) {
+export function ConsentLabel({ style, linkColor, template = 'consent' }: ConsentLabelProps) {
   const { t } = useLocale();
-  const parts = consentParts(t.legal.consent, { terms: t.legal.footer.terms, privacy: t.legal.footer.privacy });
+  // FE5: the checkbox accepts the terms only; the privacy policy is a notice line with its own link.
+  const sentence = template === 'privacyNotice' ? t.legal.privacyNotice : t.legal.consent;
+  const testPrefix = template === 'privacyNotice' ? 'register.privacyNotice' : 'register.consent';
+  const parts = consentParts(sentence, { terms: t.legal.footer.terms, privacy: t.legal.footer.privacy });
   return (
     <Text style={style}>
       {parts.map((part, index) =>
@@ -25,7 +29,7 @@ export function ConsentLabel({ style, linkColor }: ConsentLabelProps) {
             href={legalHref(part.page)}
             target="_blank"
             rel="noopener"
-            data-testid={`register.consent.${part.page}`}
+            data-testid={`${testPrefix}.${part.page}`}
             onClick={stop}
             onMouseDown={stop}
             onPointerDown={stop}

@@ -4,6 +4,7 @@ import { PublicFooter } from '@nestyk/ui/public-footer';
 import { MobileNestykLogo } from '@nestyk/ui/native';
 import { loginPathFor } from '../../lib/app-routes';
 import { SUPPORT_EMAIL, SUPPORT_LINE_OA, legalHref, lineOaUrl } from '../../lib/legal-footer';
+import { BROWSER_STORAGE_ITEMS, COOKIE_SETTINGS_HREF, THIRD_PARTY_SERVICES } from '../../lib/cookie-notice';
 import type { LegalPageProps } from './LegalPage.types';
 import './legal.css';
 
@@ -20,10 +21,21 @@ export function LegalPage({ page }: LegalPageProps) {
   const doc = copy[page];
   const other = page === 'privacy' ? 'terms' : 'privacy';
   const values = { email: SUPPORT_EMAIL };
+  // PDPA plan FE2: the privacy page ends with "Cookies and browser storage" (#cookies), also in the contents lists.
+  const cookies = page === 'privacy' ? copy.cookies : null;
+  const toc = cookies ? [...doc.sections, { id: 'cookies', title: cookies.title }] : doc.sections;
 
   useEffect(() => {
     if (typeof document !== 'undefined') document.title = `${doc.title} · NESTYK`;
   }, [doc.title]);
+
+  // A link such as "/privacy#cookies" (cookie notice, footers): the page renders after the browser looked for the
+  // anchor, so scroll to it once the sections exist.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (id) document.getElementById(id)?.scrollIntoView();
+  }, []);
 
   return (
     <div className="lg-root" data-testid={`legal.${page}`}>
@@ -51,7 +63,7 @@ export function LegalPage({ page }: LegalPageProps) {
         <nav className="lg-toc" aria-label={copy.page.contents}>
           <p className="lg-toc-title">{copy.page.contents}</p>
           <ol>
-            {doc.sections.map((section) => (
+            {toc.map((section) => (
               <li key={section.id}>
                 <a href={`#${section.id}`}>{section.title}</a>
               </li>
@@ -75,7 +87,7 @@ export function LegalPage({ page }: LegalPageProps) {
           <details className="lg-toc-mobile" data-testid="legal.contentsMobile">
             <summary>{copy.page.contents}</summary>
             <ol>
-              {doc.sections.map((section) => (
+              {toc.map((section) => (
                 <li key={section.id}>
                   <a href={`#${section.id}`}>{section.title}</a>
                 </li>
@@ -90,6 +102,70 @@ export function LegalPage({ page }: LegalPageProps) {
               <p>{fillTemplate(section.body, values)}</p>
             </section>
           ))}
+          {cookies ? (
+            <section id="cookies" className="lg-section lg-cookies" data-testid="legal.cookies">
+              <h2>
+                {doc.sections.length + 1}. {cookies.title}
+              </h2>
+              <p>{cookies.intro}</p>
+              <h3>{cookies.storageTitle}</h3>
+              <div className="lg-table-wrap">
+                <table className="lg-table" data-testid="legal.cookies.storage">
+                  <thead>
+                    <tr>
+                      <th scope="col">{cookies.columns.name}</th>
+                      <th scope="col">{cookies.columns.purpose}</th>
+                      <th scope="col">{cookies.columns.type}</th>
+                      <th scope="col">{cookies.columns.kept}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {BROWSER_STORAGE_ITEMS.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <code>{item.name}</code>
+                        </td>
+                        <td>{cookies.storage[item.id].purpose}</td>
+                        <td>{cookies.types[item.type]}</td>
+                        <td>{cookies.storage[item.id].kept}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <h3>{cookies.servicesTitle}</h3>
+              <div className="lg-table-wrap">
+                <table className="lg-table" data-testid="legal.cookies.services">
+                  <thead>
+                    <tr>
+                      <th scope="col">{cookies.serviceColumns.name}</th>
+                      <th scope="col">{cookies.serviceColumns.purpose}</th>
+                      <th scope="col">{cookies.serviceColumns.data}</th>
+                      <th scope="col">{cookies.serviceColumns.policy}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {THIRD_PARTY_SERVICES.map((service) => (
+                      <tr key={service.id}>
+                        <td>{service.name}</td>
+                        <td>{cookies.services[service.id].purpose}</td>
+                        <td>{cookies.services[service.id].data}</td>
+                        <td>
+                          <a href={service.policyUrl} target="_blank" rel="noopener noreferrer">
+                            {cookies.policyLink}
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p>{cookies.manage}</p>
+              <a href={COOKIE_SETTINGS_HREF} className="lg-cookie-settings" data-testid="legal.cookies.settings">
+                {cookies.settingsButton}
+              </a>
+            </section>
+          ) : null}
           <p className="lg-other">
             <a href={legalHref(other)} data-testid={`legal.other.${other}`}>
               {fillTemplate(copy.page.otherDoc, { doc: copy.footer[other] })}
@@ -109,6 +185,7 @@ export function LegalPage({ page }: LegalPageProps) {
           register: '/register',
           login: loginPathFor('/agent'),
           privacy: legalHref('privacy'),
+          cookies: COOKIE_SETTINGS_HREF,
           terms: legalHref('terms'),
         }}
         supportEmail={SUPPORT_EMAIL}

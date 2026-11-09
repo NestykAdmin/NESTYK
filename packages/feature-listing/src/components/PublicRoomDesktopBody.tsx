@@ -6,6 +6,7 @@ import { APIProvider, Map, AdvancedMarker, Pin, useApiLoadingStatus, APILoadingS
 import { RoomDesktopBody } from './RoomDesktopBody';
 import { toPublicRoomDetail, type PublicRoomShare } from '../public-room-share';
 import type { NearbyMapProps } from '../nearby';
+import { MapConsentGate } from './MapConsentGate';
 
 /** Browser map without importing the Expo / React Native map adapter. */
 function PublicMapCanvas({ latitude, longitude, markerTitle, places }: NearbyMapProps) {
@@ -42,7 +43,11 @@ function PublicMapCanvas({ latitude, longitude, markerTitle, places }: NearbyMap
 function PublicRoomMap(props: NearbyMapProps) {
   const { t } = useLocale();
   if (!props.apiKey) return <p className="ard-muted">{t.agent.createRoom.mapUnavailable}</p>;
-  return <APIProvider apiKey={props.apiKey}><PublicMapCanvas {...props} /></APIProvider>;
+  return (
+    <MapConsentGate style={{ height: 280 }}>
+      <APIProvider apiKey={props.apiKey}><PublicMapCanvas {...props} /></APIProvider>
+    </MapConsentGate>
+  );
 }
 
 export function PublicRoomDesktopBody({ room, mapsApiKey }: { room: PublicRoomShare; mapsApiKey?: string }) {

@@ -4,6 +4,7 @@ import { PublicFooter } from '@nestyk/ui/public-footer';
 import { MobileNestykLogo } from '@nestyk/ui/native';
 import { loginPathFor } from '../../lib/app-routes';
 import { SUPPORT_EMAIL, SUPPORT_LINE_OA, legalHref, lineOaUrl } from '../../lib/legal-footer';
+import { COOKIE_SETTINGS_HREF } from '../../lib/cookie-notice';
 
 /**
  * F2 public footer on the guest web pages (`/`, `/search`, `/services`; footer plan F-Q3). Same footer and links
@@ -22,6 +23,7 @@ export function GuestPublicFooter() {
           register: '/register',
           login: loginPathFor('/agent'),
           privacy: legalHref('privacy'),
+          cookies: COOKIE_SETTINGS_HREF,
           terms: legalHref('terms'),
         }}
         supportEmail={SUPPORT_EMAIL}

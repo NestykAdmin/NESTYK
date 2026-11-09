@@ -32,6 +32,7 @@ function load(filename) {
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale: 'en', t: load(`${root}/packages/i18n/src/locales/en.ts`).en }), localizedError: (_e, fallback) => fallback };
     if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: 'MobileIcon', MobileStatusPill: 'MobileStatusPill', MobileFilterChip: 'MobileFilterChip' };
     if (name === '@nestyk/feature-listing') return load(`${root}/packages/feature-listing/src/bedroom-label.ts`);
+    if (name === '@nestyk/ui/cookie-consent') return load(`${root}/packages/ui/src/consent/cookieConsent.ts`);
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
     return load([base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((file) => fs.existsSync(file) && fs.statSync(file).isFile()));

@@ -36,6 +36,7 @@ import {
 } from "./ui";
 import type { AgentRoomsPageProps } from "./AgentRoomsPage.types";
 import "./agent-rooms.css";
+import { cookieConsentAllows } from "@nestyk/ui/cookie-consent";
 
 /** 24 = 6 rows of the 4-column card grid at 1440. */
 const PAGE_SIZE = 24;
@@ -153,6 +154,8 @@ export function AgentRoomsPage({ reloadToken, onReloadSettled, onAddRoom }: Agen
 
   const changeView = (next: RoomsView) => {
     setView(next);
+    // PDPA cookie consent: remembered only when "Remember my settings" is allowed.
+    if (!cookieConsentAllows('preferences')) return;
     try {
       window.localStorage.setItem(VIEW_KEY, next);
     } catch {

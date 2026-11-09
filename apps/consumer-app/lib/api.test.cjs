@@ -19,7 +19,7 @@ function load(file, deps = {}) {
  * Loads api.ts with a fake saved session (`stored`) and a fake Supabase client.
  * `live` is the session Supabase returns from getSession(); `refresh` is what refreshSession() returns.
  */
-function makeApi({ stored = { mode: 'supabase', accessToken: 'stale-token' }, configured = true, live = null, refresh } = {}) {
+function makeApi({ stored = { mode: 'supabase', accessToken: 'stale-token' }, configured = true, live = null, refresh, devIdentity = { uuid: 'u', email: 'e' } } = {}) {
   const calls = { getSession: 0, refreshSession: 0 };
   const client = {
     auth: {
@@ -37,7 +37,7 @@ function makeApi({ stored = { mode: 'supabase', accessToken: 'stale-token' }, co
   };
   const api = load('api.ts', {
     './config': { APP_CONFIG: { apiUrl: 'https://api.test' }, toDeviceUrls: (s) => s, toServerUrls: (s) => s },
-    './dev-identity': { getOrCreateDevIdentity: async () => ({ uuid: 'u', email: 'e' }), toDevBearer: () => 'dev' },
+    './dev-identity': { getOrCreateDevIdentity: async () => devIdentity, toDevBearer: () => 'dev' },
     './auth/session-storage': { loadAuthSession: async () => stored },
     './auth/supabase': { getSupabaseClient: () => (configured ? client : null) },
   });
@@ -93,6 +93,14 @@ test('uses the current Supabase token, not the copy saved at sign-in', async () 
     assert.equal(sent[0].auth, 'Bearer live-token');
   });
   assert.equal(calls.getSession, 1);
+});
+
+test('signed out on a production build (no dev identity): no Authorization header (PDPA plan FE4)', async () => {
+  const { api } = makeApi({ stored: null, devIdentity: null });
+  await withFetch([OK], async (sent) => {
+    await api.apiGet('/x');
+    assert.equal(sent[0].auth, undefined);
+  });
 });
 
 test('dev login keeps its own token and never asks Supabase', async () => {

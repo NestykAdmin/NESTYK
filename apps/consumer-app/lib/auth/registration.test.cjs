@@ -34,6 +34,8 @@ function setup({ confirmation = false, signupError, syncError, testSignupError, 
     './session-expiry': {},
     './cross-tab': { markAuthEvent: () => {}, subscribeCrossTab: () => () => {}, takeExpiryNotice: () => false, clearExpiryNotice: () => {}, markFreshSignIn: () => {} },
     './role-gate': { requestGuestBrowse: () => {} },
+    // PDPA plan 3.3a: proof of the accepted terms and the shown privacy policy goes into the sign-up metadata.
+    '../cookie-notice': { signupLegalMetadata: () => ({ terms_version: 'T1', terms_accepted_at: 'AT', privacy_version_shown: 'P1' }) },
     './google-oauth': { providerRedirectPending: () => false },
     './google-sign-in': { signInWithGoogle: async () => null, signInWithFacebook: async () => null },
     './reset-password': { requestPasswordReset: async () => {}, verifyRecoveryLink: async () => {}, saveResetPassword: async () => {} },
@@ -57,6 +59,7 @@ test('signup uses real Supabase flow with normalized email and a registration so
   assert.deepEqual(calls.signup[0].options.data, {
     first_name: credentials.firstName, last_name: credentials.lastName,
     full_name: `${credentials.firstName} ${credentials.lastName}`, phone: '', registration_source: 'self_service',
+    terms_version: 'T1', terms_accepted_at: 'AT', privacy_version_shown: 'P1',
   });
   assert.deepEqual(calls.sync, ['/auth/sync']);
   assert.equal(calls.saved.length, 1);

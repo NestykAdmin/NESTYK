@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocale, fillTemplate } from '@nestyk/i18n';
 import { legalHref, supportMailto } from '../../lib/legal-footer';
+import { COOKIE_SETTINGS_HREF } from '../../lib/cookie-notice';
 import './legal.css';
 
 /**
@@ -20,6 +21,10 @@ export function AuthLegalFooter({ testID = 'auth.footer' }: { testID?: string })
       <span className="lg-item">
         <span aria-hidden className="lg-dot">·</span>
         <a href={legalHref('terms')} target="_blank" rel="noopener" data-testid={`${testID}.terms`}>{copy.terms}</a>
+      </span>
+      <span className="lg-item">
+        <span aria-hidden className="lg-dot">·</span>
+        <a href={COOKIE_SETTINGS_HREF} data-testid={`${testID}.cookies`}>{copy.cookies}</a>
       </span>
       <span className="lg-item">
         <span aria-hidden className="lg-dot">·</span>

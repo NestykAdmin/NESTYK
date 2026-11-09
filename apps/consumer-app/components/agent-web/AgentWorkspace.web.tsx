@@ -9,6 +9,7 @@ import {
 } from "@nestyk/ui/native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import { isAgentComingSoonTab } from "@nestyk/ui/native";
+import { cookieConsentAllows } from "@nestyk/ui/cookie-consent";
 import type { UserRole } from "@nestyk/types";
 import type { AgentWorkspaceProps, WorkspaceNavItem } from "./AgentWorkspace.types";
 import {
@@ -221,6 +222,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   };
   const chooseTheme = (pref: WebThemePref) => {
     setThemePref(pref);
+    // PDPA cookie consent: remembered only when "Remember my settings" is allowed.
+    if (!cookieConsentAllows("preferences")) return;
     try {
       window.localStorage.setItem(THEME_PREF_KEY, pref);
     } catch {

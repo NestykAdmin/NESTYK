@@ -254,6 +254,8 @@ export default function RegisterScreen() {
                   {captchaRequired && !forTesting ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                   {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
                   <MobileButton onPress={onSubmit} isLoading={loading} disabled={loading}>{copy.registerButton}</MobileButton>
+                  {/* PDPA plan FE5: the privacy policy is shown here as a notice (no checkbox); the checkbox above is the terms only. */}
+                  <ConsentLabel template="privacyNotice" fallback={copy.privacyNotice} linkColor={theme.textHeading} style={[styles.body, styles.privacyNotice, { color: theme.textSecondary }]} />
                   <View style={styles.dividerRow}>
                     <View style={[styles.divider, { backgroundColor: theme.border }]} />
                     <Text style={[styles.dividerLabel, { color: theme.textSecondary }]}>{copy.registerOr}</Text>
@@ -350,6 +352,7 @@ const styles = StyleSheet.create({
   visibility: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40 },
   testRegistration: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   testRegistrationLabel: { flex: 1 },
+  privacyNotice: { textAlign: 'center' },
   error: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 20, color: tokens.colors.error },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   divider: { height: StyleSheet.hairlineWidth, flex: 1 },

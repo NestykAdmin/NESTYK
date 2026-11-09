@@ -61,7 +61,7 @@ test('consent sentence splits into text and two links in any word order', () => 
   assert.deepEqual(consentParts('no {links} here', labels), [{ kind: 'text', text: 'no {links} here' }]);
 });
 
-test('legal copy: same keys, same sections and both consent links in all 4 languages', () => {
+test('legal copy: same keys, same sections, terms-only consent and a privacy notice link in all 4 languages', () => {
   const shape = (value) =>
     Array.isArray(value)
       ? value.map((s) => s.id)
@@ -70,7 +70,12 @@ test('legal copy: same keys, same sections and both consent links in all 4 langu
         : typeof value;
   for (const [locale, copy] of Object.entries(copies)) {
     assert.deepEqual(shape(copy), shape(th), locale);
-    assert.ok(copy.consent.includes('{terms}') && copy.consent.includes('{privacy}'), `${locale} consent`);
+    // PDPA plan FE5 (QA 9 Nov 2026): the checkbox accepts the terms only; the privacy policy is a notice with a link.
+    assert.ok(copy.consent.includes('{terms}') && !copy.consent.includes('{privacy}'), `${locale} consent`);
+    assert.ok(copy.privacyNotice.includes('{privacy}') && !copy.privacyNotice.includes('{terms}'), `${locale} privacy notice`);
+    // L4: the terms no longer say that using NESTYK means accepting the privacy policy.
+    const accept = copy.terms.sections.find((section) => section.id === 'accept').body;
+    assert.doesNotMatch(accept, /using NESTYK|การใช้งานหรือสมัคร|利用またはアカウント登録|使用 NESTYK 或注册/, `${locale} accept section`);
     for (const doc of [copy.privacy, copy.terms]) {
       for (const section of doc.sections) assert.ok(section.title && section.body, `${locale} ${section.id}`);
     }
@@ -85,6 +90,7 @@ test('wiring: routes, auth footers, register links; mobile twins stay as before'
   assert.match(read('app/reset-password.tsx'), /<AuthLegalFooter testID="resetPassword.footer" \/>/);
   assert.match(read('app/register.tsx'), /<ConsentLabel fallback=\{copy\.acceptTerms\}/);
   assert.match(read('app/register.tsx'), /accessibilityLabel=\{copy\.acceptTerms\}/);
+  assert.match(read('app/register.tsx'), /<ConsentLabel template="privacyNotice" fallback=\{copy\.privacyNotice\}/);
   // Mobile (frozen): no footer, plain consent text, document pages go home.
   assert.match(read('components/legal/AuthLegalFooter.tsx'), /return null;/);
   assert.match(read('components/legal/ConsentLabel.tsx'), /<Text style=\{style\}>\{fallback\}<\/Text>/);
@@ -96,7 +102,7 @@ test('wiring: routes, auth footers, register links; mobile twins stay as before'
   assert.match(consent, /onClick=\{stop\}/);
   assert.match(read('components/legal/LegalPage.web.tsx'), /data-testid="legal\.draft"/);
   const footer = read('components/agent-web/AgentWorkspaceFooter.web.tsx');
-  for (const id of ['shell.footer', 'shell.footer.privacy', 'shell.footer.terms', 'shell.footer.help', 'shell.footer.build']) {
+  for (const id of ['shell.footer', 'shell.footer.privacy', 'shell.footer.terms', 'shell.footer.cookies', 'shell.footer.help', 'shell.footer.build']) {
     assert.ok(footer.includes(`"${id}"`), id);
   }
   assert.match(footer, /process\.env\.EXPO_PUBLIC_APP_ENV, process\.env\.EXPO_PUBLIC_BUILD_SHA/);

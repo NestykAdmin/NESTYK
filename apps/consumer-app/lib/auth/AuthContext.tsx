@@ -25,6 +25,7 @@ import {
 } from './session-storage';
 import { clearExpiryNotice, markAuthEvent, markFreshSignIn, subscribeCrossTab, takeExpiryNotice } from './cross-tab';
 import { requestSignOutLanding } from './role-gate';
+import { signupLegalMetadata } from '../cookie-notice';
 
 export type AuthUserResponse = {
   id: number;
@@ -400,6 +401,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             full_name: [firstName.trim(), lastName.trim()].join(' '),
             phone: phone.trim(),
             registration_source: 'self_service',
+            // PDPA plan 3.3a: proof of which terms were accepted (register checkbox) and which privacy policy was shown.
+            ...signupLegalMetadata(),
           },
         },
       });
