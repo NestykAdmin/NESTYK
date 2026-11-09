@@ -1,6 +1,8 @@
 import { test, expect } from '../../src/web-ui/web-ui.fixture';
 import { AgentShell } from '../../src/web-ui/pages/agent-shell.page';
 import { LeadForm, openLead } from '../../src/web-ui/pages/lead-write.page';
+import { LeadReadinessPanel } from '../../src/web-ui/pages/lead-readiness.page';
+import { AGENT_WEB } from '../../src/web-ui/labels.agent-web';
 import { FLOW, WRITE } from '../../src/web-ui/labels';
 import { ApiLog, apiPathOf, okJson, waitForApi } from '../../src/web-ui/support/api';
 import { watchForRequest } from '../../src/web-ui/support/wait';
@@ -169,6 +171,13 @@ test('editing notes through the form saves only the notes', async ({ page, login
   const form = new LeadForm(page);
   await expect(form.save('edit')).toBeVisible();
   await expect(form.firstName).toHaveValue(QA_LEAD_LABEL);
+  // แผงความพร้อม (จอ 1280): เบอร์ของลีดถาวร (QA_LEAD_PHONE) แปลงเป็นรูปสากลไม่ได้ แต่ไม่ได้แก้ จึงบันทึกได้ตามเดิม
+  //   ข้อเบอร์ต้องขึ้นครบ (savablePhone ใช้เบอร์เดิมเมื่อไม่ได้แก้: lib/phone.ts ที่ 0a21689 ข้อ 3 ของ "ฝาก QA ตรวจ")
+  //   แผงต้องบอกว่าบันทึกได้ (ชื่อกับเบอร์ครบ หมายเหตุไม่ใช่ข้อความให้กรอก ลีดถาวรอาจมีงบกับหมุด หมายเหตุจึงเป็น SaveFirst หรือ Ready)
+  const panel = new LeadReadinessPanel(page);
+  await expect(panel.item('firstName')).toHaveAttribute('data-done', 'true');
+  await expect(panel.item('phone')).toHaveAttribute('data-done', 'true');
+  await expect(panel.note).not.toHaveText(AGENT_WEB.readinessNeedContact);
 
   // ขั้นที่ 2: แก้ notes แล้วบันทึก หน้าเว็บส่ง PATCH ของลีดนี้ (agent-leads-api.ts:51-54)
   await form.notes.fill(notes);
@@ -179,7 +188,7 @@ test('editing notes through the form saves only the notes', async ({ page, login
   await okJson(response);
   const body = response.request().postDataJSON() as Record<string, unknown>;
   expect(body.notes).toBe(notes);
-  expect(body.phone, 'ฟอร์มต้องส่งเบอร์เดิม (แปลงเบอร์นี้เป็นรูปสากลไม่ได้: CreateLeadForm.tsx:456-458)').toBe(QA_LEAD_PHONE);
+  expect(body.phone, 'ฟอร์มต้องส่งเบอร์เดิม (แปลงเบอร์นี้เป็นรูปสากลไม่ได้: savablePhone ใน lib/phone.ts ที่ 0a21689)').toBe(QA_LEAD_PHONE);
   expect(guard.allowedWrites, 'คำขอเขียนที่ปล่อยผ่าน').toEqual([`PATCH /agent/leads/${lead.id}`]);
 
   // ขั้นที่ 3: อ่านลีดกลับ notes เปลี่ยน ชื่อและเบอร์ตรงกับชุดข้อมูลถาวร (ค่าคงที่ ไม่ขึ้นกับรอบก่อน) และช่องอื่นเท่าก่อนแก้

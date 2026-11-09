@@ -9,12 +9,12 @@ import { AGENT_WEB } from '../../src/web-ui/labels.agent-web';
 /**
  * แผงความพร้อมข้างฟอร์มเพิ่มลีดบนเว็บจอกว้าง (แผน 9 พ.ย. 2026 ข้อ L1-L3) อ่านอย่างเดียว ไม่บันทึกลีด
  * โค้ด: apps/consumer-app/components/agent-web/AgentLeadFormPage.web.tsx (F), lib/lead-form-readiness.ts (R),
- *   components/CreateLeadForm.tsx (C) ที่ pre/dev/review 7a9bf48 (qa/e2e 4633c54)
+ *   components/CreateLeadForm.tsx (C) ที่ pre/dev/review 7a9bf48 (qa/e2e 4633c54) ข้อ L3 ใช้กฎเบอร์ใหม่ของ 0a21689 (savablePhone)
  *
- * สิ่งที่ต้องมีก่อนรัน: เหมือนชุด tests/web-ui และตั้ง E2E_QA_AGENT_PASSWORD
- * แผงอ่านสิ่งที่ฟอร์มรายงาน (onDraftChange: C:240-248) 4 ข้อ: ชื่อ เบอร์ งบสูงสุด หมุด (R:17-34) ไม่มีผลกับปุ่มบันทึก
+ * สิ่งที่ต้องมีก่อนรัน: เหมือนชุด tests/web-ui และตั้ง E2E_QA_AGENT_PASSWORD เว็บต้องเป็นโค้ดตั้งแต่ pre/dev/review 0a21689 (ไม่อย่างนั้น L3 แดง)
+ * แผงอ่านสิ่งที่ฟอร์มรายงาน (onDraftChange ใน C, phoneOk ตั้งแต่ 0a21689) 4 ข้อ: ชื่อ เบอร์ งบสูงสุด หมุด (R:17-34) ไม่มีผลกับปุ่มบันทึก
  * ที่ 1280px แผงอยู่ขวาของฟอร์มและเปิดตลอด (agent-lead-form.css:56-61 พับเฉพาะ <1280)
- * ข้อ L3 กด Save Lead ด้วยเบอร์ที่ไม่ถูกต้อง ฟอร์มปฏิเสธก่อนส่ง (C:479-483, :532-537) ถ้าคำขอหลุดไป ตัวกันคำขอ (guard.ts) ตัดและบันทึกไว้ ข้อนี้ตรวจว่าไม่มี
+ * ข้อ L3 กด Save Lead ด้วยเบอร์ที่ไม่ถูกต้อง ฟอร์มปฏิเสธก่อนส่ง (C submit) ถ้าคำขอหลุดไป ตัวกันคำขอ (guard.ts) ตัดและบันทึกไว้ ข้อนี้ตรวจว่าไม่มี
  * ข้อความที่พิมพ์ในฟอร์มเป็นค่าของเทส (QA Readiness) ไม่ใช่ข้อมูลลูกค้า
  * ชุดนี้ใช้ WRITE ของ labels.ts ซึ่งมีแต่ภาษาอังกฤษ จึงข้ามเมื่อรันภาษาไทย
  */
@@ -86,28 +86,27 @@ test('L2 typing the name, phone and budget ticks those items, and an item opens 
   expect(guard.of('unexpected-write'), 'ไม่มีคำขอเขียนจากการพิมพ์ในฟอร์ม').toEqual([]);
 });
 
-test('L3 a one-digit phone: what the panel says, and Save Lead refuses it without sending anything', async ({ page, loginAs, guard }) => {
+test('L3 a phone the form cannot save is not ticked, and Save Lead refuses it without sending anything', async ({ page, loginAs, guard }) => {
   await loginAs('agent');
   const panel = await openCreateLead(page);
   const form = new LeadForm(page);
 
-  // ขั้นที่ 1: ชื่อกับเบอร์ 1 หลัก แผงนับเบอร์เป็นครบเมื่อมีตัวเลขอย่างน้อย 1 ตัว (hasPhone = phoneDigits !== '': R:21)
-  //   จดสิ่งที่แผงแสดงไว้ใน annotation (เป็นข้อสงสัยที่จะถามทีม ไม่ใช่ค่าที่คาด)
+  // ขั้นที่ 1: ชื่อกับเบอร์ที่บันทึกได้ ข้อเบอร์ครบ (ใช้เป็นจุดเริ่มเพื่อให้เห็นว่าแผงเปลี่ยนตามจริง ไม่ใช่ค้างค่าเดิม)
+  //   ตั้งแต่ pre/dev/review 0a21689 แผงใช้กฎเดียวกับปุ่ม Save (savablePhone: lib/phone.ts, phoneOk: CreateLeadForm.tsx)
+  //   เดิม (7a9bf48) แผงนับเบอร์ 1 หลักว่าครบ (บั๊กที่แจ้งทีม nestyk-web-lead-readiness-phone-for-dev-2026-11-09.md)
   await form.firstName.fill('QA Readiness');
-  await form.phone.fill('1');
   await expect(panel.item('firstName')).toHaveAttribute('data-done', 'true');
-  //   แผงได้ค่าผ่าน effect ของฟอร์ม (C:240-248) จึงรอจนหมายเหตุเลิกเป็น noteNeedContact ก่อนอ่าน (จำกัด 5 วินาที แล้วจดว่ารอทันหรือไม่)
-  const settled = await expect(panel.note)
-    .not.toHaveText(AGENT_WEB.readinessNeedContact, { timeout: 5_000 })
-    .then(() => true, () => false);
-  const phoneDone = await panel.item('phone').getAttribute('data-done');
-  const note = (await panel.note.textContent())?.trim() ?? '';
-  test.info().annotations.push({
-    type: 'ข้อสังเกต: แผงเมื่อเบอร์ 1 หลัก',
-    description: `ข้อเบอร์ data-done=${phoneDone}, หมายเหตุ "${note}"${settled ? '' : ' (หลังรอ 5 วินาที หมายเหตุยังเป็นข้อความให้กรอกชื่อและเบอร์)'}`,
-  });
+  for (const invalid of ['1', '12345']) {
+    await form.phone.fill('0800000000');
+    await expectItem(panel, 'phone', true);
+    // ขั้นที่ 2: เปลี่ยนเป็นเบอร์ที่ Save ปฏิเสธ (1 หลัก และ 5 หลัก ตามที่ทีมขอใน docs/qa-fixes/2026-11-09-lead-readiness-phone-reply.md)
+    //   ข้อเบอร์ต้องกลับเป็นยังไม่ครบ และหมายเหตุกลับเป็นข้อความให้กรอกชื่อและเบอร์
+    await form.phone.fill(invalid);
+    await expectItem(panel, 'phone', false);
+    await expect(panel.note).toHaveText(AGENT_WEB.readinessNeedContact);
+  }
 
-  // ขั้นที่ 2: กด Save Lead ฟอร์มตรวจเบอร์ด้วย phoneDraftToE164 แล้วขึ้น invalidPhone ใต้ช่อง (C:479-483) ไม่ส่ง POST /agent/leads
+  // ขั้นที่ 3: กด Save Lead (เบอร์ 12345) ฟอร์มขึ้น invalidPhone ใต้ช่อง และไม่ส่ง POST /agent/leads
   const posts: string[] = [];
   page.on('request', (request) => {
     if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/agent/leads')) posts.push(request.url());

@@ -1,6 +1,8 @@
 import { test, expect } from '../../src/web-ui/web-ui.fixture';
 import { AgentShell } from '../../src/web-ui/pages/agent-shell.page';
 import { LeadForm } from '../../src/web-ui/pages/lead-write.page';
+import { LeadReadinessPanel } from '../../src/web-ui/pages/lead-readiness.page';
+import { AGENT_WEB } from '../../src/web-ui/labels.agent-web';
 import { Notify } from '../../src/web-ui/pages/notify.page';
 import { WRITE } from '../../src/web-ui/labels';
 import { okJson, waitForApi } from '../../src/web-ui/support/api';
@@ -11,6 +13,7 @@ import { E2E_PREFIX, runId } from '../../src/web-ui/write/web-write-env';
  * เทสเขียนข้อมูลบนเว็บ: สร้างลีดผ่านฟอร์มจริง (แผน claude/nestyk-web-write-flows-plan-2026-11-06.md ข้อ LW6)
  * โค้ด: apps/consumer-app/components/CreateLeadForm.tsx, app/index.tsx:1502-1509, lib/phone.ts และ
  *   apps/api/src/agent/leads/agent-leads.service.ts ที่ qa/e2e 74b46f4 (แอป 648dd28, API a02e532)
+ *   การตรวจแผงความพร้อมก่อน Save ใช้กฎเบอร์ของแอปตั้งแต่ pre/dev/review 0a21689 (savablePhone, phoneOk)
  *
  * สร้างลีดใหม่ทุกรอบ (Aof เลือก 6 พ.ย. 2026) ลีดลบไม่ได้ (agent-leads.controller.ts:15-22 ไม่มี DELETE)
  *   - รอยต่อรอบ: ลีด 1 ราย ชื่อ E2E-WEB-<รหัสรอบ> สถานะ new
@@ -19,7 +22,7 @@ import { E2E_PREFIX, runId } from '../../src/web-ui/write/web-write-env';
  */
 
 /**
- * เบอร์ของลีดที่สร้าง ฟอร์มรับเฉพาะเบอร์ที่ libphonenumber ถือว่าถูกต้อง (CreateLeadForm.tsx:455-460, lib/phone.ts:99-106)
+ * เบอร์ของลีดที่สร้าง ฟอร์มรับเฉพาะเบอร์ที่ libphonenumber ถือว่าถูกต้อง (savablePhone / phoneDraftToE164 ใน lib/phone.ts ที่ 0a21689)
  * 080-000-0000 ผ่าน (ลองกับ libphonenumber-js/max บนเครื่อง Aof 6 พ.ย. 2026: TH MOBILE +66800000000) เลือกเลขที่ซ้ำทุกหลัก
  * เพื่อให้เห็นชัดว่าเป็นข้อมูลเทส แต่ยืนยันไม่ได้ว่าไม่มีผู้ใช้เลขนี้ แอปไม่ได้โทรหรือส่งข้อความหาลีด
  */
@@ -39,6 +42,10 @@ test('the create form saves a new lead with a name and phone', async ({ page, lo
   const form = new LeadForm(page);
   await form.firstName.fill(name);
   await form.phone.fill(LEAD_PHONE);
+  // แผงความพร้อม (จอ 1280): เบอร์ที่ Save รับต้องขึ้นครบ และหมายเหตุบอกว่าบันทึกได้ (กฎเดียวกับ Save ตั้งแต่ 0a21689: savablePhone)
+  const panel = new LeadReadinessPanel(page);
+  await expect(panel.item('phone')).toHaveAttribute('data-done', 'true');
+  await expect(panel.note).toHaveText(AGENT_WEB.readinessSaveFirst);
 
   // ขั้นที่ 2: Save Lead ส่ง POST /agent/leads ได้ 201 เบอร์แปลงเป็นรูปสากลแล้ว (:463-503)
   guard.allowWrites({ method: 'POST', path: /^\/agent\/leads$/ });
