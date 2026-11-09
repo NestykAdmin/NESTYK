@@ -32,6 +32,8 @@ function setup({ authenticated = true, signOut = async () => {}, afterSignOutPat
     setPartyInbox: value => calls.push(['inbox', value]),
     setSelectedPartyRoom: value => calls.push(['room', value]),
     setOpenedPartyContract: value => calls.push(['contract', value]),
+    // Web, SIGN_OUT_TO=login: keeps the shell's reset to guest from pushing "/" over /login (A0.1 9 Nov 2026).
+    holdGuestHomeForSignOut: () => calls.push(['hold']),
     setActiveRole: value => calls.push(['role', value]),
     setActiveTab: value => calls.push(['tab', value]),
     getDefaultTabForRole: () => 'search',
@@ -54,7 +56,7 @@ test('sign out waits for completion, clears workspace state, then replaces the r
   await result;
   assert.deepEqual(calls, [
     ['drawer', false], ['signOut'], ['inbox', false], ['room', null], ['contract', null],
-    ['role', 'guest'], ['tab', 'search'], ['alert', 'Sign out', 'Signed out'], ['replace', '/login'],
+    ['hold'], ['role', 'guest'], ['tab', 'search'], ['alert', 'Sign out', 'Signed out'], ['replace', '/login'],
   ]);
 });
 
@@ -62,7 +64,7 @@ test('the existing sign-out failure cleanup also ends at login', async () => {
   const { run, calls } = setup({ signOut: async () => { throw new Error('Sign out failed'); } });
   await run();
   assert.deepEqual(calls.slice(2), [
-    ['inbox', false], ['room', null], ['contract', null], ['role', 'guest'],
+    ['inbox', false], ['room', null], ['contract', null], ['hold'], ['role', 'guest'],
     ['tab', 'search'], ['alert', 'Sign out', 'Signed out'], ['replace', '/login'],
   ]);
 });

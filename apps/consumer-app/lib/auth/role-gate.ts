@@ -32,6 +32,20 @@ export function consumeGuestBrowse(): boolean {
   return next;
 }
 
+let signedOutElsewhere = false;
+
+/** Web: another tab signed out. Guest here too, then the page "Sign out" lands on (EXPO_PUBLIC_WEB_SIGN_OUT_TO). */
+export function requestSignOutLanding(): void {
+  requestGuestBrowse();
+  signedOutElsewhere = true;
+}
+
+export function consumeSignOutLanding(): boolean {
+  const next = signedOutElsewhere;
+  signedOutElsewhere = false;
+  return next;
+}
+
 export function roleRequiresAuth(role: UserRole): boolean {
   return role !== 'guest';
 }

@@ -1,4 +1,8 @@
 import { AgentCalendarScreen } from '../components/AgentCalendarScreen';
+import { AgentCalendarPage } from '../components/agent-web/AgentCalendarPage';
+import type { AgentCalendarPageProps } from '../components/agent-web/AgentCalendarPage.types';
+import { AgentLeadFormPage } from '../components/agent-web/AgentLeadFormPage';
+import type { LeadFormBind } from '../components/agent-web/AgentLeadFormPage.types';
 import { calendarDateKey } from '../lib/agent-calendar-demo';
 import { useAgentCalendarViewings } from '../lib/agent-calendar-viewings';
 import { getAgentLead } from '../lib/agent-leads-api';
@@ -96,12 +100,15 @@ import { APP_CONFIG } from '../lib/config';
 import {
   consumeGuestBrowse,
   consumePendingRole,
+  consumeSignOutLanding,
   roleRequiresAuth,
   setPendingRole,
 } from '../lib/auth/role-gate';
 import { ACCOUNT_DELETION_ENABLED, showAccountDeletion } from '../lib/account-deletion-flag';
 import { type AppRouteState, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
 import {
+  afterSignOutHref,
+  holdShellMove,
   landingRoleFor,
   loginHref,
   openRoleElsewhere,
@@ -177,10 +184,15 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
  * path (route plan R1, rule 21) and the "/" route renders nothing (see IndexRoute below).
  */
 /**
- * Where "Sign out" lands. Web (Mos 4 Nov 2026): the guest home "/", like any public site. Mobile (frozen): the
- * sign-in screen as before. A session that ran out still goes to /login with the "session expired" notice.
+ * Where "Sign out" lands. Web: a deploy setting (Mos 9 Nov 2026) — EXPO_PUBLIC_WEB_SIGN_OUT_TO = guest | login,
+ * unset = the guest home "/" on portal "all" and the sign-in page on a role portal (lib/route-access.ts).
+ * Mobile (frozen): the sign-in screen as before. A session that ran out still goes to /login with its notice.
  */
-const AFTER_SIGN_OUT_PATH = Platform.OS === 'web' ? '/' : '/login';
+const AFTER_SIGN_OUT_PATH = afterSignOutHref();
+/** Sign out to /login (EXPO_PUBLIC_WEB_SIGN_OUT_TO=login): the shell's reset to guest must not push "/" over it. */
+function holdGuestHomeForSignOut(): void {
+  if (AFTER_SIGN_OUT_PATH !== '/') holdShellMove(roleHomePath('guest'));
+}
 /**
  * Web width where the desktop shell (sidebar + top bar) starts. Narrower web — a phone browser — shows the mobile
  * app's own screens and bottom tabs (Mos 4 Nov 2026). Mobile apps never read this.
@@ -651,8 +663,12 @@ export function AppHomeScreen() {
     }
 
     if (consumeGuestBrowse()) {
+      // Signed out in another tab: land where "Sign out" lands in this tab ("/" needs nothing more).
+      const landElsewhere = consumeSignOutLanding() && AFTER_SIGN_OUT_PATH !== '/';
+      if (landElsewhere) holdGuestHomeForSignOut();
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
+      if (landElsewhere) router.replace(AFTER_SIGN_OUT_PATH as never);
       return;
     }
 
@@ -809,6 +825,9 @@ export function AppHomeScreen() {
         />
       );
     }
+
+    // W13 calendar page carries its own hint row and toolbar; the shell heading would be an empty 84px band.
+    if (isAgentWeb && activeTab === 'calendar') return null;
 
     if (agentSectionTabs.includes(activeTab)) {
       const isCreateLead = activeTab === 'createLead';
@@ -1393,24 +1412,28 @@ export function AppHomeScreen() {
     }
 
     if (activeTab === 'calendar' && activeRole === 'agent') {
-      return <AgentCalendarScreen
-        key={session?.userId ?? 'guest'}
-        viewings={calendarViewings.viewings}
-        status={calendarViewings.status}
-        onRetry={() => setCalendarReloadToken(++refreshSequence.current)}
-        onSaved={viewing => {
+      const calendarProps: AgentCalendarPageProps = {
+        viewings: calendarViewings.viewings,
+        status: calendarViewings.status,
+        onRetry: () => setCalendarReloadToken(++refreshSequence.current),
+        onSaved: viewing => {
           if (viewing.status !== 'cancelled') {
             const date = calendarDateKey(new Date(viewing.scheduledAt));
             setCalendarSelectedDate(date);
             setCalendarMonth(date.slice(0, 7) + '-01');
           }
           setCalendarReloadToken(++refreshSequence.current);
-        }}
-        selectedDate={calendarSelectedDate}
-        onSelectDate={setCalendarSelectedDate}
-        visibleMonth={calendarMonth}
-        onMonthChange={setCalendarMonth}
-      />;
+        },
+        selectedDate: calendarSelectedDate,
+        onSelectDate: setCalendarSelectedDate,
+        visibleMonth: calendarMonth,
+        onMonthChange: setCalendarMonth,
+      };
+      // Desktop web (W13, Mos 6 Nov 2026): calendar page; phone and phone-width web keep the app screen.
+      if (isAgentWeb) {
+        return <AgentCalendarPage key={session?.userId ?? 'guest'} {...calendarProps} onOpenLeads={() => handleTabPress('listingLead')} />;
+      }
+      return <AgentCalendarScreen key={session?.userId ?? 'guest'} {...calendarProps} />;
     }
 
     if (activeTab === 'calendar') {
@@ -1479,32 +1502,43 @@ export function AppHomeScreen() {
     }
 
     if (activeTab === 'createLead') {
+      const leadForm = (bind: LeadFormBind) =>
+        leadEdit && activeLead ? (
+          <CreateLeadForm
+            key={activeLead.id}
+            initialLead={activeLead}
+            initialTab={leadEdit.tab}
+            onBusy={setCreateLeadBusy}
+            onSaved={(lead) => {
+              setActiveLead(lead);
+              setLeadEdit(null);
+              setActiveTab(leadEdit.returnTab);
+            }}
+            {...bind}
+          />
+        ) : (
+          <CreateLeadForm
+            onBusy={setCreateLeadBusy}
+            onSaved={() => {
+              Alert.alert(t.agent.leads.saved);
+              setSecondaryReturnTab(null);
+              setActiveTab('listingLead');
+            }}
+            {...bind}
+          />
+        );
       return (
         <Animated.View
           entering={FadeIn.duration(150)}
           style={[styles.wizardBody, styles.fullBleedBody]}
         >
-          {leadEdit && activeLead ? (
-            <CreateLeadForm
-              key={activeLead.id}
-              initialLead={activeLead}
-              initialTab={leadEdit.tab}
-              onBusy={setCreateLeadBusy}
-              onSaved={(lead) => {
-                setActiveLead(lead);
-                setLeadEdit(null);
-                setActiveTab(leadEdit.returnTab);
-              }}
-            />
+          {/* Desktop web (W17, Mos 6 Nov 2026): form + readiness panel; phone and phone-width web keep the app form. */}
+          {isAgentWeb ? (
+            <AgentLeadFormPage key={leadEdit && activeLead ? `edit-${activeLead.id}` : 'create'} mode={leadEdit && activeLead ? 'edit' : 'create'}>
+              {leadForm}
+            </AgentLeadFormPage>
           ) : (
-            <CreateLeadForm
-              onBusy={setCreateLeadBusy}
-              onSaved={() => {
-                Alert.alert(t.agent.leads.saved);
-                setSecondaryReturnTab(null);
-                setActiveTab('listingLead');
-              }}
-            />
+            leadForm({})
           )}
         </Animated.View>
       );
@@ -1641,6 +1675,7 @@ export function AppHomeScreen() {
       setPartyInbox(false);
       setSelectedPartyRoom(null);
       setOpenedPartyContract(null);
+      holdGuestHomeForSignOut();
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
@@ -1649,6 +1684,7 @@ export function AppHomeScreen() {
       setPartyInbox(false);
       setSelectedPartyRoom(null);
       setOpenedPartyContract(null);
+      holdGuestHomeForSignOut();
       setActiveRole('guest');
       setActiveTab(getDefaultTabForRole('guest'));
       Alert.alert(t.common.signOut, t.mobile.auth.signedOut);
@@ -1663,6 +1699,7 @@ export function AppHomeScreen() {
     setPartyInbox(false);
     setSelectedPartyRoom(null);
     setOpenedPartyContract(null);
+    holdGuestHomeForSignOut();
     setActiveRole('guest');
     setActiveTab(getDefaultTabForRole('guest'));
     router.replace(AFTER_SIGN_OUT_PATH);

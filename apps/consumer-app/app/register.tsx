@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { MobileButton, MobileIcon, MobileInput, MobileNestykLogo, SelectionCheck, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
+import { socialLoginProvider } from '../lib/auth/google-oauth';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
 import { authErrorText, isInvalidOtp } from '../lib/auth/auth-error';
@@ -47,6 +48,7 @@ export default function RegisterScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [code, setCode] = useState('');
   const [resendIn, setResendIn] = useState(0);
@@ -258,42 +260,52 @@ export default function RegisterScreen() {
                     <Text style={[styles.dividerLabel, { color: theme.textSecondary }]}>{copy.registerOr}</Text>
                     <View style={[styles.divider, { backgroundColor: theme.border }]} />
                   </View>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel={copy.registerWithGoogle}
-                    disabled={loading}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      if (loading) return;
-                      setError(null);
-                      setLoading(true);
-                      void signInWithGoogle()
-                        .catch((e) => setError(localizedError(e, copy.registrationFailed, locale)))
-                        .finally(() => setLoading(false));
-                    }}
-                    style={[styles.googleButton, { borderColor: theme.border, backgroundColor: theme.background }]}
-                  >
-                    <GoogleMark />
-                    <Text style={[styles.googleLabel, { color: theme.textHeading }]}>{copy.registerWithGoogle}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel={copy.registerWithFacebook}
-                    disabled={loading}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      if (loading) return;
-                      setError(null);
-                      setLoading(true);
-                      void signInWithFacebook()
-                        .catch((e) => setError(localizedError(e, copy.registrationFailed, locale)))
-                        .finally(() => setLoading(false));
-                    }}
-                    style={[styles.googleButton, { borderColor: theme.border, backgroundColor: theme.background }]}
-                  >
-                    <MobileIcon name="facebook" size={22} color="#1877F2" weight="fill" />
-                    <Text style={[styles.googleLabel, { color: theme.textHeading }]}>{copy.registerWithFacebook}</Text>
-                  </TouchableOpacity>
+                  {([
+                    { provider: 'Google', label: copy.registerWithGoogle, start: signInWithGoogle },
+                    { provider: 'Facebook', label: copy.registerWithFacebook, start: signInWithFacebook },
+                    { provider: 'Apple', label: copy.registerWithApple, start: null },
+                  ] as const).map(({ provider, label, start }) => {
+                    // Mos 9 Nov 2026: off until EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true (Apple always): faded + "coming soon",
+                    // a tap explains it instead of calling a provider that is not set up.
+                    const ready = start !== null && socialLoginProvider(provider, process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN) !== null;
+                    return (
+                      <TouchableOpacity
+                        key={provider}
+                        accessibilityRole="button"
+                        accessibilityLabel={label}
+                        accessibilityHint={ready ? undefined : copy.socialComingSoon}
+                        disabled={loading}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          if (loading) return;
+                          setError(null);
+                          if (!ready || !start) {
+                            setNotice(copy.unavailable);
+                            return;
+                          }
+                          setNotice(null);
+                          setLoading(true);
+                          void start()
+                            .catch((e) => setError(localizedError(e, copy.registrationFailed, locale)))
+                            .finally(() => setLoading(false));
+                        }}
+                        style={[styles.googleButton, { borderColor: theme.border, backgroundColor: theme.background }]}
+                      >
+                        <View style={[styles.socialInner, !ready && styles.socialSoon]}>
+                          {provider === 'Google' ? (
+                            <GoogleMark />
+                          ) : (
+                            <MobileIcon name={provider === 'Facebook' ? 'facebook' : 'apple'} size={22} color={provider === 'Facebook' ? '#1877F2' : theme.textHeading} weight="fill" />
+                          )}
+                          <Text style={[styles.googleLabel, { color: theme.textHeading }]}>{label}</Text>
+                        </View>
+                        {!ready ? <Text style={[styles.socialSoonText, { color: theme.textSecondary }]}>{copy.socialComingSoon}</Text> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {notice ? (
+                    <Text accessibilityLiveRegion="polite" style={[styles.socialNotice, { color: theme.textSecondary }]}>{notice}</Text>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -348,5 +360,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   googleLabel: { fontFamily: tokens.typography.native.bodyBold, fontSize: 15, lineHeight: 22 },
+  socialInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  socialSoon: { opacity: 0.45 },
+  socialSoonText: { fontSize: 12, lineHeight: 18 },
+  socialNotice: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
   back: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
 });

@@ -82,6 +82,8 @@ function fillValid(form) {
 }
 
 test('registration offers Google below an or divider', () => {
+  // Social sign-up works only when EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN is "true" (off = "coming soon", next test).
+  process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN = 'true';
   const form = screen();
   const tree = form.render();
   assert.ok(tree.includes(form.copy.registerOr));
@@ -96,6 +98,33 @@ test('registration offers Google below an or divider', () => {
   assert.ok(tree.indexOf(form.copy.registerWithGoogle) < tree.indexOf(form.copy.registerWithFacebook));
   facebook.props.onPress();
   assert.deepEqual(form.facebook, ['facebook']);
+  assert.equal(form.calls.length, 0);
+  // Apple has no provider yet: still "coming soon" with the flag on.
+  const apple = tree.find(n => n?.props?.accessibilityLabel === form.copy.registerWithApple);
+  apple.props.onPress();
+  assert.ok(form.render().includes(form.copy.unavailable));
+  delete process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN;
+});
+
+test('social sign-up off: Google, Facebook and Apple say "coming soon" and only explain when pressed', () => {
+  delete process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN;
+  const form = screen();
+  let tree = form.render();
+  const labels = [form.copy.registerWithGoogle, form.copy.registerWithFacebook, form.copy.registerWithApple];
+  for (const label of labels) {
+    const button = tree.find(n => n?.props?.accessibilityLabel === label);
+    assert.ok(button, label);
+    assert.equal(button.props.accessibilityHint, form.copy.socialComingSoon, label);
+  }
+  assert.equal(tree.filter(n => n === form.copy.socialComingSoon).length, 3);
+  assert.equal(tree.includes(form.copy.unavailable), false);
+  for (const label of labels) {
+    form.render().find(n => n?.props?.accessibilityLabel === label).props.onPress();
+  }
+  tree = form.render();
+  assert.ok(tree.includes(form.copy.unavailable));
+  assert.deepEqual(form.google, []);
+  assert.deepEqual(form.facebook, []);
   assert.equal(form.calls.length, 0);
 });
 

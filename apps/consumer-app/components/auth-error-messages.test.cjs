@@ -43,8 +43,8 @@ test('sign-up shows only our texts (QA reply item 3); Google/Facebook buttons le
   assert.equal((register.match(authText('copy.registrationFailed')) || []).length, 2, 'sign up + send code again');
   assert.match(register, new RegExp(`isInvalidOtp\\(e\\)\\s*\\?\\s*copy\\.otpInvalid\\s*:\\s*${authText('t.common.errorGeneric').source}`));
   const raw = register.match(/localizedError\(e/g) || [];
-  assert.equal(raw.length, 2, 'only the two social buttons still pass the message through');
-  assert.equal((register.match(/\.catch\(\(e\) => setError\(localizedError\(e, copy\.registrationFailed, locale\)\)\)/g) || []).length, 2);
+  assert.equal(raw.length, 1, 'only the social buttons (one shared catch since Mos 9 Nov 2026) still pass the message through');
+  assert.equal((register.match(/\.catch\(\(e\) => setError\(localizedError\(e, copy\.registrationFailed, locale\)\)\)/g) || []).length, 1);
   assert.doesNotMatch(register, /localizedError\(e, copy\.otpInvalid/);
 });
 

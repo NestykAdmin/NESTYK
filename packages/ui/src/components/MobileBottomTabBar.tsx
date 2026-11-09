@@ -166,8 +166,11 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
             accessibilityLabel={soon ? `${label}, ${t.agent.dashboard.comingSoon}` : label}
           >
             {soon ? (
-              <View style={styles.soonBadge} pointerEvents="none">
-                <Text style={styles.soonBadgeText} numberOfLines={1}>
+              <View
+                style={[styles.soonBadge, { backgroundColor: theme.background, borderColor: theme.border }]}
+                pointerEvents="none"
+              >
+                <Text style={[styles.soonBadgeText, { color: theme.textHeading }]} numberOfLines={1}>
                   {t.agent.dashboard.comingSoon}
                 </Text>
               </View>
@@ -241,13 +244,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 5,
     paddingVertical: 1,
-    backgroundColor: '#F1F5F9',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   soonBadgeText: {
     fontFamily: tokens.typography.native.body,
     fontSize: 9,
     lineHeight: 12,
-    color: '#475569',
   },
   tabItem: {
     flex: 1,
