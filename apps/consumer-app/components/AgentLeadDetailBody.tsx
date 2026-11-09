@@ -131,6 +131,8 @@ const STATUS_TARGETS: Record<string, Array<'inprogress' | 'lost'>> = {
 };
 
 const MATCH_PAGE_SIZE = 10;
+/** Same limit as parseLostReason in apps/api (agent-leads.service.ts). */
+const LOST_REASON_MAX = 500;
 const { boxShadow: _webShadow, ...cardShadow } = getCardElevation(1);
 export const leadCardShadow = cardShadow;
 
@@ -403,7 +405,7 @@ export function AgentLeadDetailBody({
       setSheetOpen(false);
       setLostReason('');
     } catch (err) {
-      Alert.alert(c.loadError, localizedError(err, t.common.errorGeneric, locale));
+      Alert.alert(c.saveError, localizedError(err, t.common.errorGeneric, locale));
     } finally {
       setStatusBusy(false);
     }
@@ -712,7 +714,11 @@ export function AgentLeadDetailBody({
               onChangeText={setLostReason}
               placeholder={c.lostReasonPlaceholder}
               editable={!statusBusy}
+              maxLength={LOST_REASON_MAX}
             />
+            <Text style={[styles.meta, { color: theme.textSecondary, textAlign: 'right' }]}>
+              {lostReason.length}/{LOST_REASON_MAX}
+            </Text>
             <MobileButton onPress={() => void changeStatus('lost')} disabled={statusBusy} isLoading={statusBusy}>
               {c.confirmLost}
             </MobileButton>
