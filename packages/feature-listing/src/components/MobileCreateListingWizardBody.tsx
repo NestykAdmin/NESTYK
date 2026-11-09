@@ -57,6 +57,7 @@ import {
 } from '../listing-source';
 import { formatBedroomSpec } from '../bedroom-label';
 import { PlaceDetails, PlaceSuggestion } from '../places';
+import { placesSearchAction } from './places-search-gate';
 import { PropertyPlaceMap } from './PropertyPlaceMap';
 import { MoveInDateField, todayIsoDate, clampMoveInDate } from './MoveInDateField';
 
@@ -424,7 +425,7 @@ export const MobileCreateListingWizardBody: React.FC<
   const [pinResolving, setPinResolving] = useState(false);
   const [placeEntryMode, setPlaceEntryMode] = useState<'search' | 'manual'>('search');
   const [addressFromPlace, setAddressFromPlace] = useState(false);
-  const skipPlacesSearch = useRef(false);
+  const appliedPlaceName = useRef<string | null>(null);
   const placesSeq = useRef(0);
   const searchPlacesRef = useRef(searchPlaces);
   const getPlaceDetailsRef = useRef(getPlaceDetails);
@@ -626,7 +627,7 @@ export const MobileCreateListingWizardBody: React.FC<
     setOwnerLine(initialData.contact?.lineId ?? '');
     setOwnerFacebook(initialData.contact?.facebook ?? '');
     setOwnerOther(initialData.contact?.note ?? '');
-    skipPlacesSearch.current = true;
+    appliedPlaceName.current = p.name;
   }, [initialData, listContacts]);
 
   const promoInitRef = useRef(false);
@@ -963,13 +964,11 @@ export const MobileCreateListingWizardBody: React.FC<
       setHasSearchedPlaces(false);
       return;
     }
-    if (skipPlacesSearch.current) {
-      skipPlacesSearch.current = false;
-      return;
-    }
+    const action = placesSearchAction(propertyName, appliedPlaceName.current);
+    if (action === 'skip') return;
 
     const query = propertyName.trim();
-    if (query.length < 2) {
+    if (action === 'clear') {
       setSuggestions([]);
       setPlacesLoading(false);
       setPlacesError('');
@@ -1297,14 +1296,14 @@ export const MobileCreateListingWizardBody: React.FC<
     const loadDetails = getPlaceDetailsRef.current;
     if (!loadDetails) return;
     Keyboard.dismiss();
-    skipPlacesSearch.current = true;
+    appliedPlaceName.current = item.name;
     placesSeq.current += 1;
     setSuggestions([]);
     setHasSearchedPlaces(false);
     setPlacesLoading(true);
     try {
       const details = await loadDetails(item.placeId);
-      skipPlacesSearch.current = true;
+      appliedPlaceName.current = details.name || item.name;
       applyPlaceDetails(details, item.name);
       setPlaceEntryMode('search');
     } catch (err) {
@@ -2632,7 +2631,10 @@ export const MobileCreateListingWizardBody: React.FC<
                 </>
               ) : searchPlaces ? (
                 <Pressable
-                  onPress={() => setPlaceEntryMode('search')}
+                  onPress={() => {
+                    appliedPlaceName.current = null;
+                    setPlaceEntryMode('search');
+                  }}
                   accessibilityRole="button"
                   hitSlop={6}
                   style={styles.manualEntryRow}
