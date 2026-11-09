@@ -29,6 +29,7 @@ import {
 } from "@nestyk/ui/native";
 import { useAuth } from "../lib/auth/AuthContext";
 import { hcaptchaSiteKey } from "../lib/auth/hcaptcha-site-key";
+import { signInErrorKind, type SignInErrorKind } from "../lib/auth/auth-error";
 import { HcaptchaField } from "../components/HcaptchaField";
 import { AuthLegalFooter } from "../components/legal/AuthLegalFooter";
 import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
@@ -121,7 +122,15 @@ export default function LoginScreen() {
       // Web leaves through the effect above once the session (and its roles) is in; mobile goes home now.
       if (Platform.OS !== "web") router.replace("/");
     } catch (e) {
-      setError(localizedError(e, t.mobile.auth.invalidCredentials, locale));
+      // One of our texts per cause, never Supabase's or the API's own message (QA 9 Nov 2026).
+      const messages: Record<SignInErrorKind, string> = {
+        invalidCredentials: t.mobile.auth.invalidCredentials,
+        network: t.mobile.auth.networkError,
+        emailNotConfirmed: t.mobile.auth.emailNotConfirmed,
+        rateLimited: t.mobile.auth.tooManyAttempts,
+        generic: t.common.errorGeneric,
+      };
+      setError(messages[signInErrorKind(e)]);
     } finally {
       setCaptchaToken(null);
       setCaptchaKey(captchaKey + 1);

@@ -146,7 +146,9 @@ test('successful registration enters the app; a signup rejection stays on the fo
   const failed = screen({ error: new Error('Email already registered') });
   fillValid(failed);
   await failed.submit();
-  assert.ok(failed.render().includes('Email already registered'));
+  // QA reply item 3 (9 Nov 2026): our own text, never the raw message.
+  assert.ok(failed.render().includes(failed.copy.registrationFailed));
+  assert.ok(!failed.render().includes('Email already registered'));
   assert.deepEqual(failed.routes, []);
 });
 

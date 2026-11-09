@@ -361,6 +361,12 @@ export interface TranslationSchema {
       welcomeSubtitle: string;
       continueAsGuest: string;
       invalidCredentials: string;
+      /** Login could not reach Supabase or the API, or they answered 5xx. */
+      networkError: string;
+      /** Login refused: the email is not confirmed yet. */
+      emailNotConfirmed: string;
+      /** Login refused: too many attempts (rate limit). */
+      tooManyAttempts: string;
       sessionExpired: string;
       signedOut: string;
       signInToContinue: string;

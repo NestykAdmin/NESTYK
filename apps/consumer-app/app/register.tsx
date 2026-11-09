@@ -12,6 +12,7 @@ import { MobileButton, MobileIcon, MobileInput, MobileNestykLogo, SelectionCheck
 import { useAuth } from '../lib/auth/AuthContext';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { authErrorText, isInvalidOtp } from '../lib/auth/auth-error';
 import { HcaptchaField } from '../components/HcaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 import { ConsentLabel } from '../components/legal/ConsentLabel';
@@ -126,7 +127,7 @@ export default function RegisterScreen() {
           ? copy.testRegistrationUnavailable
           : code === 'REGISTRATION_FAILED' || code === 'REGISTRATION_INVALID_INPUT'
             ? copy.registrationFailed
-            : localizedError(e, copy.registrationFailed, locale));
+            : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: copy.registrationFailed }));
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -147,7 +148,7 @@ export default function RegisterScreen() {
       await verifySignupCode(email, code.trim(), { firstName, lastName, phone: phoneNumber });
       router.replace('/');
     } catch (e) {
-      setError(localizedError(e, copy.otpInvalid, locale));
+      setError(isInvalidOtp(e) ? copy.otpInvalid : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: t.common.errorGeneric }));
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -170,7 +171,7 @@ export default function RegisterScreen() {
       setResendIn(60);
     } catch (e) {
       resetCaptcha();
-      setError(localizedError(e, copy.registrationFailed, locale));
+      setError(authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: copy.registrationFailed }));
     } finally {
       setLoading(false);
     }
