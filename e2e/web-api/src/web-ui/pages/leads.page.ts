@@ -12,6 +12,12 @@ export function enNumber(value: number): string {
 }
 
 /**
+ * ตัวเลือก CSS ของส่วนที่แสดงรายการลีด (รากของหน้า :268 testid leads.page และแถวของตาราง WebTable.tsx:169 testid leads.table.row.<id>)
+ * ใช้ในโค้ดที่รันในหน้า (page.evaluate / addInitScript) ซึ่งรับ Locator ไม่ได้ ต้องตรงกับ root กับ rows ของ LeadsPage
+ */
+export const LEAD_LIST_SELECTOR = '[data-testid="leads.page"], [data-testid^="leads.table.row."]';
+
+/**
  * หน้าลีดของนายหน้าบนจอกว้าง /agent/leads (apps/consumer-app/components/agent-web/AgentLeadsPage.web.tsx ที่ 648dd28)
  * API: GET /agent/leads?q=&page=&limit=20[&sort][&status][&province][&locations] (lib/agent-leads-api.ts:20-29)
  * ตารางแสดงชื่อและเบอร์ของลูกค้าจริง ห้ามพิมพ์ข้อความของแถวออกรายงาน (ตรวจด้วยจำนวนหรือ testid แทน)
