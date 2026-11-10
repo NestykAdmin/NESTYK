@@ -4,6 +4,7 @@
 - **ถึง:** Aof (QA)
 - **ตอบเอกสาร:** `nestyk-login-error-cases-qa-reply-2026-11-09.md`
 - **ต่อจาก:** `docs/qa-fixes/2026-11-09-login-network-error-reply.md` (การแก้รอบแรก) ข้อความบนหน้า login ในเอกสารนั้นถูกแทนด้วยตารางในเอกสารนี้
+- **โค้ด:** merge เข้า `UXUI/develop` แล้ว (`fe5d348`, รวมงานของ Mos ถึง `7a9bf48`)
 
 ## สรุป
 
@@ -13,7 +14,7 @@
 | ข้อความ "เชื่อมต่อไม่ได้" (ใช้คำที่ QA ปรับ) | **แก้แล้ว** |
 | ข้อความ "ยังไม่ได้ยืนยันอีเมล" (ญี่ปุ่นใช้คำที่ QA ปรับ) | **แก้แล้ว** |
 | ข้อความ "ลองบ่อยเกินไป" (QA ขอย้ายเข้ารอบนี้) | **แก้แล้ว** |
-| หน้าสมัครใช้กฎเดียวกัน (captcha หลุดข้อความดิบบนหน้าอังกฤษ) | **แก้แล้ว** ยกเว้นปุ่มสมัครด้วย Google/Facebook (ดูหัวข้อหน้าสมัคร) |
+| หน้าสมัครใช้กฎเดียวกัน (captcha หลุดข้อความดิบบนหน้าอังกฤษ) | **แก้แล้ว** (ปุ่มสมัครด้วย Google/Facebook ดูหัวข้อหน้าสมัคร) |
 | หน้าลืมรหัสผ่านใช้กฎเดียวกัน (เพิ่มจากที่ QA เสนอ) | **แก้แล้ว** |
 | สมัครซ้ำด้วยอีเมลที่ยังไม่ยืนยัน ได้รหัสใหม่ไหม | **ยังไม่ได้ทดสอบ** ดูหัวข้อ "คำถามของ QA" |
 
@@ -66,14 +67,14 @@
 
 | จุด | ไฟล์ | ข้อความที่แสดง |
 | --- | --- | --- |
-| กดสมัคร | `apps/consumer-app/app/register.tsx:130` | กรณีพิเศษเดิมคงไว้ (ยังไม่ได้ตั้งค่า Supabase, สมัครแบบทดสอบใช้ไม่ได้, API ตอบสมัครไม่สำเร็จ) / เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น → สมัครสมาชิกไม่สำเร็จ… |
-| ใส่รหัส 6 หลัก | `register.tsx:151` | รหัสผิดหรือหมดอายุ → รหัสไม่ถูกต้อง… / เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น (รวม API sync ล้มหลังยืนยันรหัส) → ข้อความกลาง |
-| ส่งรหัสใหม่ | `register.tsx:174` | เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น → สมัครสมาชิกไม่สำเร็จ… |
+| กดสมัคร | `apps/consumer-app/app/register.tsx:132` | กรณีพิเศษเดิมคงไว้ (ยังไม่ได้ตั้งค่า Supabase, สมัครแบบทดสอบใช้ไม่ได้, API ตอบสมัครไม่สำเร็จ) / เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น → สมัครสมาชิกไม่สำเร็จ… |
+| ใส่รหัส 6 หลัก | `register.tsx:153` | รหัสผิดหรือหมดอายุ → รหัสไม่ถูกต้อง… / เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น (รวม API sync ล้มหลังยืนยันรหัส) → ข้อความกลาง |
+| ส่งรหัสใหม่ | `register.tsx:176` | เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น → สมัครสมาชิกไม่สำเร็จ… |
 | ขอลิงก์รีเซ็ต | `apps/consumer-app/app/reset-password.tsx:97` | เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น → ข้อความกลาง |
 | ตั้งรหัสใหม่ | `reset-password.tsx:136` | ลิงก์ใช้ไม่ได้ → ข้อความเดิม / เชื่อมต่อไม่ได้ → `networkError` / บ่อยเกิน → `tooManyAttempts` / นอกนั้น → ข้อความกลาง |
 
 - กติกาอยู่ที่ `authErrorText` ใน `apps/consumer-app/lib/auth/auth-error.ts` ใช้ตัวแยกสาเหตุตัวเดียวกับหน้า login "ส่งอีเมลบ่อยเกิน" (`over_email_send_rate_limit`) นับเป็นบ่อยเกินด้วย เพราะ Supabase ตอบ 429
-- **ข้ามไว้:** ปุ่ม "สมัครด้วย Google / Facebook" บนหน้าสมัคร (`register.tsx` ส่วนปุ่ม social) ยังส่งต่อข้อความดิบแบบเดิม ปุ่มนี้ไม่ได้เช็ก flag `EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN` เหมือนหน้า login จึงกดได้และ error จริงตอน provider ปิดอยู่ จะคุยกับ Mos แยก
+- **ปุ่ม "สมัครด้วย Google / Facebook":** รอบนี้ไม่ได้แก้ข้อความของปุ่มนี้ ตัวปุ่ม Mos ทำเป็น "coming soon" ตาม flag `EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN` แล้ว (มาพร้อมการ merge `UXUI/develop`) ถ้าเปิด flag แล้วล็อกอินผ่าน provider ไม่สำเร็จ หน้าอังกฤษยังอาจเห็นข้อความดิบจาก Supabase
 - **ผลกระทบหน้าอังกฤษ:** ข้อความของ Supabase ที่เคยเห็น เช่น captcha ไม่ผ่าน, ปิดรับสมัคร, รหัสใหม่ซ้ำของเดิม กลายเป็นข้อความของเรา "รหัสใหม่ซ้ำของเดิม" จะได้ข้อความเฉพาะหลัง launch ตามที่ตกลงไว้
 - **แก้เทสเดิม 1 ข้อ:** `apps/consumer-app/components/registration.test.cjs` ข้อ "a signup rejection stays on the form with feedback" เดิมตรวจว่าหน้าจอแสดงข้อความดิบ "Email already registered" ตอนนี้ตรวจว่าแสดง "สมัครสมาชิกไม่สำเร็จ…" และไม่มีข้อความดิบ (ข้อความนี้มาจากการสมัครแบบทดสอบใน dev build เท่านั้น)
 
@@ -81,16 +82,17 @@
 
 - `apps/consumer-app/lib/auth/auth-error.test.cjs`: เทสการแยกสาเหตุครบทุกเคสในตาราง (เคส 3–16 + `TypeError` + error ที่ไม่ใช่ `Error`) ใช้ error หน้าตาเดียวกับที่ Supabase และ `lib/api.ts` สร้างจริง และมีข้อตรวจว่าหน้า login ไม่มีข้อความดิบหลุดในทุกเคส
 - `apps/consumer-app/lib/auth/auth-error.test.cjs` (เพิ่ม): `authErrorText` กับ captcha ไม่ผ่าน, ปิดรับสมัคร, ส่งอีเมลบ่อยเกิน, รหัสใหม่ซ้ำของเดิม, เชื่อม Supabase ไม่ได้, API sync ไม่ตอบ / 502 HTML / ข้อความ master_roles / 404 และ error ว่าง
-- `apps/consumer-app/components/auth-error-messages.test.cjs`: หน้า login ใช้ `signInErrorKind` และไม่มี `localizedError(e` ใน `onSubmit`, ข้อความใหม่ 3 key มีครบ 4 ภาษาและใน `types.ts`, หน้าสมัคร 3 จุดและหน้าลืมรหัสผ่าน 2 จุดใช้ `authErrorText` (เหลือ `localizedError` แค่ปุ่ม Google/Facebook 2 จุดที่ข้ามไว้)
+- `apps/consumer-app/components/auth-error-messages.test.cjs`: หน้า login ใช้ `signInErrorKind` และไม่มี `localizedError(e` ใน `onSubmit`, ข้อความใหม่ 3 key มีครบ 4 ภาษาและใน `types.ts`, หน้าสมัคร 3 จุดและหน้าลืมรหัสผ่าน 2 จุดใช้ `authErrorText` (เหลือ `localizedError` จุดเดียวที่ปุ่ม Google/Facebook)
 - ทุกข้อที่เพิ่มหรือแก้ไม่ผ่านกับโค้ดก่อนแก้ และผ่านหลังแก้
 
-ผลรัน 9 พ.ย. 2026
+ผลรัน 9 พ.ย. 2026 บนโค้ดหลัง merge `UXUI/develop`
 
 | คำสั่ง | ผล |
 | --- | --- |
 | `node --test lib/auth/auth-error.test.cjs components/auth-error-messages.test.cjs` ใน `apps/consumer-app` | ผ่าน 35/35 |
 | `npx tsc --noEmit` ใน `apps/consumer-app` (ตรวจ `types.ts` ของ i18n ด้วย) | ผ่าน |
-| `node --test components/*.test.cjs lib/*.test.cjs lib/*/*.test.cjs` ใน `apps/consumer-app` | ผ่าน 616/616 |
+| `node --test components/*.test.cjs lib/*.test.cjs lib/*/*.test.cjs` ใน `apps/consumer-app` (รวมเทสของ Mos) | ผ่าน 662/662 |
+| `npm run check:roles` | ผ่าน |
 
 `npx tsc --noEmit` ใน `packages/i18n` แยกต่างหากล้มด้วย error เรื่องตั้งค่า JSX ใน `LocaleContext.tsx` ซึ่งไม่ได้แก้ในรอบนี้ เป็นเรื่องตั้งค่าของแพ็กเกจเอง
 
@@ -110,6 +112,5 @@
 
 ## ยังเหลือ
 
-- ปุ่มสมัครด้วย Google/Facebook บนหน้าสมัคร (ส่งเรื่องให้ Mos)
 - ทดสอบสมัครซ้ำด้วยอีเมลที่ยังไม่ยืนยัน
 - คนตรวจภาษาจีน
