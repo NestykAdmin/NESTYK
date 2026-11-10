@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocale } from '@nestyk/i18n';
 import { AccountCompleteModal, MobileButton, MobileInput, MobileNestykLogo, tokens, useMobileTheme } from '@nestyk/ui/native';
@@ -22,6 +22,7 @@ export default function ResetPasswordScreen() {
   const copy = t.mobile.auth;
   const { theme } = useMobileTheme();
   const router = useRouter();
+  const linkParams = useLocalSearchParams<{ token_hash?: string; type?: string }>();
   const insets = useSafeAreaInsets();
   const { requestPasswordReset, verifyRecoveryLink, hasResetSession, saveResetPassword, enterAfterPasswordReset, isAuthenticated, signOut } = useAuth();
   const [step, setStep] = useState<Step>(openedRecoveryTokenHash || openedPasswordResetLink ? 'password' : 'email');
@@ -48,12 +49,13 @@ export default function ResetPasswordScreen() {
 
   // Drop the token from the address at once, so a refresh or a shared screenshot does not carry it. The token was read
   // when the app loaded (lib/auth/supabase.ts), so saving still works; the email link itself stays usable until then.
+  // Through the router, not window.history: expo-router rebuilds the address from these params on every state change
+  // and wrote the token back (QA Aof 10 Nov 2026).
+  const linkInAddress = linkParams.token_hash !== undefined || linkParams.type !== undefined;
   useEffect(() => {
     if (!openedRecoveryTokenHash && !openedBrokenResetLink) return;
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.search) {
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-  }, []);
+    if (Platform.OS === 'web' && linkInAddress) router.setParams({ token_hash: undefined, type: undefined });
+  }, [linkInAddress, router]);
 
   // An older `?code=` link signs in while the app loads. When that did not happen (a bad or used code), say so on the
   // email step instead of showing a form that cannot save.
