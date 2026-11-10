@@ -4,12 +4,21 @@ const fs = require('node:fs');
 const path = require('path');
 const ts = require('typescript');
 
-const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'reset-password.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText;
-const mod = { exports: {} };
-new Function('require', 'module', 'exports', source)(() => { throw new Error('unexpected import'); }, mod, mod.exports);
+/** Loads a lib/auth file bare; only ./auth-error (itself import-free) may be imported. */
+function load(file) {
+  const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, file), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', source)((id) => {
+    if (id === './auth-error') return load('auth-error.ts');
+    throw new Error(`unexpected import ${id}`);
+  }, mod, mod.exports);
+  return mod.exports;
+}
+const mod = { exports: load('reset-password.ts') };
 const { requestPasswordReset, verifyRecoveryLink, recoveryTokenHash, saveResetPassword, RECOVERY_SESSION_MISSING } = mod.exports;
+const { signInErrorKind } = load('auth-error.ts');
 
 function client(overrides = {}) {
   const calls = [];
@@ -114,4 +123,40 @@ test('QA 4 Nov 2026 item 4: "?type=recovery" alone is not a reset link; it is a 
   }
   assert.equal(brokenRecoveryLanding(base), false, 'the plain forgot-password page is not a link at all');
   assert.equal(brokenRecoveryLanding(''), false);
+});
+
+// QA Aof 10 Nov 2026 (item 5, B1-B3): the forgot-password page showed the general text for 429 and a dropped
+// connection, because both calls re-threw `new Error(error.message)` and lost Supabase's name, status and code.
+/** An error as supabase-js returns it in `{ error }`. */
+const supabaseError = (name, status, code, message) => ({ name, status, code, message });
+const failures = [
+  ['too many emails (429)', supabaseError('AuthApiError', 429, 'over_email_send_rate_limit', 'email rate limit exceeded'), 'rateLimited'],
+  ['too many requests (429, no code)', supabaseError('AuthApiError', 429, undefined, 'Too Many Requests'), 'rateLimited'],
+  ['Supabase unreachable', supabaseError('AuthRetryableFetchError', 0, undefined, 'Failed to fetch'), 'network'],
+  ['Supabase 503', supabaseError('AuthRetryableFetchError', 503, undefined, 'Service Unavailable'), 'network'],
+  ['same password as before', supabaseError('AuthApiError', 422, 'same_password', 'New password should be different from the old password.'), 'generic'],
+];
+
+for (const [name, error, kind] of failures) {
+  test(`QA Aof 10 Nov 2026: sending the reset link, ${name} -> ${kind}`, async () => {
+    const thrown = await requestPasswordReset(client({ requestError: error }), 'jom@nestyk.com').then(() => null, (e) => e);
+    assert.ok(thrown instanceof Error);
+    assert.equal(signInErrorKind(thrown), kind);
+    assert.equal(thrown.message, error.message, 'message kept for logs');
+  });
+
+  test(`QA Aof 10 Nov 2026: saving the new password, ${name} -> ${kind}`, async () => {
+    const auth = client({ updateError: error });
+    const thrown = await saveResetPassword(auth, 'Abcdefg1').then(() => null, (e) => e);
+    assert.ok(thrown instanceof Error);
+    assert.equal(signInErrorKind(thrown), kind);
+    assert.notEqual(thrown.code, RECOVERY_SESSION_MISSING);
+    assert.deepEqual(auth.calls.map((c) => c[0]), ['update'], 'a failed save signs no one out');
+  });
+}
+
+test('QA Aof 10 Nov 2026: no reset session still throws RECOVERY_SESSION_MISSING with Supabase\'s name kept', async () => {
+  const thrown = await saveResetPassword(client({ updateError: supabaseError('AuthSessionMissingError', 400, undefined, 'Auth session missing!') }), 'Abcdefg1').then(() => null, (e) => e);
+  assert.equal(thrown.code, RECOVERY_SESSION_MISSING);
+  assert.equal(thrown.name, 'AuthSessionMissingError');
 });
