@@ -13,6 +13,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { socialLoginProvider } from '../lib/auth/google-oauth';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { authErrorText, isInvalidOtp } from '../lib/auth/auth-error';
 import { HcaptchaField } from '../components/HcaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 import { ConsentLabel } from '../components/legal/ConsentLabel';
@@ -128,7 +129,7 @@ export default function RegisterScreen() {
           ? copy.testRegistrationUnavailable
           : code === 'REGISTRATION_FAILED' || code === 'REGISTRATION_INVALID_INPUT'
             ? copy.registrationFailed
-            : localizedError(e, copy.registrationFailed, locale));
+            : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: copy.registrationFailed }));
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -149,7 +150,7 @@ export default function RegisterScreen() {
       await verifySignupCode(email, code.trim(), { firstName, lastName, phone: phoneNumber });
       router.replace('/');
     } catch (e) {
-      setError(localizedError(e, copy.otpInvalid, locale));
+      setError(isInvalidOtp(e) ? copy.otpInvalid : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: t.common.errorGeneric }));
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -172,7 +173,7 @@ export default function RegisterScreen() {
       setResendIn(60);
     } catch (e) {
       resetCaptcha();
-      setError(localizedError(e, copy.registrationFailed, locale));
+      setError(authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: copy.registrationFailed }));
     } finally {
       setLoading(false);
     }
@@ -254,6 +255,8 @@ export default function RegisterScreen() {
                   {captchaRequired && !forTesting ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                   {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
                   <MobileButton onPress={onSubmit} isLoading={loading} disabled={loading}>{copy.registerButton}</MobileButton>
+                  {/* PDPA plan FE5: the privacy policy is shown here as a notice (no checkbox); the checkbox above is the terms only. */}
+                  <ConsentLabel template="privacyNotice" fallback={copy.privacyNotice} linkColor={theme.textHeading} style={[styles.body, styles.privacyNotice, { color: theme.textSecondary }]} />
                   <View style={styles.dividerRow}>
                     <View style={[styles.divider, { backgroundColor: theme.border }]} />
                     <Text style={[styles.dividerLabel, { color: theme.textSecondary }]}>{copy.registerOr}</Text>
@@ -350,6 +353,7 @@ const styles = StyleSheet.create({
   visibility: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40 },
   testRegistration: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   testRegistrationLabel: { flex: 1 },
+  privacyNotice: { textAlign: 'center' },
   error: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 20, color: tokens.colors.error },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   divider: { height: StyleSheet.hairlineWidth, flex: 1 },

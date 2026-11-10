@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
 import WebAppHost from '../components/web-routes/WebAppHost';
 import { IdleSignOutGate } from '../components/web-session/IdleSignOutGate';
 import { WebNotifier } from '../components/web-notify/WebNotifier';
+import { CookieNotice } from '../components/legal/CookieNotice';
 import { loadPreferredLocale, savePreferredLocale } from '../lib/locale-storage';
 import { Mitr_400Regular, Mitr_500Medium } from '@expo-google-fonts/mitr';
 import {
@@ -116,6 +117,8 @@ export default function Layout() {
                 <IdleSignOutGate />
                 {/* Web only: Alert.alert shows a toast (bottom right) or a confirm dialog (plan A6). Mobile: nothing. */}
                 <WebNotifier />
+                {/* Web only: first-visit cookie notice (PDPA plan FE1). Mobile: nothing. */}
+                <CookieNotice />
               </BootstrapGate>
             </GestureHandlerRootView>
           </AuthProvider>

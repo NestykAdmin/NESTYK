@@ -9,6 +9,7 @@ import {
   APILoadingStatus,
 } from '@vis.gl/react-google-maps';
 import { useLocale } from '@nestyk/i18n';
+import { MapConsentGate } from './MapConsentGate';
 import { MobileIcon, tokens } from '@nestyk/ui/native';
 
 export type PropertyPlaceMapProps = {
@@ -147,6 +148,7 @@ export const PropertyPlaceMap: React.FC<PropertyPlaceMapProps> = (props) => {
   if (!props.mapsApiKey) {
     const src = `https://www.google.com/maps?q=${props.latitude},${props.longitude}&z=16&output=embed`;
     return (
+      <MapConsentGate style={{ height: 200 }}>
       <View style={styles.wrap}>
         {createElement('iframe', {
           src,
@@ -156,13 +158,16 @@ export const PropertyPlaceMap: React.FC<PropertyPlaceMapProps> = (props) => {
           title: 'Google Map',
         })}
       </View>
+      </MapConsentGate>
     );
   }
 
   return (
-    <APIProvider apiKey={props.mapsApiKey} language={locale}>
-      <MapBody {...props} />
-    </APIProvider>
+    <MapConsentGate style={{ height: 200 }}>
+      <APIProvider apiKey={props.mapsApiKey} language={locale}>
+        <MapBody {...props} />
+      </APIProvider>
+    </MapConsentGate>
   );
 };
 

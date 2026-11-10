@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
 import type { UserRole } from '@nestyk/types';
+import { cookieConsentAllows } from '@nestyk/ui/cookie-consent';
 import {
   type AppRouteState,
   isParentRoute,
@@ -63,7 +64,8 @@ function readLastRole(): string | null {
 }
 
 function rememberRole(role: UserRole): void {
-  if (role === 'guest') return;
+  // PDPA cookie consent: a remembered setting, kept only when "Remember my settings" is allowed.
+  if (role === 'guest' || !cookieConsentAllows('preferences')) return;
   try {
     window.localStorage.setItem(LAST_ROLE_KEY, role);
   } catch {

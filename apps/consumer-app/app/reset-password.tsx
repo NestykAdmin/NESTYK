@@ -4,13 +4,14 @@ import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { localizedError, useLocale } from '@nestyk/i18n';
+import { useLocale } from '@nestyk/i18n';
 import { AccountCompleteModal, MobileButton, MobileInput, MobileNestykLogo, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
 import { openedBrokenResetLink, openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { RECOVERY_SESSION_MISSING } from '../lib/auth/reset-password';
 import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { authErrorText } from '../lib/auth/auth-error';
 import { HcaptchaField } from '../components/HcaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 
@@ -93,7 +94,7 @@ export default function ResetPasswordScreen() {
       setStep('sent');
     } catch (e) {
       resetCaptcha();
-      setError(localizedError(e, copy.registrationFailed, locale));
+      setError(authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: t.common.errorGeneric }));
     } finally {
       setLoading(false);
     }
@@ -132,7 +133,7 @@ export default function ResetPasswordScreen() {
     } catch (e) {
       // No reset session (a link without a token, a bad ?code=): the same message as a used or expired link.
       const missing = (e as { code?: unknown } | null)?.code === RECOVERY_SESSION_MISSING;
-      setError(missing ? copy.resetLinkInvalid : localizedError(e, copy.registrationFailed, locale));
+      setError(missing ? copy.resetLinkInvalid : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: t.common.errorGeneric }));
     } finally {
       setLoading(false);
     }

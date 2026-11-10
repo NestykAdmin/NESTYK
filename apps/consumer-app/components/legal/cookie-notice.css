@@ -1,0 +1,205 @@
+/* PDPA cookie bar: web only. Does not block the page; stays until the user chooses. */
+.ck-notice {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 900;
+  box-sizing: border-box;
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #334155;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
+  font-size: 13px;
+  line-height: 20px;
+}
+.ck-text {
+  margin: 0;
+}
+.ck-text a,
+.ck-more {
+  color: #1a2b48;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ck-more {
+  align-self: flex-start;
+}
+.ck-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ck-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: #1a2b48;
+  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
+  font-weight: 600;
+}
+.ck-close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  line-height: 32px;
+  cursor: pointer;
+}
+.ck-close:hover {
+  background: rgba(148, 163, 184, 0.18);
+}
+.ck-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ck-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.ck-row input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: #1a2b48;
+  cursor: pointer;
+}
+.ck-row input:disabled {
+  cursor: default;
+}
+.ck-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #1a2b48;
+  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
+  font-weight: 600;
+}
+.ck-badge {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 400;
+}
+.ck-hint {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 18px;
+}
+.ck-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* "Accept all" and "Necessary only" share one style: neither choice is pushed. */
+.ck-btn {
+  flex: 1 1 140px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #1a2b48;
+  border-radius: 999px;
+  background: #1a2b48;
+  color: #ffffff;
+  font: inherit;
+  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
+  cursor: pointer;
+}
+.ck-btn:hover {
+  background: #24395e;
+}
+.ck-link {
+  min-height: 38px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: #1a2b48;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ck-btn:focus-visible,
+.ck-link:focus-visible,
+.ck-close:focus-visible,
+.ck-row input:focus-visible,
+.ck-text a:focus-visible,
+.ck-more:focus-visible {
+  outline: 2px solid #f8b615;
+  outline-offset: 2px;
+}
+.ck-notice[data-theme="dark"] {
+  border-color: #334155;
+  background: #1e293b;
+  color: #cbd5e1;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.ck-notice[data-theme="dark"] .ck-text a,
+.ck-notice[data-theme="dark"] .ck-more,
+.ck-notice[data-theme="dark"] .ck-link {
+  color: #f4cd76;
+}
+.ck-notice[data-theme="dark"] .ck-title,
+.ck-notice[data-theme="dark"] .ck-row-title {
+  color: #f1f5f9;
+}
+.ck-notice[data-theme="dark"] .ck-hint {
+  color: #94a3b8;
+}
+.ck-notice[data-theme="dark"] .ck-badge {
+  background: #334155;
+  color: #cbd5e1;
+}
+.ck-notice[data-theme="dark"] .ck-row input {
+  accent-color: #f4cd76;
+}
+.ck-notice[data-theme="dark"] .ck-btn {
+  border-color: #f4cd76;
+  background: #f4cd76;
+  color: #1e293b;
+}
+.ck-notice[data-theme="dark"] .ck-btn:hover {
+  background: #f8d98f;
+}
+@media (max-width: 767px) {
+  .ck-notice {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: calc(100vh - 16px);
+  }
+}
+@media print {
+  .ck-notice {
+    display: none;
+  }
+}

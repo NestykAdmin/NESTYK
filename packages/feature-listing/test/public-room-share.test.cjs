@@ -67,6 +67,7 @@ function browserModule(filename) {
     if (name === 'react-native' || name === '@nestyk/ui/native') throw new Error(`Native dependency in public website: ${name}`);
     if (name === '@nestyk/i18n') return browserModule(path.join(__dirname, '../../i18n/src/index.ts'));
     if (name === '@nestyk/ui/web-content') return browserModule(path.join(__dirname, '../../ui/src/shells/WebContentContainer.tsx'));
+    if (name === '@nestyk/ui/cookie-consent') return browserModule(path.join(__dirname, '../../ui/src/consent/cookieConsent.ts'));
     if (name === '@nestyk/ui') return {
       ...browserModule(path.join(__dirname, '../../ui/src/icons/AppIcon.tsx')),
     };
@@ -82,12 +83,12 @@ function browserModule(filename) {
   return module.exports;
 }
 
-function renderPublic(shareSections) {
+function renderPublic(shareSections, mapsApiKey) {
   moduleCache.clear();
   const { LocaleProvider } = browserModule(path.join(__dirname, '../../i18n/src/index.ts'));
   const { PublicRoomDesktopBody } = browserModule(path.join(__dirname, '../src/components/PublicRoomDesktopBody.tsx'));
   return renderToStaticMarkup(React.createElement(LocaleProvider, { defaultLocale: 'th' },
-    React.createElement(PublicRoomDesktopBody, { room: { ...fixture, shareSections } })));
+    React.createElement(PublicRoomDesktopBody, { room: { ...fixture, shareSections }, mapsApiKey })));
 }
 
 test('app share payload renders desktop gallery and prices without Agent-only information', () => {
@@ -104,4 +105,11 @@ test('hidden app share sections never render photos, prices, location or contact
   const markup = renderPublic({ photos: false, price: false, facilities: false, location: false, contact: false });
   assert.match(markup, /ard-no-sidebar/);
   assert.doesNotMatch(markup, /<img|ard-price-card|17,000|Address|District|Chosen contact|Custom item|PRIVATE/);
+});
+
+test('PDPA cookie consent: the shared room page does not load Google Maps until the visitor allows it', () => {
+  const markup = renderPublic({ photos: true, price: true, facilities: true, location: true, contact: true }, 'test-key');
+  assert.match(markup, /data-testid="mapConsent"/);
+  assert.match(markup, /data-testid="mapConsent\.show"/);
+  assert.doesNotMatch(markup, /maps\.googleapis\.com|<gmp-|class="gm-/);
 });

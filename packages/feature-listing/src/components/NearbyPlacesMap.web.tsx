@@ -12,6 +12,7 @@ import {
   APILoadingStatus,
 } from '@vis.gl/react-google-maps';
 import { useLocale } from '@nestyk/i18n';
+import { MapConsentGate } from './MapConsentGate';
 import { MobileIcon, getCardElevation, tokens } from '@nestyk/ui/native';
 import { categoryColors, nearbyCategory, type NearbyMapProps } from '../nearby';
 
@@ -225,10 +226,18 @@ export function NearbyPlacesMap(props: NearbyMapProps) {
       <Text accessibilityRole="alert">{t.agent.createRoom.mapUnavailable}</Text>
     );
   }
+  // Same size as the map, so the page does not jump when it loads.
+  const gateStyle = props.fillContainer
+    ? { height: '100%' }
+    : props.square
+      ? { aspectRatio: '1' }
+      : { height: props.mapHeight ?? (props.compact ? 180 : 320) };
   return (
-    <APIProvider apiKey={props.apiKey} language={locale}>
-      <MapBody {...props} />
-    </APIProvider>
+    <MapConsentGate style={gateStyle}>
+      <APIProvider apiKey={props.apiKey} language={locale}>
+        <MapBody {...props} />
+      </APIProvider>
+    </MapConsentGate>
   );
 }
 

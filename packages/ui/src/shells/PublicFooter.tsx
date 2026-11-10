@@ -15,6 +15,8 @@ export interface PublicFooterLinks {
   login: string;
   privacy: string;
   terms: string;
+  /** PDPA cookie settings link (e.g. "#cookie-settings", which the consumer web cookie bar opens). Optional. */
+  cookies?: string;
 }
 
 export interface PublicFooterProps {
@@ -136,6 +138,12 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({
               <span style={styles.dot} aria-hidden>·</span>
               <a href={links.terms} {...legalTarget} style={styles.link} data-testid="public.footer.terms">{copy.terms}</a>
             </span>
+            {links.cookies ? (
+              <span className="nk-pf-item">
+                <span style={styles.dot} aria-hidden>·</span>
+                <a href={links.cookies} {...legalTarget} style={styles.link} data-testid="public.footer.cookies">{copy.cookies}</a>
+              </span>
+            ) : null}
           </div>
           {languageSlot ? <div aria-label={copy.language}>{languageSlot}</div> : null}
         </div>

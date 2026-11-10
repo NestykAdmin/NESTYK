@@ -13,6 +13,10 @@
       "types": "./src/native.ts",
       "default": "./src/native.ts"
     },
+    "./cookie-consent": {
+      "types": "./src/consent/cookieConsent.ts",
+      "default": "./src/consent/cookieConsent.ts"
+    },
     "./public-footer": {
       "types": "./src/shells/PublicFooter.tsx",
       "default": "./src/shells/PublicFooter.tsx"

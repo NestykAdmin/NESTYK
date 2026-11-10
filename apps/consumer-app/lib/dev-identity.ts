@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEV_AUTH_CONFIG } from './auth/dev-auth';
 
 const DEV_IDENTITY_KEY = 'nestyk.dev.agent.identity.v1';
 
@@ -19,7 +20,13 @@ function randomUuid(): string {
   });
 }
 
-export async function getOrCreateDevIdentity(): Promise<DevIdentity> {
+/**
+ * Dev builds only (EXPO_PUBLIC_USE_DEV_AUTH=true or EXPO_PUBLIC_APP_ENV=development). PDPA plan FE4: a production
+ * build keeps no made-up identity in browser storage and sends no dev token (the production API refuses it anyway),
+ * so a signed-out request simply has no Authorization header.
+ */
+export async function getOrCreateDevIdentity(enabled: boolean = DEV_AUTH_CONFIG.enabled): Promise<DevIdentity | null> {
+  if (!enabled) return null;
   const raw = await AsyncStorage.getItem(DEV_IDENTITY_KEY);
   if (raw) {
     try {

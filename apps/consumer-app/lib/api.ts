@@ -75,8 +75,9 @@ async function authHeader(overrideToken?: string): Promise<AuthInfo> {
   if (session?.accessToken) {
     return { headers: bearer(session.accessToken), supabase: Boolean(client) };
   }
+  // Signed out: a dev build sends its dev identity; a production build sends no token (PDPA plan FE4).
   const identity = await getOrCreateDevIdentity();
-  return { headers: bearer(toDevBearer(identity)), supabase: false };
+  return { headers: identity ? bearer(toDevBearer(identity)) : {}, supabase: false };
 }
 
 /**
