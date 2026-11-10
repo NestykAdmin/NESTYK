@@ -18,8 +18,8 @@ export const EN_TH: Record<keyof typeof EN_EN, string> = {
   registerButton: 'สร้างบัญชี', // mobile.auth.registerButton :323
   invalidEmail: 'กรอกอีเมลให้ถูกต้อง', // mobile.auth.invalidEmail :331
   passwordRules: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร มีตัวเลข ตัวพิมพ์เล็ก และตัวพิมพ์ใหญ่', // mobile.auth.passwordRules :333
-  acceptTerms: 'ฉันยอมรับเงื่อนไขการใช้งานและนโยบายความเป็นส่วนตัว', // mobile.auth.acceptTerms :335
-  acceptTermsRequired: 'กรุณายอมรับเงื่อนไขการใช้งานและนโยบายความเป็นส่วนตัว', // mobile.auth.acceptTermsRequired :336
+  acceptTerms: 'ฉันยอมรับเงื่อนไขการใช้งาน', // mobile.auth.acceptTerms :338 (PDPA cba5045: ยอมรับแค่เงื่อนไข)
+  acceptTermsRequired: 'กรุณายอมรับเงื่อนไขการใช้งาน', // mobile.auth.acceptTermsRequired :339
   passwordMismatch: 'รหัสผ่านทั้งสองช่องไม่ตรงกัน', // mobile.auth.passwordMismatch :342
   resetSend: 'ส่งลิงก์', // mobile.auth.resetSend :355
   resetLinkInvalid: 'ลิงก์นี้หมดอายุหรือถูกใช้ไปแล้ว รหัสผ่านยังไม่ถูกเปลี่ยน กด "กลับไปเข้าสู่ระบบ" แล้วกด "ลืมรหัสผ่าน?" เพื่อขอลิงก์ใหม่', // mobile.auth.resetLinkInvalid :357

@@ -42,8 +42,9 @@ export const EN_EN = {
   registerButton: 'Create account', // mobile.auth.registerButton :323
   invalidEmail: 'Enter a valid email address.', // mobile.auth.invalidEmail :331
   passwordRules: 'Use at least 8 characters with a number, a lowercase letter and an uppercase letter.', // mobile.auth.passwordRules :333
-  acceptTerms: 'I accept the terms of use and the privacy policy.', // mobile.auth.acceptTerms :335 (aria-label ของช่องติ๊กยินยอม)
-  acceptTermsRequired: 'Accept the terms of use and the privacy policy.', // mobile.auth.acceptTermsRequired :336
+  // ช่องติ๊กยอมรับแค่เงื่อนไขการใช้งาน นโยบายความเป็นส่วนตัวเป็นข้อความแจ้งใต้ปุ่มสมัคร (PDPA: pre/dev/review cba5045)
+  acceptTerms: 'I accept the terms of use.', // mobile.auth.acceptTerms :338 (aria-label ของช่องติ๊กยินยอม)
+  acceptTermsRequired: 'Accept the terms of use.', // mobile.auth.acceptTermsRequired :339
   passwordMismatch: 'The passwords do not match.', // mobile.auth.passwordMismatch :342
   resetSend: 'Send link', // mobile.auth.resetSend :355 (บั๊กข้อ 6 แก้แล้ว เดิม "Send code")
   /** ลิงก์ที่ตรวจกับ Supabase ไม่ผ่าน ตอนกดบันทึกรหัสใหม่ (reset-password.tsx:124, :135) */
@@ -297,8 +298,13 @@ export const LEGAL: Record<Locale, { draftBadge: string; privacyTitle: string; f
   zh: { draftBadge: '草稿 · 待审核', privacyTitle: '隐私政策', footerPrivacy: '隐私政策' }, // zh.ts :29 / :39 / :7
 };
 
-/** จำนวนหัวข้อของเอกสาร (ทั้ง 4 ภาษาเท่ากัน นับ { id: ... } ใน packages/i18n/src/locales/legal/*.ts) */
-export const LEGAL_SECTION_COUNT = { privacy: 8, terms: 10 } as const;
+/**
+ * จำนวนหัวข้อ <h2> ของเอกสาร (ทั้ง 4 ภาษาเท่ากัน)
+ *   terms: นับ { id: ... } ของ terms.sections ใน packages/i18n/src/locales/legal/*.ts
+ *   privacy: 8 หัวข้อของ privacy.sections + หัวข้อที่ 9 "คุกกี้และที่เก็บข้อมูลในเบราว์เซอร์" (section#cookies)
+ *     ที่ LegalPage.web.tsx:105-108 เพิ่มท้ายหน้า privacy เท่านั้น (PDPA: pre/dev/review cba5045)
+ */
+export const LEGAL_SECTION_COUNT = { privacy: 9, terms: 10 } as const;
 
 /** ปุ่มขั้นอีเมลของหน้าลืมรหัสผ่านภาษาไทย: packages/i18n/src/locales/th.ts:355 mobile.auth.resetSend ที่ qa/e2e 648dd28 */
 export const TH_RESET_SEND = 'ส่งลิงก์';

@@ -11,7 +11,7 @@ import { EN, RAW_ERRORS, RETIRED_RESET_SEND, TH_EMAIL, TH_RESET_SEND, UI_LOCALE 
  * ไม่มีข้อไหนเปลี่ยนรหัสผ่านได้จริง:
  *   - ทุกข้อเปิดหน้าแบบไม่ล็อกอินในเบราว์เซอร์ใหม่ จึงไม่มี session ให้ updateUser เปลี่ยนรหัส
  *   - ลิงก์ที่ใช้เป็นค่าปลอม (token_hash และ code ไม่มีจริง) Supabase ปฏิเสธ
- *   - ตั้งแต่ 648dd28 token_hash ถูกตรวจตอนกดบันทึก ไม่ใช่ตอนเปิดหน้า (reset-password.tsx:36-37, 115-128)
+ *   - ตั้งแต่ 648dd28 token_hash ถูกตรวจตอนกดบันทึก ไม่ใช่ตอนเปิดหน้า (reset-password.tsx:37-38, 116-130)
  *     ข้อ "token ปลอมกดบันทึก" จึงเรียก Supabase verifyOtp ด้วย hash ปลอม 1 ครั้ง (Aof อนุมัติ 6 พ.ย. 2026)
  *     เทสตรวจเองว่ามีคำขอ POST /auth/v1/verify 1 คำขอที่ได้ 4xx และไม่มี PUT /auth/v1/user (หน้าหยุดก่อน updateUser: :119-126)
  *     อนุมาน: Supabase ไม่เขียนข้อมูลเมื่อหา token_hash ไม่เจอ (ไม่มีโค้ดของ Supabase ให้ตรวจ)
@@ -71,16 +71,26 @@ test.describe('email step', () => {
 });
 
 test.describe('recovery links', () => {
-  test('a fake token_hash opens the form and drops the token from the URL', async ({ page }) => {
-    // ลิงก์ที่มี token_hash: หน้าลบ query ทันที (reset-password.tsx:49-55) และเปิดฟอร์มตั้งรหัส ยังไม่ตรวจกับ Supabase (:36-37)
+  test('a fake token_hash opens the form and drops the token from the URL', { tag: '@known-bug' }, async ({ page }) => {
+    // ลิงก์ที่มี token_hash: หน้าลบ query ทันที (reset-password.tsx:49-55) และเปิดฟอร์มตั้งรหัส ยังไม่ตรวจกับ Supabase (:37-38)
     const verify = watchAuthRequests(page, '/auth/v1/verify');
     const reset = new ResetPasswordPage(page);
+    // ขั้นที่ 1: เปิดลิงก์ ฟอร์มตั้งรหัสขึ้น และยังอยู่หน้า /reset-password
     await reset.goto('?token_hash=qa-fake-token&type=recovery');
     await expect(reset.save).toBeVisible({ timeout: 20_000 });
-    await expect(page).toHaveURL((url) => url.pathname === '/reset-password' && url.search === '');
-    // ถ้าวันหนึ่งหน้ากลับไปตรวจ token ตอนเปิด (ซึ่งใช้ลิงก์จริงไปตั้งแต่เปิด) ข้อนี้ต้องแดง: ต้องไม่มีคำขอ verify และไม่มี alert
+    await expect(page).toHaveURL((url) => url.pathname === '/reset-password');
+    // ขั้นที่ 2: ถ้าวันหนึ่งหน้ากลับไปตรวจ token ตอนเปิด (ซึ่งใช้ลิงก์จริงไปตั้งแต่เปิด) ข้อนี้ต้องแดง: ต้องไม่มี alert และคำขอ verify
+    //   อยู่ก่อน test.fail โดยตั้งใจ ไม่อย่างนั้น test.fail จะกลับผลของ 2 บรรทัดนี้ด้วย (ข้อสังเกตของ test-reviewer 10 พ.ย. 2026)
     await expect(reset.alert).toHaveCount(0);
     expect(verify, 'หน้าไม่ควรตรวจ token กับ Supabase ตอนเปิด').toHaveLength(0);
+    // ขั้นที่ 3: token ต้องไม่อยู่ใน URL
+    // บั๊กที่แจ้ง Jom 10 พ.ย. 2026 (claude/nestyk-web-reset-token-url-for-dev-2026-11-10.md): ไม่ผ่าน 4/4 ครั้งที่ qa/e2e 193c40c
+    //   หน้าลบ query ด้วย window.history.replaceState (:52-55) แล้ว expo-router (useLinking.js onStateChange) เขียน URL กลับจากสถานะของ router
+    //   ใต้ test.fail มีแค่การตรวจ search ของ URL เมื่อทีมแก้แล้ว ข้อนี้จะขึ้น "Expected to fail, but passed" ให้เอา test.fail กับป้ายออก
+    test.fail(true, 'token_hash ยังค้างใน URL หลังเปิดฟอร์ม (expo-router เขียน URL กลับหลังหน้าลบ)');
+    await expect(page).toHaveURL((url) => url.search === '');
+    // อ่าน URL ซ้ำอีกครั้งโดยไม่รอ: toHaveURL ผ่านทันทีที่เจอ URL สะอาด ถ้า URL สะอาดแค่ครู่เดียวแล้วถูกเขียนกลับ บรรทัดนี้จับได้
+    expect(new URL(page.url()).search, 'URL ต้องยังไม่มี token หลังตรวจครั้งแรก').toBe('');
   });
 
   // บั๊กข้อ 4 แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): ลิงก์ที่ไม่มี token กลับขั้นอีเมลพร้อมเหตุผล ไม่เปิดฟอร์มที่บันทึกไม่ได้

@@ -2,6 +2,7 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { NEVER_ALLOWED, RequestGuard, type BlockedRequest } from './guard';
 import { UI_LOCALE } from './labels';
+import { COOKIE_CONSENT_KEY, COOKIE_CONSENT_VERSION } from './pages/cookie-notice.page';
 import { LoginPage } from './pages/login.page';
 import { emailOf, passwordOf, PASSWORD_VARIABLES, type WebUiRole } from './web-ui-env';
 
@@ -12,6 +13,17 @@ export const LOCALE_KEY = '@nestyk/preferred_locale';
 const LOGIN_WAIT_MS = 30_000;
 
 interface WebUiFixtures {
+  /**
+   * ความยินยอมคุกกี้ที่ใส่ใน localStorage ก่อนเปิดหน้า (PDPA: pre/dev/review cba5045) ค่าเริ่มต้น preferences เปิด, maps ปิด
+   * เหตุผล:
+   *   - ถ้ายังไม่มีค่านี้ แถบคุกกี้ขึ้นทุกหน้า (CookieNotice.web.tsx:47) และวางทับมุมซ้ายล่าง (cookie-notice.css:2-23) อาจบังสิ่งที่เทสกด
+   *   - preferences เปิด: เทสเดิมตรวจค่าที่แอปจำไว้ (มุมมองห้อง agent-rooms.spec.ts:142, ภาษา, ธีม) แอปจำค่าเหล่านี้เฉพาะเมื่อหมวดนี้เปิด
+   *     (เห็นในโค้ด: locale-storage.ts:19-20, AgentWorkspace.web.tsx chooseTheme, AgentRoomsPage.web.tsx, web-routes.web.ts ที่ cba5045)
+   *   - maps ปิด: ไม่ให้เทสโหลดสคริปต์ Google Maps โดยไม่ตั้งใจ (MapConsentGate.tsx แสดงกล่อง "แสดงแผนที่" แทน)
+   * null = ไม่ใส่ ใช้กับเทสแถบคุกกี้ตอนเข้าเว็บครั้งแรก: test.use({ cookieConsent: null })
+   * ใส่เฉพาะเมื่อยังไม่มีค่า ถ้าเทสเลือกเองในแถบ การโหลดหน้าใหม่ไม่ทับค่าที่เลือก (แบบเดียวกับภาษา)
+   */
+  cookieConsent: { preferences: boolean; maps: boolean } | null;
   /**
    * ตัวกันคำขอ (src/web-ui/guard.ts) ติดตั้งกับ context ของทุกเทสโดยอัตโนมัติ ก่อนเปิดหน้าใด ๆ
    * หลังเทสจบ ถ้ามีคำขอที่ห้ามเกิดเลย (ดู NEVER_ALLOWED) เทสข้อนั้นไม่ผ่าน และถูกตรวจซ้ำตอนปิด worker
@@ -36,6 +48,8 @@ interface WebUiWorkerFixtures {
 }
 
 export const test = base.extend<WebUiFixtures, WebUiWorkerFixtures>({
+  cookieConsent: [{ preferences: true, maps: false }, { option: true }],
+
   forbiddenLog: [
     // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
@@ -47,7 +61,7 @@ export const test = base.extend<WebUiFixtures, WebUiWorkerFixtures>({
   ],
 
   guard: [
-    async ({ context, forbiddenLog }, use, testInfo) => {
+    async ({ context, forbiddenLog, cookieConsent }, use, testInfo) => {
       const guard = new RequestGuard();
       await guard.install(context);
       // เปิดเว็บเป็นภาษาของ UI_LOCALE (labels.ts ค่าเริ่มต้น en) ถ้ายังไม่ได้เลือกภาษาในแท็บนี้ (ถ้าเทสเลือกภาษาเอง การโหลดหน้าใหม่ไม่ทับค่าที่เลือก)
@@ -58,6 +72,17 @@ export const test = base.extend<WebUiFixtures, WebUiWorkerFixtures>({
           // storage ถูกปิด: แอปใช้ภาษาของเบราว์เซอร์ (ค่าตั้ง locale en-US ใน playwright.web-ui.config.ts)
         }
       }, { key: LOCALE_KEY, locale: UI_LOCALE });
+      // ความยินยอมคุกกี้ ดูเหตุผลที่ cookieConsent ด้านบน
+      if (cookieConsent) {
+        const record = JSON.stringify({ version: COOKIE_CONSENT_VERSION, at: new Date().toISOString(), ...cookieConsent });
+        await context.addInitScript(({ key, value }) => {
+          try {
+            if (!window.localStorage.getItem(key)) window.localStorage.setItem(key, value);
+          } catch {
+            // storage ถูกปิด: แถบคุกกี้จะขึ้น (แอปจำค่าที่เลือกได้แค่ในหน้านั้น cookieConsent.ts:86-87)
+          }
+        }, { key: COOKIE_CONSENT_KEY, value: record });
+      }
       await use(guard);
       const forbidden = guard.blocked.filter((entry) => NEVER_ALLOWED.includes(entry.kind));
       if (forbidden.length > 0) forbiddenLog.push({ title: testInfo.titlePath.join(' › '), blocked: forbidden });
