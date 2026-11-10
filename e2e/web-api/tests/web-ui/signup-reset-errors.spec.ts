@@ -20,10 +20,10 @@ import { hasStoredSession, supabaseSessionKeys } from '../../src/web-ui/support/
  * รันเป็นภาษาไทยด้วย npm run test:web-ui:th (labels.th.ts)
  * สิ่งที่ต้องเปิดก่อนรัน: เว็บที่ 8081 และ API ตามโหมดที่ใช้ (global-setup ตรวจ API ก่อนเริ่ม แม้ข้อในไฟล์นี้จะไม่เรียก API เลย)
  *
- * บั๊กที่พบ (known-bug 4 ข้อ): lib/auth/reset-password.ts:23 และ :74 ห่อ error ของ Supabase ใหม่เป็น new Error(message) ชื่อ error กับ status หาย
- *   signInErrorKind จึงได้ generic เคส 429 และเน็ตหลุดของหน้าลืมรหัสผ่านขึ้นข้อความกลาง ไม่ใช่ข้อความตามตารางของ Jom
- *   ผลรัน 10 พ.ย. 2026 ที่ qa/e2e 1134c99 (Claude outputs/results/web-ui-signup-reset-errors-{en,th}-run1.txt): แดงทั้ง 4 ข้อทั้ง 2 ภาษา
- *   error-context ของทั้ง 8 ข้อบอกว่าหน้าขึ้น "Something went wrong. Please try again." / "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง"
+ * เคยเป็นบั๊ก (known-bug 4 ข้อ): lib/auth/reset-password.ts ห่อ error ของ Supabase ใหม่เป็น new Error(message) ชื่อ error กับ status หาย
+ *   เคส 429 และเน็ตหลุดของหน้าลืมรหัสผ่านจึงขึ้นข้อความกลาง (ผลรัน 10 พ.ย. 2026 ที่ qa/e2e 1134c99: web-ui-signup-reset-errors-{en,th}-run1.txt)
+ *   Jom แก้ที่ UXUI/develop 7d04c2e (ใช้ signInFailure(error) เก็บ name/status/code) รวมเข้า qa/e2e b6f23be
+ *   ผลรันหลังแก้ (web-ui-signup-reset-errors-{en,th}-run3.txt): ทั้ง 4 ข้อ "Expected to fail, but passed" ทั้ง 2 ภาษา จึงเอาป้ายออกแล้ว
  */
 
 /** ข้อความที่ Chromium ใส่ใน TypeError เมื่อ fetch ล้มเพราะเครือข่าย */
@@ -271,8 +271,8 @@ test.describe('sign-up', () => {
 test.describe('password reset', () => {
   const REQUEST_CASES: ErrorCase[] = [
     { name: 'captcha fails', answer: SIGNUP_CAPTCHA, expected: 'errorGeneric', raw: ['captcha protection'] },
-    { name: 'too many requests', answer: EMAIL_RATE_LIMIT, expected: 'tooManyAttempts', raw: ['email rate limit exceeded'], knownBug: 'reset-password.ts:23 ห่อ error ของ resetPasswordForEmail เป็น new Error(message) ชื่อและ status หาย จึงได้ข้อความกลาง' },
-    { name: 'Supabase is unreachable', answer: null, expected: 'networkError', raw: [RAW_FETCH_ERROR], knownBug: 'reset-password.ts:23 ห่อ error ของ resetPasswordForEmail เป็น new Error(message) ชื่อและ status หาย จึงได้ข้อความกลาง' },
+    { name: 'too many requests', answer: EMAIL_RATE_LIMIT, expected: 'tooManyAttempts', raw: ['email rate limit exceeded'] },
+    { name: 'Supabase is unreachable', answer: null, expected: 'networkError', raw: [RAW_FETCH_ERROR] },
   ];
   for (const errorCase of REQUEST_CASES) {
     test(`Send link: ${errorCase.name} shows our own text`, tagsOf(errorCase), async ({ page }) => {
@@ -294,8 +294,8 @@ test.describe('password reset', () => {
 
   // auth-error.test.cjs:35 (over_request_rate_limit 429) และ :84 (same_password 422)
   const SAVE_CASES: ErrorCase[] = [
-    { name: 'too many attempts', answer: supabaseError(429, 'over_request_rate_limit', 'Request rate limit reached'), expected: 'tooManyAttempts', raw: ['Request rate limit reached'], knownBug: 'reset-password.ts:74 ห่อ error ของ updateUser เป็น new Error(message) ชื่อและ status หาย จึงได้ข้อความกลาง' },
-    { name: 'Supabase is unreachable', answer: null, expected: 'networkError', raw: [RAW_FETCH_ERROR], knownBug: 'reset-password.ts:74 ห่อ error ของ updateUser เป็น new Error(message) ชื่อและ status หาย จึงได้ข้อความกลาง' },
+    { name: 'too many attempts', answer: supabaseError(429, 'over_request_rate_limit', 'Request rate limit reached'), expected: 'tooManyAttempts', raw: ['Request rate limit reached'] },
+    { name: 'Supabase is unreachable', answer: null, expected: 'networkError', raw: [RAW_FETCH_ERROR] },
     { name: 'the new password is the old one', answer: supabaseError(422, 'same_password', 'New password should be different from the old password.'), expected: 'errorGeneric', raw: ['New password should be different'] },
   ];
   for (const errorCase of SAVE_CASES) {
