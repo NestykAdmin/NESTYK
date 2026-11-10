@@ -2,6 +2,10 @@
 // any device (no PKCE verifier needed). Supabase spends it once, so the page spends it when the new password is saved,
 // not when the page opens: until then the email link can be opened again. The token leaves the address bar at once,
 // and a device signed in to another account signs out before the link is checked (review 513fbf0 R3).
+// QA Aof 10 Nov 2026: the token is dropped from this screen's own route params (useNavigation().setParams), not
+// window.history: expo-router rebuilds the address from those params on every state change, so a bare
+// history.replaceState was written back. It is dropped one tick after the effect: the stack mounting with the screen
+// stores its first state (with the link's params) after the screen's effect, which undid a call made in the effect.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -33,18 +37,28 @@ function nodes(element) {
   if (element.type === React.Fragment) return nodes(element.props.children);
   return [element, ...nodes(element.props.children)];
 }
+/** Lets the setTimeout(0) that drops the link's params run. */
+const tick = () => new Promise((r) => setTimeout(r, 5));
 const en = load(`${root}/packages/i18n/src/locales/en.ts`, {}).en;
 const copy = en.mobile.auth;
 
-function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetSession = true, verify = async () => {}, save = async () => {}, signedIn = false } = {}) {
-  const state = [], refs = [], replaced = [], calls = [];
+function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetSession = true, verify = async () => {}, save = async () => {}, signedIn = false, query } = {}) {
+  const state = [], refs = [], replaced = [], calls = [], paramChanges = [];
+  // The route's params, as expo-router has them: the link's query until the page drops it.
+  const params = { ...(query ?? (tokenHash ? { token_hash: tokenHash, type: 'recovery' } : brokenLink ? { type: 'recovery' } : {})) };
   const auth = { signedIn };
-  let cursor = 0, refCursor = 0;
+  const effects = [];
+  let cursor = 0, refCursor = 0, effectCursor = 0;
   global.window = { location: { pathname: '/reset-password', search: tokenHash ? `?token_hash=${tokenHash}&type=recovery` : '' },
     history: { replaceState: (...args) => { replaced.push(args); global.window.location.search = ''; } } };
   const deps = {
     react: { ...React,
-      useEffect: (effect) => { effect(); },
+      // Runs on every render, with the previous run's cleanup first (as React does when deps change).
+      useEffect: (effect) => {
+        const i = effectCursor++;
+        if (typeof effects[i] === 'function') effects[i]();
+        effects[i] = effect();
+      },
       useRef: (initial) => { const i = refCursor++; if (!(i in refs)) refs[i] = { current: initial }; return refs[i]; },
       useState: (initial) => {
         const i = cursor++;
@@ -55,7 +69,11 @@ function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetS
       StyleSheet: { create: (x) => x, absoluteFill: {}, absoluteFillObject: {} } },
     'expo-image': { Image: 'Image' },
     'expo-status-bar': { StatusBar: 'StatusBar' },
-    'expo-router': { useRouter: () => ({ replace() {} }) },
+    // router.setParams is left out on purpose: expo-router 6 sends it from the top navigator, so it lands on the
+    // `__root` route and this screen keeps the token (seen in the browser, QA Aof 10 Nov 2026).
+    'expo-router': { useRouter: () => ({ replace() {} }),
+      useNavigation: () => ({ setParams: (next) => { paramChanges.push(next); Object.assign(params, next); } }),
+      useLocalSearchParams: () => ({ ...params }) },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@nestyk/i18n': { useLocale: () => ({ t: en, locale: 'en' }), localizedError: (e, fallback) => fallback },
     '@nestyk/ui/native': { AccountCompleteModal: 'Modal', MobileButton: 'Button', MobileInput: 'Input', MobileNestykLogo: 'Logo',
@@ -71,7 +89,7 @@ function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetS
     '../assets/login-apartment.jpg': 1,
   };
   const Component = load(path.join(__dirname, '../app/reset-password.tsx'), deps).default;
-  const render = () => { cursor = 0; refCursor = 0; return nodes(Component()); };
+  const render = () => { cursor = 0; refCursor = 0; effectCursor = 0; return nodes(Component()); };
   const labels = () => render().filter((n) => n?.type === 'Input').map((n) => n.props.accessibilityLabel);
   const texts = () => render().filter((n) => typeof n === 'string');
   const fill = (label, value) => render().find((n) => n?.type === 'Input' && n.props.accessibilityLabel === label).props.onChangeText(value);
@@ -83,23 +101,32 @@ function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetS
     await new Promise((r) => setImmediate(r));
   };
   const done = () => render().find((n) => n?.type === 'Modal').props.visible;
-  return { render, labels, texts, calls, replaced, saveNewPassword, done, auth };
+  return { render, labels, texts, calls, replaced, paramChanges, params, saveNewPassword, done, auth };
 }
 
-test('opening the reset link does not spend it, and the token leaves the address bar at once', () => {
+test('opening the reset link does not spend it, and the token leaves the address bar at once', async () => {
   const page = screen({ tokenHash: 'abc123' });
   page.render();
   page.render();
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
   assert.deepEqual(page.calls, [], 'nothing is sent to Supabase just by opening the page, so the email link still works');
-  assert.deepEqual(page.replaced, [[null, '', '/reset-password']], 'dropped once, before anything is checked');
+  assert.deepEqual(page.paramChanges, [], 'not inside the effect: the stack would put the params back (QA Aof 10 Nov 2026)');
+  await tick();
+  page.render();
+  await tick();
+  assert.deepEqual(page.paramChanges, [{ token_hash: undefined, type: undefined }], 'dropped once from the route params, before anything is checked');
+  assert.equal(page.params.token_hash, undefined);
+  assert.equal(page.params.type, undefined);
+  assert.deepEqual(page.replaced, [], 'not through window.history: expo-router would write the token back (QA Aof 10 Nov 2026)');
 });
 
 test('saving the new password spends the link, then stores the password', async () => {
   const page = screen({ tokenHash: 'abc123' });
   await page.saveNewPassword('Abcdefg1');
-  assert.deepEqual(page.calls, [['verify', 'abc123'], ['save', 'Abcdefg1']]);
-  assert.deepEqual(page.replaced, [[null, '', '/reset-password']]);
+  await tick();
+  assert.deepEqual(page.calls, [['verify', 'abc123'], ['save', 'Abcdefg1']], 'the token read at load is checked even after it left the address');
+  assert.deepEqual(page.paramChanges, [{ token_hash: undefined, type: undefined }], 'the token left the address once, on open');
+  assert.deepEqual(page.replaced, []);
   assert.equal(page.done(), true);
 });
 
@@ -156,11 +183,13 @@ test('QA 4 Nov 2026 item 4/7: a link without a token (no reset session) shows th
   assert.equal(page.done(), false);
 });
 
-test('QA 4 Nov 2026 item 4: "?type=recovery" with no token opens the email step with the reason, not a form', () => {
+test('QA 4 Nov 2026 item 4: "?type=recovery" with no token opens the email step with the reason, not a form', async () => {
   const page = screen({ brokenLink: true });
   assert.deepEqual(page.labels(), [copy.email]);
+  await tick();
   assert.ok(page.texts().includes(copy.resetLinkBroken));
-  assert.deepEqual(page.replaced, [], 'nothing in the address to drop in this test (no search string)');
+  assert.deepEqual(page.paramChanges, [{ token_hash: undefined, type: undefined }], 'the cut link leaves the address too');
+  assert.deepEqual(page.replaced, []);
   assert.deepEqual(page.calls, []);
 });
 
@@ -177,4 +206,20 @@ test('an older ?code= link that signed in keeps the new-password form', async ()
   page.render();
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(page.labels(), [copy.password, copy.confirmPassword]);
+});
+
+test('QA Aof 10 Nov 2026: an empty token_hash link (?token_hash=&type=recovery) leaves the address too', async () => {
+  const page = screen({ brokenLink: true, query: { token_hash: '', type: 'recovery' } });
+  page.render();
+  await tick();
+  assert.deepEqual(page.paramChanges, [{ token_hash: undefined, type: undefined }]);
+  assert.deepEqual(page.replaced, []);
+});
+
+test('the page opened without a link changes no params', async () => {
+  const page = screen();
+  page.render();
+  await tick();
+  assert.deepEqual(page.paramChanges, []);
+  assert.deepEqual(page.replaced, []);
 });
