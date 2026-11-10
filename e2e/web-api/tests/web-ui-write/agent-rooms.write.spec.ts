@@ -37,6 +37,7 @@ const PLACES_WINDOW_MS = 3_000;
  * ตัดคำขอที่ไปถึง Google ในเบราว์เซอร์ และนับจำนวนครั้งไว้เป็นหลักฐาน
  *   - ค้นสถานที่ GET /agent/places/autocomplete, /agent/places/reverse (lib/places-api.ts) ซึ่ง staging เรียก Google ต่อ
  *   - แผนที่ของ Google (maps.googleapis.com, maps.gstatic.com) ถ้าเว็บตั้งคีย์แผนที่ไว้ (mapsApiKey: W:2653, AgentRoomEditor.tsx:85)
+ *     และ iframe www.google.com/maps ที่ใช้แทนเมื่อไม่มีคีย์ (PropertyPlaceMap.web.tsx:148-149)
  */
 async function blockGoogle(page: Page): Promise<{ places: number; maps: number }> {
   const counter = { places: 0, maps: 0 };
@@ -48,7 +49,10 @@ async function blockGoogle(page: Page): Promise<{ places: number; maps: number }
     },
   );
   await page.route(
-    (url) => url.hostname === 'maps.googleapis.com' || url.hostname === 'maps.gstatic.com',
+    (url) =>
+      url.hostname === 'maps.googleapis.com' ||
+      url.hostname === 'maps.gstatic.com' ||
+      (url.hostname === 'www.google.com' && url.pathname.startsWith('/maps')),
     (route) => {
       counter.maps += 1;
       return route.abort('blockedbyclient');
@@ -264,8 +268,11 @@ test.describe.serial('a room made through the wizard', () => {
     ]);
     expect((detail.contacts ?? []).map((row) => ({ id: row.id, name: row.name }))).toEqual([{ id: contactId, name: WIZ_CONTACT_NAME }]);
     expect((await api.listings(E2E_PREFIX)).total, 'ห้องที่มี E2E- หลังสร้าง').toBe(listingsBefore + 1);
-    expect(google, 'คำขอไป Google (โหมดกรอกเองต้องไม่ค้นสถานที่)').toEqual({ places: 0, maps: expect.any(Number) });
     test.info().annotations.push({ type: 'คำขอแผนที่ Google ที่ถูกตัด', description: String(google.maps) });
+    // fixture ตั้ง maps:false (web-ui.fixture.ts:51) ที่ cfd6633 แผนที่ทั้งแบบมีคีย์และ iframe อยู่หลังกล่อง MapConsentGate
+    //   (เพิ่มที่ cba5045, PropertyPlaceMap.web.tsx:148-171) จึงต้องไม่มีคำขอไป Google Maps เลย
+    //   ข้อนี้อยู่ใน describe.serial ถ้าแดงตรงนี้ ห้องถูกสร้างไปแล้ว และ RW3, RW4 จะถูกข้ามในรอบนั้น
+    expect(google, 'คำขอไป Google (โหมดกรอกเองต้องไม่ค้นสถานที่ และยังไม่ยินยอมแผนที่ต้องไม่โหลดแผนที่)').toEqual({ places: 0, maps: 0 });
   });
 
   test('editing the new room saves the new name and rent', async ({ page, loginAs, guard }) => {
