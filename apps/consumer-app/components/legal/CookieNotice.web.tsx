@@ -40,11 +40,12 @@ export function CookieNotice() {
     };
     const openSettings = () => {
       setDraft(current());
-      setChosen(readCookieConsent() !== null);
+      setChosen(readCookieConsent()?.complete === true);
       setView('settings');
       setOpen(true);
     };
-    if (!readCookieConsent()) setOpen(true);
+    // Asks until the bar is answered; "Show map" alone (complete: false) does not count as the answer.
+    if (!readCookieConsent()?.complete) setOpen(true);
     if (window.location.hash === COOKIE_SETTINGS_HREF) openSettings();
     const onClick = (event: MouseEvent) => {
       const target = event.target as Element | null;
@@ -54,9 +55,9 @@ export function CookieNotice() {
     };
     document.addEventListener('click', onClick);
     const offOpen = onCookieSettingsOpen(openSettings);
-    // A choice made elsewhere (the map's "Show map" button, another tab) closes the first-visit bar.
+    // An answer given in another tab closes the first-visit bar; the map's "Show map" alone does not.
     const offChange = onCookieConsentChange(() => {
-      if (readCookieConsent() && viewRef.current === 'choice') setOpen(false);
+      if (readCookieConsent()?.complete && viewRef.current === 'choice') setOpen(false);
     });
     return () => {
       document.removeEventListener('click', onClick);
@@ -156,7 +157,9 @@ export function CookieNotice() {
               type="button"
               className="ck-link"
               onClick={() => {
-                setDraft(NONE);
+                // Starts from what is already allowed (e.g. maps after "Show map"); nothing ticked otherwise.
+                const saved = readCookieConsent();
+                setDraft(saved ? { preferences: saved.preferences, maps: saved.maps } : NONE);
                 setView('settings');
               }}
               data-testid="cookieNotice.settings"

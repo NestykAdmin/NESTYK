@@ -6,6 +6,7 @@ import { UserRoleEntity } from './user-role.entity';
 @Unique("users_supabase_user_id_key", ["supabase_user_id"])
 @Index("idx_users_email", ["email"])
 @Index("idx_users_supabase_user_id", ["supabase_user_id"])
+@Index("idx_users_deletion_effective_at", ["deletion_effective_at"], { where: "(deletion_effective_at IS NOT NULL)" })
 @Entity({ name: 'users' })
 export class UserEntity extends SerialCreatedEntity {
   @Column({ type: 'uuid', nullable: true })

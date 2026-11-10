@@ -26,6 +26,11 @@ export interface CookieConsent extends CookieChoice {
   version: string;
   /** ISO time of the choice. */
   at: string;
+  /**
+   * True when the user answered the cookie bar (all categories). False when only one category was allowed on its own
+   * (the map's "Show map" button): the bar still asks about the rest. Records without it count as answered.
+   */
+  complete: boolean;
 }
 
 /** The "preferences" items. Removed from the browser when that category is off. */
@@ -48,7 +53,13 @@ export function parseCookieConsent(
   try {
     const parsed = JSON.parse(raw) as Partial<CookieConsent> | null;
     if (!parsed || parsed.version !== version || typeof parsed.at !== 'string') return null;
-    return { version, at: parsed.at, preferences: parsed.preferences === true, maps: parsed.maps === true };
+    return {
+      version,
+      at: parsed.at,
+      preferences: parsed.preferences === true,
+      maps: parsed.maps === true,
+      complete: parsed.complete !== false,
+    };
   } catch {
     return null;
   }
@@ -58,8 +69,9 @@ export function cookieConsentRecord(
   choice: CookieChoice,
   now: Date = new Date(),
   version: string = COOKIE_CONSENT_VERSION,
+  complete = true,
 ): CookieConsent {
-  return { version, at: now.toISOString(), preferences: choice.preferences === true, maps: choice.maps === true };
+  return { version, at: now.toISOString(), preferences: choice.preferences === true, maps: choice.maps === true, complete };
 }
 
 type BrowserWindow = {
@@ -115,9 +127,12 @@ function emit(name: string): void {
   }
 }
 
-/** Saves the choice, removes stored settings when "preferences" is off, and tells every listener on the page. */
-export function saveCookieConsent(choice: CookieChoice, now: Date = new Date()): CookieConsent {
-  const consent = cookieConsentRecord(choice, now);
+/**
+ * Saves the cookie bar's answer (all categories), removes stored settings when "preferences" is off, and tells every
+ * listener on the page. `complete: false` is for allowCookieCategory only.
+ */
+export function saveCookieConsent(choice: CookieChoice, now: Date = new Date(), complete = true): CookieConsent {
+  const consent = cookieConsentRecord(choice, now, COOKIE_CONSENT_VERSION, complete);
   choiceThisPage = consent;
   const store = storage();
   if (store) {
@@ -126,7 +141,7 @@ export function saveCookieConsent(choice: CookieChoice, now: Date = new Date()):
     } catch {
       // blocked: kept for this page load only
     }
-    if (!consent.preferences) {
+    if (consent.complete && !consent.preferences) {
       for (const key of PREFERENCE_STORAGE_KEYS) {
         try {
           store.removeItem(key);
@@ -138,6 +153,20 @@ export function saveCookieConsent(choice: CookieChoice, now: Date = new Date()):
   }
   emit(CHANGE_EVENT);
   return consent;
+}
+
+/**
+ * Allows one category on its own (QA 10 Nov 2026: the map's "Show map" button). Keeps every other answer as it was.
+ * Before the user answered the cookie bar this is not their whole choice: nothing is removed and the bar still asks.
+ */
+export function allowCookieCategory(category: OptionalCookieCategory, now: Date = new Date()): CookieConsent {
+  const current = readCookieConsent();
+  const choice: CookieChoice = {
+    preferences: current?.preferences ?? false,
+    maps: current?.maps ?? false,
+    [category]: true,
+  };
+  return saveCookieConsent(choice, now, current?.complete ?? false);
 }
 
 /** Called after a choice on this page or in another tab. Returns the unsubscribe function. */
