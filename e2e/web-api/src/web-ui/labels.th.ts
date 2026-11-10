@@ -26,6 +26,11 @@ export const EN_TH: Record<keyof typeof EN_EN, string> = {
   resetLinkBroken: 'ลิงก์นี้ใช้ไม่ได้ กรอกอีเมลแล้วกด "ส่งลิงก์" เพื่อขอลิงก์ใหม่', // mobile.auth.resetLinkBroken :358
   resetNewTitle: 'ตั้งรหัสผ่านใหม่', // mobile.auth.resetNewTitle :359
   sessionExpired: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', // mobile.auth.sessionExpired :371
+  invalidCredentials: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง', // mobile.auth.invalidCredentials :374
+  networkError: 'เชื่อมต่อระบบไม่ได้ในขณะนี้ กรุณาตรวจสอบอินเทอร์เน็ตหรือลองใหม่อีกครั้งในอีกสักครู่', // mobile.auth.networkError :375
+  emailNotConfirmed: 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ', // mobile.auth.emailNotConfirmed :376
+  tooManyAttempts: 'ลองหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่', // mobile.auth.tooManyAttempts :377
+  errorGeneric: 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง', // common.errorGeneric :23
   firstName: 'ชื่อ', // mobile.account.firstName :235
   lastName: 'นามสกุล', // mobile.account.lastName :236
   phone: 'เบอร์โทรศัพท์', // mobile.account.phone :238

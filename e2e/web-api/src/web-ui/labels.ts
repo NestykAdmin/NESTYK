@@ -53,6 +53,12 @@ export const EN_EN = {
   resetLinkBroken: 'This link does not work. Enter your email and tap "Send link" to get a new one.', // mobile.auth.resetLinkBroken :358
   resetNewTitle: 'Set a new password', // mobile.auth.resetNewTitle :359 (เป็นทั้งหัวเรื่องและข้อความบนปุ่มบันทึก)
   sessionExpired: 'Your session has expired. Please sign in again.', // mobile.auth.sessionExpired :371
+  // ข้อความ error ของหน้า login (login.tsx:126-133 เลือกตาม signInErrorKind ใน lib/auth/auth-error.ts ที่ fe5d348)
+  invalidCredentials: 'Invalid email or password', // mobile.auth.invalidCredentials :374
+  networkError: "Can't connect right now. Check your internet connection or try again in a moment.", // mobile.auth.networkError :375
+  emailNotConfirmed: 'Please verify your email before signing in.', // mobile.auth.emailNotConfirmed :376
+  tooManyAttempts: 'Too many attempts. Please wait a moment and try again.', // mobile.auth.tooManyAttempts :377
+  errorGeneric: 'Something went wrong. Please try again.', // common.errorGeneric :23
   firstName: 'First Name', // mobile.account.firstName :235
   lastName: 'Last Name', // mobile.account.lastName :236
   phone: 'Phone Number', // mobile.account.phone :238 (aria-label ของช่องเบอร์ใน PhoneField.tsx:74)

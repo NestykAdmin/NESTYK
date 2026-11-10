@@ -62,3 +62,11 @@ export async function readAuthEvent(page: Page): Promise<string> {
     .evaluate((key) => window.localStorage.getItem(key), AUTH_EVENT_KEY)
     .then((value) => value ?? 'ไม่มีค่า', () => 'อ่านไม่ได้');
 }
+
+/**
+ * key ที่ supabase-js เก็บ session ของ Supabase ไว้ใน localStorage (ค่าเริ่มต้นของ auth-js: sb-<project ref>-auth-token
+ * lib/auth/supabase.ts ไม่ได้ตั้ง storageKey เอง) คืนแค่ชื่อ key ไม่คืนค่า เพราะค่าคือ token
+ */
+export async function supabaseSessionKeys(page: Page): Promise<string[]> {
+  return page.evaluate(() => Object.keys(window.localStorage).filter((key) => /^sb-.*-auth-token$/.test(key)));
+}

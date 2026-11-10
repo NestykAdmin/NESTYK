@@ -32,6 +32,16 @@ export class LoginPage {
     return this.page.getByRole('alert');
   }
 
+  /** ข้อความที่ตรงตัวที่ใดก็ได้บนหน้า (ใช้ตรวจว่าข้อความ error แบบอื่นต้องไม่ขึ้น) */
+  textAnywhere(text: string): Locator {
+    return this.page.getByText(text, { exact: true });
+  }
+
+  /** ทั้งหน้า (ใช้ตรวจว่าข้อความดิบของ Supabase หรือ API ไม่อยู่ที่ใดบนหน้า) */
+  get body(): Locator {
+    return this.page.locator('body');
+  }
+
   get expiredNotice(): Locator {
     return this.alert.filter({ hasText: EN.sessionExpired });
   }
