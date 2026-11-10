@@ -1,11 +1,6 @@
 import React, { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useLocale } from '@nestyk/i18n';
-import {
-  cookieConsentAllows,
-  onCookieConsentChange,
-  readCookieConsent,
-  saveCookieConsent,
-} from '@nestyk/ui/cookie-consent';
+import { allowCookieCategory, cookieConsentAllows, onCookieConsentChange } from '@nestyk/ui/cookie-consent';
 
 /** True once the user allowed the Google Maps cookie category (web). Starts false so a server render shows the gate. */
 export function useMapsConsent(): boolean {
@@ -20,8 +15,9 @@ export function useMapsConsent(): boolean {
 
 /**
  * PDPA cookie plan (Mos 9 Nov 2026): Google's map script loads only after the user allows the "Google Maps" category.
- * Until then a box of the map's size says why and offers "Show map", which records that consent (and keeps the
- * user's settings choice as it was). Web only: imported by the .web map components.
+ * Until then a box of the map's size says why and offers "Show map", which allows maps only: every other answer stays
+ * as it was, and if the cookie bar was not answered yet it still asks (QA 10 Nov 2026). Web only: imported by the
+ * .web map components.
  */
 export function MapConsentGate({
   children,
@@ -36,7 +32,7 @@ export function MapConsentGate({
   const copy = t.legal.cookieNotice;
   const allowed = useMapsConsent();
   if (allowed) return <>{children}</>;
-  const show = () => saveCookieConsent({ preferences: readCookieConsent()?.preferences ?? false, maps: true });
+  const show = () => allowCookieCategory('maps');
   return (
     <div
       data-testid={testID}
