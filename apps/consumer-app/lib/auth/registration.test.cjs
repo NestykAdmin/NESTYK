@@ -5,6 +5,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
+// The real auth-error helpers (AuthContext imports them since the QA login network-error fix, 9 Nov 2026).
+const authError = (() => {
+  const m = { exports: {} };
+  const out = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'auth-error.ts'), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  new Function('module', 'exports', out)(m, m.exports);
+  return m.exports;
+})();
 
 function setup({ confirmation = false, signupError, syncError, testSignupError, development = true, roles = ['guest', 'tenant', 'landlord', 'agent', 'admin'] } = {}) {
   const calls = { signup: [], sync: [], saved: [], signout: [], testSignup: [], verify: [], resend: [], profile: [] };
@@ -36,6 +45,7 @@ function setup({ confirmation = false, signupError, syncError, testSignupError, 
     './role-gate': { requestGuestBrowse: () => {} },
     // PDPA plan 3.3a: proof of the accepted terms and the shown privacy policy goes into the sign-up metadata.
     '../cookie-notice': { signupLegalMetadata: () => ({ terms_version: 'T1', terms_accepted_at: 'AT', privacy_version_shown: 'P1' }) },
+    './auth-error': authError,
     './google-oauth': { providerRedirectPending: () => false },
     './google-sign-in': { signInWithGoogle: async () => null, signInWithFacebook: async () => null },
     './reset-password': { requestPasswordReset: async () => {}, verifyRecoveryLink: async () => {}, saveResetPassword: async () => {} },

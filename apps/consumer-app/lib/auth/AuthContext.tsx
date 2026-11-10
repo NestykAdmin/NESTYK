@@ -26,6 +26,7 @@ import {
 import { clearExpiryNotice, markAuthEvent, markFreshSignIn, subscribeCrossTab, takeExpiryNotice } from './cross-tab';
 import { requestSignOutLanding } from './role-gate';
 import { signupLegalMetadata } from '../cookie-notice';
+import { signInFailure } from './auth-error';
 
 export type AuthUserResponse = {
   id: number;
@@ -261,7 +262,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               password === DEV_AUTH_CONFIG.password
             )
           ) {
-            throw new Error(error?.message ?? 'Sign in failed');
+            throw signInFailure(error);
           }
         } else {
           try {
