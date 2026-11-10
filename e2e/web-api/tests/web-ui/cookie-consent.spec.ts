@@ -105,7 +105,8 @@ test.describe('cookie bar on first visit', () => {
     await expect(notice.root).toBeHidden();
     // ขั้นที่ 2: ค่าที่บันทึกตรงกับรุ่นปัจจุบัน และเปิดทั้ง 2 หมวด
     const stored = await readStoredConsent(page);
-    expect(stored).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: true, maps: true });
+    // complete: true (เพิ่มที่ pre/dev/review cfd6633): ปุ่มของแถบบันทึกว่าตอบครบทุกหมวด ใช้กับ 3 ข้อถัดไปด้วย
+    expect(stored).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: true, maps: true, complete: true });
     expectRecentIso(stored?.at ?? '', startedAt);
     // ขั้นที่ 3: โหลดหน้าใหม่ แถบไม่ขึ้นอีก เพราะมีค่าของรุ่นนี้แล้ว (:47)
     await page.reload();
@@ -127,7 +128,7 @@ test.describe('cookie bar on first visit', () => {
     // ขั้นที่ 2: กดใช้เฉพาะที่จำเป็น ค่าเป็นปิดทั้งคู่ (choose(NONE) :15)
     await notice.necessaryOnly.click();
     await expect(notice.root).toBeHidden();
-    expect(await readStoredConsent(page)).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: false, maps: false });
+    expect(await readStoredConsent(page)).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: false, maps: false, complete: true });
     // ขั้นที่ 3: ค่าที่จำไว้ทั้ง 4 ตัวถูกลบ (saveCookieConsent :129-137)
     // ตรวจก่อนโหลดหน้าใหม่: fixture ใส่ภาษากลับทุกครั้งที่โหลดหน้า ถ้าไม่มีค่า จึงตรวจหลังโหลดไม่ได้
     expect(await readStorage(page, PREFERENCE_STORAGE_KEYS)).toEqual(Object.fromEntries(PREFERENCE_STORAGE_KEYS.map((key) => [key, null])));
@@ -148,7 +149,7 @@ test.describe('cookie bar on first visit', () => {
     // ขั้นที่ 3: บันทึกโดยไม่ติ๊ก ได้ค่าเดียวกับใช้เฉพาะที่จำเป็น (choose(draft) :169)
     await notice.save.click();
     await expect(notice.root).toBeHidden();
-    expect(await readStoredConsent(page)).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: false, maps: false });
+    expect(await readStoredConsent(page)).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: false, maps: false, complete: true });
   });
 
   test('"Settings" with only "Remember my settings" ticked stores just that category', async ({ page }) => {
@@ -159,7 +160,7 @@ test.describe('cookie bar on first visit', () => {
     // ขั้นที่ 2: บันทึก ค่าที่ได้เปิดเฉพาะหมวดนี้ (choose(draft) :169)
     await notice.save.click();
     await expect(notice.root).toBeHidden();
-    expect(await readStoredConsent(page)).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: true, maps: false });
+    expect(await readStoredConsent(page)).toEqual({ version: COOKIE_CONSENT_VERSION, at: expect.any(String), preferences: true, maps: false, complete: true });
   });
 });
 

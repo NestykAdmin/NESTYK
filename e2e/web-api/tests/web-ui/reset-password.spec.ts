@@ -71,7 +71,7 @@ test.describe('email step', () => {
 });
 
 test.describe('recovery links', () => {
-  test('a fake token_hash opens the form and drops the token from the URL', { tag: '@known-bug' }, async ({ page }) => {
+  test('a fake token_hash opens the form and drops the token from the URL', async ({ page }) => {
     // ลิงก์ที่มี token_hash: หน้าลบ query ทันที (reset-password.tsx:49-55) และเปิดฟอร์มตั้งรหัส ยังไม่ตรวจกับ Supabase (:37-38)
     const verify = watchAuthRequests(page, '/auth/v1/verify');
     const reset = new ResetPasswordPage(page);
@@ -84,10 +84,9 @@ test.describe('recovery links', () => {
     await expect(reset.alert).toHaveCount(0);
     expect(verify, 'หน้าไม่ควรตรวจ token กับ Supabase ตอนเปิด').toHaveLength(0);
     // ขั้นที่ 3: token ต้องไม่อยู่ใน URL
-    // บั๊กที่แจ้ง Jom 10 พ.ย. 2026 (claude/nestyk-web-reset-token-url-for-dev-2026-11-10.md): ไม่ผ่าน 4/4 ครั้งที่ qa/e2e 193c40c
-    //   หน้าลบ query ด้วย window.history.replaceState (:52-55) แล้ว expo-router (useLinking.js onStateChange) เขียน URL กลับจากสถานะของ router
-    //   ใต้ test.fail มีแค่การตรวจ search ของ URL เมื่อทีมแก้แล้ว ข้อนี้จะขึ้น "Expected to fail, but passed" ให้เอา test.fail กับป้ายออก
-    test.fail(true, 'token_hash ยังค้างใน URL หลังเปิดฟอร์ม (expo-router เขียน URL กลับหลังหน้าลบ)');
+    // เคยเป็นบั๊ก (แจ้ง Jom 10 พ.ย. 2026: claude/nestyk-web-reset-token-url-for-dev-2026-11-10.md) expo-router เขียน URL ที่มี token กลับ
+    //   Jom แก้ที่ UXUI/develop 056293c (ลบ params ผ่าน useNavigation().setParams หลัง effect รอบแรก) รวมเข้า pre/dev/review cfd6633
+    //   ผลรัน 10 พ.ย. 2026 ที่ qa/e2e 34be4d6 ขึ้น "Expected to fail, but passed" (Claude outputs/results/web-ui-cfd6633-reset-cookie-run1.txt) จึงเอา test.fail กับป้ายออก
     await expect(page).toHaveURL((url) => url.search === '');
     // อ่าน URL ซ้ำอีกครั้งโดยไม่รอ: toHaveURL ผ่านทันทีที่เจอ URL สะอาด ถ้า URL สะอาดแค่ครู่เดียวแล้วถูกเขียนกลับ บรรทัดนี้จับได้
     expect(new URL(page.url()).search, 'URL ต้องยังไม่มี token หลังตรวจครั้งแรก').toBe('');

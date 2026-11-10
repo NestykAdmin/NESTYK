@@ -6,7 +6,9 @@ import type { Locator, Page } from '@playwright/test';
  *   แถบ: apps/consumer-app/components/legal/CookieNotice.web.tsx (วางที่ app/_layout.tsx จึงมีทุกหน้าของเว็บ consumer-app)
  *   กติกาและที่เก็บ: packages/ui/src/consent/cookieConsent.ts
  *
- * ค่าคงที่ด้านล่างคัดลอกจากโค้ดของแอป ไม่ import (ข้อตกลงเดียวกับ labels.ts: ถ้าทีมเปลี่ยน เทสต้องแดงให้เห็น)
+ * เลขรุ่น (คุกกี้ เงื่อนไข นโยบาย) และรายการค่าของหมวด "จำค่าที่คุณตั้ง" อ่านจากโค้ดของแอปตรง ๆ ตามที่ Mos ขอ 10 พ.ย. 2026
+ *   (เลขรุ่นคือวันเปิดตัว จะเลื่อนเมื่อนโยบายฉบับจริงมา) ทั้ง 2 ไฟล์ของแอปไม่มี import จึงโหลดในชุดเทสได้
+ *   ข้อจำกัด: ถ้าแอปใส่เลขรุ่นผิด เทสจะไม่จับ เพราะใช้ค่าเดียวกับแอป ค่าอื่นในไฟล์นี้ยังคัดลอกไว้เอง ถ้าทีมเปลี่ยน เทสต้องแดงให้เห็น
  * ถ้าทีมเปลี่ยน COOKIE_CONSENT_VERSION ค่าที่ fixture ใส่ไว้ (web-ui.fixture.ts) จะกลายเป็นรุ่นเก่า แถบจะขึ้นทุกหน้าของทุกชุดเทส
  *   ให้ดูข้อ "the fixture's stored choice still hides the bar" ใน tests/web-ui/cookie-consent.spec.ts ก่อน ข้อนั้นบอกสาเหตุตรงที่สุด
  */
@@ -14,33 +16,26 @@ import type { Locator, Page } from '@playwright/test';
 /** cookieConsent.ts:18 */
 export const COOKIE_CONSENT_KEY = 'nestyk.web.cookieConsent';
 
-/** cookieConsent.ts:15 (เปลี่ยนเมื่อหมวดหรือข้อความคุกกี้เปลี่ยน ทุกคนถูกถามใหม่) */
-export const COOKIE_CONSENT_VERSION = '2026-11-13';
-
-/** ค่าของหมวด "จำค่าที่คุณตั้ง" ที่แอปลบเมื่อหมวดนี้ปิด (cookieConsent.ts:32-37, saveCookieConsent :129-137) */
-export const PREFERENCE_STORAGE_KEYS = [
-  '@nestyk/preferred_locale',
-  'nestyk.web.theme',
-  'nestyk.web.lastRole',
-  'nestyk.agentRooms.view',
-] as const;
+/** COOKIE_CONSENT_VERSION (cookieConsent.ts:15 เปลี่ยนเมื่อหมวดหรือข้อความคุกกี้เปลี่ยน ทุกคนถูกถามใหม่) และ PREFERENCE_STORAGE_KEYS (:37-42 ค่าที่แอปลบเมื่อหมวดนี้ปิด) */
+export { COOKIE_CONSENT_VERSION, PREFERENCE_STORAGE_KEYS } from '../../../../../packages/ui/src/consent/cookieConsent';
 
 /**
  * รุ่นของเงื่อนไขและนโยบายที่บันทึกตอนสมัคร (apps/consumer-app/lib/cookie-notice.ts:12-13)
  * ข้อจำกัด: ตอนนี้ 3 รุ่น (คุกกี้ เงื่อนไข นโยบาย) เป็นวันเดียวกัน ถ้าแอปใส่รุ่นสลับช่อง เทสสมัครจะจับไม่ได้จนกว่าวันจะต่างกัน
  */
-export const TERMS_VERSION = '2026-11-13';
-export const PRIVACY_VERSION = '2026-11-13';
+export { TERMS_VERSION, PRIVACY_VERSION } from '../../../../../apps/consumer-app/lib/cookie-notice';
 
 /** จำนวนแถวของตารางในหน้า /privacy#cookies (BROWSER_STORAGE_ITEMS :28-39 และ THIRD_PARTY_SERVICES :43-46) */
 export const COOKIE_TABLE_ROWS = { storage: 10, services: 2 } as const;
 
-/** ค่าที่แอปเขียนลง COOKIE_CONSENT_KEY (cookieConsentRecord :57-63) */
+/** ค่าที่แอปเขียนลง COOKIE_CONSENT_KEY (cookieConsentRecord cookieConsent.ts:68-75 ที่ cfd6633) */
 export interface StoredCookieConsent {
   version: string;
   at: string;
   preferences: boolean;
   maps: boolean;
+  /** true เมื่อตอบแถบครบทุกหมวด false เมื่ออนุญาตหมวดเดียวจากปุ่ม "แสดงแผนที่" (allowCookieCategory) ค่าเก่าที่ไม่มีช่องนี้นับว่าตอบแล้ว */
+  complete?: boolean;
 }
 
 /** ตัวหาชิ้นส่วนของแถบ ทุกตัวเป็น data-testid ของ CookieNotice.web.tsx */
