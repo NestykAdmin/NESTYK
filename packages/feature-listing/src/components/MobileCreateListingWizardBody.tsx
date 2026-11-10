@@ -61,6 +61,12 @@ import { placesSearchAction } from './places-search-gate';
 import { PropertyPlaceMap } from './PropertyPlaceMap';
 import { MoveInDateField, todayIsoDate, clampMoveInDate } from './MoveInDateField';
 
+/** Stored move-in date as YYYY-MM-DD ('' if missing/invalid). Not clamped: a past date stays as-is. */
+function storedMoveInDate(value: string | null | undefined): string {
+  const day = (value ?? '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : '';
+}
+
 export type { ListingSourceCode };
 
 const CREATE_STEPS = [1, 2, 5, 8, 6];
@@ -342,6 +348,8 @@ export const MobileCreateListingWizardBody: React.FC<
   const [description, setDescription] = useState('');
   const [promoTitle, setPromoTitle] = useState('');
   const [availableFrom, setAvailableFrom] = useState(todayIsoDate);
+  /** Edit mode: true once the user picks a date. Until then Save keeps the stored date (even if past). */
+  const [availableFromTouched, setAvailableFromTouched] = useState(false);
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [customFacilities, setCustomFacilities] = useState('');
   const [facilities, setFacilities] = useState<CreateRoomWizardSubmitData['facilities']>([]);
@@ -551,6 +559,7 @@ export const MobileCreateListingWizardBody: React.FC<
     setDescription(initialData.listingDescription ?? '');
     setPromoTitle(initialData.promoTitle ?? '');
     setAvailableFrom(clampMoveInDate(initialData.availableFromDate ?? todayIsoDate()));
+    setAvailableFromTouched(false);
     setPromoStale(Boolean(initialData.promoCopyStale));
     setNearbyPlaces(initialData.nearbyPlaces ?? []);
     setCustomFacilities((initialData.customFacilities ?? []).join('\n'));
@@ -1486,6 +1495,13 @@ export const MobileCreateListingWizardBody: React.FC<
     return () => sub.remove();
   }, [handleWizardBack]);
 
+  const storedAvailableFrom = storedMoveInDate(initialData?.availableFromDate);
+  const keepStoredAvailableFrom = Boolean(initialData) && !availableFromTouched;
+  /** Must match the initial promo fingerprint while the date is untouched. */
+  const availableFromFingerprint = keepStoredAvailableFrom
+    ? initialData?.availableFromDate ?? ''
+    : availableFrom;
+
   const buildPromoFingerprint = () =>
     JSON.stringify({
       propertyName: propertyName.trim(),
@@ -1507,7 +1523,7 @@ export const MobileCreateListingWizardBody: React.FC<
         advance: leaseTerms(id).advanceRentMonths,
         deposit: leaseTerms(id).depositMonths,
       })),
-      availableFrom,
+      availableFrom: availableFromFingerprint,
     });
 
   const closePromoAiSheet = useCallback(() => {
@@ -1594,6 +1610,7 @@ export const MobileCreateListingWizardBody: React.FC<
   }, [
     address,
     availableFrom,
+    availableFromFingerprint,
     bathroom,
     bedroom,
     building,
@@ -1987,7 +2004,7 @@ export const MobileCreateListingWizardBody: React.FC<
       sizeSqm.trim() !== (layoutMap.room_size ?? '') ||
       floor.trim() !== (layoutMap.floor ?? '') ||
       building.trim() !== (layoutMap.building ?? '') ||
-      availableFrom !== clampMoveInDate(initialData.availableFromDate ?? todayIsoDate()) ||
+      (availableFromTouched && availableFrom !== storedAvailableFrom) ||
       promoTitle.trim() !== (initialData.promoTitle ?? '').trim() ||
       description.trim() !== (initialData.listingDescription ?? '').trim() ||
       curPhotos !== initPhotos ||
@@ -2106,7 +2123,10 @@ export const MobileCreateListingWizardBody: React.FC<
       depositMonths: depositMonths ?? SUGGESTED_DEPOSIT_MONTHS,
       layout,
       listingDescription: description.trim(),
-      availableFromDate: clampMoveInDate(availableFrom || todayIsoDate()),
+      availableFromDate:
+        keepStoredAvailableFrom && storedAvailableFrom
+          ? storedAvailableFrom
+          : clampMoveInDate(availableFrom || todayIsoDate()),
       nearbyPlaces: latitude != null && longitude != null
         ? relocateNearby(nearbyPlaces, latitude, longitude)
         : nearbyPlaces,
@@ -2895,6 +2915,7 @@ export const MobileCreateListingWizardBody: React.FC<
                 value={availableFrom}
                 onChange={(iso) => {
                   setAvailableFrom(clampMoveInDate(iso));
+                  setAvailableFromTouched(true);
                   clearFieldError('availableFrom');
                 }}
                 accentColor={accent}
