@@ -47,7 +47,7 @@ export class CookieNotice {
     return this.page.getByTestId('cookieNotice');
   }
 
-  /** มีทั้งในมุมมอง choice และ settings จึงหาจากในแถบเสมอ (:149, :172) */
+  /** มีทั้งในมุมมอง choice และ settings จึงหาจากในแถบเสมอ (:150, :175 ที่ cfd6633) */
   get acceptAll(): Locator {
     return this.root.getByTestId('cookieNotice.acceptAll');
   }
@@ -56,12 +56,12 @@ export class CookieNotice {
     return this.root.getByTestId('cookieNotice.necessaryOnly');
   }
 
-  /** ปุ่ม "ตั้งค่า" ในมุมมอง choice (:155-163) */
+  /** ปุ่ม "ตั้งค่า" ในมุมมอง choice (:156-168) */
   get settings(): Locator {
     return this.root.getByTestId('cookieNotice.settings');
   }
 
-  /** ปุ่ม "บันทึกตัวเลือก" ในมุมมอง settings (:169) */
+  /** ปุ่ม "บันทึกตัวเลือก" ในมุมมอง settings (:172) */
   get save(): Locator {
     return this.root.getByTestId('cookieNotice.save');
   }
@@ -74,6 +74,23 @@ export class CookieNotice {
   /** checkbox ของแต่ละหมวด necessary ติ๊กไว้และกดไม่ได้ (:114-127) */
   category(id: 'necessary' | 'preferences' | 'maps'): Locator {
     return this.root.getByTestId(`cookieNotice.${id}`);
+  }
+}
+
+/**
+ * กล่อง "แสดงแผนที่" ที่ขึ้นแทนแผนที่ Google จนกว่าจะอนุญาตหมวดแผนที่ (packages/feature-listing/src/components/MapConsentGate.tsx ที่ cfd6633)
+ * testID เริ่มต้น mapConsent (:25) ปุ่ม mapConsent.show (:60) กดแล้วเรียก allowCookieCategory('maps') (:35, cookieConsent.ts)
+ * scope: ส่วนของหน้าที่มีกล่อง เช่น หน้าต่างรายละเอียดห้อง เพื่อไม่ให้ไปเจอกล่องของส่วนอื่น
+ */
+export class MapConsentGate {
+  constructor(private readonly scope: Locator) {}
+
+  get root(): Locator {
+    return this.scope.getByTestId('mapConsent');
+  }
+
+  get show(): Locator {
+    return this.scope.getByTestId('mapConsent.show');
   }
 }
 

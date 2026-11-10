@@ -316,6 +316,16 @@ export const LEGAL: Record<Locale, { draftBadge: string; privacyTitle: string; f
  */
 export const LEGAL_SECTION_COUNT = { privacy: 9, terms: 10 } as const;
 
+/**
+ * ข้อความในกล่อง "แสดงแผนที่" ที่ขึ้นแทนแผนที่จนกว่าจะอนุญาตคุกกี้แผนที่ (packages/feature-listing/src/components/MapConsentGate.tsx)
+ * packages/i18n/src/locales/legal/<ภาษา>.ts cookieNotice.mapOff / cookieNotice.mapShow ที่ pre/dev/review cfd6633
+ * mapUnavailable: agent.createRoom.mapUnavailable ใน packages/i18n/src/locales/<ภาษา>.ts ขึ้นแทนกล่องเมื่อ build ไม่มี key (NearbyPlacesMap.web.tsx:224-227)
+ */
+export const MAP_GATE: Record<'en' | 'th', { mapOff: string; mapShow: string; mapUnavailable: string }> = {
+  en: { mapOff: 'Google Maps is not shown because map cookies are not allowed yet. Press "Show map" to allow them and load the map.', mapShow: 'Show map', mapUnavailable: 'Map unavailable. Check the connection or map configuration.' }, // legal/en.ts :48 / :49 / en.ts :1694
+  th: { mapOff: 'แผนที่ Google ยังไม่แสดง เพราะยังไม่ได้อนุญาตคุกกี้แผนที่ กด "แสดงแผนที่" เพื่ออนุญาตและโหลดแผนที่', mapShow: 'แสดงแผนที่', mapUnavailable: 'โหลดแผนที่ไม่สำเร็จ กรุณาตรวจการเชื่อมต่อหรือการตั้งค่าแผนที่' }, // legal/th.ts :52 / :53 / th.ts :1695
+};
+
 /** ปุ่มขั้นอีเมลของหน้าลืมรหัสผ่านภาษาไทย: packages/i18n/src/locales/th.ts:355 mobile.auth.resetSend ที่ qa/e2e 648dd28 */
 export const TH_RESET_SEND = 'ส่งลิงก์';
 /** ข้อความเดิมของปุ่มขั้นอีเมลก่อนแก้บั๊กข้อ 6 (ระบบส่งลิงก์ ไม่ได้ส่งรหัส) ใช้ตรวจว่าไม่กลับมา */
