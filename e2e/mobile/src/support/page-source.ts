@@ -19,9 +19,16 @@ export interface ScreenNode {
   label: string;
   visible: boolean;
   traits: string;
-  /** ตำแหน่งแนวตั้งบนจอ (จุด) เป็น NaN ถ้าโครงสร้างหน้าจอไม่มีค่า y */
+  /** ตำแหน่งแนวตั้งบนจอ (จุด) เป็น NaN ถ้าโครงสร้างหน้าจอไม่มีค่า y หรือค่าว่าง */
   y: number;
+  /** ตำแหน่งแนวนอน ความกว้าง ความสูง (จุด) เป็น NaN ถ้าไม่มีค่าหรือค่าว่าง ใช้แยกว่า 2 ชิ้นเป็นกรอบเดียวกันหรือไม่ (NotificationsPanel.ts) */
+  x: number;
+  width: number;
+  height: number;
 }
+
+/** แปลงค่าตัวเลขของ attribute ค่าที่ไม่มีหรือว่างเป็น NaN (Number('') ได้ 0 ซึ่งดูเหมือนตำแหน่งจริง) */
+const numberOrNaN = (value: string | undefined): number => (value === undefined || value.trim() === '' ? NaN : Number(value));
 
 const XML_ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" };
 const decodeXml = (text: string): string => text.replace(/&(?:amp|lt|gt|quot|apos);/g, (entity) => XML_ENTITIES[entity] ?? entity);
@@ -38,7 +45,10 @@ export function parseNodes(source: string): ScreenNode[] {
       label: attrs.label ?? '',
       visible: attrs.visible === 'true',
       traits: attrs.traits ?? '',
-      y: Number(attrs.y ?? 'NaN'),
+      y: numberOrNaN(attrs.y),
+      x: numberOrNaN(attrs.x),
+      width: numberOrNaN(attrs.width),
+      height: numberOrNaN(attrs.height),
     });
   }
   return nodes;
