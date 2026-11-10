@@ -52,6 +52,16 @@ export class ResetPasswordPage {
     return this.page.getByText(value);
   }
 
+  /** ข้อความที่ตรงตัวที่ใดก็ได้บนหน้า (ใช้ตรวจว่าข้อความ error แบบอื่นต้องไม่ขึ้น) */
+  textAnywhere(value: string): Locator {
+    return this.page.getByText(value, { exact: true });
+  }
+
+  /** ทั้งหน้า (ใช้ตรวจว่าข้อความดิบของ Supabase ไม่อยู่ที่ใดบนหน้า) */
+  get body(): Locator {
+    return this.page.locator('body');
+  }
+
   /** testID resetPassword.footer (:190) */
   get footer(): Locator {
     return this.page.getByTestId('resetPassword.footer');

@@ -59,6 +59,10 @@ export const EN_EN = {
   emailNotConfirmed: 'Please verify your email before signing in.', // mobile.auth.emailNotConfirmed :376
   tooManyAttempts: 'Too many attempts. Please wait a moment and try again.', // mobile.auth.tooManyAttempts :377
   errorGeneric: 'Something went wrong. Please try again.', // common.errorGeneric :23
+  // หน้าสมัคร: ข้อความเมื่อสมัครหรือส่งรหัสใหม่ไม่สำเร็จ และขั้นใส่รหัส 6 หลัก (register.tsx:132, :176, :315-324 ที่ fe5d348)
+  registrationFailed: 'Could not complete registration. Please try again. If your account was created, return to login.', // mobile.auth.registrationFailed :347
+  otpCode: '6-digit code', // mobile.auth.otpCode :341 (เป็นทั้ง aria-label ของช่องรหัสและข้อความบนปุ่มยืนยัน)
+  resendCode: 'Send a new code', // mobile.auth.resendCode :343
   firstName: 'First Name', // mobile.account.firstName :235
   lastName: 'Last Name', // mobile.account.lastName :236
   phone: 'Phone Number', // mobile.account.phone :238 (aria-label ของช่องเบอร์ใน PhoneField.tsx:74)

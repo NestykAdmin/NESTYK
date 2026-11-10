@@ -31,6 +31,9 @@ export const EN_TH: Record<keyof typeof EN_EN, string> = {
   emailNotConfirmed: 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ', // mobile.auth.emailNotConfirmed :376
   tooManyAttempts: 'ลองหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่', // mobile.auth.tooManyAttempts :377
   errorGeneric: 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง', // common.errorGeneric :23
+  registrationFailed: 'สมัครสมาชิกไม่สำเร็จ กรุณาลองอีกครั้ง หากสร้างบัญชีแล้ว ให้กลับไปเข้าสู่ระบบ', // mobile.auth.registrationFailed :347
+  otpCode: 'รหัส 6 หลัก', // mobile.auth.otpCode :341
+  resendCode: 'ส่งรหัสใหม่', // mobile.auth.resendCode :343
   firstName: 'ชื่อ', // mobile.account.firstName :235
   lastName: 'นามสกุล', // mobile.account.lastName :236
   phone: 'เบอร์โทรศัพท์', // mobile.account.phone :238
