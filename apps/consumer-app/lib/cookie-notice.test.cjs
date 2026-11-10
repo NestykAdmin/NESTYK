@@ -71,8 +71,33 @@ test('consent: a saved choice counts only for the current version', () => {
   assert.equal(c.parseCookieConsent('not json'), null);
   assert.equal(c.parseCookieConsent('{"version":"1999-01-01","at":"x","maps":true}'), null, 'a new version asks again');
   const record = c.cookieConsentRecord({ preferences: true, maps: 'yes' }, new Date('2026-11-09T10:00:00Z'));
-  assert.deepEqual(record, { version: c.COOKIE_CONSENT_VERSION, at: '2026-11-09T10:00:00.000Z', preferences: true, maps: false });
+  assert.deepEqual(record, { version: c.COOKIE_CONSENT_VERSION, at: '2026-11-09T10:00:00.000Z', preferences: true, maps: false, complete: true });
   assert.deepEqual(c.parseCookieConsent(JSON.stringify(record)), record);
+  const { complete, ...older } = record; // a record saved before the "complete" field counts as answered
+  assert.equal(c.parseCookieConsent(JSON.stringify(older)).complete, true);
+});
+
+test('consent: "Show map" before the bar was answered allows maps only (QA 10 Nov 2026, item 1)', () => {
+  withBrowser(({ store }) => {
+    const c = loadConsent();
+    for (const key of c.PREFERENCE_STORAGE_KEYS) store.set(key, 'old');
+    let heard = 0;
+    c.onCookieConsentChange(() => heard++);
+    const partial = c.allowCookieCategory('maps');
+    assert.equal(heard, 1, 'the map hears it');
+    assert.equal(partial.complete, false, 'not the whole cookie choice');
+    assert.equal(c.cookieConsentAllows('maps'), true);
+    assert.equal(c.cookieConsentAllows('preferences'), false, 'settings still need their own yes');
+    for (const key of c.PREFERENCE_STORAGE_KEYS) assert.equal(store.get(key), 'old', `${key} not removed`);
+    assert.equal(c.readCookieConsent().complete, false, 'the bar still asks');
+    // The bar's answer later is the whole choice.
+    c.saveCookieConsent({ preferences: true, maps: true });
+    assert.equal(c.readCookieConsent().complete, true);
+    // "Show map" after a full answer keeps it full and keeps the other answers.
+    c.saveCookieConsent({ preferences: true, maps: false });
+    const after = c.allowCookieCategory('maps');
+    assert.deepEqual([after.complete, after.preferences, after.maps], [true, true, true]);
+  });
 });
 
 test('consent: outside a web page (phone app, server render) nothing is blocked', () => {
@@ -211,7 +236,8 @@ test('consent: Google Maps (script or embed) loads only behind MapConsentGate', 
   assert.deepEqual(hits.sort(), [`${dir}/NearbyPlacesMap.web.tsx`, `${dir}/PropertyPlaceMap.web.tsx`, `${dir}/PublicRoomDesktopBody.tsx`]);
   const gate = readRepo(`${dir}/MapConsentGate.tsx`);
   assert.match(gate, /cookieConsentAllows\('maps'\)/);
-  assert.match(gate, /saveCookieConsent\(\{ preferences: readCookieConsent\(\)\?\.preferences \?\? false, maps: true \}\)/);
+  assert.match(gate, /const show = \(\) => allowCookieCategory\('maps'\);/);
+  assert.doesNotMatch(gate, /saveCookieConsent/, 'the map never saves the whole cookie choice');
 });
 
 test('consent bar: equal choice, necessary locked, settings reachable from footers and /privacy', () => {
@@ -222,7 +248,8 @@ test('consent bar: equal choice, necessary locked, settings reachable from foote
   assert.match(bar, /className="ck-btn" onClick=\{\(\) => choose\(NONE\)\} data-testid="cookieNotice\.necessaryOnly"/);
   assert.match(bar, /\{ id: 'necessary' as const, on: true, locked: true \}/);
   assert.match(bar, /disabled=\{category\.locked\}/);
-  assert.match(bar, /if \(!readCookieConsent\(\)\) setOpen\(true\);/);
+  assert.match(bar, /if \(!readCookieConsent\(\)\?\.complete\) setOpen\(true\);/, 'asks until the bar is answered');
+  assert.match(bar, /if \(readCookieConsent\(\)\?\.complete && viewRef\.current === 'choice'\) setOpen\(false\);/);
   assert.match(bar, /closest\?\.\(`a\[href="\$\{COOKIE_SETTINGS_HREF\}"\]`\)/);
   assert.match(bar, /const NONE: CookieChoice = \{ preferences: false, maps: false \};/, 'settings start unticked');
   assert.doesNotMatch(read('components/legal/cookie-notice.css'), /\.ck-notice::before|backdrop|inset: 0/, 'the bar does not block the page');
