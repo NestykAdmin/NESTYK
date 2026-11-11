@@ -63,7 +63,7 @@ export function useAgentDashboard({ enabled, accountId, refreshToken, greetingNa
     isDemoPreview: false,
     greetingName,
     localDateLabel: new Date(data.generatedAt).toLocaleDateString(
-      ({ th: 'th-TH', zh: 'zh-CN', ja: 'ja-JP' } as Record<string, string>)[locale] || 'en-GB',
+      ({ th: 'th-TH-u-ca-gregory', zh: 'zh-CN', ja: 'ja-JP' } as Record<string, string>)[locale] || 'en-GB',
       { timeZone: 'Asia/Bangkok', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
     ),
   };

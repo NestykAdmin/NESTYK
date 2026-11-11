@@ -3058,7 +3058,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 <Text style={[s.body, title]}>{party.label}</Text>
                 <Text style={[s.small, muted]}>
                   {party.signed
-                    ? `✓ ${new Date(party.signed).toLocaleString("th-TH")}`
+                    ? `✓ ${new Date(party.signed).toLocaleString("th-TH-u-ca-gregory")}`
                     : docs.unsigned}
                 </Text>
                 {!!party.signed && !!signatureChannelText(signatureLog, party.key, docs) && (
@@ -3125,7 +3125,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 <Text style={[s.body, title]}>{docs.witness}</Text>
                 <Text style={[s.small, muted]}>
                   {witnessEntry
-                    ? `✓ ${new Date(witnessEntry.signedAt).toLocaleString("th-TH")}`
+                    ? `✓ ${new Date(witnessEntry.signedAt).toLocaleString("th-TH-u-ca-gregory")}`
                     : docs.unsigned}
                 </Text>
                 {!!witnessEntry && (

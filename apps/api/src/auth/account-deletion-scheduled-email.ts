@@ -3,13 +3,13 @@ import { resendMailer, type ReminderMailer } from '../agent/reminders/reminder-e
 export const ACCOUNT_DELETION_SCHEDULED_SUBJECT = 'บัญชี NESTYK ถูกนัดลบ / Your NESTYK account is scheduled for deletion';
 
 /** The day shown in the app (Bangkok time, the same as the banner and the delete page). */
-function bangkokDay(at: Date, tag: 'th-TH' | 'en-GB'): string {
+function bangkokDay(at: Date, tag: 'th-TH-u-ca-gregory' | 'en-GB'): string {
   return at.toLocaleDateString(tag, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' });
 }
 
 export function accountDeletionScheduledMessage(effectiveAt: Date): { subject: string; text: string } {
   const text = [
-    `บัญชี NESTYK ของคุณถูกนัดลบในวันที่ ${bangkokDay(effectiveAt, 'th-TH')}`,
+    `บัญชี NESTYK ของคุณถูกนัดลบในวันที่ ${bangkokDay(effectiveAt, 'th-TH-u-ca-gregory')}`,
     'ก่อนถึงวันนั้นยังเข้าสู่ระบบได้ตามปกติ ถ้าเปลี่ยนใจ เข้าแอป ไปที่ตั้งค่า > บัญชี > ลบบัญชี แล้วกด "ยกเลิกการลบ"',
     'ถ้าคุณไม่ได้เป็นคนขอลบ ให้เข้าแอปเพื่อยกเลิกการลบ และเปลี่ยนรหัสผ่านทันที',
     '',

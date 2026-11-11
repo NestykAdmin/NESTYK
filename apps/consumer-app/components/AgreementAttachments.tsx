@@ -412,7 +412,7 @@ export function AgreementAttachments({
             <Text style={[s.docMeta, muted]}>
               {subjects[doc.subject]} ·{" "}
               {typeName(doc.documentTypeCode, state.documentTypes)} ·{" "}
-              {new Date(doc.createdAt).toLocaleDateString("th-TH")}
+              {new Date(doc.createdAt).toLocaleDateString("th-TH-u-ca-gregory")}
             </Text>
             {renderReviewLine(doc)}
 

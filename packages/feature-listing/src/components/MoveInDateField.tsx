@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { MobileBottomSheet, MobileIcon, tokens } from '@nestyk/ui/native';
 import { WizardSheetChrome } from './WizardSheetChrome';
+import { dateLocale } from '@nestyk/i18n';
 
 LocaleConfig.locales.en = LocaleConfig.locales[''];
 LocaleConfig.defaultLocale = 'en';
@@ -25,7 +26,7 @@ function formatDisplayDate(iso: string, locale: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
   const [y, m, d] = iso.split('-').map(Number);
   try {
-    return new Intl.DateTimeFormat(locale, {
+    return new Intl.DateTimeFormat(dateLocale(locale), {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

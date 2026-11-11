@@ -156,7 +156,7 @@ export function RoomDesktopBody({
     room.availableFromDate || "",
   );
   const available = dateMatch
-    ? new Intl.DateTimeFormat(locale === "th" ? "th-TH" : locale, {
+    ? new Intl.DateTimeFormat(locale === "th" ? "th-TH-u-ca-gregory" : locale, {
         day: "numeric",
         month: "short",
         year: "numeric",

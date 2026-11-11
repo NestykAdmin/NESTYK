@@ -127,7 +127,7 @@ export function RoomShareLinkSheet({
   const formatDate = useCallback(
     (iso: string) => {
       try {
-        return new Date(iso).toLocaleString(locale === 'th' ? 'th-TH' : locale, {
+        return new Date(iso).toLocaleString(locale === 'th' ? 'th-TH-u-ca-gregory' : locale, {
           dateStyle: 'medium',
           timeStyle: 'short',
         });

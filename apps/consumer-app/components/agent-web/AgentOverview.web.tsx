@@ -79,7 +79,7 @@ export function AgentOverview({
     const timer = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(timer);
   }, []);
-  const localeTag = { th: "th-TH", en: "en-GB", zh: "zh-CN", ja: "ja-JP" }[
+  const localeTag = { th: "th-TH-u-ca-gregory", en: "en-GB", zh: "zh-CN", ja: "ja-JP" }[
     locale
   ];
   const money = (amount: number, currency = snapshot.business.currency) =>

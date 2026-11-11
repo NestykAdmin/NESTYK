@@ -20,7 +20,7 @@ export function leadAvatarInitials(name: string): string {
 }
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const LOCALE_TAGS: Record<string, string> = { th: 'th-TH', en: 'en-GB', zh: 'zh-CN', ja: 'ja-JP' };
+const LOCALE_TAGS: Record<string, string> = { th: 'th-TH-u-ca-gregory', en: 'en-GB', zh: 'zh-CN', ja: 'ja-JP' };
 
 export function localeTag(locale: string): string {
   return LOCALE_TAGS[locale] ?? locale;

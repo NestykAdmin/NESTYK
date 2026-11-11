@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { useLocale, type SupportedLocale } from "@nestyk/i18n";
+import { dateLocale, useLocale, type SupportedLocale } from "@nestyk/i18n";
 import {
   MobileIcon,
   MobileNestykLogo,
@@ -839,7 +839,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                             ))}
                           </>
                         ) : null}
-                        {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
+                        {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(dateLocale(locale), { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
                         {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
                         {!deleteBlocked?.length && !deleteScheduled ? (
                           <>

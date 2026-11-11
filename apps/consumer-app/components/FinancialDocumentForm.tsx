@@ -613,7 +613,7 @@ export function FinancialDocumentForm({
                   </Text>
                   <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
                     {invoice.customerName} ·{" "}
-                    {invoice.total.toLocaleString("th-TH", {
+                    {invoice.total.toLocaleString("th-TH-u-ca-gregory", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -728,7 +728,7 @@ export function FinancialDocumentForm({
                   Number(withholding.replace(/,/g, "")) < total ? (
                     <Text style={{ color: theme.textHeading, lineHeight: 22 }}>
                       {fillTemplate(rc.net, {
-                        amount: (Math.round((total - Number(withholding.replace(/,/g, ""))) * 100) / 100).toLocaleString("th-TH", {
+                        amount: (Math.round((total - Number(withholding.replace(/,/g, ""))) * 100) / 100).toLocaleString("th-TH-u-ca-gregory", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         }),
@@ -790,7 +790,7 @@ export function FinancialDocumentForm({
           >
             {labels.total}:{" "}
             {Number.isFinite(total)
-              ? total.toLocaleString("th-TH", {
+              ? total.toLocaleString("th-TH-u-ca-gregory", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })
@@ -924,7 +924,7 @@ export function FinancialDocumentForm({
           >
             {labels.total}:{" "}
             {Number.isFinite(total)
-              ? total.toLocaleString("th-TH", {
+              ? total.toLocaleString("th-TH-u-ca-gregory", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })

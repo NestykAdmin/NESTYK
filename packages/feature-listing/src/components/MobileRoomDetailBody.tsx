@@ -84,7 +84,7 @@ function formatDisplayDate(iso: string | null | undefined, locale: string) {
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   if (Number.isNaN(date.getTime())) return iso;
   try {
-    return date.toLocaleDateString(locale === 'th' ? 'th-TH' : `${locale}-u-ca-gregory`, {
+    return date.toLocaleDateString(locale === 'th' ? 'th-TH-u-ca-gregory' : `${locale}-u-ca-gregory`, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',

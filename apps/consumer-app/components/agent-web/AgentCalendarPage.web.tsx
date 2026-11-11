@@ -23,7 +23,7 @@ import "./agent-calendar.css";
 /** D2 (Mos 6 Nov 2026): the week starts on Monday, as the app's calendar (`firstDay={1}`). */
 const WEEK_START = 1;
 const CHIPS_PER_DAY = 3;
-const LOCALE_TAG = { th: "th-TH", en: "en-GB", zh: "zh-CN", ja: "ja-JP" } as const;
+const LOCALE_TAG = { th: "th-TH-u-ca-gregory", en: "en-GB", zh: "zh-CN", ja: "ja-JP" } as const;
 const STATE_INTENT: Record<ViewingStateKey, StatusIntent> = { scheduled: "prog", done: "done", overdue: "attn" };
 const ALL_STATES: ReadonlySet<ViewingStateKey> = new Set(VIEWING_STATE_KEYS);
 type View = "month" | "agenda";
