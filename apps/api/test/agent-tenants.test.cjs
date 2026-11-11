@@ -26,6 +26,17 @@ test('validates required identity/contact fields and optional email without acce
   assert.equal(validateTenant({ ...valid, identityNumber: '1-2345-67890-12-3', nationality: ' ไทย ' }).identityNumber, '1-2345-67890-12-3');
   assert.equal(validateTenant({ ...valid, identityNumber: '1-2345-67890-12-3', nationality: ' ไทย ' }).nationality, 'ไทย');
 });
+test('first and last name together must fit tenants.name varchar(255) on create and update', () => {
+  const split = { name: undefined, firstName: 'ก'.repeat(127) };
+  // 127 + space + 127 = 255: accepted, and the stored name is exactly 255 characters.
+  assert.equal(validateTenant({ ...valid, ...split, lastName: 'ข'.repeat(127) }).name.length, 255);
+  assert.equal(validateTenantProfile({ ...profile, ...split, lastName: 'ข'.repeat(127) }).name.length, 255);
+  // 127 + space + 128 = 256: refused with 400 before any write, on POST and PATCH alike.
+  for (const validate of [() => validateTenant({ ...valid, ...split, lastName: 'ข'.repeat(128) }), () => validateTenantProfile({ ...profile, ...split, lastName: 'ข'.repeat(128) })])
+    assert.throws(validate, (e) => e.getStatus() === 400 && /255/.test(e.message));
+  // A long `name` that the service splits is held to the same limit.
+  assert.throws(() => validateTenantProfile({ ...profile, name: `${'ก'.repeat(200)} ${'ข'.repeat(60)}` }), (e) => e.getStatus() === 400);
+});
 function fixture(options = {}) {
   const saved = []; const writes = []; const reads = []; const lead = { id: 1, name: 'Original lead', phone: '0899999999', status: 'inprogress', tenant_id: null, ...options.lead };
   // D2: the offer the landlord confirmed (a confirmed one unless a test says otherwise), and the offers closed on booking.

@@ -90,8 +90,12 @@ function parseTenantProfile(input: unknown): UpdateAgentTenant {
     throw new BadRequestException(
       "กรุณาระบุชื่อและเบอร์โทรให้ครบ และตรวจสอบความยาวข้อมูล",
     );
+  // tenants.name is varchar(255): check the joined name too, like agent-leads.service.ts (QA, 11 Nov 2026).
+  const name = [firstName, lastName].filter(Boolean).join(" ");
+  if (name.length > 255)
+    throw new BadRequestException("ชื่อและนามสกุลรวมกันต้องไม่เกิน 255 ตัวอักษร");
   return {
-    name: [firstName, lastName].filter(Boolean).join(" "),
+    name,
     firstName,
     lastName,
     phone,
