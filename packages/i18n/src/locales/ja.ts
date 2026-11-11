@@ -3,6 +3,7 @@ import { TranslationSchema } from '../types';
 import { contractsJa } from './contracts/ja';
 import { legalJa } from './legal/ja';
 import { webSessionJa } from './web-session/ja';
+import { guestJa } from './guest/ja';
 
 export const ja: TranslationSchema = {
   common: {
@@ -2274,6 +2275,7 @@ export const ja: TranslationSchema = {
   contracts: contractsJa,
   legal: legalJa,
   webSession: webSessionJa,
+  guest: guestJa,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.ja,
     facilities: { ...AMENITIES_FACILITY_LABELS.ja, air_conditioner: 'エアコン', wifi: 'Wi‑Fi', parking: '駐車', swimming_pool: 'プール', elevator: 'エレベーター', security: '警備' },

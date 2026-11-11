@@ -1,6 +1,7 @@
 import type { ContractCopy } from './locales/contracts/th';
 import type { LegalCopy } from './locales/legal/th';
 import type { WebSessionCopy } from './locales/web-session/th';
+import type { GuestCopy } from './locales/guest/types';
 
 export type SupportedLocale = 'th' | 'en' | 'zh' | 'ja';
 export type { ContractCopy, LegalCopy, WebSessionCopy };
@@ -2277,6 +2278,8 @@ export interface TranslationSchema {
   legal: LegalCopy;
   /** Web: sign out of all devices, idle sign out. */
   webSession: WebSessionCopy;
+  /** Guest listing pages: home, search, map (web and app). */
+  guest: GuestCopy;
   masters: {
     facilities: Record<string, string>;
     facilityGroups: Record<string, string>;

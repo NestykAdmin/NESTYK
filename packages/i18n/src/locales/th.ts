@@ -3,6 +3,7 @@ import { TranslationSchema } from '../types';
 import { contractsTh } from './contracts/th';
 import { legalTh } from './legal/th';
 import { webSessionTh } from './web-session/th';
+import { guestTh } from './guest/th';
 
 export const th: TranslationSchema = {
   common: {
@@ -2275,6 +2276,7 @@ export const th: TranslationSchema = {
   contracts: contractsTh,
   legal: legalTh,
   webSession: webSessionTh,
+  guest: guestTh,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.th,
     facilities: { ...AMENITIES_FACILITY_LABELS.th, air_conditioner: 'แอร์', wifi: 'ไวไฟ', parking: 'ที่จอดรถ', swimming_pool: 'สระว่ายน้ำ', elevator: 'ลิฟต์', security: 'รปภ.' },
