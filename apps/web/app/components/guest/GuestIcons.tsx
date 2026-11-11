@@ -194,3 +194,91 @@ export function SocialIcon({ id }: { id: SocialId }) {
       );
   }
 }
+
+export const PinIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" />
+    <circle cx="12" cy="11" r="2.2" />
+  </Line>
+);
+
+export const BedIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M3 18v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7M3 15h18M3 18v2M21 18v2" />
+    <path d="M7 9V7h4v2" />
+  </Line>
+);
+
+export const BathIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M4 12h16v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM6 12V6a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2" />
+  </Line>
+);
+
+export const AreaIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" />
+  </Line>
+);
+
+export const TrainIcon = (props: IconProps) => (
+  <Line {...props}>
+    <rect x="6" y="3" width="12" height="14" rx="3" />
+    <path d="M6 11h12M9 21l1.5-4M15 21l-1.5-4M9 14h.01M15 14h.01" />
+  </Line>
+);
+
+export const PhotoIcon = (props: IconProps) => (
+  <Line {...props}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="9" cy="10" r="1.8" />
+    <path d="m21 16-5-5-8 8" />
+  </Line>
+);
+
+export const ShieldCheckIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" />
+    <path d="m9 12 2 2 4-4" />
+  </Line>
+);
+
+export const SparkIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" />
+  </Line>
+);
+
+export const SignIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M4 20h16M6 16l9.5-9.5a2.1 2.1 0 0 1 3 3L9 19H6z" />
+  </Line>
+);
+
+export const CondoIcon = (props: IconProps) => (
+  <Line {...props}>
+    <rect x="5" y="3" width="14" height="18" rx="1.5" />
+    <path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3" />
+  </Line>
+);
+
+export const ApartmentIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M3 21h18M5 21V8l7-4 7 4v13" />
+    <path d="M9 11h2M13 11h2M9 15h2M13 15h2" />
+  </Line>
+);
+
+export const HouseIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M3 11 12 4l9 7" />
+    <path d="M5 10v10h14V10M10 20v-5h4v5" />
+  </Line>
+);
+
+export const TownhomeIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M2 12 7 8l5 4 5-4 5 4" />
+    <path d="M4 11v9h16v-9M7 20v-4M17 20v-4" />
+  </Line>
+);

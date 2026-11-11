@@ -13,6 +13,12 @@ import { GuestLanguageMenu } from '../../../components/guest/GuestLanguageMenu';
 import { GuestHeader } from '../../../components/guest/GuestHeader';
 import { GuestFooter } from '../../../components/guest/GuestFooter';
 import { GuestTabBar } from '../../../components/guest/GuestTabBar';
+import { RoomCard } from '../../../components/guest/RoomCard';
+import { AreaCard } from '../../../components/guest/AreaCard';
+import { CardSkeleton, EmptyState, ErrorState } from '../../../components/guest/GuestStates';
+import { ListingTabs } from '../../../components/guest/ListingTabs';
+import { PropertyTypeTiles } from '../../../components/guest/PropertyTypeTiles';
+import { SearchPanel } from '../../../components/guest/SearchPanel';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -53,6 +59,50 @@ export function UiKitLanguageCheck() {
             </p>
           </article>
         ))}
+      </section>
+
+      <section data-testid="uiKit.s3" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <h2 style={{ margin: 0, fontSize: 20, color: '#211E1E' }}>S3 pieces (sample rooms: one without a headline, one with a photo)</h2>
+        <div style={{ background: '#211E1E', padding: 16, borderRadius: 16 }}>
+          <SearchPanel />
+        </div>
+        <PropertyTypeTiles copy={copy} locale={locale} variant="tiles" />
+        <ListingTabs
+          label={copy.home.featuredTitle}
+          testId="uiKit.tabs"
+          tabs={[
+            {
+              id: 'cards',
+              label: copy.home.tabRecommended,
+              panel: (
+                <div className="nk-room-grid">
+                  {[
+                    { ...SAMPLE_PUBLIC_ROOMS[0], isNew: true, coverImageUrl: '/icon.png' },
+                    { ...SAMPLE_PUBLIC_ROOMS[1], title: null },
+                    { ...SAMPLE_PUBLIC_ROOMS[2], title: null, projectName: null },
+                  ].map((room) => (
+                    <RoomCard key={room.id} card={room} copy={copy} locale={locale} today={TODAY} />
+                  ))}
+                  <CardSkeleton />
+                </div>
+              ),
+            },
+            { id: 'empty', label: copy.home.tabNew, panel: <EmptyState title={copy.home.listingsEmpty} /> },
+          ]}
+        />
+        <div className="nk-area-grid">
+          <AreaCard
+            area={{ slug: 'sukhumvit-asok', name: 'สุขุมวิท อโศก', transitLines: ['bts_sukhumvit', 'mrt_blue'], roomCount: 12, priceFrom: 9000, coverImageUrl: null }}
+            copy={copy}
+            locale={locale}
+          />
+          <AreaCard
+            area={{ slug: 'unknown-area', name: 'ชื่อสำรองจาก API', transitLines: [], roomCount: 1, priceFrom: null, coverImageUrl: null }}
+            copy={copy}
+            locale={locale}
+          />
+        </div>
+        <ErrorState title={copy.states.errorTitle} body={copy.states.errorBody} retry={{ label: copy.states.retry, href: '#' }} />
       </section>
 
       <section data-testid="uiKit.guestFrame" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

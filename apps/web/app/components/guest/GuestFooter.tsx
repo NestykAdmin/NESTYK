@@ -18,7 +18,8 @@ const LOGO_HEIGHT = 36;
 const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 322) / 107);
 
 const PROPERTY_TYPES = ['condo', 'apartment', 'house', 'townhome'] as const;
-const AREAS = ['sukhumvitAsok', 'onnutUdomsuk', 'silomSathorn', 'nonthaburiChaengwattana'] as const;
+/** Footer areas, by the same English slugs as the API (apps/api/src/public-listings/public-areas.ts). */
+const AREAS = ['sukhumvit-asok', 'onnut-udomsuk', 'silom-sathorn', 'nonthaburi-chaengwattana'] as const;
 
 type Item = { key: string; label: string; href?: string; external?: boolean; soon?: boolean };
 
@@ -107,8 +108,8 @@ export function GuestFooter({ locale }: { locale: SupportedLocale }) {
             locale={locale}
             title={t.nav.areas}
             soonLabel={soon}
-            columnSoon={!searchReady}
-            items={AREAS.map((area) => ({ key: area, label: copy.areas[area], href: `/search?area=${area}` }))}
+            columnSoon={!isGuestPageReady('rent')}
+            items={AREAS.map((area) => ({ key: area, label: t.areaNames[area], href: `/rent/${area}` }))}
           />
           <Column
             locale={locale}

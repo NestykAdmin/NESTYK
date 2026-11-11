@@ -16,7 +16,11 @@ export type GuestPageKey =
   | 'profile'
   | 'help'
   | 'viewingRequests'
-  | 'theme';
+  | 'theme'
+  /** Room detail /rooms/<id> (S7). */
+  | 'rooms'
+  /** Area pages /rent/<area> (SEO-1). */
+  | 'rent';
 
 /** Turn a page on here when its task is done (S3 home and areas, S4 search, ...). */
 const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
@@ -31,6 +35,8 @@ const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
   help: false,
   viewingRequests: false,
   theme: false,
+  rooms: false,
+  rent: false,
 };
 
 export function isGuestPageReady(key: GuestPageKey): boolean {
