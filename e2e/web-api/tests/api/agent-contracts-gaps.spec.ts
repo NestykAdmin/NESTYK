@@ -1,13 +1,13 @@
 import type { APIResponse } from '@playwright/test';
 import { expect, test, type ApiSession } from '../../src/fixtures/api.fixture';
-import { expectError, expectJson } from '../../src/support/http';
+import { expectError, expectErrorQuiet, expectJson, expectJsonQuiet } from '../../src/support/http';
 import { PNG_BLUE } from '../../src/support/test-images';
 
 /**
- * สัญญาฝั่งนายหน้า: เส้นทางที่ยังไม่มีเทสก่อน 11 พ.ย. 2026 (เคส CGP-001 ถึง CGP-037 ระดับ 1)
+ * สัญญาฝั่งนายหน้า: เส้นทางที่ยังไม่มีเทสก่อน 11 พ.ย. 2026 (เคส CGP-001 ถึง CGP-037 ระดับ 1 และ CGP-038 ถึง CGP-044 ระดับ 1 ข)
  *
  * ที่มาของเคส: ไฟล์เรื่อง Claude outputs/topics/contracts-gaps.md หัวข้อ "ระดับ 1: เคสปฏิเสธที่ไม่เขียนข้อมูล"
- *   (Aof อนุมัติ 11 พ.ย. 2026) เลขกฎ R2 ถึง R27 ในคอมเมนต์อ้างไฟล์นั้น
+ *   กับหัวข้อ "ระดับ 1 ข: เคสปฏิเสธกับสัญญาจริงของ qa-agent ที่ไม่เขียนข้อมูล" (Aof อนุมัติ 11 พ.ย. 2026) เลขกฎ R2 ถึง R27 ในคอมเมนต์อ้างไฟล์นั้น
  * เลขบรรทัดในคอมเมนต์เป็นของ apps/api/src ที่ qa/e2e 311ab35 ย่อ:
  *   C = agent/contracts/agent-contracts.controller.ts, S = agent/contracts/agent-contracts.service.ts,
  *   CC = contract-closure.ts, DC = deal-cancellation.ts, HO = handover.service.ts,
@@ -20,12 +20,23 @@ import { PNG_BLUE } from '../../src/support/test-images';
  *     (ผลรัน 11 พ.ย. 2026 กับฐานข้อมูลของทีม: API ตอบรายการที่ไม่ว่าง ถ้าวันหนึ่งได้รายการว่าง ให้ดูก่อนว่าข้อมูลหายหรือตัวกรอง CC:44-45 ผิด)
  *   - CGP-018 ต้องมีตาราง deal_cancellations ในฐานข้อมูล (cancellationOf DC:290-293 อ่านตารางนี้) ถ้ายังไม่มี API จะตอบ 500 และข้อนี้แดง
  *
+ *   - CGP-038 ถึง CGP-044 ต้องมีหนังสือจองของ qa-agent ที่มีแม่แบบอย่างน้อย 1 ฉบับ (สถานะใดก็ได้) ถ้าไม่มี 7 ข้อนี้ข้ามพร้อมเหตุผล
+ *
  * เทสไฟล์นี้ไม่สร้างและไม่แก้ข้อมูล
- *   ทุกคำขอส่งไปที่สัญญาหรือข้อเสนอ id ที่ไม่มีอยู่จริง (NO_SUCH_ID) id ย่อย (รูป เอกสาร) ใช้ NO_SUCH_ID หรือค่าที่ตัวตรวจ id ปฏิเสธ (0)
+ *   CGP-001 ถึง CGP-037: ทุกคำขอส่งไปที่สัญญาหรือข้อเสนอ id ที่ไม่มีอยู่จริง (NO_SUCH_ID) id ย่อย (รูป เอกสาร) ใช้ NO_SUCH_ID หรือค่าที่ตัวตรวจ id ปฏิเสธ (0)
  *   จึงถูกปฏิเสธที่การตรวจเนื้อคำขอหรือการหาสัญญา
  *   ซึ่งอยู่ก่อนคำสั่งเขียนทุกคำสั่ง (บรรทัดที่มาอยู่ในแต่ละเทส และที่ตัวเรียกใน contracts.api.ts กับ deal-offers.api.ts)
  *   ไฟล์ PNG ที่แนบไปกับ cancel-deal และ cancellation/refund อยู่ในหน่วยความจำของ API (FilesInterceptor และ FileInterceptor
  *   ไม่ตั้ง storage C:451-453, 465) และถูกส่งต่อไปที่เก็บไฟล์หลังหาสัญญาเจอเท่านั้น (DC:219-225 ; refund หาการยกเลิกก่อน DC:304-305)
+ *   CGP-038 ถึง CGP-044: คำขอส่งไปที่หนังสือจองที่มีอยู่จริงของ qa-agent ทุกคำขอถูกปฏิเสธก่อนคำสั่งเขียนทุกคำสั่ง (บรรทัดที่มาอยู่ในแต่ละเทส)
+ *     - CGP-038 ถึง 041 ถูกปฏิเสธเพราะชนิดของสัญญา (หนังสือจอง ไม่ใช่สัญญาเช่าหรือหนังสือต่อสัญญา) ซึ่งไม่เปลี่ยนตลอดอายุสัญญา
+ *     - CGP-042, 043 ถูกปฏิเสธเพราะหนังสือจองไม่มียอดเลิกสัญญาก่อนกำหนด (อนุมานจากโค้ด เส้นทางนี้ไม่ตรวจชนิดสัญญา)
+ *       ตัวที่กันการเขียนจริงคือการไม่ส่ง submittedAt (assertSameSlip S:211-216)
+ *     - CGP-044 ถูกปฏิเสธเพราะ party ผิด (ไม่ขึ้นกับชนิดหรือสถานะของสัญญา) และคำขอไม่มี revision กับลายเซ็น
+ *   เนื้อคำขอทุกข้อถูกเลือกให้ยังถูกปฏิเสธด้วยข้ออื่น ถ้าข้อตรวจแรกเปลี่ยนในอนาคต ("กันชั้นที่ 2" ในคอมเมนต์ของแต่ละเทส)
+ *   CGP-041 ถึง 043 ล็อกแถวของสัญญา (041 ล็อกลีดกับห้องด้วย) ใน transaction ที่ถูกยกเลิก (CC:69-77, S:2368, S:2386) ไม่มีแถวไหนถูกแก้
+ *   แต่ห้ามรันพร้อมกับชุดเขียนข้อมูล (test:write, test:web-ui-write) เพราะสัญญาเป้าอาจเป็นฉบับที่ชุดนั้นกำลังใช้ ฝั่งนั้นจะต้องรอล็อก
+ *   ห้ามเพิ่มเคสที่ส่งคำขอซึ่งผ่านการตรวจค่าทั้งหมดไปที่สัญญาจริงในไฟล์นี้ (เช่น cancel-deal CGP-045 ที่ Aof ให้ "ไม่ทำ")
  */
 
 /** เลขจำนวนเต็มที่มากที่สุดที่คอลัมน์ id (integer ของ PostgreSQL) เก็บได้ ใช้เป็น id ที่ไม่มีอะไรใช้ แบบเดียวกับ agent-contracts.spec.ts */
@@ -465,5 +476,97 @@ test.describe('POST /agent/deal-offers/:id/revise', () => {
   test('answers 404 for a valid revision of an offer that does not exist', { tag: ['@CGP-037'] }, async ({ agent }) => {
     // ขั้นที่ 1: ส่งข้อเสนอที่ผ่านการตรวจทุกช่อง   ขั้นที่ 2: ต้องได้ 404 (DO:451-453 ; locked DO:407-410) ก่อนแก้เอกสารของดีล
     expect(await expectError(await agent.dealOffers.revise(NO_SUCH_ID, valid), 404)).toBe('ไม่พบข้อเสนอ');
+  });
+});
+
+test.describe("requests that must be refused, on the agent's own reservation letter", () => {
+  /**
+   * ระดับ 1 ข: สัญญาเป้าคือหนังสือจองฉบับล่าสุดของ qa-agent ที่มีแม่แบบ (formKind = reservation และ templateId เป็นจำนวนเต็ม
+   *   รายการเรียง id จากมากไปน้อย S:1123 ; templateId มาจาก S:859)
+   * ทำไมต้องมีแม่แบบ: รายการถอยไปดูประเภทสัญญาเมื่อไม่มีแม่แบบ (S:878-879) แต่ close ดูแม่แบบอย่างเดียว (CC:81-83)
+   *   สัญญาที่ไม่มีแม่แบบจึงอาจให้ผลของ CGP-041 ต่างจากที่คาด (ยังไม่เขียนข้อมูล เพราะรหัสเหตุผลไม่มีจริง CC:84-85)
+   * GET /agent/contracts อ่านอย่างเดียว (list S:1122-1126) ช่อง formKind มาจากแม่แบบหรือประเภทสัญญา (S:878-879)
+   * รายการสัญญามีชื่อผู้เช่าและข้อมูลของคู่สัญญา จึงอ่านด้วย expectJsonQuiet (ไม่พิมพ์เนื้อคำตอบถ้าไม่ผ่าน) และใช้แค่ id กับ formKind
+   * ถ้า qa-agent ไม่มีหนังสือจองแบบนี้ เทสข้อนั้นข้ามพร้อมเหตุผล ไม่สร้างสัญญาเอง
+   */
+  async function latestReservationId(agent: ApiSession): Promise<number> {
+    const rows = await expectJsonQuiet<{ id?: unknown; formKind?: unknown; templateId?: unknown }[]>(await agent.contracts.list(), 200, 'GET /agent/contracts');
+    expect(Array.isArray(rows)).toBe(true);
+    const target = rows.find((row) => row.formKind === 'reservation' && Number.isInteger(row.templateId));
+    test.skip(target === undefined, 'qa-agent ยังไม่มีหนังสือจองที่มีแม่แบบ จึงไม่มีสัญญาเป้าของเคสระดับ 1 ข');
+    const id = target?.id;
+    expect(Number.isInteger(id) && (id as number) > 0, 'id ของหนังสือจองต้องเป็นจำนวนเต็มบวก').toBe(true);
+    return id as number;
+  }
+
+  /**
+   * ตรวจคำตอบด้วย expectErrorQuiet: ถ้าวันหนึ่ง API รับคำขอ (2xx) เนื้อคำตอบจะเป็นข้อมูลสัญญาจริงที่มีชื่อคู่สัญญา
+   * ข้อความเมื่อไม่ผ่านจึงต้องไม่มีเนื้อคำตอบ (expectError พิมพ์เนื้อคำตอบ 500 ตัวอักษรแรก)
+   */
+  for (const generate of [false, true]) {
+    const name = generate ? 'generate-lease-renewal' : 'lease-renewal-preview';
+    test(`${name} answers 400 for a reservation letter`, { tag: [generate ? '@CGP-039' : '@CGP-038'] }, async ({ agent }) => {
+      // ขั้นที่ 1: หาหนังสือจองฉบับล่าสุดของ qa-agent
+      const id = await latestReservationId(agent);
+      // ขั้นที่ 2: ขอ PDF หนังสือต่อสัญญาของหนังสือจองฉบับนั้น
+      const response = await agent.contracts.leaseRenewalPdf(id, generate);
+      // ขั้นที่ 3: R17 ต้องได้ 400 เพราะไม่ใช่หนังสือต่อสัญญา (S:1358-1359) ข้อตรวจนี้อยู่ก่อนสร้างและอัปโหลด PDF (S:1372 เป็นต้นไป)
+      //   กันชั้นที่ 2: เส้นทางนี้ไม่มีเนื้อคำขอให้เลือก แต่โค้ดยังปฏิเสธแม่แบบที่ไม่ใช่ lease_renewal/v1 (S:1360-1361) ก่อนสร้าง PDF
+      expect(await expectErrorQuiet(response, 400, name)).toBe('รองรับเฉพาะหนังสือต่อสัญญาเช่า');
+    });
+  }
+
+  test('handover-due answers 400 for a reservation letter', { tag: ['@CGP-040'] }, async ({ agent }) => {
+    // ขั้นที่ 1: หาหนังสือจองฉบับล่าสุดของ qa-agent
+    const id = await latestReservationId(agent);
+    // ขั้นที่ 2: ขอเลื่อนวันส่งมอบด้วยเนื้อคำขอที่ผ่านการตรวจค่า (S:2482-2487)
+    const response = await agent.contracts.moveHandoverDue(id, { date: '2099-01-01', reason: 'e2e' });
+    // ขั้นที่ 3: R21 ต้องได้ 400 เพราะไม่ใช่สัญญาเช่า (S:2490-2491) ก่อนเปิด transaction ที่เขียน (S:2492)
+    //   กันชั้นที่ 2: สถานะต้องเป็น awaiting_deposit หรือ awaiting_handover (S:2497) ซึ่งเป็นสถานะของสัญญาเช่า (อนุมาน)
+    expect(await expectErrorQuiet(response, 400, 'handover-due')).toBe('เลื่อนวันส่งมอบได้เฉพาะสัญญาเช่า');
+  });
+
+  test('close answers 400 for a reservation letter', { tag: ['@CGP-041'] }, async ({ agent }) => {
+    // ขั้นที่ 1: หาหนังสือจองฉบับล่าสุดของ qa-agent
+    const id = await latestReservationId(agent);
+    // ขั้นที่ 2: ขอปิดสัญญาด้วยรหัสเหตุผลที่ถูกรูปแบบ (CC:28) แต่ไม่มีในตาราง
+    const response = await agent.contracts.close(id, { endReasonCode: 'e2e_no_such_reason', effectiveEndDate: '2026-01-01' });
+    // ขั้นที่ 3: R5 ต้องได้ 400 เพราะแม่แบบไม่ใช่สัญญาเช่าหรือหนังสือต่อสัญญา (CC:81-83)
+    //   ระบบล็อกแถวของลีด ห้อง และสัญญาใน transaction ก่อนถึงข้อนี้ (CC:69-77) แล้วยกเลิก transaction ไม่มีแถวไหนถูกแก้
+    //   กันชั้นที่ 2: รหัสเหตุผลไม่มีจริง ข้อถัดไปจะตอบ 400 "ไม่พบเหตุผลปิดสัญญา" (CC:84-85) ก่อนคำสั่งเขียน
+    expect(await expectErrorQuiet(response, 400, 'close')).toBe('ปิดได้เฉพาะสัญญาเช่าหรือหนังสือต่อสัญญา');
+  });
+
+  /**
+   * R13, R14, R16: เส้นทาง early-end/slip ไม่ตรวจชนิดสัญญา หนังสือจองถูกปฏิเสธเพราะไม่มียอดเลิกสัญญาก่อนกำหนด (data.endsOn.money) เพราะจุดเดียวที่เขียน endsOn คือการเลิกสัญญาเช่าก่อนกำหนด
+   *   (S:2250-2256 ; อ่านด้วย earlyEndMoneyOf S:2314-2317) ข้อนี้เป็นอนุมานจากโค้ด ถ้าผิด เทสจะแดงด้วยข้อความอื่น
+   * กันชั้นที่ 2: ไม่ส่ง submittedAt ถ้าผ่านข้อตรวจก่อนหน้าทั้งหมด assertSameSlip ตอบ 409 ก่อนคำสั่งเขียน (S:211-216 ; เรียกที่ S:2392 และ 2374)
+   */
+  test('early-end/slip/return answers 400 when a reservation letter has no amount to collect', { tag: ['@CGP-042'] }, async ({ agent }) => {
+    // ขั้นที่ 1: หาหนังสือจองฉบับล่าสุดของ qa-agent
+    const id = await latestReservationId(agent);
+    // ขั้นที่ 2: ตีกลับสลิปด้วยเหตุผลที่ผ่านการตรวจ (S:218-222) โดยไม่ส่ง submittedAt
+    const response = await agent.contracts.returnEarlyEndSlip(id, { reason: 'e2e' });
+    // ขั้นที่ 3: ต้องได้ 400 ว่าไม่มียอดที่ต้องเก็บ (S:2388-2389)
+    expect(await expectErrorQuiet(response, 400, 'early-end/slip/return')).toBe('ไม่มียอดที่ต้องเก็บ');
+  });
+
+  test('early-end/slip/confirm answers 400 when a reservation letter has no amount to collect', { tag: ['@CGP-043'] }, async ({ agent }) => {
+    // ขั้นที่ 1: หาหนังสือจองฉบับล่าสุดของ qa-agent
+    const id = await latestReservationId(agent);
+    // ขั้นที่ 2: ยืนยันรับเงินตามสลิปโดยไม่ส่ง submittedAt
+    const response = await agent.contracts.confirmEarlyEndSlip(id, {});
+    // ขั้นที่ 3: ต้องได้ 400 ว่าไม่มียอดที่ต้องเก็บ (S:2370-2371)
+    expect(await expectErrorQuiet(response, 400, 'early-end/slip/confirm')).toBe('ไม่มียอดที่ต้องเก็บ');
+  });
+
+  test('handover/sign answers 400 for a party that cannot sign', { tag: ['@CGP-044'] }, async ({ agent }) => {
+    // ขั้นที่ 1: หาหนังสือจองฉบับล่าสุดของ qa-agent
+    const id = await latestReservationId(agent);
+    // ขั้นที่ 2: ส่ง party ที่ไม่ใช่ owner หรือ tenant ไม่ส่ง revision และลายเซ็น
+    const response = await agent.contracts.signHandoverOnSite(id, { party: 'x' });
+    // ขั้นที่ 3: R22 ต้องได้ 400 จาก signParty (HO:129-133) ซึ่งถูกเรียกก่อน sign (HO:396) คู่กับ CGP-023 ที่ได้ 404 เมื่อสัญญาไม่มีจริง
+    //   กันชั้นที่ 2: คำขอไม่มี revision และไม่มีลายเซ็น sign ตรวจ 2 อย่างนี้ (HO:424-425 ; handoverRevision HO:73-77) ก่อนอัปโหลดลายเซ็น (HO:430)
+    expect(await expectErrorQuiet(response, 400, 'handover/sign')).toBe('บันทึกส่งมอบลงนามได้เฉพาะผู้ให้เช่าและผู้เช่า');
   });
 });
