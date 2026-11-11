@@ -91,7 +91,7 @@ function PublicRoomShareContent({ token }: { token: string }) {
               <footer className="room-share-footer">
                 {expiryPrefix}
                 <time dateTime={room.expiresAt}>
-                  {new Date(room.expiresAt).toLocaleString(locale === 'th' ? 'th-TH' : locale, {
+                  {new Date(room.expiresAt).toLocaleString(locale === 'th' ? 'th-TH-u-ca-gregory' : locale, {
                     dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok',
                   })}
                 </time>
