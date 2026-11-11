@@ -40,6 +40,9 @@ const MESSAGE = {
   leadAndRoom: 'กรุณาเลือก Lead และห้องที่เช่า',
   nameAndPhone: 'กรุณาระบุชื่อและเบอร์โทรให้ครบ และตรวจสอบความยาวข้อมูล',
   email: 'รูปแบบอีเมลไม่ถูกต้อง',
+  /** ตั้งแต่ UXUI/develop e26843e (11 พ.ย. 2026): ชื่อกับนามสกุลต่อกันด้วยช่องว่างต้องไม่เกิน 255 ตัว เพราะ tenants.name เป็น varchar(255)
+   *  (apps/api/src/agent/tenants/agent-tenants.service.ts:93-96 ที่ qa/e2e 311ab35 ; บั๊กที่ QA แจ้งและ Jom แก้ ดู claude/nestyk-api-tenant-name-length-for-dev-2026-11-11.md) */
+  fullNameTooLong: 'ชื่อและนามสกุลรวมกันต้องไม่เกิน 255 ตัวอักษร',
   phone: 'กรุณาระบุเบอร์โทรที่ถูกต้อง',
   identityNumber: 'กรุณาระบุเลขบัตรประชาชนหรือพาสปอร์ตให้ถูกต้อง',
   leadNotFound: 'ไม่พบ Lead ที่คุณมีสิทธิ์จัดการ',
@@ -308,6 +311,12 @@ test.describe('POST /agent/tenants (requests that must be refused, nothing is cr
       body: { ...validTenantBody(), firstName: 'a'.repeat(256) },
       message: MESSAGE.nameAndPhone,
     },
+    // ชื่อ 249 ตัวผ่านการตรวจรายช่อง (ไม่เกิน 255) แต่ 249 + ช่องว่าง 1 + "Tester" 6 = 256 ตัว เกินขอบของชื่อรวม 1 ตัว (service:93-96)
+    {
+      name: 'firstName and lastName together are longer than 255 characters',
+      body: { ...validTenantBody(), firstName: 'a'.repeat(249) },
+      message: MESSAGE.fullNameTooLong,
+    },
     { name: 'phone is missing', body: without(validTenantBody(), 'phone'), message: MESSAGE.nameAndPhone },
     { name: 'phone is a number', body: { ...validTenantBody(), phone: 812345678 }, message: MESSAGE.nameAndPhone },
     { name: 'note is longer than 500 characters', body: { ...validTenantBody(), note: 'a'.repeat(501) }, message: MESSAGE.nameAndPhone },
@@ -345,7 +354,8 @@ test.describe('POST /agent/tenants (requests that must be refused, nothing is cr
   const accepted: { name: string; body: Record<string, unknown> }[] = [
     { name: 'a phone with 7 digits', body: { ...validTenantBody(), phone: '0812345' } },
     { name: 'a phone with 15 digits', body: { ...validTenantBody(), phone: '081234567890123' } },
-    { name: 'a firstName of 255 characters', body: { ...validTenantBody(), firstName: 'a'.repeat(255) } },
+    // ชื่อ 248 ตัว + ช่องว่าง 1 + "Tester" 6 = 255 ตัว เท่ากับขอบของชื่อรวมพอดี (service:93-96 ; เดิมใช้ชื่อ 255 ตัว ซึ่งรวมเป็น 262 ตัว และถูกปฏิเสธตั้งแต่ e26843e)
+    { name: 'a firstName and lastName of 255 characters together', body: { ...validTenantBody(), firstName: 'a'.repeat(248) } },
     { name: 'an identity number of 5 characters', body: { ...validTenantBody(), identityNumber: 'A1234' } },
     // API รับชื่อเต็มในช่อง name แทน firstName กับ lastName ได้ด้วย (แยกคำแรกเป็นชื่อจริง ที่เหลือเป็นนามสกุล)
     { name: 'a full name in name instead of firstName and lastName', body: { ...without(validTenantBody(), 'firstName', 'lastName'), name: 'E2E Tester' } },
