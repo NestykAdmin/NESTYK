@@ -23,3 +23,5 @@ export * from './dashboard/demo-fixture';
 export { NearbyPlacesMap } from './components/NearbyPlacesMap';
 export { MoveInDateField } from './components/MoveInDateField';
 export { HeroPhotoPager } from './components/HeroPhotoPager';
+export * from './public-listing';
+export * from './public-rooms-source';

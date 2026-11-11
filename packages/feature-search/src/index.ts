@@ -60,3 +60,4 @@ export class SearchQueryBuilder {
 }
 
 export * from './types';
+export * from './criteria';
