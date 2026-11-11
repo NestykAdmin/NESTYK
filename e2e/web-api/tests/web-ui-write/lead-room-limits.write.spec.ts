@@ -18,8 +18,10 @@ import { E2E_PREFIX, findQaData, onCleanup, QA_LEAD_LABEL, restoreLead, runClean
  *
  * รันด้วย npm run test:web-ui-write เท่านั้น สิ่งที่ต้องมี: ลีดถาวร E2E-QA-LEAD-1, ห้อง E2E-WIZ จาก RW2 (ไฟล์ agent-rooms รันก่อนไฟล์นี้)
  *   ข้อวันเข้าอยู่ต้องมีห้อง E2E-WIZ ที่สร้างก่อนวันนี้ ข้อปุ่ม Edit ต้องมีห้องที่ไม่ใช่ scout ใน 50 แถวแรกของรายการ ไม่มีก็ข้าม
- * ค่าที่คาดของข้อปุ่ม Edit และข้อวันเข้าอยู่เป็นข้อสันนิษฐานของ QA ที่รอทีมยืนยัน (โค้ดทำต่างไป แต่ไม่มีเอกสารบอกว่าทีมต้องการแบบไหน)
+ * ค่าที่คาดของข้อปุ่ม Edit เป็นข้อสันนิษฐานของ QA ที่รอทีมยืนยัน (โค้ดทำต่างไป แต่ไม่มีเอกสารบอกว่าทีมต้องการแบบไหน)
  *   ถ้าทีมตอบว่าตั้งใจไว้แล้ว ให้แก้หรือลบข้อนั้น ไม่ใช่ติด @known-bug
+ * ข้อวันเข้าอยู่: Jom ยืนยัน 10 พ.ย. 2026 ว่าไม่ได้ตั้งใจ แก้ที่ UXUI/develop d3bcf28 (flag availableFromTouched ใน W)
+ *   run6 (10 พ.ย. แอป cfd6633) ส่งวันนี้แทนวันเดิม ; รัน 11 พ.ย. 2026 ที่ qa/e2e 645224b ผ่าน (เดิม 2026-11-10 ส่ง 2026-11-10)
  * ทุกข้อไม่เขียนข้อมูลถาวรเพิ่ม (ข้อเหตุผล lost เขียน 2 ครั้งทุกรอบที่ผ่าน: mark-lost แล้วคืนเป็น inprogress)
  *   - เหตุผล lost: ถ้าหน้าเว็บส่ง 501 ตัว API ปฏิเสธก่อนบันทึก (parseLostReason :366-373 ถูกเรียกก่อน save :323-326)
  *     ถ้าหน้าเว็บตัดเหลือ 500 ตัว คำขอสำเร็จ ลีดเป็น lost แล้ว afterEach คืนเป็น inprogress
@@ -209,7 +211,7 @@ test('opening and saving a room whose move-in date has passed keeps that date', 
   await expect.poll(() => saved, { message: 'คำขอ PATCH ไม่ถูกส่ง' }).not.toBeNull();
 
   // ขั้นที่ 2: วันเข้าอยู่ที่จะบันทึกต้องเป็นค่าเดิม ไม่ใช่วันนี้
-  //   โค้ดตั้งค่าเริ่มต้นด้วย clampMoveInDate ซึ่งเปลี่ยนวันที่ผ่านมาแล้วเป็นวันนี้ (W:552, :2110, MoveInDateField.tsx:18-22)
+  //   ก่อน d3bcf28 โค้ดตั้งค่าเริ่มต้นด้วย clampMoveInDate ซึ่งเปลี่ยนวันที่ผ่านมาแล้วเป็นวันนี้ (W:552, :2110, MoveInDateField.tsx:18-22 ที่ cfd6633)
   const sent = (saved as { availableFromDate?: string } | null)?.availableFromDate;
   test.info().annotations.push({ type: 'วันเข้าอยู่', description: `เดิม ${room.date} ส่ง ${sent} วันนี้ ${today}` });
   expect(sent, 'วันเข้าอยู่ที่จะบันทึก').toBe(room.date);
