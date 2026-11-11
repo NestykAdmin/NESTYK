@@ -13,7 +13,7 @@ const room = (over = {}) => {
     id: `r${seq}`, title: `Room ${seq}`, propertyType: 'condo', projectName: null, district: null,
     priceFrom: 10000, bedrooms: 1, bathrooms: 1, areaSqm: 30, coverImageUrl: null,
     latitude: null, longitude: null, nearestStation: null, availableFrom: null,
-    petFriendly: false, shortTermAvailable: false,
+    petFriendly: false, shortTermAvailable: false, isNew: false,
     description: '', imageUrls: [], amenityCodes: [], floor: null,
     priceOptions: [{ durationMonths: 12, pricePerMonth: 10000, depositAmount: 20000 }],
     ...over,
@@ -131,7 +131,18 @@ test('cards leave out the detail-only fields', async () => {
 
 test('featured returns the first rooms up to the limit', async () => {
   const source = make([room({ id: 'a' }), room({ id: 'b' }), room({ id: 'c' })]);
-  assert.deepEqual((await source.featured(2)).map((r) => r.id), ['a', 'b']);
+  assert.deepEqual((await source.featured('new', 2)).map((r) => r.id), ['a', 'b']);
+});
+
+test('featured rails: recommended puts rooms with photos first, near transit keeps stations within 800 m nearest first', async () => {
+  const source = make([
+    room({ id: 'a', coverImageUrl: null, nearestStation: { type: 'BTS', name: 'A', distanceMeters: 900 } }),
+    room({ id: 'b', coverImageUrl: 'b.jpg', nearestStation: { type: 'MRT', name: 'B', distanceMeters: 400 } }),
+    room({ id: 'c', coverImageUrl: 'c.jpg', nearestStation: { type: 'BTS', name: 'C', distanceMeters: 100 } }),
+  ]);
+  assert.deepEqual((await source.featured('recommended', 3)).map((r) => r.id), ['b', 'c', 'a']);
+  assert.deepEqual((await source.featured('near_transit', 3)).map((r) => r.id), ['c', 'b']);
+  assert.deepEqual((await source.featured()).map((r) => r.id), ['b', 'c', 'a']);
 });
 
 test('detail returns the full room, or null for an unknown id', async () => {
@@ -142,14 +153,20 @@ test('detail returns the full room, or null for an unknown id', async () => {
   assert.equal(await source.detail('missing'), null);
 });
 
-test('areas count rooms and take the lowest price per district, most rooms first', async () => {
-  const meta = { ลาดพร้าว: { slug: 'lat-phrao', transitLine: 'MRT สายสีน้ำเงิน' }, อโศก: { slug: 'asok', transitLine: 'BTS สุขุมวิท' } };
+test('areas are keyed by English slug, count rooms and take the lowest price per area, most rooms first', async () => {
+  const meta = {
+    'ladprao-chatuchak': { name: 'ลาดพร้าว จตุจักร', districts: ['ลาดพร้าว'], transitLines: ['mrt_blue'] },
+    'sukhumvit-asok': { name: 'สุขุมวิท อโศก', districts: ['อโศก', 'ทองหล่อ'], transitLines: ['bts_sukhumvit', 'mrt_blue'] },
+  };
+  for (const slug of Object.keys(meta)) assert.match(slug, /^[a-z-]+$/);
   const source = make([
-    room({ district: 'อโศก', priceFrom: 12000 }), room({ district: 'อโศก', priceFrom: 9000 }), room({ district: 'ลาดพร้าว', priceFrom: 15000 }),
+    room({ district: 'อโศก', priceFrom: 12000 }), room({ district: 'ทองหล่อ', priceFrom: 9000 }), room({ district: 'ลาดพร้าว', priceFrom: 15000 }),
     room({ district: 'ไม่มีข้อมูลย่าน', priceFrom: 5000 }),
   ], { areaMeta: meta });
   const areas = await source.areas();
-  assert.deepEqual(areas.map((a) => [a.slug, a.roomCount, a.priceFrom]), [['asok', 2, 9000], ['lat-phrao', 1, 15000]]);
+  assert.deepEqual(areas.map((a) => [a.slug, a.roomCount, a.priceFrom]), [['sukhumvit-asok', 2, 9000], ['ladprao-chatuchak', 1, 15000]]);
+  assert.deepEqual(areas[0].transitLines, ['bts_sukhumvit', 'mrt_blue']);
+  assert.equal(areas[0].name, 'สุขุมวิท อโศก');
   assert.equal((await source.areas(1)).length, 1);
 });
 
@@ -208,4 +225,23 @@ test('the API source encodes the room id in the path', async () => {
   const source = createApiPublicRoomsSource({ baseUrl: 'https://api.example.test', fetchImpl: impl });
   await source.detail('a/b c');
   assert.equal(calls[0], 'https://api.example.test/public/rooms/a%2Fb%20c');
+});
+
+test('the API source asks for the rail and limit of the featured list', async () => {
+  const { impl, calls } = fakeFetch(() => json([]));
+  const source = createApiPublicRoomsSource({ baseUrl: 'https://api.example.test/', fetchImpl: impl });
+  await source.featured('near_transit', 4);
+  await source.featured();
+  await source.areas(6);
+  assert.equal(calls[0], 'https://api.example.test/public/rooms/featured?rail=near_transit&limit=4');
+  assert.equal(calls[1], 'https://api.example.test/public/rooms/featured?rail=recommended');
+  assert.equal(calls[2], 'https://api.example.test/public/areas?limit=6');
+});
+
+test('sample areas use English slugs and transit line codes', () => {
+  const { SAMPLE_AREA_META } = require('../src/public-rooms-source.ts');
+  for (const [slug, area] of Object.entries(SAMPLE_AREA_META)) {
+    assert.match(slug, /^[a-z0-9-]+$/, slug);
+    for (const code of area.transitLines) assert.match(code, /^(bts|mrt|arl)_?[a-z]*$/, code);
+  }
 });

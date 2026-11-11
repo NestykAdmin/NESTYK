@@ -9,6 +9,10 @@ export type PublicRoomStationType = 'BTS' | 'MRT';
 export type PublicRoomDuration = 1 | 3 | 6 | 12;
 export type PublicRoomSort = 'price_asc' | 'price_desc' | 'newest' | 'distance';
 export type PublicRoomMode = 'rent' | 'buy';
+/** Lists on the home page: recommended (photos first), near BTS/MRT, newest. */
+export type PublicFeaturedRail = 'recommended' | 'near_transit' | 'new';
+/** Transit lines an area is known for; labels come from i18n (guest.transitLines). */
+export type PublicTransitLineCode = 'bts_sukhumvit' | 'bts_silom' | 'mrt_blue' | 'mrt_purple' | 'mrt_pink' | 'arl';
 
 export interface PublicRoomStation {
   type: PublicRoomStationType;
@@ -25,8 +29,10 @@ export interface PublicRoomPriceOption {
 /** One card in the search results, the featured list and the map pins. */
 export interface PublicRoomCard {
   id: string;
-  title: string;
-  propertyType: PropertyType;
+  /** The listing's public headline. Null when the agent left it empty: show one built from project and size. */
+  title: string | null;
+  /** Null when the building has no property type. */
+  propertyType: PropertyType | null;
   projectName: string | null;
   district: string | null;
   /** Lowest monthly price across the price options (THB). */
@@ -43,6 +49,8 @@ export interface PublicRoomCard {
   availableFrom: string | null;
   petFriendly: boolean;
   shortTermAvailable: boolean;
+  /** Listed within the last two weeks ("ใหม่" badge). */
+  isNew: boolean;
 }
 
 export interface PublicRoomDetail extends PublicRoomCard {
@@ -81,9 +89,10 @@ export interface PublicRoomSearchResult {
 /** Popular-area card on the home page. */
 export interface PublicAreaSummary {
   slug: string;
+  /** Fallback name (Thai). The web shows the name for the reader's language by slug (guest.areaNames). */
   name: string;
-  /** Transit line the area is known for, e.g. "BTS Sukhumvit". */
-  transitLine: string | null;
+  /** Transit lines the area is known for, as codes (labels in guest.transitLines). */
+  transitLines: PublicTransitLineCode[];
   roomCount: number;
   priceFrom: number | null;
   coverImageUrl: string | null;

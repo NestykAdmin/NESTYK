@@ -95,6 +95,9 @@ export interface GuestCopy {
     unsave: string;
     photoPlaceholder: string;
     details: string;
+    titleFallback: string;
+    roomFallback: string;
+    signInToSave: string;
   };
   home: {
     featuredTitle: string;
@@ -111,6 +114,15 @@ export interface GuestCopy {
     viewAll: string;
     ctaTitle: string;
     ctaButton: string;
+    listingsEmpty: string;
+    aboutTitle: string;
+    aboutBody: string;
+    aboutUpdatedTitle: string;
+    aboutUpdatedBody: string;
+    aboutMatchTitle: string;
+    aboutMatchBody: string;
+    aboutOnlineTitle: string;
+    aboutOnlineBody: string;
   };
   area: {
     roomsReady: string;
@@ -192,12 +204,6 @@ export interface GuestCopy {
     openMap: string;
     socialLabel: string;
     copyright: string;
-    areas: {
-      sukhumvitAsok: string;
-      onnutUdomsuk: string;
-      silomSathorn: string;
-      nonthaburiChaengwattana: string;
-    };
   };
   tabs: {
     label: string;
@@ -236,5 +242,21 @@ export interface GuestCopy {
     contactLabel: string;
     call: string;
     email: string;
+  };
+  areaNames: {
+    'sukhumvit-asok': string;
+    'silom-sathorn': string;
+    'onnut-udomsuk': string;
+    'ari-phayathai': string;
+    'ladprao-chatuchak': string;
+    'nonthaburi-chaengwattana': string;
+  };
+  transitLines: {
+    bts_sukhumvit: string;
+    bts_silom: string;
+    mrt_blue: string;
+    mrt_purple: string;
+    mrt_pink: string;
+    arl: string;
   };
 }

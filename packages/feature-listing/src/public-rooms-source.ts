@@ -1,9 +1,11 @@
 import type {
   PublicAreaSummary,
+  PublicFeaturedRail,
   PublicRoomCard,
   PublicRoomDetail,
   PublicRoomSearchQuery,
   PublicRoomSearchResult,
+  PublicTransitLineCode,
 } from '@nestyk/types';
 import { getPublicAvailability } from './public-listing';
 import { SAMPLE_PUBLIC_ROOMS } from './public-rooms-sample';
@@ -13,7 +15,8 @@ import { SAMPLE_PUBLIC_ROOMS } from './public-rooms-sample';
  * public API. Both sides expose the same four calls so the pages never know the difference.
  */
 export interface PublicRoomsSource {
-  featured(limit?: number): Promise<PublicRoomCard[]>;
+  /** One list of the home page; default rail "recommended". */
+  featured(rail?: PublicFeaturedRail, limit?: number): Promise<PublicRoomCard[]>;
   search(query: PublicRoomSearchQuery): Promise<PublicRoomSearchResult>;
   detail(id: string): Promise<PublicRoomDetail | null>;
   areas(limit?: number): Promise<PublicAreaSummary[]>;
@@ -23,7 +26,7 @@ export interface PublicRoomsSource {
 export const PUBLIC_ROOM_CARD_KEYS = [
   'id', 'title', 'propertyType', 'projectName', 'district', 'priceFrom', 'bedrooms', 'bathrooms',
   'areaSqm', 'coverImageUrl', 'latitude', 'longitude', 'nearestStation', 'availableFrom',
-  'petFriendly', 'shortTermAvailable',
+  'petFriendly', 'shortTermAvailable', 'isNew',
 ] as const satisfies readonly (keyof PublicRoomCard)[];
 
 /** "Near transit" quick filter: a station within this many metres. */
@@ -32,16 +35,36 @@ export const NEAR_TRANSIT_METERS = 800;
 const DEFAULT_FEATURED_LIMIT = 6;
 const EARTH_RADIUS_KM = 6371;
 
-export type PublicAreaMeta = Record<string, { slug: string; transitLine: string | null }>;
+/** Popular areas keyed by English slug (the same slugs as the API, apps/api/src/public-listings/public-areas.ts). */
+export type PublicAreaMeta = Record<
+  string,
+  { name: string; districts: readonly string[]; transitLines: readonly PublicTransitLineCode[] }
+>;
 
-/** Popular areas of the sample data, keyed by district name. */
+/** Popular areas of the sample data. `districts` are the district names used in SAMPLE_PUBLIC_ROOMS. */
 export const SAMPLE_AREA_META: PublicAreaMeta = {
-  อโศก: { slug: 'asok', transitLine: 'BTS สุขุมวิท / MRT สายสีน้ำเงิน' },
-  อารีย์: { slug: 'ari', transitLine: 'BTS สุขุมวิท' },
-  ลาดพร้าว: { slug: 'lat-phrao', transitLine: 'MRT สายสีน้ำเงิน' },
-  ทองหล่อ: { slug: 'thonglor', transitLine: 'BTS สุขุมวิท' },
-  อ่อนนุช: { slug: 'on-nut', transitLine: 'BTS สุขุมวิท' },
+  'sukhumvit-asok': { name: 'สุขุมวิท อโศก', districts: ['อโศก', 'ทองหล่อ'], transitLines: ['bts_sukhumvit', 'mrt_blue'] },
+  'ari-phayathai': { name: 'อารีย์ พญาไท', districts: ['อารีย์'], transitLines: ['bts_sukhumvit'] },
+  'ladprao-chatuchak': { name: 'ลาดพร้าว จตุจักร', districts: ['ลาดพร้าว'], transitLines: ['mrt_blue'] },
+  'onnut-udomsuk': { name: 'อ่อนนุช อุดมสุข', districts: ['อ่อนนุช', 'บางนา'], transitLines: ['bts_sukhumvit'] },
 };
+
+/** Picks one home-page list from rooms in their given order (newest first). Same rules as the API. */
+export function pickFeaturedRail<T extends Pick<PublicRoomCard, 'coverImageUrl' | 'nearestStation'>>(
+  rooms: readonly T[],
+  rail: PublicFeaturedRail,
+  limit: number,
+): T[] {
+  const count = Math.max(0, limit);
+  if (rail === 'new') return rooms.slice(0, count);
+  if (rail === 'near_transit') {
+    return rooms
+      .filter((room) => room.nearestStation != null && room.nearestStation.distanceMeters <= NEAR_TRANSIT_METERS)
+      .sort((a, b) => a.nearestStation!.distanceMeters - b.nearestStation!.distanceMeters)
+      .slice(0, count);
+  }
+  return [...rooms].sort((a, b) => Number(!!b.coverImageUrl) - Number(!!a.coverImageUrl)).slice(0, count);
+}
 
 export interface InMemoryPublicRoomsOptions {
   /** Today as YYYY-MM-DD; injected so tests are deterministic. */
@@ -95,8 +118,8 @@ export function createInMemoryPublicRoomsSource(
   const areaMeta = options.areaMeta ?? SAMPLE_AREA_META;
 
   return {
-    async featured(limit = DEFAULT_FEATURED_LIMIT) {
-      return rooms.slice(0, Math.max(0, limit)).map(toCard);
+    async featured(rail = 'recommended', limit = DEFAULT_FEATURED_LIMIT) {
+      return pickFeaturedRail(rooms, rail, limit).map(toCard);
     },
 
     async search(query) {
@@ -109,7 +132,7 @@ export function createInMemoryPublicRoomsSource(
       const hasPriceBound = query.minPrice != null || query.maxPrice != null;
       let matches = rooms.filter((room) => {
         if (query.keyword && !matchesKeyword(room, query.keyword)) return false;
-        if (query.propertyType?.length && !query.propertyType.includes(room.propertyType)) return false;
+        if (query.propertyType?.length && (room.propertyType == null || !query.propertyType.includes(room.propertyType))) return false;
         if (hasPriceBound) {
           if (room.priceFrom == null) return false;
           if (query.minPrice != null && room.priceFrom < query.minPrice) return false;
@@ -151,19 +174,22 @@ export function createInMemoryPublicRoomsSource(
     },
 
     async areas(limit) {
+      const slugOfDistrict = new Map<string, string>();
+      for (const [slug, meta] of Object.entries(areaMeta)) for (const district of meta.districts) slugOfDistrict.set(district, slug);
       const groups = new Map<string, PublicRoomDetail[]>();
       for (const room of rooms) {
-        if (!room.district || !areaMeta[room.district]) continue;
-        const list = groups.get(room.district) ?? [];
+        const slug = room.district ? slugOfDistrict.get(room.district) : undefined;
+        if (!slug) continue;
+        const list = groups.get(slug) ?? [];
         list.push(room);
-        groups.set(room.district, list);
+        groups.set(slug, list);
       }
-      const areas: PublicAreaSummary[] = [...groups.entries()].map(([district, list]) => {
+      const areas: PublicAreaSummary[] = [...groups.entries()].map(([slug, list]) => {
         const prices = list.map((r) => r.priceFrom).filter((p): p is number => p != null);
         return {
-          slug: areaMeta[district].slug,
-          name: district,
-          transitLine: areaMeta[district].transitLine,
+          slug,
+          name: areaMeta[slug].name,
+          transitLines: [...areaMeta[slug].transitLines],
           roomCount: list.length,
           priceFrom: prices.length ? Math.min(...prices) : null,
           coverImageUrl: list.find((r) => r.coverImageUrl)?.coverImageUrl ?? null,
@@ -221,8 +247,9 @@ export function createApiPublicRoomsSource(options: ApiPublicRoomsOptions): Publ
   const withLimit = (path: string, limit?: number) => (limit == null ? path : `${path}?limit=${limit}`);
 
   return {
-    async featured(limit) {
-      return (await get<PublicRoomCard[]>(withLimit('/public/rooms/featured', limit))) as PublicRoomCard[];
+    async featured(rail = 'recommended', limit) {
+      const path = `/public/rooms/featured?rail=${encodeURIComponent(rail)}${limit == null ? '' : `&limit=${limit}`}`;
+      return (await get<PublicRoomCard[]>(path)) as PublicRoomCard[];
     },
     async search(query) {
       return (await get<PublicRoomSearchResult>(`/public/rooms/search?${searchParamsOf(query).toString()}`)) as PublicRoomSearchResult;

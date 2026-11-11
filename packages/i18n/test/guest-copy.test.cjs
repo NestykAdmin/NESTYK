@@ -74,3 +74,24 @@ test('the v2.3 shell copy is there: tabs, saved, profile, cookie link and the pl
     assert.match(copy.footer.copyright, /\{year\}/, `${code} footer.copyright`);
   }
 });
+
+test('home page copy: every popular area and transit line of the API has a name in every language', () => {
+  const api = require('node:fs').readFileSync(path.join(__dirname, '../../../apps/api/src/public-listings/public-areas.ts'), 'utf8');
+  const slugs = [...api.matchAll(/slug: '([a-z0-9-]+)'/g)].map((m) => m[1]);
+  const lines = [...api.matchAll(/'((?:bts|mrt)_[a-z]+|arl)'/g)].map((m) => m[1]);
+  assert.ok(slugs.length >= 4 && lines.length >= 3, 'read the API constants');
+  for (const [code, copy] of Object.entries(copies)) {
+    for (const slug of slugs) assert.ok(copy.areaNames?.[slug], `${code} areaNames.${slug}`);
+    for (const line of new Set(lines)) assert.ok(copy.transitLines?.[line], `${code} transitLines.${line}`);
+    assert.match(copy.card.titleFallback, /\{name\}/, `${code} card.titleFallback`);
+    assert.match(copy.card.titleFallback, /\{rooms\}/, `${code} card.titleFallback`);
+    for (const key of ['roomFallback', 'signInToSave']) assert.ok(copy.card[key], `${code} card.${key}`);
+    for (const key of ['listingsEmpty', 'aboutTitle', 'aboutBody', 'aboutUpdatedTitle', 'aboutMatchTitle', 'aboutOnlineTitle']) {
+      assert.ok(copy.home[key], `${code} home.${key}`);
+    }
+  }
+});
+
+test('the heart button names the room, so a screen reader can tell the cards apart (R9)', () => {
+  for (const code of Object.keys(copies)) assert.deepEqual(placeholders(copies[code].card.signInToSave), ['name'], code);
+});
