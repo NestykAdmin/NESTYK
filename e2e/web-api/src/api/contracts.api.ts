@@ -11,7 +11,8 @@ export type AgreementDefaultsKind = 'reservation' | 'broker-appointment' | 'leas
  * และการสร้างสัญญายังสร้างบัญชีผู้ใช้ให้คู่สัญญาด้วย
  * (saveDraft ใน apps/api/src/agent/contracts/agent-contracts.service.ts เรียก ensurePartyLogin ตอนบันทึกหนังสือจอง)
  * ตัวเรียกของเส้นทางที่บันทึกข้อมูล (POST depositInvoice, witnessSign และ POST, PUT, DELETE ของเส้นทางใหม่ใน develop 9644dd9
- * ท้ายไฟล์) มีไว้ส่งไปที่สัญญาที่ไม่มีอยู่จริงเท่านั้น ถ้าส่งไปที่สัญญาที่มีอยู่จริงของผู้เรียก ระบบจะบันทึกทันที
+ * ช่วงกลางไฟล์ และส่วนเส้นทางที่ยังไม่มีเทสก่อน 11 พ.ย. 2026 ท้ายไฟล์) มีไว้ส่งไปที่สัญญาที่ไม่มีอยู่จริงเท่านั้น
+ * ถ้าส่งไปที่สัญญาที่มีอยู่จริงของผู้เรียก ระบบจะบันทึกทันที
  */
 export class ContractsApi {
   constructor(private readonly client: ApiClient) {}
@@ -280,5 +281,107 @@ export class ContractsApi {
    */
   completeDepositRefundWithoutFiles(id: number | string): Promise<APIResponse> {
     return this.client.post(`agent/contracts/${id}/deposit-settlement/refund`);
+  }
+
+  // ---------- เส้นทางที่ยังไม่มีเทสก่อน 11 พ.ย. 2026 (เลขบรรทัดของ apps/api/src/agent/contracts ที่ qa/e2e 311ab35) ----------
+  // ใช้ใน tests/api/agent-contracts-gaps.spec.ts กับสัญญาที่ไม่มีอยู่จริงเท่านั้น (ไฟล์เรื่อง Claude outputs/topics/contracts-gaps.md)
+  // ทุกตัวที่บันทึกข้อมูล ถ้าส่งไปที่สัญญาที่มีอยู่จริงของผู้เรียก และเนื้อคำขอผ่าน ระบบจะบันทึกทันที
+
+  /** GET /agent/contracts/end-reasons : เหตุผลปิดสัญญาที่เลือกได้ อ่านอย่างเดียว (controller บรรทัด 69, contract-closure.ts:38-49) */
+  endReasons(): Promise<APIResponse> {
+    return this.client.get('agent/contracts/end-reasons');
+  }
+
+  /** POST /agent/contracts/:id/close : ปิดสัญญาเช่า (controller บรรทัด 73) ตรวจเนื้อคำขอก่อนหาสัญญา (contract-closure.ts:22-36, 64-67) */
+  close(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/close`, body);
+  }
+
+  /** POST /agent/contracts/:id/cancel-draft : ยกเลิกร่าง (controller บรรทัด 474) ตรวจ reason ก่อนหาสัญญา (service:3603-3608) */
+  cancelDraft(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/cancel-draft`, body);
+  }
+
+  /** POST /agent/contracts/:id/draft : แก้ร่าง (controller บรรทัด 438) saveDraft ตรวจว่าเป็น object ก่อนหาสัญญา (service:3670-3675) */
+  updateDraft(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/draft`, body);
+  }
+
+  /**
+   * POST /agent/contracts/:id/cancel-deal : ยกเลิกดีล แบบ multipart ช่อง payload (JSON) กับ evidence (ไฟล์ 1 ถึง 5 ไฟล์) (controller บรรทัด 449-460)
+   * ไฟล์อยู่ในหน่วยความจำ (FilesInterceptor ไม่ตั้ง storage) cancelDeal ตรวจค่าแล้วหาสัญญาก่อนอัปโหลดไฟล์ (deal-cancellation.ts:219-225)
+   * evidence = undefined คือไม่แนบไฟล์
+   */
+  cancelDeal(id: number | string, payload: string, evidence?: { name: string; mimeType: string; buffer: Buffer }): Promise<APIResponse> {
+    return this.client.postMultipart(`agent/contracts/${id}/cancel-deal`, evidence ? { payload, evidence } : { payload });
+  }
+
+  /**
+   * POST /agent/contracts/:id/cancellation/refund : บันทึกการคืนเงินของการยกเลิกดีล แบบ multipart ช่อง payload (JSON) กับ file (controller บรรทัด 463-472)
+   * recordDealRefund หาการยกเลิกก่อนตรวจเนื้อคำขอ (deal-cancellation.ts:304-305)
+   */
+  recordDealRefund(id: number | string, payload: string, file?: { name: string; mimeType: string; buffer: Buffer }): Promise<APIResponse> {
+    return this.client.postMultipart(`agent/contracts/${id}/cancellation/refund`, file ? { payload, file } : { payload });
+  }
+
+  /** POST /agent/contracts/:id/reservation-payment/return : ตีกลับสลิปจอง (controller บรรทัด 184) ตรวจ reason ก่อนหาสัญญา (service:2515-2518) */
+  returnReservationSlip(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/reservation-payment/return`, body);
+  }
+
+  /** POST /agent/contracts/:id/deposit-payment/return : ตีกลับสลิปมัดจำ (controller บรรทัด 194) ตรวจ reason ก่อนหาสัญญา (service:2557-2565) */
+  returnDepositSlip(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/deposit-payment/return`, body);
+  }
+
+  /** POST /agent/contracts/:id/early-end/slip/return : ตีกลับสลิปเลิกสัญญาก่อนกำหนด (controller บรรทัด 154) ตรวจ reason ก่อนหาสัญญา (service:2382-2387) */
+  returnEarlyEndSlip(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/early-end/slip/return`, body);
+  }
+
+  /** POST /agent/contracts/:id/early-end/slip/confirm : ยืนยันรับเงินตามสลิป บันทึกครั้งเดียว ย้อนไม่ได้ (controller บรรทัด 144, service:2366-2379) หาสัญญาก่อนตรวจเนื้อคำขอ (บรรทัด 2368-2369) */
+  confirmEarlyEndSlip(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/early-end/slip/confirm`, body);
+  }
+
+  /**
+   * POST /agent/contracts/:id/lease-renewal-preview หรือ generate-lease-renewal (controller บรรทัด 511, 519)
+   * leaseRenewalPdf หาสัญญาก่อน (service:1355-1357) preview ไม่ได้อ่านอย่างเดียว: ถ้าสัญญามีอยู่จริงจะอัปโหลด PDF ตัวอย่าง
+   */
+  leaseRenewalPdf(id: number | string, generate: boolean): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/${generate ? 'generate-lease-renewal' : 'lease-renewal-preview'}`);
+  }
+
+  /** POST /agent/contracts/:id/handover/sign : นายหน้าให้คู่สัญญาลงนามบนเครื่อง (controller บรรทัด 325) หาสัญญาก่อนตรวจเนื้อคำขอ (handover.service.ts:394-396) */
+  signHandoverOnSite(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/handover/sign`, body);
+  }
+
+  /** POST /agent/contracts/:id/handover-due : เลื่อนวันส่งมอบห้อง เนื้อคำขอ { date, reason } (controller บรรทัด 106) ตรวจเนื้อคำขอก่อนหาสัญญา (service:2481-2489) */
+  moveHandoverDue(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/handover-due`, body);
+  }
+
+  /** DELETE /agent/contracts/:id/handover/photos/:photoId : ลบรูปบันทึกส่งมอบ (controller บรรทัด 230) หาสัญญาก่อน (handover.service.ts:377-378) */
+  removeHandoverPhoto(id: number | string, photoId: number | string): Promise<APIResponse> {
+    return this.client.delete(`agent/contracts/${id}/handover/photos/${photoId}`);
+  }
+
+  /**
+   * POST /agent/contracts/:id/documents/:kind โดยไม่แนบไฟล์ (controller บรรทัด 570 รับ multipart ช่อง file)
+   * uploadDocument ตรวจ kind ก่อน แล้วหาสัญญา ก่อนอ่านไฟล์ (service:2136-2140)
+   */
+  uploadDocumentWithoutFile(id: number | string, kind: string): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/documents/${encodeURIComponent(kind)}`);
+  }
+
+  /** POST /agent/contracts/:id/attachments/:documentId/review : ผลตรวจเอกสารแนบ (agreement-attachments.controller.ts:68) ตรวจเนื้อคำขอก่อนหาสัญญา (AT:393-405) */
+  reviewAttachment(id: number | string, documentId: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/attachments/${documentId}/review`, body);
+  }
+
+  /** POST /agent/contracts/:id/attachments/reuse : ใช้เอกสารจากสัญญาฉบับก่อน (agreement-attachments.controller.ts:76) ตรวจเนื้อคำขอก่อนหาสัญญา (AT:431-440) */
+  reuseAttachment(id: number | string, body: unknown): Promise<APIResponse> {
+    return this.client.post(`agent/contracts/${id}/attachments/reuse`, body);
   }
 }

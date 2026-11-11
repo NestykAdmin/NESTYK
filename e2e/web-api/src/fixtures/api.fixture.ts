@@ -4,6 +4,7 @@ import { ApiClient } from '../api/api-client';
 import { AuthApi } from '../api/auth.api';
 import { BillsApi } from '../api/bills.api';
 import { ContractsApi } from '../api/contracts.api';
+import { DealOffersApi } from '../api/deal-offers.api';
 import { HealthApi } from '../api/health.api';
 import { LeadMatchingApi } from '../api/lead-matching.api';
 import { LeadsApi } from '../api/leads.api';
@@ -27,6 +28,8 @@ export interface ApiSession {
   leads: LeadsApi;
   tenants: TenantsApi;
   contracts: ContractsApi;
+  /** ยกเลิกและแก้ข้อเสนอ (ใช้กับข้อเสนอที่ไม่มีอยู่จริงเท่านั้น ดู deal-offers.api.ts) */
+  dealOffers: DealOffersApi;
   /** สัญญาในฐานะคู่สัญญา (ผู้เช่าหรือเจ้าของห้อง) */
   partyContracts: PartyContractsApi;
   /** เส้นทางลิงก์ลงนามแบบไม่ต้องล็อกอินที่ทีมลบแล้ว (ใช้ตรวจว่าเปิดไม่ได้แล้วเท่านั้น) */
@@ -57,6 +60,7 @@ function createSession(request: APIRequestContext): ApiSession {
     leads: new LeadsApi(client),
     tenants: new TenantsApi(client),
     contracts: new ContractsApi(client),
+    dealOffers: new DealOffersApi(client),
     partyContracts: new PartyContractsApi(client),
     retiredContractSign: new RetiredContractSignApi(client),
     bills: new BillsApi(client),
