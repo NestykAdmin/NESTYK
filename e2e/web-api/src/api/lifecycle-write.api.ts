@@ -90,6 +90,30 @@ export class LifecycleAgentApi {
   invoiceReceipt = (invoiceId: number, payload: unknown): Promise<APIResponse> =>
     this.client.postMultipart(`agent/contracts/invoices/${invoiceId}/receipt`, { payload: JSON.stringify(payload) });
 
+  // ---- ระดับ 2 ของเส้นทางสัญญาที่ยังไม่มีเทส (CGP-046 ถึง 060, claude/nestyk-topic-contracts-gaps.md) เลขบรรทัดที่ 311ab35 ----
+  /** POST /agent/contracts/:id/reservation-payment/return (AC 184-185) 200 : ตีกลับสลิปจอง ต้องส่ง submittedAt ของสลิปล่าสุด */
+  returnReservationSlip = (id: number, body: unknown): Promise<APIResponse> =>
+    this.client.post(`agent/contracts/${id}/reservation-payment/return`, body);
+  /** POST /agent/contracts/:id/deposit-payment/return (AC 194-195) 200 : ตีกลับสลิปมัดจำ ต้องส่ง submittedAt ของสลิปล่าสุด */
+  returnDepositSlip = (id: number, body: unknown): Promise<APIResponse> =>
+    this.client.post(`agent/contracts/${id}/deposit-payment/return`, body);
+  /** POST /agent/contracts/:id/attachments/:documentId/review (agreement-attachments.controller.ts 68, ไม่มี @HttpCode) 201 */
+  reviewAttachment = (id: number, documentId: number, body: unknown): Promise<APIResponse> =>
+    this.client.post(`agent/contracts/${id}/attachments/${documentId}/review`, body);
+  /** POST /agent/contracts/:id/attachments/reuse (agreement-attachments.controller.ts 76, ไม่มี @HttpCode) 201 */
+  reuseAttachment = (id: number, body: unknown): Promise<APIResponse> =>
+    this.client.post(`agent/contracts/${id}/attachments/reuse`, body);
+  /** POST /agent/contracts/:id/draft (AC 438-439) 200 : แก้ร่าง */
+  updateDraft = (id: number, body: unknown): Promise<APIResponse> => this.client.post(`agent/contracts/${id}/draft`, body);
+  /** POST /agent/contracts/:id/documents/:kind (AC 570-571) 200 : อัปโหลดเอกสารแทนไฟล์ของสัญญา ชื่อไฟล์เก็บใน data.documentFileNames */
+  uploadDocument = (id: number, kind: string, file: UploadPart): Promise<APIResponse> =>
+    this.client.postMultipart(`agent/contracts/${id}/documents/${kind}`, { file });
+  /** POST /agent/contracts/:id/handover-due (AC 106-107) 200 : เลื่อนวันส่งมอบห้อง { date, reason } */
+  moveHandoverDue = (id: number, body: unknown): Promise<APIResponse> => this.client.post(`agent/contracts/${id}/handover-due`, body);
+  /** DELETE /agent/contracts/:id/handover/photos/:photoId (AC 230) 200 : ลบรูปบันทึกส่งมอบ ลายเซ็นที่มีอยู่เป็นโมฆะ */
+  removeHandoverPhoto = (id: number, photoId: number): Promise<APIResponse> =>
+    this.client.delete(`agent/contracts/${id}/handover/photos/${photoId}`);
+
   // ---- ส่งมอบห้อง ----
   /** GET /agent/contracts/:id/handover[/move-out] (AC 204, 238) */
   handover = (id: number, moveOut = false): Promise<APIResponse> => this.client.get(`agent/contracts/${id}/handover${moveOut ? '/move-out' : ''}`);

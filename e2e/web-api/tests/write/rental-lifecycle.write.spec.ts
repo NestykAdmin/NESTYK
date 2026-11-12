@@ -50,6 +50,13 @@ import { expect, test, type LifecycleSession } from '../../src/write/write.fixtu
  *     API ยอมให้อีเมลเดียวผูกกับผู้เช่าของหลายลีดเมื่อเลขบัตรตรงกัน (assertTenantEmailNotShared กับ sameTenantPerson
  *     ใน party-login.ts บรรทัด 98-105 และ 116-139 ที่ develop accb616) ถ้าเปลี่ยน TEST_THAI_ID รอบถัดไปจะได้ 409 TENANT_EMAIL_IN_USE
  *     (ลองในห้องทดลองกับ qa-tenant 3 รอบติดกันที่ bc77a8b และกับ qa-e2e-tenant 3 รอบติดกันที่ accb616 ผ่านทุกรอบ)
+ *   เคสระดับ 2 (CGP-046 ถึง 060 เพิ่ม 12 พ.ย. 2026 ยังไม่ได้นับจากฐานข้อมูลจริง อนุมานจากโค้ดที่ 311ab35):
+ *     ไม่เพิ่มแถว ลบรูปส่งมอบ 1 แถวแล้วเพิ่ม 1 แถว (handover_photos เท่าเดิม)
+ *     ไฟล์: ตัวเลข 33 ไฟล์และ "เทสอัปโหลดเอง 11 ไฟล์" ข้างบนเป็นของก่อนเพิ่มเคสระดับ 2 ตอนนี้เทสอัปโหลดเอง 15 ไฟล์ (annotation "อัปโหลด")
+ *     เพิ่ม 4 ไฟล์ คือสลิปจองและสลิปมัดจำรอบที่ 2, สัญญาเช่าที่อัปโหลดเอง และรูปส่งมอบรูปที่ 2 (บวก 1 ถ้า CGP-054 ได้ 200)
+ *     API ลบไฟล์ของสลิปจองที่ตีกลับ (2552), สลิปมัดจำที่ตีกลับ (2582) และรูปที่ลบ ; preview ครั้งที่ 2 ของขั้น 7 อาจสร้าง PDF ร่างเพิ่ม 1 ไฟล์
+ *     ทั้งหมดอนุมานจากโค้ด ยังไม่ได้นับจาก Storage จริง
+ *     แก้แถวของรอบ: ผลตรวจเอกสารสิทธิ์, data.handoverDue ของสัญญาเช่า (ค้างที่วันนี้ +7), data.documentFileNames.lease_agreement
  *
  * ข้อมูลที่ 1 รอบแก้ (ตัวนับแถวไม่เห็น เพราะนับแค่จำนวน)
  *   - แถว users ของ qa-e2e-tenant และ qa-e2e-landlord: ตอนสร้างหนังสือจอง API ผูกคู่สัญญากับบัญชีด้วยอีเมล (ensurePartyLogin
@@ -100,16 +107,31 @@ interface ContractView {
   status: string;
   agreementTypeCode: string;
   data: Record<string, unknown> & { endsOn?: { date?: string; reason?: string } };
-  reservationPayment: { status?: string } | null;
+  reservationPayment: { status?: string; submittedAt?: string | null; slipReturnReason?: string | null } | null;
   tenantDeliveredAt: string | null;
   ownerDeliveredAt: string | null;
-  depositPayment: { status?: string; invoiceId?: number; total?: number } | null;
+  depositPayment: { status?: string; invoiceId?: number; total?: number; submittedAt?: string | null } | null;
+  /** มีเฉพาะสัญญาเช่าที่รอเงินประกันหรือรอส่งมอบ (agent-contracts.service.ts 946-952) */
+  handoverDue?: { date: string; history: unknown[] } | null;
 }
 interface HandoverView {
   status: string;
   revision: number;
-  photos: unknown[];
+  photos: { id: number }[];
 }
+/** คำตอบของ POST/GET attachments (AgreementAttachmentChecklist ใน packages/types/src/agent-contracts.ts 464-477) */
+interface AttachmentChecklist {
+  documents: { id: number; documentTypeCode: string; reviewStatus: string }[];
+}
+
+/**
+ * ค่าคงที่ของเคสระดับ 2 (CGP-046 ถึง 060 ใน claude/nestyk-topic-contracts-gaps.md) เลขบรรทัดที่ 311ab35
+ *   ทุกเคสใช้สัญญาของรอบนี้ ไม่สร้างดีลหรือสัญญาเพิ่ม เคสปฏิเสธถูกปฏิเสธก่อนคำสั่งเขียน (บรรทัดในคอมเมนต์ของแต่ละเคส)
+ *   STALE_SLIP_AT: submittedAt ที่ไม่ใช่ของสลิปจริง ตีกลับต้องได้ 409 SLIP_CHANGED ก่อนเขียน (assertSameSlip ใน agent-contracts.service.ts 211-216)
+ *   NO_SUCH_ID: ค่าสูงสุดที่ DatabaseIdPipe รับ (apps/api/src/common/database-id.pipe.ts 3-14) และไม่มีแถวจริง เหมือน tests/api/agent-contracts.spec.ts
+ */
+const STALE_SLIP_AT = '2000-01-01T00:00:00.000Z';
+const NO_SUCH_ID = 2147483647;
 interface BillView {
   id: number;
   leaseContractId: number;
@@ -312,12 +334,53 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       await expectJson(await agent.preview(id, 'reservation'), 200);
       expect(await myContractIds(tenant.contracts()), 'qa-e2e-tenant เห็นหนังสือจองในบัญชีของตัวเอง').toContain(id);
       await expectJson(await tenant.reservationSlip(id, upload(png(label, 'reservation-slip'))), 200);
+
+      // ระดับ 2: ตีกลับสลิปจองก่อนออกใบเสร็จ (คำตอบสัญญามี submittedAt เมื่อมีใบแจ้งหนี้ค่าจอง 928-935 ซึ่งต้องมีก่อนส่งสลิป 2790)
+      const firstSlipAt = (await contract(id)).reservationPayment?.submittedAt;
+      expect(firstSlipAt, 'ผู้เช่าส่งสลิปจองแล้ว คำตอบสัญญาต้องมี submittedAt').toEqual(expect.any(String));
+      // CGP-046 (R14): submittedAt ไม่ตรงสลิปล่าสุด → 409 ก่อนเขียน (2532, 211-216)
+      await expectCodedError(await agent.returnReservationSlip(id, { reason: `${label} cgp-046`, submittedAt: STALE_SLIP_AT }), 409, 'SLIP_CHANGED');
+      // CGP-047 (R14, Q4): ไม่ส่ง submittedAt ค่าที่ถูกคือ 400 ตอนนี้ได้ 409 (บั๊กที่ทีมรับแล้ว 12 พ.ย. 2026 แก้หลังพ้น freeze ของ API)
+      //   เทสนี้เป็นข้อเดียวทั้งวงจร ใส่ test.fail ไม่ได้ จึงรับทั้ง 2 รหัส (Aof ตัดสิน 12 พ.ย. 2026) และบอกรหัสที่ได้ใน annotation
+      //   ไม่เขียนทั้ง 2 กรณี: 409 มาจาก assertSameSlip ก่อนเขียน ส่วน 400 หลังทีมแก้คือการตรวจเนื้อคำขอ
+      const noStamp = await agent.returnReservationSlip(id, { reason: `${label} cgp-047` });
+      expect([400, 409], 'ไม่ส่ง submittedAt ต้องถูกปฏิเสธ').toContain(noStamp.status());
+      //   409 ต้องเป็น SLIP_CHANGED ของ assertSameSlip เท่านั้น ; 400 บอกข้อความใน annotation เพื่อแยกว่าทีมแก้แล้วหรือถูกปฏิเสธด้วยเหตุอื่น
+      //   (เช่น "ยังไม่มีสลิปที่ส่งมาให้ตีกลับ" 2531 ถ้าสลิปหาย ซึ่งการตรวจ submittedAt ข้างล่างจับได้)
+      //   400 อ่าน message แบบรับได้ทั้ง { statusCode, message } และ { code, message } (ทีมอาจแก้ด้วย object แบบ SLIP_CHANGED 215)
+      //   ไม่ใช้ expectError ที่บังคับ statusCode เพราะจะล้มแบบหยุดเทสกลางขั้น 6 ทั้งที่ทีมแก้ถูก
+      const noStampDetail = noStamp.status() === 409
+        ? await expectCodedError(noStamp, 409, 'SLIP_CHANGED')
+        : String(((await noStamp.json().catch(() => null)) as { message?: unknown } | null)?.message ?? '');
+      testInfo.annotations.push({ type: 'CGP-047 known-bug Q4', description: `ตีกลับสลิปจองโดยไม่ส่ง submittedAt ได้ ${noStamp.status()} "${noStampDetail}" (ค่าที่ถูก 400 ถ้าได้ 400 ด้วยข้อความเรื่อง submittedAt แปลว่าทีมแก้แล้ว ให้เปลี่ยนเทสเป็นรับ 400 อย่างเดียว)` });
+      expect((await contract(id)).reservationPayment?.submittedAt, 'คำขอที่ถูกปฏิเสธต้องไม่เปลี่ยนสลิป').toBe(firstSlipAt);
+      // CGP-048 (R13, R15): ตีกลับด้วย submittedAt จริง (2527-2537) แล้วผู้เช่าส่งสลิปใหม่
+      await expectJson(await agent.returnReservationSlip(id, { reason: `${label} cgp-048`, submittedAt: firstSlipAt }), 200);
+      const returned = (await contract(id)).reservationPayment;
+      expect(returned?.status, 'ตีกลับแล้วเงินจองกลับเป็นยังไม่ชำระ').toBe('unpaid');
+      expect(returned?.slipReturnReason, 'ผู้เช่าเห็นเหตุผลที่ตีกลับ').toBe(`${label} cgp-048`);
+      await expectJson(await tenant.reservationSlip(id, upload(png(label, 'reservation-slip-2'))), 200);
+      const resent = (await contract(id)).reservationPayment;
+      expect(resent?.status, 'ผู้เช่าส่งสลิปใหม่แล้ว').toBe('submitted');
+      expect(resent?.submittedAt, 'สลิปใหม่ต้องเป็นคนละรอบกับสลิปแรก').not.toBe(firstSlipAt);
       await expectJson(
         await agent.financialDocument(id, 'receipt', { receivedBy: 'landlord', paymentMethod: 'transfer', paymentDetails: `${label} bank transfer` }),
         200,
       );
       expect((await contract(id)).reservationPayment?.status, 'ออกใบเสร็จเงินจองแล้ว').toBe('paid');
-      await expectJson(await agent.attach(id, upload(pdf(label, 'ownership')), 'ownership_proof', 'property'), 201);
+      // CGP-049 (R15): ออกใบเสร็จแล้วตีกลับไม่ได้ (2529) กันชั้นที่ 2: submittedAt ปลอมได้ 409 ก่อนเขียน (2532 อยู่หลัง 2529)
+      expect(
+        await expectError(await agent.returnReservationSlip(id, { reason: `${label} cgp-049`, submittedAt: STALE_SLIP_AT }), 400),
+      ).toBe('ออกใบเสร็จแล้ว ตีกลับสลิปไม่ได้');
+      const attached = await expectJson<AttachmentChecklist>(
+        await agent.attach(id, upload(pdf(label, 'ownership')), 'ownership_proof', 'property'),
+        201,
+      );
+      // CGP-050 (R25): ตรวจเอกสารแนบได้ครั้งเดียว (agreement-attachments.service.ts 389-422) ใช้ accepted เพราะ rejected อาจบล็อกขั้นถัดไปถ้าทีมเปลี่ยนกติกา B3
+      const proof = attached.documents.find((doc) => doc.documentTypeCode === 'ownership_proof' && doc.reviewStatus === 'pending');
+      expect(proof, 'เอกสารสิทธิ์ที่เพิ่งแนบต้องรอตรวจ').toBeDefined();
+      await expectJson(await agent.reviewAttachment(id, proof!.id, { status: 'accepted' }), 201);
+      expect(await expectError(await agent.reviewAttachment(id, proof!.id, { status: 'accepted' }), 409)).toBe('เอกสารนี้ตรวจแล้วหรือมีฉบับใหม่แล้ว');
       await expectJson(await agent.deliver(id, 'tenant'), 200);
       await expectJson(await agent.deliver(id, 'owner'), 200);
       const delivered = await contract(id);
@@ -353,9 +416,52 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       );
       const id = lease.id;
       created.leaseId = id;
+      // CGP-051 (R9): แก้ร่างด้วยรุ่นที่ไม่ตรง → 409 ก่อนเขียน (agent-contracts.service.ts 3680-3681 หลัง assertDraft 3677)
+      //   กันชั้นที่ 2: body ไม่มี leadId จึงได้ 400 ที่ 3681-3684 ก่อนเขียน ถ้าการตรวจรุ่นหาย
+      expect(await expectError(await agent.updateDraft(id, { expectedDraftRevision: `${label} cgp-051` }), 409)).toBe('ฉบับร่างถูกแก้ไขแล้ว กรุณาเปิดใหม่ก่อนบันทึก');
+      // CGP-052 (R20): สัญญาเช่าใหม่ไม่มีฉบับก่อนหน้า (agreement-attachments.service.ts 436-443 ตรวจก่อนอ่านเอกสารเดิม 450)
+      //   กันชั้นที่ 2: sourceDocumentId ไม่มีจริง จึงได้ 404 ที่ 457-458 ก่อนดาวน์โหลดและอัปโหลด
+      expect(
+        await expectError(await agent.reuseAttachment(id, { confirmedCurrent: true, sourceDocumentId: NO_SUCH_ID }), 400),
+      ).toBe('สัญญานี้ไม่มีฉบับก่อนหน้า');
       for (const subject of ['owner', 'tenant']) {
         await expectJson(await agent.attach(id, upload(pdf(label, `${subject}-id`)), 'national_id', subject), 201);
       }
+      await expectJson(await agent.preview(id, 'lease'), 200);
+      // CGP-053 (R24, Q2): ชื่อไฟล์ที่มีอักขระของ SQL อัปโหลดได้และเก็บชื่อตรงตามที่ส่ง (2131-2181 ต่อชื่อเข้า SQL ที่ 2173)
+      //   ทีมยืนยัน 12 พ.ย. 2026 ว่าตอนนี้ escape ' เป็น '' และ Postgres เปิด standard_conforming_strings จะเปลี่ยนเป็นพารามิเตอร์หลังพ้น freeze
+      //   ชื่อมีแค่ ' กับ );-- ไม่มี " และ \ เพราะส่งผ่าน multipart ไม่ได้: Playwright 1.63 ใส่ชื่อใน filename="..." โดยไม่ escape
+      //   (node_modules/playwright-core/lib/coreBundle.js 14280) และ busboy ถือ " เป็นจุดจบของชื่อ และ \ เป็นตัว escape
+      //   (node_modules/busboy/lib/utils.js 317-333) ชื่อที่ถึง API จะไม่ตรงกับที่ส่ง ซึ่งไม่ใช่สิ่งที่เคสนี้ตั้งใจเทส (test-reviewer 12 พ.ย. 2026)
+      //   053 และ 054 ใช้ expect.soft: ขั้นถัดไปไม่ขึ้นกับผลของ 2 เคสนี้ (preview ข้างล่างสร้างไฟล์ร่างใหม่) วงจรจึงเดินต่อจนจบและเทสยังแดงถ้าผิด
+      const sqlName = `${label}-cgp-053 ' );--.pdf`;
+      const sqlUpload = await agent.uploadDocument(id, 'lease_agreement', { ...pdf(label, 'cgp-053'), name: sqlName });
+      //   ถ้าไม่ได้ 200 ใส่ message ในข้อความ (คำตอบ error ไม่มี URL ของ Storage ; คำตอบ 200 มี จึงไม่พิมพ์)
+      const sqlError = sqlUpload.ok() ? '' : String(((await sqlUpload.json().catch(() => null)) as { message?: unknown } | null)?.message ?? '');
+      expect.soft(sqlUpload.status(), `อัปโหลดชื่อไฟล์ที่มีอักขระของ SQL ต้องได้ 200 ${sqlError}`).toBe(200);
+      if (sqlUpload.ok()) upload(null);
+      const fileNames = () => contract(id).then((view) => (view.data.documentFileNames ?? {}) as Record<string, unknown>);
+      expect.soft((await fileNames()).lease_agreement, 'ชื่อไฟล์ที่เก็บต้องตรงตามที่ส่ง').toBe(sqlName);
+      // CGP-054 (R24, Q2): ชื่อไฟล์ที่มีตัว NUL ทีมคาดว่าได้ 500 (jsonb ไม่รับ \u0000) ถ้าได้ 500 ให้จดเป็นบั๊ก
+      //   รอบแรกยังไม่ตรวจรหัส (Aof ตัดสิน 12 พ.ย. 2026) ; Postgres เก็บตัว NUL ไม่ได้อยู่แล้ว จึงตรวจแทนว่า:
+      //   ถูกปฏิเสธ = ชื่อที่เก็บต้องเท่าเดิม (ไม่มีการเขียน) ; ได้ 200 = บอกชื่อที่เก็บใน annotation (แทน NUL ด้วย <NUL>)
+      //   ถ้า busboy ทิ้งส่วนของไฟล์ API ตอบ 400 "กรุณาเลือกไฟล์เอกสาร" ก่อนอัปโหลด (contract-document-storage.service.ts upload)
+      //   ถ้า UPDATE ล้ม API ลบไฟล์ที่เพิ่งอัปโหลด (2178-2180)
+      //   annotation แยกได้ว่าถูกปฏิเสธที่ตัวแยก multipart หรือที่ฐานข้อมูล เฉพาะเมื่อข้อความต่างกัน (อนุมาน: ถ้า busboy โยน error ที่ส่วนหัว
+      //   NestJS อาจตอบ 500 "Internal server error" เหมือน 500 ของ jsonb) ถ้าได้ 500 ให้ดู log ของ API ประกอบก่อนสรุปว่าเป็นบั๊ก
+      const beforeNul = (await fileNames()).lease_agreement;
+      const nulResponse = await agent.uploadDocument(id, 'lease_agreement', { ...pdf(label, 'cgp-054'), name: `${label}-cgp-054 \u0000.pdf` });
+      const afterNul = (await fileNames()).lease_agreement;
+      if (nulResponse.ok()) {
+        upload(null);
+        testInfo.annotations.push({ type: 'CGP-054 ชื่อไฟล์มีตัว NUL', description: `ได้ ${nulResponse.status()} ชื่อที่เก็บ "${String(afterNul).replace(/\u0000/g, '<NUL>')}" (ทีมคาด 500)` });
+      } else {
+        const body = (await nulResponse.json().catch(() => null)) as { message?: unknown } | null;
+        testInfo.annotations.push({ type: 'CGP-054 ชื่อไฟล์มีตัว NUL', description: `ได้ ${nulResponse.status()} "${String(body?.message ?? '')}" (ทีมคาด 500 ถ้าได้ 500 จดเป็นบั๊ก)` });
+        expect.soft(afterNul, 'คำขอที่ถูกปฏิเสธต้องไม่แก้ชื่อที่เก็บ').toBe(beforeNul);
+      }
+      // สร้างไฟล์ร่างใหม่หลังอัปโหลด: deliver ไม่ใช้ไฟล์ของเอกสาร (2692-2738) แต่ลิงก์เอกสารที่คู่สัญญาเห็นถอยไปใช้ document_url
+      //   ที่อัปโหลด (917-923) จึงคืนเป็นไฟล์ร่างก่อนส่งให้คู่สัญญา
       await expectJson(await agent.preview(id, 'lease'), 200);
       await expectJson(await agent.deliver(id, 'tenant'), 200);
       await expectJson(await agent.deliver(id, 'owner'), 200);
@@ -375,7 +481,31 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       expect(deposit?.invoiceId, 'ออกสัญญาเช่าแล้วต้องมีใบแจ้งหนี้มัดจำ').toEqual(expect.any(Number));
       expect(deposit?.total).toBe(DEAL.depositAmount);
       created.depositInvoiceId = deposit!.invoiceId;
+      // ระดับ 2: เลื่อนวันส่งมอบระหว่างรอเงินประกัน (agent-contracts.service.ts 2481-2513)
+      //   วันส่งมอบเดิมคือวันเริ่มสัญญาซึ่งย้อนหลัง 1 เดือน (handoverDueDate ใน reminders/contract-reminders.ts 68-69)
+      //   จึงเลื่อนกลับวันเดิมไม่ได้ ("ต้องไม่ก่อนวันนี้" 2487) หลังขั้นนี้วันส่งมอบค้างที่วันนี้ +7 ซึ่งใช้แค่ในการเตือน (contract-reminders.ts 92)
+      const movedDue = bangkokDate(7);
+      const historyBefore = (await contract(id)).handoverDue?.history.length ?? 0;
+      // CGP-056 (R21): เลื่อนไปวันนี้ +7
+      await expectJson(await agent.moveHandoverDue(id, { date: movedDue, reason: `${label} cgp-056` }), 200);
+      const due = (await contract(id)).handoverDue;
+      expect(due?.date, 'วันส่งมอบใหม่').toBe(movedDue);
+      expect(due?.history.length, 'ประวัติการเลื่อนเพิ่ม 1 รายการ').toBe(historyBefore + 1);
+      // CGP-055 (R21): วันเดียวกับวันส่งมอบปัจจุบัน → 400 ก่อนเขียน (2499-2500)
+      expect(await expectError(await agent.moveHandoverDue(id, { date: movedDue, reason: `${label} cgp-055` }), 400)).toBe('วันส่งมอบใหม่ต้องต่างจากวันเดิม');
       await expectJson(await tenant.depositSlip(id, upload(png(label, 'deposit-slip'))), 200);
+      // ระดับ 2: ตีกลับสลิปมัดจำก่อนออกใบเสร็จ (2562-2580) คำตอบสัญญามี depositPayment.submittedAt (1005)
+      const firstDepositSlipAt = (await contract(id)).depositPayment?.submittedAt;
+      expect(firstDepositSlipAt, 'ผู้เช่าส่งสลิปมัดจำแล้ว คำตอบสัญญาต้องมี submittedAt').toEqual(expect.any(String));
+      // CGP-057 (R13-R15): submittedAt ปลอม → 409 ก่อนเขียน แล้วตีกลับด้วยค่าจริง แล้วผู้เช่าส่งสลิปใหม่
+      await expectCodedError(await agent.returnDepositSlip(id, { reason: `${label} cgp-057`, submittedAt: STALE_SLIP_AT }), 409, 'SLIP_CHANGED');
+      await expectJson(await agent.returnDepositSlip(id, { reason: `${label} cgp-057`, submittedAt: firstDepositSlipAt }), 200);
+      expect((await contract(id)).depositPayment?.submittedAt, 'ตีกลับแล้วไม่มีสลิปค้าง').toBeNull();
+      await expectJson(await tenant.depositSlip(id, upload(png(label, 'deposit-slip-2'))), 200);
+      const resentDeposit = (await contract(id)).depositPayment;
+      expect(resentDeposit?.status, 'ผู้เช่าส่งสลิปมัดจำใหม่แล้ว').toBe('submitted');
+      expect(resentDeposit?.submittedAt, 'สลิปมัดจำใหม่ต้องมี submittedAt').toEqual(expect.any(String));
+      expect(resentDeposit?.submittedAt, 'สลิปใหม่ต้องเป็นคนละรอบกับสลิปแรก').not.toBe(firstDepositSlipAt);
       await expectJson(
         await agent.invoiceReceipt(created.depositInvoiceId!, { paymentMethod: 'transfer', paymentDetails: `${label} deposit transfer`, receivedBy: 'landlord' }),
         200,
@@ -383,6 +513,10 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
       const after = await contract(id);
       expect(after.depositPayment?.status).toBe('paid');
       expect(after.status, 'รับมัดจำแล้วรอส่งมอบห้อง').toBe('awaiting_handover');
+      // CGP-058 (R15): ออกใบเสร็จมัดจำแล้วตีกลับไม่ได้ (2573) กันชั้นที่ 2: submittedAt ปลอม
+      expect(
+        await expectError(await agent.returnDepositSlip(id, { reason: `${label} cgp-058`, submittedAt: STALE_SLIP_AT }), 400),
+      ).toBe('ออกใบเสร็จแล้ว ตีกลับสลิปไม่ได้');
     });
 
     await test.step('9. ส่งมอบห้อง: นายหน้าบันทึกรายการกับรูป ผู้เช่าและเจ้าของลงนาม สัญญาเริ่ม', async () => {
@@ -393,11 +527,21 @@ test('rental lifecycle from a scout room to the deposit refund across agent, ten
         200,
       );
       await expectJson(await agent.handoverPhoto(id, upload(png(label, 'move-in')), false), 201);
+      // CGP-059 (R23): ลบรูปก่อนลงนาม แล้วอัปใหม่ (handover.service.ts 290-297, 377-391)
+      const photos = (await handover(id, false)).photos;
+      expect(photos.length, 'มีรูปที่เพิ่งอัป 1 รูป').toBe(1);
+      await expectJson(await agent.removeHandoverPhoto(id, photos[0].id), 200);
+      expect((await handover(id, false)).photos.length, 'ลบแล้วไม่เหลือรูป').toBe(0);
+      await expectJson(await agent.handoverPhoto(id, upload(png(label, 'move-in-2')), false), 201);
       const revision = (await handover(id, false)).revision;
       await expectJson(await tenant.signHandover(id, 'tenant', SIGNATURE, revision), 200);
       await expectJson(await landlord.signHandover(id, 'owner', SIGNATURE, revision), 200);
       expect((await handover(id, false)).status).toBe('completed');
       expect((await contract(id)).status).toBe('active');
+      // CGP-060 (R21): ส่งมอบแล้วเลื่อนวันส่งมอบไม่ได้ (2496-2498 อ่านสถานะใน transaction ก่อนเขียน)
+      expect(
+        await expectError(await agent.moveHandoverDue(id, { date: '2099-01-01', reason: `${label} cgp-060` }), 400),
+      ).toBe('เลื่อนวันส่งมอบได้เฉพาะสัญญาเช่าที่รอเงินประกันหรือรอส่งมอบห้อง');
     });
 
     await test.step('10. บิลค่าเช่าเดือนนี้: ผู้เช่าส่งสลิป นายหน้ายืนยัน เจ้าของเห็นว่าชำระแล้ว', async () => {
