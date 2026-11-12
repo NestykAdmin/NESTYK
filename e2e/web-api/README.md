@@ -77,6 +77,23 @@ npm ci
 | `npm run test:web-ui:th` | รันชุด `tests/web-ui` เดิมเป็นภาษาไทย ด้วย `playwright.web-ui-th.config.ts` (ดูหัวข้อ "รันเป็นภาษาไทย") |
 | `npm run test:web-ui-write` | รันเทสที่กดบันทึกจริงบนเว็บ consumer-app (`tests/web-ui-write`) ด้วย `playwright.web-ui-write.config.ts` ต้องตั้งตามหัวข้อ "เทสเขียนข้อมูลบนเว็บ" ก่อน (`npm test` ไม่รันชุดนี้) ห้ามรันพร้อม `npm run test:write` |
 
+### จำนวนข้อที่ข้ามตามปกติ
+
+ข้อที่ถูกข้าม (skipped) ไม่ทำให้ผลรวมแดง ถ้าจำนวนเพิ่มขึ้นโดยไม่มีใครเห็น ชุดเทสจะตรวจน้อยลงทั้งที่ผลยังเขียว จึงจดจำนวนปกติไว้เทียบทุกรอบ
+
+| คำสั่ง | ข้าม | มาจาก |
+| --- | --- | --- |
+| `npm run test:api` | 18 จาก 632 ข้อ | `auth-register.spec.ts` 16 ข้อ (6 ข้อของตัวกันข้ามเมื่อเส้นทาง `POST /auth/dev/register` ปิด และ 10 ข้อของการตรวจค่าข้ามเมื่อไม่ได้ตั้ง `E2E_ALLOW_REGISTER_PROBES=yes` หรือเส้นทางปิด), `bills.spec.ts` 1 ข้อ (ยังไม่มีสลิปที่รอนายหน้าตรวจ), `cross-agent.spec.ts` 1 ข้อ (qa-agent ยังไม่มีห้องที่ติดป้าย `E2E-`) |
+| `npm run test:web-ui` | 11 จาก 162 ข้อ | `safety-roles.spec.ts` ทั้งไฟล์ (ข้ามเมื่อ `E2E_WEB_LOCAL_API=yes`) |
+| `npm run test:web-ui:th` | 15 จาก 162 ข้อ | 11 ข้อเดียวกับแถวบน, `lead-form-readiness.spec.ts` 3 ข้อ และ `reset-password.spec.ts` 1 ข้อ (ตรวจเฉพาะภาษาอังกฤษ) |
+
+- ที่มาของตัวเลข: รอบ 12 พ.ย. 2026 ชุดเทสที่ qa/e2e `0041f52` ใช้ API บนเครื่อง ไฟล์ผล `api_full_0041f52.txt`, `web-ui-full-0041f52-run1.txt` และ `web-ui-th-full-0041f52-run1.txt` ใน `Claude outputs/results/` ยังไม่ได้รันซ้ำที่ `9190108` แต่ระหว่าง 2 commit นี้ไฟล์ใต้ `tests/api`, `tests/web-ui` และ `playwright*.config.ts` ไม่เปลี่ยน ส่วนใต้ `src` เปลี่ยน 3 ไฟล์โดยเพิ่มบรรทัดอย่างเดียวและไม่แตะเงื่อนไขของ `test.skip` (`api/lifecycle-write.api.ts`, `web-ui/pages/notify.page.ts` และป้ายใหม่ 1 บรรทัดใน `web-ui/labels.ts`)
+- วิธีนับ: ดูบรรทัด `N skipped` ท้ายไฟล์ผล และดูรายชื่อข้อที่ข้ามด้วย `grep -E '^[[:space:]]+-[[:space:]]+[0-9]+ \[' <ไฟล์ผล>` (ตัวรันพิมพ์ข้อที่ข้ามขึ้นต้นด้วย `-`)
+- ถ้าจำนวนของรอบใหม่ไม่ตรงกับตาราง ให้หาว่าข้อไหนเพิ่มหรือหายไป แล้วอ่านเหตุผลของการข้ามในรายงาน HTML ก่อนเชื่อผลรวม (ไฟล์ผลแบบข้อความไม่มีเหตุผล) เปิดรายงานด้วย `npm run report` สำหรับชุด api, `npx playwright show-report playwright-report-web-ui` และ `npx playwright show-report playwright-report-web-ui-th` สำหรับชุดเว็บ รายงานเก็บเฉพาะรอบล่าสุด ต้องเปิดก่อนรันซ้ำ
+- ตัวเลขนี้เป็นของการรันกับ API บนเครื่อง ถ้ารันกับ staging จำนวนอาจต่างจากตาราง (เช่น ชุดเว็บจะไม่ข้าม `safety-roles.spec.ts`) ไม่ต้องแก้ตาราง
+- ข้อของ `bills.spec.ts` กับ `cross-agent.spec.ts` ข้ามหรือไม่ข้ามตามข้อมูลของ qa-agent ในฐานข้อมูลที่ API ต่ออยู่ ถ้า 2 ข้อนี้กลับมารัน จำนวนของชุด api จะเหลือ 17 หรือ 16 โดยไม่มีเทสหายไป
+- เมื่อเพิ่มหรือลบเทสที่มี `test.skip` ให้แก้ตารางนี้ใน commit เดียวกัน
+
 ## โครงสร้าง
 
 ```
