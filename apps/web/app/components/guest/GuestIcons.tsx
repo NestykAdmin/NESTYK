@@ -60,6 +60,11 @@ export const HeartIcon = (props: IconProps) => (
   </Line>
 );
 
+export const CloseIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </Line>
+);
 export const HomeIcon = (props: IconProps) => (
   <Line strokeWidth={1.9} {...props}>
     <path d="M3 11 12 4l9 7" />

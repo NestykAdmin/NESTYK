@@ -1195,6 +1195,9 @@ summary.nk-row:hover {
   gap: var(--nk-space-2);
 }
 .nk-fav {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
   position: absolute;
   top: var(--nk-space-2);
   right: var(--nk-space-2);
@@ -1704,4 +1707,178 @@ a.nk-types__item:hover {
 }
 .nk-search__submit .nk-soon {
   margin-inline-start: 4px;
+}
+
+/* Buttons: ink outline (second choice next to the yellow primary). */
+.nk-btn--outline {
+  border: 1px solid var(--nk-color-ink);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  text-decoration: none;
+}
+.nk-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--nk-space-2);
+  margin-top: var(--nk-space-2);
+}
+.nk-empty__actions .nk-btn {
+  min-width: 180px;
+  text-decoration: none;
+}
+
+/* Sign-in prompt for features that need an account: dialog on wide screens, bottom sheet at <= 960px. */
+.nk-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--nk-space-4);
+}
+.nk-prompt__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(33, 30, 30, 0.45);
+}
+.nk-prompt__panel {
+  position: relative;
+  box-sizing: border-box;
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+  padding: var(--nk-space-6);
+  border-radius: 20px;
+  background: var(--nk-color-surface);
+  box-shadow: var(--nk-shadow-pop);
+  color: var(--nk-color-heading);
+}
+.nk-prompt__handle {
+  display: none;
+}
+.nk-prompt__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.nk-prompt__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-brand-soft);
+  color: var(--nk-color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nk-prompt__close {
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  border: 0;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nk-prompt__title {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: var(--nk-text-xl);
+  color: var(--nk-color-ink);
+}
+.nk-prompt__body {
+  margin: 0;
+  color: var(--nk-color-text-secondary);
+  line-height: 1.6;
+}
+.nk-prompt__room {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  padding: var(--nk-space-2);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-bg);
+}
+.nk-prompt__room-photo {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--nk-radius-sm);
+  object-fit: cover;
+}
+.nk-prompt__room-photo--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nk-color-track);
+  color: var(--nk-color-text-secondary);
+}
+.nk-prompt__room-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nk-prompt__room-title {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nk-prompt__room-price {
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-prompt__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+  margin-top: var(--nk-space-1);
+}
+.nk-prompt__actions .nk-btn {
+  text-decoration: none;
+}
+.nk-prompt__later {
+  align-self: center;
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  border: 0;
+  background: transparent;
+  color: var(--nk-color-text-secondary);
+  font: 400 var(--nk-text-md) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-prompt__later:hover {
+  color: var(--nk-color-ink);
+}
+@media (max-width: 960px) {
+  .nk-prompt {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .nk-prompt__panel {
+    width: 100%;
+    max-height: calc(100vh - 48px);
+    border-radius: 20px 20px 0 0;
+    padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-6) + env(safe-area-inset-bottom));
+  }
+  .nk-prompt__handle {
+    display: block;
+    align-self: center;
+    width: 40px;
+    height: 4px;
+    border-radius: var(--nk-radius-pill);
+    background: var(--nk-color-divider);
+  }
 }

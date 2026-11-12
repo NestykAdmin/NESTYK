@@ -57,7 +57,10 @@ export function RoomCard({ card, copy, locale, today }: RoomCardProps) {
           <span className="nk-badge nk-badge--dark">{copy.card.rentBadge}</span>
           {card.isNew ? <span className="nk-badge nk-badge--brand">{copy.card.newBadge}</span> : null}
         </span>
-        <FavoriteButton label={fillTemplate(copy.card.signInToSave, { name: title })} />
+        <FavoriteButton
+          label={fillTemplate(copy.card.saveNamed, { name: title })}
+          room={{ title, priceText: price ? `฿${price} ${copy.card.perMonthLong}` : null, coverImageUrl: card.coverImageUrl }}
+        />
       </div>
       <div className="nk-room__body">
         {price ? (
