@@ -41,7 +41,7 @@ export const legalZh: LegalCopy = {
     close: '关闭',
     alwaysOn: '始终开启',
     categories: {
-      necessary: { title: '必要', text: '登录、安全和 hCaptcha 防机器人验证。网站离不开它们，因此无法关闭。' },
+      necessary: { title: '必要', text: '登录、安全和 Cloudflare Turnstile 防机器人验证。网站离不开它们，因此无法关闭。' },
       preferences: { title: '记住我的设置', text: '语言、主题、上次使用的工作区和房源列表显示方式。关闭后网站仍可使用，但下次访问时不会记住这些设置。' },
       maps: { title: 'Google 地图', text: '在标记地点或查看房源时显示地图。Google 会收到您的 IP 和您查看的区域。关闭后会显示一个按钮，供您手动打开地图。' },
     },
@@ -86,7 +86,7 @@ export const legalZh: LegalCopy = {
       roomsView: { purpose: '记住房源列表的显示方式', kept: '您关闭“记住我的设置”或清除网站数据' },
     },
     services: {
-      hcaptcha: { purpose: '在登录、注册和重置密码时阻止机器人', data: 'IP 地址、浏览器信息及页面操作方式' },
+      turnstile: { purpose: '在登录、注册和重置密码时阻止机器人', data: 'IP 地址、浏览器信息及页面操作方式' },
       googleMaps: { purpose: '在标记地点或查看房源时显示地图。仅在您允许地图 Cookie 后加载', data: 'IP 和您查看的地图区域' },
     },
   },

@@ -22,7 +22,7 @@
 | `EXPO_PUBLIC_WEB_PORTAL_URLS` | ว่าง | `all=https://nestyk.com` (บัญชีหลายบทบาทกดสลับแล้วไปเปิดที่ nestyk.com) |
 | `EXPO_PUBLIC_WEB_SIGN_OUT_TO` | ไม่ตั้ง → ออกแล้วไปหน้าแรก | `login` → ออกแล้วไปหน้าเข้าสู่ระบบ |
 
-ส่วน 1)–4) และ 6) ใช้ค่าเดียวกันทุกโดเมน (API, Supabase, hCaptcha, Maps เป็นชุด production ชุดเดียว)
+ส่วน 1)–4) และ 6) ใช้ค่าเดียวกันทุกโดเมน (API, Supabase, Turnstile, Maps เป็นชุด production ชุดเดียว)
 
 ## ตั้งค่า Vercel project (ทุกโดเมนเหมือนกัน)
 
@@ -35,7 +35,7 @@
 ## นอก Vercel ที่ต้องตั้งให้ครบทุกโดเมนที่เปิด
 
 - Supabase → Authentication → URL Configuration → Redirect URLs: เพิ่ม `https://<โดเมน>/**` (ลิงก์ตั้งรหัสผ่านใหม่)
-- hCaptcha Dashboard → ไซต์ → Domains: เพิ่มโดเมน
+- Cloudflare → Turnstile → widget "NESTYK Auth" → Hostname Management: `nestyk.com` ครอบคลุม subdomain ทั้งหมดแล้ว เพิ่มเฉพาะเมื่อเป็นโดเมนอื่น
 - Google Cloud → คีย์ Maps ฝั่งเว็บ → HTTP referrers: เพิ่ม `https://<โดเมน>/*`
 - API (Railway) CORS ถ้าจำกัด origin: เพิ่มโดเมน
 - DNS (Z.com): ชี้แต่ละโดเมนไป Vercel project ของมัน

@@ -41,7 +41,7 @@ export const legalEn: LegalCopy = {
     close: 'Close',
     alwaysOn: 'Always on',
     categories: {
-      necessary: { title: 'Necessary', text: 'Sign-in, security and hCaptcha bot protection. Cannot be turned off: the site does not work without them.' },
+      necessary: { title: 'Necessary', text: 'Sign-in, security and Cloudflare Turnstile bot protection. Cannot be turned off: the site does not work without them.' },
       preferences: { title: 'Remember my settings', text: 'Language, theme, last workspace and room-list view. If off, the site still works but forgets these when you come back.' },
       maps: { title: 'Google Maps', text: 'Shows maps when you pin a place or view a room. Google receives your IP and the area you view. If off, you see a button to show the map instead.' },
     },
@@ -86,7 +86,7 @@ export const legalEn: LegalCopy = {
       roomsView: { purpose: 'Remembers how you view the room list', kept: 'You turn off "Remember my settings" or clear the site data' },
     },
     services: {
-      hcaptcha: { purpose: 'Stops bots at sign-in, sign-up and password reset', data: 'IP address, browser details and how you use the page' },
+      turnstile: { purpose: 'Stops bots at sign-in, sign-up and password reset', data: 'IP address, browser details and how you use the page' },
       googleMaps: { purpose: 'Shows maps when you pin a place or view a room. Loads only if you allow map cookies', data: 'IP and the map area you view' },
     },
   },

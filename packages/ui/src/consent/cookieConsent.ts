@@ -2,7 +2,7 @@
  * PDPA cookie consent for the web (project-docs/nestyk-cookie-consent-plan-20261109.md; Mos 9 Nov 2026 17:08: people
  * see what the web keeps and choose; what is necessary cannot be turned off).
  *
- * - Necessary: sign-in, security, hCaptcha. Always on, only shown.
+ * - Necessary: sign-in, security, Cloudflare Turnstile. Always on, only shown.
  * - preferences: language, theme, last workspace, room-list view. Kept in browser storage only with consent.
  * - maps: Google Maps (loads Google's script, which sees the IP and the area viewed). Loads only with consent.
  *

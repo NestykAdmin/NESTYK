@@ -41,7 +41,7 @@ export const legalJa: LegalCopy = {
     close: '閉じる',
     alwaysOn: '常にオン',
     categories: {
-      necessary: { title: '必須', text: 'ログイン、セキュリティ、hCaptchaによるボット対策。サイトが動作しなくなるためオフにできません。' },
+      necessary: { title: '必須', text: 'ログイン、セキュリティ、Cloudflare Turnstileによるボット対策。サイトが動作しなくなるためオフにできません。' },
       preferences: { title: '設定を記録', text: '言語、テーマ、前回のワークスペース、部屋一覧の表示方法。オフでもサイトは使えますが、次回はこれらの設定が記録されていません。' },
       maps: { title: 'Googleマップ', text: '場所を指定するときや部屋を見るときに地図を表示します。GoogleはIPアドレスと表示した地域を受け取ります。オフの場合は、代わりに地図を表示するボタンが出ます。' },
     },
@@ -86,7 +86,7 @@ export const legalJa: LegalCopy = {
       roomsView: { purpose: '部屋一覧の表示方法を記録します', kept: '「設定を記録」をオフにするか、サイトのデータを消去するまで' },
     },
     services: {
-      hcaptcha: { purpose: 'ログイン、登録、パスワード再設定時のボット対策', data: 'IPアドレス、ブラウザ情報、ページの操作内容' },
+      turnstile: { purpose: 'ログイン、登録、パスワード再設定時のボット対策', data: 'IPアドレス、ブラウザ情報、ページの操作内容' },
       googleMaps: { purpose: '場所の指定や部屋の表示で地図を表示します。地図のCookieを許可した場合のみ読み込みます', data: 'IPアドレスと表示した地図の範囲' },
     },
   },

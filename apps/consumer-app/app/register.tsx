@@ -12,9 +12,9 @@ import { MobileButton, MobileIcon, MobileInput, MobileNestykLogo, SelectionCheck
 import { useAuth } from '../lib/auth/AuthContext';
 import { socialLoginProvider } from '../lib/auth/google-oauth';
 import { passwordIsStrong } from '../lib/auth/password-rules';
-import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { captchaSiteKey } from '../lib/auth/captcha-site-key';
 import { authErrorText, isInvalidOtp } from '../lib/auth/auth-error';
-import { HcaptchaField } from '../components/HcaptchaField';
+import { CaptchaField } from '../components/CaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 import { ConsentLabel } from '../components/legal/ConsentLabel';
 import { PhoneField } from '../components/PhoneField';
@@ -56,7 +56,7 @@ export default function RegisterScreen() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
   const [resendCaptcha, setResendCaptcha] = useState(false);
-  const captchaRequired = hcaptchaSiteKey().length > 0;
+  const captchaRequired = captchaSiteKey().length > 0;
   const resetCaptcha = () => {
     setCaptchaToken(null);
     setCaptchaKey(captchaKey + 1);
@@ -252,7 +252,7 @@ export default function RegisterScreen() {
                       <Text style={[styles.body, styles.testRegistrationLabel, { color: theme.textHeading }]}>{copy.testRegistration}</Text>
                     </TouchableOpacity>
                   ) : null}
-                  {captchaRequired && !forTesting ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                  {captchaRequired && !forTesting ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                   {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
                   <MobileButton onPress={onSubmit} isLoading={loading} disabled={loading}>{copy.registerButton}</MobileButton>
                   {/* PDPA plan FE5: the privacy policy is shown here as a notice (no checkbox); the checkbox above is the terms only. */}
@@ -316,7 +316,7 @@ export default function RegisterScreen() {
                     <MobileInput accessibilityLabel={copy.otpCode} value={code} onChangeText={setCode}
                       keyboardType="number-pad" maxLength={6} editable={!loading} style={fieldStyle} />
                   </View>
-                  {captchaRequired && resendCaptcha ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                  {captchaRequired && resendCaptcha ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                   {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
                   <MobileButton onPress={() => { void verifyCode(); }} isLoading={loading} disabled={loading}>{copy.otpCode}</MobileButton>
                   <MobileButton variant="outline" disabled={loading || resendIn > 0} onPress={() => { void sendCodeAgain(); }}>

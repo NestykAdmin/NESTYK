@@ -196,8 +196,8 @@ test('test registration is opt-in, can be toggled, and requests the no-email flo
   assert.deepEqual(form.routes, ['/']);
 });
 
-test('registration asks for the captcha before signup when hCaptcha is configured', async () => {
-  process.env.EXPO_PUBLIC_HCAPTCHA_SITE_KEY = 'site-key';
+test('registration asks for the captcha before signup when Turnstile is configured', async () => {
+  process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY = 'site-key';
   try {
     const form = screen();
     fillValid(form);
@@ -205,7 +205,7 @@ test('registration asks for the captcha before signup when hCaptcha is configure
     assert.equal(form.calls.length, 0);
     assert.ok(form.render().includes(form.copy.captchaRequired));
   } finally {
-    delete process.env.EXPO_PUBLIC_HCAPTCHA_SITE_KEY;
+    delete process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY;
   }
 });
 

@@ -22,8 +22,8 @@ import "./agent-workspace.css";
 import { WebDialog, WebMenu } from "./ui";
 import { AgentWorkspaceFooter } from "./AgentWorkspaceFooter";
 import { passwordIsStrong } from "../../lib/auth/password-rules";
-import { hcaptchaSiteKey } from "../../lib/auth/hcaptcha-site-key";
-import { HcaptchaField } from "../../components/HcaptchaField";
+import { captchaSiteKey } from "../../lib/auth/captcha-site-key";
+import { CaptchaField } from "../../components/CaptchaField";
 
 const ROLES: UserRole[] = ["guest", "tenant", "landlord", "agent", "admin"];
 /** Role colour shows only as a small dot (design W1); same values as tokens.colors.roles. */
@@ -136,7 +136,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   deletePasswordStepRef.current = deletePasswordStep;
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = React.useState(false);
-  const captchaRequired = hcaptchaSiteKey().length > 0;
+  const captchaRequired = captchaSiteKey().length > 0;
   const copy = t.agent.dashboard.webWorkspace;
   const parent = agentWebParent(props.activeTab);
 
@@ -777,7 +777,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                           {t.mobile.account.password.confirm}
                           <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
                         </label>
-                        {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                        {captchaRequired ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                         {passwordError ? <p className="aw-profile-error" role="alert">{passwordError}</p> : null}
                         <button type="submit" className="aw-button aw-button-primary" disabled={passwordSaving}>
                           {passwordSaving ? t.common.loading : t.mobile.account.password.submit}
@@ -984,7 +984,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   />
                 </label>
               ) : null}
-              {deletePasswordStep && captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+              {deletePasswordStep && captchaRequired ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
               {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
               <div className="aw-confirm-actions">
                 <button

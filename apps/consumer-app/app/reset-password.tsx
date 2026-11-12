@@ -10,9 +10,9 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { openedBrokenResetLink, openedPasswordResetLink, openedRecoveryTokenHash } from '../lib/auth/supabase';
 import { passwordIsStrong } from '../lib/auth/password-rules';
 import { RECOVERY_SESSION_MISSING } from '../lib/auth/reset-password';
-import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { captchaSiteKey } from '../lib/auth/captcha-site-key';
 import { authErrorText } from '../lib/auth/auth-error';
-import { HcaptchaField } from '../components/HcaptchaField';
+import { CaptchaField } from '../components/CaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 
 type Step = 'email' | 'sent' | 'password' | 'done';
@@ -35,7 +35,7 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
-  const captchaRequired = hcaptchaSiteKey().length > 0;
+  const captchaRequired = captchaSiteKey().length > 0;
   // The reset email's link (`?token_hash=`) works on any device. Supabase spends it once, so it is spent when the
   // new password is saved, not when the page opens: the email link can be opened again until then.
   const linkVerified = useRef(false);
@@ -185,7 +185,7 @@ export default function ResetPasswordScreen() {
                   </View>
                 </>
               ) : null}
-              {captchaRequired && step === 'email' ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+              {captchaRequired && step === 'email' ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
               {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
               {step === 'email' ? <MobileButton onPress={() => { void sendEmail(); }} isLoading={loading} disabled={loading}>{copy.resetSend}</MobileButton> : null}
               {step === 'password' ? <MobileButton onPress={() => { void savePassword(); }} isLoading={loading} disabled={loading}>{copy.resetNewTitle}</MobileButton> : null}

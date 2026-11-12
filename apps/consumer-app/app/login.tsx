@@ -28,9 +28,9 @@ import {
   tokens,
 } from "@nestyk/ui/native";
 import { useAuth } from "../lib/auth/AuthContext";
-import { hcaptchaSiteKey } from "../lib/auth/hcaptcha-site-key";
+import { captchaSiteKey } from "../lib/auth/captcha-site-key";
 import { signInErrorKind, type SignInErrorKind } from "../lib/auth/auth-error";
-import { HcaptchaField } from "../components/HcaptchaField";
+import { CaptchaField } from "../components/CaptchaField";
 import { AuthLegalFooter } from "../components/legal/AuthLegalFooter";
 import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
 import { socialLoginProvider } from "../lib/auth/google-oauth";
@@ -86,7 +86,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
-  const captchaRequired = hcaptchaSiteKey().length > 0;
+  const captchaRequired = captchaSiteKey().length > 0;
 
   // A typed or sign-in error replaces the "session expired" notice.
   const shownError = error ?? (sessionExpired ? t.mobile.auth.sessionExpired : null);
@@ -353,7 +353,7 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+              {captchaRequired ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
 
               {shownError ? (
                 <Text
