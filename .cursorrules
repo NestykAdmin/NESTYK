@@ -134,18 +134,54 @@
 | | `warning` | **`#F59E0B`** | รอตรวจสอบ / สัญญากำลังหมดอายุ / แจ้งเตือนสีส้ม |
 | | `success` | **`#22C55E`** | ทำรายการสำเร็จ / ชำระเงินแล้ว / อนุมัติ |
 
+#### 3.2.1 ระบบสี v1.1 (Mos อนุมัติ 12 พ.ย. 2026 · โทนอสังหา luxury "เข้มสุขุม")
+
+สีใน CI มาจากชุดสี Tailwind (slate, blue, red, amber, green) ยกเว้นเหลืองแบรนด์ `#F8B615` และดำ `#211E1E` เฉดเพิ่มทุกสีต้องมาจากตระกูลเดียวกันตามขั้นด้านล่าง ค่าจริงอยู่ใน `packages/ui/src/theme/tokens.ts` (`brand`, `subtle`, `roles`) และ `packages/config/theme/colors.json` ซึ่งต้องตรงกันเสมอ
+
+1. ดำ `#211E1E` เป็นสีนำ (header, ปุ่มรอง, ป้าย "กำลังดำเนินการ", การ์ดเด่น) · เหลือง `#F8B615` เป็นสีเน้นสีเดียว (ปุ่มหลัก, จุดสถานะ, ราคาบนพื้นดำ)
+2. สีทึบใช้เฉพาะสี CI ในตารางด้านบน
+3. ทุกตระกูลใช้ขั้นเดียวกัน: จุด/ไอคอน **700** · ตัวอักษรบนพื้นสี **800** · พื้น **50** (neutral ใช้ 100 เพราะพื้นหน้าจอเป็น slate 50) · ขอบ **200**
+4. ตัวอักษรบนพื้นสีต้องได้ contrast อย่างน้อย 4.5:1
+5. สื่อความหมายด้วยพื้นอ่อน + ตัวอักษรเข้ม ห้ามใช้สีทึบเต็มพื้นกับสถานะ · มีข้อความเสมอ ห้ามใช้สีอย่างเดียว
+6. ฟอร์ม: ขอบช่องกรอกผิดพลาดและข้อความ error ใต้ช่องใช้ `#DC2626` ตาม CI
+7. **ห้ามเขียน hex นอกตารางนี้** (เช่น น้ำเงินกรมท่า `#1A2B48`, ชมพู, ม่วง, เหลืองเฉดอื่น) ยกเว้นสีแบรนด์ภายนอก (Facebook, Google, LINE, WhatsApp, Telegram, WeChat) และ `#000000` สำหรับเงา · เงาใช้ `rgba(33,30,30,a)` ไม่ใช้ navy
+
+| ตระกูล | solid (CI) | จุด 700 | ตัวอักษร 800 | พื้น 50 | ขอบ 200 |
+|---|---|---|---|---|---|
+| brand | `#F8B615` | `#F8B615` | `#211E1E` | `#FFF9E8` | `#FCDE96` |
+| ink | `#211E1E` | `#F8B615` | `#FFFFFF` | `#211E1E` | – |
+| success | `#22C55E` | `#15803D` | `#166534` | `#F0FDF4` | `#BBF7D0` |
+| info | `#2563EB` | `#1D4ED8` | `#1E3A8A` | `#EFF6FF` | `#BFDBFE` |
+| warning | `#F59E0B` | `#B45309` | `#92400E` | `#FFFBEB` | `#FDE68A` |
+| danger | `#DC2626` | `#B91C1C` | `#991B1B` | `#FEF2F2` | `#FECACA` |
+| neutral | `#64748B` | `#64748B` | `#334155` | `#F1F5F9` | `#E2E8F0` |
+
+**ป้ายสถานะ** (`STATUS_PILL_TONES` ในแอป · `STATUS_INTENT_TONES` ใน agent web ต้องได้ค่าเดียวกัน):
+
+| ความหมาย | แอป / agent web | สี |
+|---|---|---|
+| ใหม่ / ต้องดู | `rose` / `attn` | brand: พื้น `#FFF9E8` ขอบ `#FCDE96` ตัวดำ จุดเหลือง |
+| กำลังดำเนินการ / นัดดูห้อง | `purple` / `prog` | ink: **พื้นดำ `#211E1E` ตัวขาว จุดเหลือง ทุกแถวทั้งหน้ารายการและหน้ารายละเอียด** |
+| สำเร็จ / จองแล้ว / ว่าง | `green` / `done` | success |
+| ข้อมูล | `blue` | info |
+| รอ | `yellow` | warning |
+| เลยกำหนด / ต้องแก้ | `red` / `crit` | danger |
+| ปิด / หลุด / เช่าแล้ว | `slate` / `neutral` | neutral |
+
+**โหมดมืดของแอป** ใช้ตระกูลดำแบรนด์: พื้น `#211E1E` · การ์ด/header `#2F2B2B` · ขอบ `#3F3A3A` (ห้ามใช้ navy `#0F172A` / `#1E293B`)
+
 ### 3.3 Basic UI Component Styles & States
 
 1. **Primary Button (ปุ่มหลักพื้นทึบ):**
    * `Default`: Background `#F8B615` | Text `#211E1E` (Bold)
-   * `Hover`: Background `#FCD34D` (โปร่ง/สว่างขึ้น 80%)
-   * `Pressed`: Background `#EAB308` (เหลืองเข้มเพื่อตอบสนองการกด)
-   * `Disabled`: Background `#FEF3C7` (เหลืองจาง) | Text `#D1D5DB`
+   * `Hover`: Background `#FCDE96` (`brand[200]`)
+   * `Pressed`: Background `#D99A0D` (`brand[700]`)
+   * `Disabled`: Background `#FFF9E8` (`brand[50]`) | Text `#CBD5E1`
 2. **Secondary Button (ปุ่มรองแบบ Outline):**
    * `Default`: Background `#FFFFFF` | Border `#F8B615` | Text `#211E1E`
-   * `Hover`: Background `#FFFBEB` | Border `#F8B615`
-   * `Pressed`: Background `#FEF3C7` | Border `#EAB308`
-   * `Disabled`: Background `#FFFFFF` | Border `#F3F4F6` | Text `#E5E7EB`
+   * `Hover`: Background `#FFF9E8` | Border `#F8B615`
+   * `Pressed`: Background `#FFF9E8` | Border `#D99A0D`
+   * `Disabled`: Background `#FFFFFF` | Border `#F1F5F9` | Text `#E5E7EB`
 3. **Input Field (กล่องกรอกข้อความ):**
    * `Default`: Border `#E5E7EB` | Background `#FFFFFF` | Placeholder `#94A3B8`
    * `Focus`: Border `#F8B615` (สีเหลืองแบรนด์)
@@ -181,13 +217,14 @@
 
 ### 3.6 Multi-App Role Palettes (โทนสีประจำแอปและบทบาท)
 * UI มาตรฐานให้ใช้ **gluestack-ui** หรือ Wrapper กลาง (`AppButton`, `AppInput`, `AppSelect`, `AppDateField`, `AppListRow`, `AppChipTabs`)
-* คุมโทนสีประจำ Role & Services อย่างเคร่งครัด:
-  * **🟡 Marketplace / Guest:** Warm Yellow (`#F8B615` — สีแบรนด์หลักเดิม)
-  * **🟢 Tenant (ผู้เช่า):** Neo Mint (`#00C68D`) / Gradient `#00C68D` ➔ `#0055DA`
-  * **🔵 Owner (เจ้าของห้อง):** Electric Blue (`#0055DA`) / Gradient `#0055DA` ➔ `#00C68D`
-  * **🔴 Agent (นายหน้า):** Neon Rose (`#FF0052`) / Gradient `#FF0052` ➔ `#F8B615`
-  * **⚫ Assistant & Admin:** Deep Slate (`#0F172A`) / Gradient `#0F172A` ➔ `#1E293B`
-  * **🔷 Services Hub (บริการส่วนกลาง):** Sky Blue (`#0284C7`) / Gradient `#00C68D` ➔ `#0055DA`
+* คุมโทนสีประจำ Role & Services อย่างเคร่งครัด (ระบบสี v1.1, 12 พ.ย. 2026 · ค่าอยู่ใน `tokens.colors.roles` · ไม่มี gradient):
+  * **🟡 Guest / Marketplace:** `#F8B615` (brand)
+  * **⚫ Agent (นายหน้า):** `#211E1E` คู่กับเหลือง `#F8B615` · ปุ่มหลักเป็นเหลืองตัวอักษรดำ
+  * **🟢 Tenant (ผู้เช่า):** `#166534` (success 800)
+  * **🔵 Landlord (เจ้าของห้องที่ลงนามเอกสาร):** `#1E3A8A` (info 800)
+  * **🟠 Self owner ("Owner" ลงประกาศเอง):** `#92400E` (warning 800)
+  * **Admin:** `#334155` · **Services Hub:** `#475569`
+  * สีเก่าที่เลิกใช้: Neon Rose `#FF0052`, Neo Mint `#00C68D`, Electric Blue `#0055DA`, Deep Slate `#0F172A`, Sky Blue `#0284C7`
 
 ---
 
