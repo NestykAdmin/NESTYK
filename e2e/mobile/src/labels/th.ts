@@ -26,7 +26,7 @@ export const th: Labels = {
     unavailable: 'ยังไม่เปิดให้เข้าสู่ระบบด้วยช่องทางนี้ กรุณาใช้อีเมลและรหัสผ่าน', // mobile.auth.unavailable
     registrationTitle: 'สร้างบัญชีของคุณ', // mobile.auth.registrationTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 307 ไม่ได้เทียบด้วยสคริปต์)
     resetTitle: 'ลืมรหัสผ่าน', // mobile.auth.resetTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 342 ไม่ได้เทียบด้วยสคริปต์)
-    resetSend: 'ส่งรหัส', // mobile.auth.resetSend (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 343 ไม่ได้เทียบด้วยสคริปต์)
+    resetSend: 'ส่งลิงก์', // mobile.auth.resetSend (อ่านเองที่ qa/e2e 92c19dc บรรทัด 359 ไม่ได้เทียบด้วยสคริปต์ ; ทีมเปลี่ยนจาก 'ส่งรหัส' ที่ 66b48e8 เมื่อ 4 พ.ย. 2026)
     backToLogin: 'กลับไปเข้าสู่ระบบ', // mobile.auth.backToLogin (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 315 ไม่ได้เทียบด้วยสคริปต์)
     invalidEmail: 'กรอกอีเมลให้ถูกต้อง', // mobile.auth.invalidEmail (เทียบด้วยสคริปต์ที่ qa/e2e d5f9773 เมื่อ 5 พ.ย. 2026)
     registrationRequiredFields: 'กรอกชื่อ นามสกุล เบอร์โทร อีเมล รหัสผ่าน และยืนยันรหัสผ่านให้ครบ', // mobile.auth.registrationRequiredFields (เทียบด้วยสคริปต์ที่ d5f9773)

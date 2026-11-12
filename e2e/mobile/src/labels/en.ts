@@ -26,7 +26,7 @@ export const en: Labels = {
     unavailable: 'This sign-in option is not available yet. Please use email and password.', // mobile.auth.unavailable
     registrationTitle: 'Create your account', // mobile.auth.registrationTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 307 ไม่ได้เทียบด้วยสคริปต์)
     resetTitle: 'Forgot password', // mobile.auth.resetTitle (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 342 ไม่ได้เทียบด้วยสคริปต์)
-    resetSend: 'Send code', // mobile.auth.resetSend (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 343 ไม่ได้เทียบด้วยสคริปต์)
+    resetSend: 'Send link', // mobile.auth.resetSend (อ่านเองที่ qa/e2e 92c19dc บรรทัด 359 ไม่ได้เทียบด้วยสคริปต์ ; ทีมเปลี่ยนจาก 'Send code' ที่ 66b48e8 เมื่อ 4 พ.ย. 2026)
     backToLogin: 'Back to login', // mobile.auth.backToLogin (อ่านเองที่ pre/dev/review 0f99388 บรรทัด 315 ไม่ได้เทียบด้วยสคริปต์)
     invalidEmail: 'Enter a valid email address.', // mobile.auth.invalidEmail (เทียบด้วยสคริปต์ที่ qa/e2e d5f9773 เมื่อ 5 พ.ย. 2026)
     registrationRequiredFields: 'Enter your first name, last name, phone, email, password and password confirmation.', // mobile.auth.registrationRequiredFields (เทียบด้วยสคริปต์ที่ d5f9773)
