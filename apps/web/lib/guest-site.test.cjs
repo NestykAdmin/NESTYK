@@ -79,8 +79,8 @@ test('contact data is the real company contact, with a phone link that works fro
   );
 });
 
-test('social icons cover the 6 channels and an icon without a real https link is not shown', () => {
-  assert.deepEqual(site.GUEST_SOCIAL.map((item) => item.id), ['facebook', 'instagram', 'youtube', 'tiktok', 'line', 'linkedin']);
+test('social icons cover the 7 channels and an icon without a real https link is not shown', () => {
+  assert.deepEqual(site.GUEST_SOCIAL.map((item) => item.id), ['facebook', 'instagram', 'youtube', 'tiktok', 'line', 'whatsapp', 'linkedin']);
   const list = [
     { id: 'facebook', label: 'Facebook', url: 'https://www.facebook.com/nestyk' },
     { id: 'instagram', label: 'Instagram', url: '' },
@@ -88,6 +88,14 @@ test('social icons cover the 6 channels and an icon without a real https link is
     { id: 'line', label: 'LINE', url: 'javascript:alert(1)' },
   ];
   assert.deepEqual(site.visibleSocialLinks(list).map((item) => item.id), ['facebook']);
+});
+
+test('every NESTYK channel has its real link (Mos 12 Nov 2026), so all 7 icons show', () => {
+  assert.deepEqual(site.visibleSocialLinks(site.GUEST_SOCIAL).map((item) => item.id), site.GUEST_SOCIAL.map((item) => item.id));
+  const url = Object.fromEntries(site.GUEST_SOCIAL.map((item) => [item.id, item.url]));
+  assert.equal(url.line, 'https://line.me/R/ti/p/@370llprm', 'no tracking parameters');
+  assert.equal(url.whatsapp, 'https://wa.me/66978242922', 'international number, or WhatsApp cannot find it');
+  for (const item of site.GUEST_SOCIAL) assert.doesNotMatch(item.url, /[?&](ts|oat_content|utm_\w+)=/, item.id);
 });
 
 test('links built on the server carry the language prefix of the URL rules (Thai has none)', () => {

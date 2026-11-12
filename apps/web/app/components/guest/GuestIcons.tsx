@@ -187,6 +187,16 @@ export function SocialIcon({ id }: { id: SocialId }) {
           </text>
         </svg>
       );
+    case 'whatsapp':
+      return (
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M12 1a11 11 0 0 0-9.5 16.5L1 23l5.6-1.5A11 11 0 1 0 12 1z" />
+          <path
+            className="nk-social__cut"
+            d="M8.6 6.4c-.3 0-.7.1-1 .5-.3.4-1.1 1.1-1.1 2.6s1.1 3 1.3 3.2c.2.2 2.2 3.4 5.4 4.6 2.6 1 3.2.8 3.7.8.6-.1 1.8-.7 2-1.5.3-.7.3-1.3.2-1.5l-.6-.3-2.1-1c-.3-.1-.5-.2-.7.1l-.9 1.2c-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6.3-.5c.1-.2 0-.4 0-.5l-1-2.3c-.2-.6-.5-.5-.7-.5z"
+          />
+        </svg>
+      );
     case 'linkedin':
       return (
         <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24">

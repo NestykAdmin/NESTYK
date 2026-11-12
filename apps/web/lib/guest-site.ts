@@ -156,7 +156,7 @@ export function mapsUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
-export type SocialId = 'facebook' | 'instagram' | 'youtube' | 'tiktok' | 'line' | 'linkedin';
+export type SocialId = 'facebook' | 'instagram' | 'youtube' | 'tiktok' | 'line' | 'whatsapp' | 'linkedin';
 
 export interface SocialLink {
   id: SocialId;
@@ -164,14 +164,18 @@ export interface SocialLink {
   url: string;
 }
 
-/** The 6 channels of nestyk-website. Waiting for the real URLs from Mos: an empty url hides the icon. */
+/**
+ * NESTYK channels (Mos 12 Nov 2026). Links without tracking parameters; WhatsApp needs the number with the country
+ * code (66). An empty url hides the icon. Linktree is kept off the web on purpose (it repeats these links).
+ */
 export const GUEST_SOCIAL: readonly SocialLink[] = [
-  { id: 'facebook', label: 'Facebook', url: '' },
-  { id: 'instagram', label: 'Instagram', url: '' },
-  { id: 'youtube', label: 'YouTube', url: '' },
-  { id: 'tiktok', label: 'TikTok', url: '' },
-  { id: 'line', label: 'LINE', url: '' },
-  { id: 'linkedin', label: 'LinkedIn', url: '' },
+  { id: 'facebook', label: 'Facebook', url: 'https://www.facebook.com/profile.php?id=61595854473149' },
+  { id: 'instagram', label: 'Instagram', url: 'https://www.instagram.com/nestyk_thailand' },
+  { id: 'youtube', label: 'YouTube', url: 'https://www.youtube.com/@Nestykthailand' },
+  { id: 'tiktok', label: 'TikTok', url: 'https://www.tiktok.com/@nestyk_thailand' },
+  { id: 'line', label: 'LINE', url: 'https://line.me/R/ti/p/@370llprm' },
+  { id: 'whatsapp', label: 'WhatsApp', url: 'https://wa.me/66978242922' },
+  { id: 'linkedin', label: 'LinkedIn', url: 'https://www.linkedin.com/in/nestyk-thailand-80452944a/' },
 ];
 
 export function visibleSocialLinks<T extends { url: string }>(list: readonly T[]): T[] {
