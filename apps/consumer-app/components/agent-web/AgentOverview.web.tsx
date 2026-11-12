@@ -288,7 +288,7 @@ export function AgentOverview({
         "--aw-ink": theme.screenTitle,
         "--aw-muted": theme.textSecondary,
         "--aw-border": theme.border,
-        "--aw-brand": "#f4bd42",
+        "--aw-brand": "#f8b615",
       } as React.CSSProperties}
     >
       <WebContentContainer>
@@ -311,7 +311,7 @@ export function AgentOverview({
               className="aw-button aw-button-primary"
               onClick={() => onNavigate({ type: "action", id: "addListing" })}
             >
-              <MobileIcon name="plus" size={18} color="#382b12" />
+              <MobileIcon name="plus" size={18} color="#211e1e" />
               {copy.addListing}
             </button>
             <button

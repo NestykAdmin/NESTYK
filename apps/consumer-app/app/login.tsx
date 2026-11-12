@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   photoShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(25,18,10,0.12)",
+    backgroundColor: "rgba(33,30,30,0.12)",
   },
   screen: {
     flexGrow: 1,

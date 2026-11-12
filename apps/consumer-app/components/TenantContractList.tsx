@@ -229,7 +229,7 @@ export function TenantContractList({
     );
   }
   if (!group && mode === "owner" && !history && !selectedRoom) {
-    const chipTone = { bg: "#E8F0FE", fg: tokens.colors.roles.landlord, dot: tokens.colors.roles.landlord };
+    const chipTone = { bg: "#EFF6FF", fg: tokens.colors.roles.landlord, dot: tokens.colors.roles.landlord };
     const actionLabel: Record<OwnerRoomAction, string> = {
       renewal: copy.renewalAction,
       reservation: copy.reservation,
@@ -285,7 +285,7 @@ export function TenantContractList({
         {cards.length ? (
           cards.map(({ room, contracts, summary }) => {
             const currentName = occupant(contracts);
-            const actionInk = summary.action ? "#B45309" : theme.textSecondary;
+            const actionInk = summary.action ? "#92400E" : theme.textSecondary;
             return (
               <Pressable
                 key={room.key}

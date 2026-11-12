@@ -37,11 +37,11 @@ export const AppButton: React.FC<AppButtonProps> = ({
 
   if (variant === 'primary') {
     variantStyles = disabled
-      ? { backgroundColor: '#FEF3C7', color: '#D1D5DB' }
+      ? { backgroundColor: '#FFF9E8', color: '#CBD5E1' }
       : { backgroundColor: tokens.colors.brand[500], color: tokens.colors.primary };
   } else if (variant === 'secondary' || variant === 'outline') {
     variantStyles = disabled
-      ? { backgroundColor: '#FFFFFF', borderColor: '#F3F4F6', color: '#E5E7EB' }
+      ? { backgroundColor: '#FFFFFF', borderColor: '#F1F5F9', color: '#E5E7EB' }
       : { backgroundColor: '#FFFFFF', borderColor: tokens.colors.brand[500], color: tokens.colors.primary };
   } else if (variant === 'ghost') {
     variantStyles = { backgroundColor: 'transparent', color: tokens.colors.textSecondary };

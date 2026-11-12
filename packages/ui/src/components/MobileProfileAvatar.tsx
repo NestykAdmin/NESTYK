@@ -31,7 +31,7 @@ export const MobileProfileAvatar: React.FC<MobileProfileAvatarProps> = ({
   const { theme, isDark } = useMobileTheme();
   const dims = SIZE_MAP[size];
   const fill = isDark ? 'rgba(248,182,21,0.22)' : tokens.colors.brand[100];
-  const ring = isDark ? 'rgba(248,182,21,0.65)' : '#FCD34D';
+  const ring = isDark ? 'rgba(248,182,21,0.65)' : '#F8B615';
   const text = isDark ? theme.textHeading : tokens.colors.primary;
 
   return (

@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '../../..');
 const cache = new Map();
 let state = [];
 let cursor = 0;
-const theme = { screenTitle: '#1A2B48', textSecondary: '#64748B' };
+const theme = { screenTitle: '#211E1E', textSecondary: '#64748B' };
 function load(filename) {
   filename = path.resolve(filename);
   if (cache.has(filename)) return cache.get(filename).exports;

@@ -29,11 +29,11 @@ function PublicMapCanvas({ latitude, longitude, markerTitle, places }: NearbyMap
       clickableIcons={false}
     >
       <AdvancedMarker position={{ lat: latitude, lng: longitude }} title={markerTitle} zIndex={100}>
-        <Pin background="#f4bd42" borderColor="#fff" glyphColor="#1a2b48" />
+        <Pin background="#f8b615" borderColor="#fff" glyphColor="#211e1e" />
       </AdvancedMarker>
       {places.map((place, index) => (
         <AdvancedMarker key={`${place.placeId}-${index}`} position={{ lat: place.latitude, lng: place.longitude }} title={place.name}>
-          <Pin background="#fff" borderColor="#72829a" glyphColor="#1a2b48" scale={0.8} />
+          <Pin background="#fff" borderColor="#64748b" glyphColor="#211e1e" scale={0.8} />
         </AdvancedMarker>
       ))}
     </Map>

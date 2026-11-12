@@ -341,7 +341,7 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  shade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(25,18,10,0.22)' },
+  shade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(33,30,30,0.22)' },
   content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20 },
   column: { width: '100%', maxWidth: 460, alignSelf: 'center', gap: 24 },
   card: { borderRadius: 24, padding: 24, gap: 14 },

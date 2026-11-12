@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     lineHeight: 12,
     letterSpacing: 1.1,
-    color: '#D1D5DB',
+    color: '#CBD5E1',
     fontWeight: '600',
   },
 });

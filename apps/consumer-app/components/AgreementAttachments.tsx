@@ -118,8 +118,8 @@ function Chip({
       style={({ pressed }) => [
         s.chip,
         {
-          borderColor: selected ? "#FFBF19" : theme.border,
-          backgroundColor: selected ? "#FFE29A" : theme.surface,
+          borderColor: selected ? "#F8B615" : theme.border,
+          backgroundColor: selected ? "#FCDE96" : theme.surface,
           opacity: pressed || disabled ? 0.65 : 1,
         },
       ]}
@@ -127,7 +127,7 @@ function Chip({
       <Text
         style={[
           s.chipText,
-          { color: selected ? "#202631" : theme.textSecondary },
+          { color: selected ? "#211E1E" : theme.textSecondary },
         ]}
       >
         {label}
@@ -348,7 +348,7 @@ export function AgreementAttachments({
 
   function renderReviewLine(document: AgreementAttachment) {
     const color =
-      document.reviewStatus === "accepted" ? "#198460" : document.reviewStatus === "rejected" ? "#C74747" : theme.textSecondary;
+      document.reviewStatus === "accepted" ? "#166534" : document.reviewStatus === "rejected" ? "#991B1B" : theme.textSecondary;
     return <Text style={[s.docMeta, { color }]}>{attachmentReviewText(document, ar)}</Text>;
   }
 
@@ -375,7 +375,7 @@ export function AgreementAttachments({
       .map((code) => typeName(code, state.documentTypes))
       .join(tc.common.or);
     const complete = !!doc;
-    const statusColor = complete ? "#198460" : theme.textSecondary;
+    const statusColor = complete ? "#166534" : theme.textSecondary;
 
     return (
       <View
@@ -448,7 +448,7 @@ export function AgreementAttachments({
         <View style={s.header}>
           <Text style={[s.heading, ink]}>{ac.required}</Text>
           {progress && (
-            <View style={[s.progressPill, { backgroundColor: "#FFE29A" }]}>
+            <View style={[s.progressPill, { backgroundColor: "#FCDE96" }]}>
               <Text style={s.progressText}>
                 {fillTemplate(ac.progress, { done: progress.done, total: progress.total })}
               </Text>
@@ -458,7 +458,7 @@ export function AgreementAttachments({
 
         {busy && !state && <ActivityIndicator />}
         {!!error && (
-          <Text accessibilityRole="alert" style={{ color: "#C43D4C" }}>
+          <Text accessibilityRole="alert" style={{ color: "#991B1B" }}>
             {error}
           </Text>
         )}
@@ -546,7 +546,7 @@ export function AgreementAttachments({
           {extraSlots.map((slot) => {
             const files = docsForExtraSlot(slot.code);
             const hasFile = files.length > 0;
-            const statusColor = hasFile ? "#198460" : theme.textSecondary;
+            const statusColor = hasFile ? "#166534" : theme.textSecondary;
             const typeAvailable =
               slot.code === "other" ||
               state.documentTypes.some((t) => t.code === slot.code);
@@ -823,7 +823,7 @@ export function AgreementAttachments({
           {preview && <ContractDocumentPreview url={preview.url} />}
           {preview && renderReviewLine(preview.document)}
           {!!error && preview && (
-            <Text accessibilityRole="alert" style={[s.docMeta, { color: "#C74747" }]}>
+            <Text accessibilityRole="alert" style={[s.docMeta, { color: "#991B1B" }]}>
               {error}
             </Text>
           )}
@@ -922,7 +922,7 @@ const s = StyleSheet.create({
     fontFamily: tokens.typography.native.body,
     fontSize: 12,
     lineHeight: 18,
-    color: "#202631",
+    color: "#211E1E",
     fontWeight: "600",
   },
   summary: {

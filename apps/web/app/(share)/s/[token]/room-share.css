@@ -1,10 +1,10 @@
 .room-share-page {
   --aw-bg: #f8fafc;
   --aw-surface: #fff;
-  --aw-ink: #1a2b48;
-  --aw-muted: #72829a;
-  --aw-border: #e4e9f0;
-  --aw-brand: #f4bd42;
+  --aw-ink: #211e1e;
+  --aw-muted: #64748b;
+  --aw-border: #f1f5f9;
+  --aw-brand: #f8b615;
   min-height: 100dvh;
   width: 100%;
   color: var(--aw-ink);
@@ -16,7 +16,7 @@
 .room-share-page *::before,
 .room-share-page *::after { box-sizing: border-box; }
 .room-share-page button { font: inherit; cursor: pointer; }
-.room-share-page :focus-visible { outline: 3px solid #b98112; outline-offset: 3px; }
+.room-share-page :focus-visible { outline: 3px solid #211e1e; outline-offset: 3px; }
 .room-share-header {
   background: var(--aw-surface);
   border-bottom: 1px solid var(--aw-border);

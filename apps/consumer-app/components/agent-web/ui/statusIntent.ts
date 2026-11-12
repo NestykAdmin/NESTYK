@@ -19,11 +19,12 @@ export type StatusIntentTone = MobileStatusPillTone & { dot: string; border: str
 export const STATUS_INTENTS: readonly StatusIntent[] = ["attn", "prog", "done", "neutral", "crit"];
 
 export const STATUS_INTENT_TONES: Record<StatusIntent, StatusIntentTone> = {
-  attn: { bg: "#FFF3CC", fg: "#6B4A00", dot: "#D99A0D", border: "#F4DC95" },
-  prog: { bg: "#FFFFFF", fg: "#211E1E", dot: "#211E1E", border: "#211E1E" },
-  done: { bg: "#EAF5EE", fg: "#1F6B43", dot: "#1F6B43", border: "#CFE6D8" },
-  neutral: { bg: "#F1F5F9", fg: "#475569", dot: "#94A3B8", border: "#E2E8F0" },
-  crit: { bg: "#FDECEC", fg: "#B42318", dot: "#B42318", border: "#F7C9C5" },
+  // Colour system v1.1 (CI, 12 Nov 2026): same values as the app's STATUS_PILL_TONES (rose, purple, green, slate, red).
+  attn: { bg: "#FFF9E8", fg: "#211E1E", dot: "#F8B615", border: "#FCDE96" },
+  prog: { bg: "#211E1E", fg: "#FFFFFF", dot: "#F8B615", border: "#211E1E" },
+  done: { bg: "#F0FDF4", fg: "#166534", dot: "#15803D", border: "#BBF7D0" },
+  neutral: { bg: "#F1F5F9", fg: "#334155", dot: "#64748B", border: "#E2E8F0" },
+  crit: { bg: "#FEF2F2", fg: "#991B1B", dot: "#B91C1C", border: "#FECACA" },
 };
 
 const ROOM: Record<string, StatusIntent> = {

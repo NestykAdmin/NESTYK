@@ -25,42 +25,42 @@
   --aw-t-display: 24px;
   /* colour roles (theme surfaces stay --aw-bg / --aw-surface / --aw-ink / --aw-muted / --aw-border from the shell) */
   --aw-brand: #f8b615;
-  --aw-brand-hover: #eab134;
-  --aw-brand-soft: #fff4d8;
-  --aw-brand-line: #e6c77f;
-  --aw-brand-text: #926314;
-  --aw-brand-ink: #583c0a;
-  --aw-ring: #b98112;
+  --aw-brand-hover: #f8b615;
+  --aw-brand-soft: #fff9e8;
+  --aw-brand-line: #fcde96;
+  --aw-brand-text: #211E1E;
+  --aw-brand-ink: #211e1e;
+  --aw-ring: #211e1e;
   --aw-black: #211e1e;
   /* text on the yellow brand fill: dark in both themes (the fill does not change) */
-  --aw-on-brand: #382b12;
-  --aw-danger: #b42318;
+  --aw-on-brand: #211e1e;
+  --aw-danger: #991b1b;
   --aw-danger-fill: #dc2626;
   --aw-danger-fill-hover: #b91c1c;
-  --aw-danger-soft: #fdecea;
-  --aw-danger-line: #f2a6a9;
-  --aw-success: #1f6b43;
-  --aw-success-fill: #68a37c;
-  --aw-success-soft: #eaf5ee;
-  --aw-success-line: #a4d3b3;
-  --aw-info: #38659d;
-  --aw-info-soft: #eef4fc;
-  --aw-info-line: #a3c3ed;
+  --aw-danger-soft: #fef2f2;
+  --aw-danger-line: #fecaca;
+  --aw-success: #166534;
+  --aw-success-fill: #bbf7d0;
+  --aw-success-soft: #f0fdf4;
+  --aw-success-line: #bbf7d0;
+  --aw-info: #1e3a8a;
+  --aw-info-soft: #eff6ff;
+  --aw-info-line: #bfdbfe;
 }
 [data-theme="dark"] {
-  --aw-brand-soft: #4a3b16;
-  --aw-brand-line: #6b5524;
-  --aw-brand-text: #f4cd76;
-  --aw-brand-ink: #f4cd76;
-  --aw-danger: #f2a6a9;
-  --aw-danger-soft: #4a1f1f;
-  --aw-danger-line: #7a3434;
-  --aw-success: #92cda7;
-  --aw-success-soft: #173b2a;
-  --aw-success-line: #2e5c41;
-  --aw-info: #a3c3ed;
-  --aw-info-soft: #1c2c44;
-  --aw-info-line: #34507a;
+  --aw-brand-soft: #211e1e;
+  --aw-brand-line: #211e1e;
+  --aw-brand-text: #fcde96;
+  --aw-brand-ink: #fcde96;
+  --aw-danger: #fecaca;
+  --aw-danger-soft: #991b1b;
+  --aw-danger-line: #991b1b;
+  --aw-success: #bbf7d0;
+  --aw-success-soft: #166534;
+  --aw-success-line: #166534;
+  --aw-info: #bfdbfe;
+  --aw-info-soft: #211e1e;
+  --aw-info-line: #334155;
 }
 /* Agent web shared UI (awu-*). Colours come from the workspace variables (--aw-*), so dark mode follows the shell. */
 
@@ -73,7 +73,7 @@
   padding: var(--aw-s5) var(--aw-s6);
   border-radius: var(--aw-r-lg);
   background: var(--aw-surface, #fff);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px rgba(33, 30, 30, 0.08);
 }
 .awu-card-flush { padding: 0; gap: 0; overflow: hidden; }
 .awu-card-flush > .awu-card-head { padding: var(--aw-s4) var(--aw-s5); }
@@ -106,7 +106,7 @@
   border: 1px solid var(--aw-border);
   border-radius: var(--aw-r-lg);
   background: var(--aw-surface, #fff);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 12px 32px rgba(33, 30, 30, 0.16);
 }
 .awu-menu-end { right: 0; }
 .awu-menu-start { left: 0; }
@@ -138,11 +138,11 @@
   border-radius: var(--aw-r-lg);
   background: var(--aw-surface, #fff);
   color: var(--aw-ink);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 24px 64px rgba(33, 30, 30, 0.28);
 }
 .awu-dialog-sm { width: min(420px, calc(100vw - 32px)); }
 .awu-dialog-lg { width: min(880px, calc(100vw - 32px)); }
-.awu-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+.awu-dialog::backdrop { background: rgba(33, 30, 30, 0.45); }
 .awu-dialog-panel { display: flex; flex-direction: column; max-height: inherit; }
 .awu-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: var(--aw-s3); padding: var(--aw-s5) var(--aw-s5) 0; }
 .awu-dialog-head h2 { margin: 0; font-family: "Mitr_500Medium", "NotoSansThai_600SemiBold", sans-serif; font-size: var(--aw-t-page); font-weight: 500; }
@@ -237,7 +237,7 @@
 .awu-row-press:hover td { background: var(--aw-bg); }
 .awu-row-press:focus-visible { outline: 2px solid var(--aw-ring); outline-offset: -2px; }
 .awu-table tr.is-selected td { background: var(--aw-brand-soft); }
-[data-theme="dark"] .awu-table tr.is-selected td, [data-theme="dark"] .awu-table-selected { background: #4a3b16; }
+[data-theme="dark"] .awu-table tr.is-selected td, [data-theme="dark"] .awu-table-selected { background: #211e1e; }
 .awu-sort { all: unset; display: inline-flex; align-items: center; gap: var(--aw-s1); cursor: pointer; border-radius: var(--aw-r-xs); }
 .awu-sort:hover { color: var(--aw-ink); }
 .awu-sort:focus-visible { outline: 2px solid var(--aw-ring); outline-offset: 2px; }

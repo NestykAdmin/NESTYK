@@ -187,6 +187,6 @@ const styles = StyleSheet.create({
     fontFamily: tokens.typography.native.body,
     fontSize: 14,
     lineHeight: 22,
-    color: "#C74747",
+    color: "#991B1B",
   },
 });

@@ -1037,7 +1037,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 14,
     paddingVertical: 0,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#211E1E',
   },
   previewBannerText: {
     flex: 1,
@@ -1067,7 +1067,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: 'rgba(15,23,42,0.35)',
+    backgroundColor: 'rgba(33,30,30,0.35)',
     padding: 16,
   },
   photoFallbackText: {
@@ -1444,7 +1444,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     alignItems: 'center',
     justifyContent: 'center',
   },

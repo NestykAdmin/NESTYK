@@ -9,15 +9,15 @@ export const LISTING_SOURCE_OPTIONS = [
     code: 'owner' as const,
     icon: 'user' as AppIconName,
     pickerIcon: 'user' as AppIconName,
-    iconColor: '#926515',
-    iconBg: '#FFF3D6',
+    iconColor: '#211E1E',
+    iconBg: '#FFF9E8',
   },
   {
     code: 'co_agent' as const,
     icon: 'users' as AppIconName,
     pickerIcon: 'handshake' as AppIconName,
-    iconColor: '#52647A',
-    iconBg: '#EEF2F6',
+    iconColor: '#64748B',
+    iconBg: '#F1F5F9',
   },
 ] as const;
 

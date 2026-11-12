@@ -145,10 +145,10 @@ import { ContractCloseCard, closeResultNotice } from "./ContractCloseCard";
 
 const color = (status: AgentContractStatus) =>
   status === "active"
-    ? "#278268"
+    ? "#166534"
     : status.startsWith("awaiting")
-      ? "#BB7914"
-      : "#788193";
+      ? "#211E1E"
+      : "#64748B";
 
 const bangkokToday = bangkokDateKey;
 
@@ -674,7 +674,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   );
   const errorView = error ? (
     // selectable: the agent can copy an error to report it.
-    <Text accessibilityRole="alert" selectable style={[s.body, { color: "#C74747" }]}>
+    <Text accessibilityRole="alert" selectable style={[s.body, { color: "#991B1B" }]}>
       {error}
     </Text>
   ) : null;
@@ -2743,8 +2743,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 return (
                   <View key={slot.kind} style={[s.documentItem, { borderColor: theme.border }]}>
                     <View style={s.documentHead}>
-                      <View style={[s.documentStatus, { borderColor: generated ? "#198460" : theme.textSecondary, backgroundColor: generated ? "#19846018" : theme.background }]}>
-                        <Text style={[s.body, { color: generated ? "#198460" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
+                      <View style={[s.documentStatus, { borderColor: generated ? "#166534" : theme.textSecondary, backgroundColor: generated ? "#16653418" : theme.background }]}>
+                        <Text style={[s.body, { color: generated ? "#166534" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
                       </View>
                       <Text style={[s.documentTitle, title]}>{slot.name}</Text>
                     </View>
@@ -2775,8 +2775,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 return (
                   <View key={slot.kind} style={[s.documentItem, { borderColor: theme.border }]}>
                     <View style={s.documentHead}>
-                      <View style={[s.documentStatus, { borderColor: generated ? "#198460" : theme.textSecondary, backgroundColor: generated ? "#19846018" : theme.background }]}>
-                        <Text style={[s.body, { color: generated ? "#198460" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
+                      <View style={[s.documentStatus, { borderColor: generated ? "#166534" : theme.textSecondary, backgroundColor: generated ? "#16653418" : theme.background }]}>
+                        <Text style={[s.body, { color: generated ? "#166534" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
                       </View>
                       <Text style={[s.documentTitle, title]}>{slot.name}</Text>
                     </View>
@@ -2824,10 +2824,10 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                             s.documentStatus,
                             {
                               borderColor: generated
-                                ? "#198460"
+                                ? "#166534"
                                 : theme.textSecondary,
                               backgroundColor: generated
-                                ? "#19846018"
+                                ? "#16653418"
                                 : theme.background,
                             },
                           ]}
@@ -2837,7 +2837,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                               s.body,
                               {
                                 color: generated
-                                  ? "#198460"
+                                  ? "#166534"
                                   : theme.textSecondary,
                               },
                             ]}
@@ -2882,7 +2882,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
               const fileName = typeof originalName === "string" && originalName.trim()
                 ? originalName
                 : `${slot.name}${extension}`;
-              const statusColor = hasFile ? "#198460" : theme.textSecondary;
+              const statusColor = hasFile ? "#166534" : theme.textSecondary;
               return (
                 <View key={slot.kind} style={[s.documentItem, { borderColor: theme.border }]}>
                   <View style={s.documentHead}>
@@ -3462,7 +3462,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           {!!error && (signParties || witnessSign) ? (
             <Text
               accessibilityRole="alert"
-              style={[s.body, { color: "#C74747", marginBottom: 8 }]}
+              style={[s.body, { color: "#991B1B", marginBottom: 8 }]}
             >
               {error}
             </Text>
@@ -3539,7 +3539,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           <Text
             style={[
               s.body,
-              { color: viewingInvoice.receiptDocumentNo ? "#198460" : "#B45309" },
+              { color: viewingInvoice.receiptDocumentNo ? "#166534" : "#92400E" },
             ]}
           >
             {viewingInvoice.receiptDocumentNo

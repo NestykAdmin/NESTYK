@@ -22,12 +22,12 @@ export function LeadRoomViewingBanner({ viewing }: { viewing: LeadViewing | null
       style={[
         styles.banner,
         isDark
-          ? { backgroundColor: 'rgba(139,92,246,0.16)', borderColor: 'rgba(139,92,246,0.4)' }
-          : { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' },
+          ? { backgroundColor: 'rgba(248,182,21,0.08)', borderColor: 'rgba(248,182,21,0.3)' }
+          : { backgroundColor: '#F8FAFC', borderColor: '#E5E7EB' },
       ]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(139,92,246,0.24)' : purple.bg }]}>
-        <MobileIcon name="calendar" size={18} color={isDark ? '#C4B5FD' : purple.fg} />
+      <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(248,182,21,0.16)' : purple.bg }]}>
+        <MobileIcon name="calendar" size={18} color={isDark ? '#F8B615' : purple.dot} />
       </View>
       <Text style={[styles.label, { color: theme.textHeading }]} numberOfLines={2}>
         {label}

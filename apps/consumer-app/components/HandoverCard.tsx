@@ -56,10 +56,10 @@ export function HandoverSummary({
   const text = { color: theme.textSecondary, fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 22 };
   const heading = { color: theme.textHeading, fontFamily: tokens.typography.native.headingTh, fontSize: 16, lineHeight: 24 };
   const badge = {
-    blocked: { color: "#6B7280", background: "#F3F4F6" },
-    not_started: { color: "#B45309", background: "#FFFBEB" },
-    in_progress: { color: "#1D4ED8", background: "#EFF6FF" },
-    completed: { color: "#15803D", background: "#F0FDF4" },
+    blocked: { color: "#64748B", background: "#F1F5F9" },
+    not_started: { color: "#92400E", background: "#FFFBEB" },
+    in_progress: { color: "#1E3A8A", background: "#EFF6FF" },
+    completed: { color: "#166534", background: "#F0FDF4" },
   }[record.status];
   const date = (value: string) =>
     new Date(value.length === 10 ? `${value}T00:00:00` : value).toLocaleDateString(localeTag(locale), { day: "numeric", month: "short", year: "numeric" });

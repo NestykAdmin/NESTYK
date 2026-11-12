@@ -7,16 +7,21 @@ export type MobileStatusPillTone = {
   fg: string;
   /** Saturated mid shade for small marks (dots) that should read as the same hue as `bg`; `fg` is too dark at that size. */
   dot?: string;
+  /** Hairline border in the same family (200 step); omitted on filled tones such as the dark "in progress" pill. */
+  border?: string;
 };
 
 export const STATUS_PILL_TONES = {
-  yellow: { bg: '#FEF3C7', fg: '#B45309', dot: '#F59E0B' },
-  blue: { bg: '#DBEAFE', fg: '#1D4ED8', dot: '#3B82F6' },
-  purple: { bg: '#EDE9FE', fg: '#6D28D9', dot: '#8B5CF6' },
-  green: { bg: '#DCFCE7', fg: '#15803D', dot: '#22C55E' },
-  rose: { bg: '#FCE7F3', fg: '#BE185D', dot: '#EC4899' },
-  red: { bg: '#FEE2E2', fg: '#B91C1C', dot: '#EF4444' },
-  slate: { bg: '#F1F5F9', fg: '#475569', dot: '#94A3B8' },
+  // Colour system v1.1 (CI, 12 Nov 2026): text 800 · dot 700 · bg 50 · border 200. See nestyk-color-system-v1-plan-20261112.md.
+  yellow: { bg: '#FFFBEB', fg: '#92400E', dot: '#B45309', border: '#FDE68A' },
+  blue: { bg: '#EFF6FF', fg: '#1E3A8A', dot: '#1D4ED8', border: '#BFDBFE' },
+  /** "In progress" / viewing: dark pill, white text, yellow dot (same as agent web "prog"). */
+  purple: { bg: '#211E1E', fg: '#FFFFFF', dot: '#F8B615' },
+  green: { bg: '#F0FDF4', fg: '#166534', dot: '#15803D', border: '#BBF7D0' },
+  /** "New" / needs attention: brand family (same as agent web "attn"). */
+  rose: { bg: '#FFF9E8', fg: '#211E1E', dot: '#F8B615', border: '#FCDE96' },
+  red: { bg: '#FEF2F2', fg: '#991B1B', dot: '#B91C1C', border: '#FECACA' },
+  slate: { bg: '#F1F5F9', fg: '#334155', dot: '#64748B', border: '#E2E8F0' },
 } as const satisfies Record<string, MobileStatusPillTone>;
 
 export type MobileStatusPillToneKey = keyof typeof STATUS_PILL_TONES;
@@ -30,9 +35,9 @@ export function MobileStatusPill({
   tone?: MobileStatusPillToneKey | MobileStatusPillTone;
   style?: ViewStyle;
 }) {
-  const colors = typeof tone === 'string' ? STATUS_PILL_TONES[tone] : tone;
+  const colors: MobileStatusPillTone = typeof tone === 'string' ? STATUS_PILL_TONES[tone] : tone;
   return (
-    <View style={[styles.pill, { backgroundColor: colors.bg }, style]}>
+    <View style={[styles.pill, { backgroundColor: colors.bg }, colors.border ? { borderWidth: 1, borderColor: colors.border } : null, style]}>
       <Text style={[styles.label, { color: colors.fg }]} numberOfLines={1}>
         {label}
       </Text>

@@ -36,13 +36,13 @@
   font-weight: 700;
 }
 /* Same tones as the app's status pills (MobileStatusPill STATUS_PILL_TONES). */
-.awl-tone-yellow { background: #fef3c7; color: #b45309; }
-.awl-tone-blue { background: #dbeafe; color: #1d4ed8; }
-.awl-tone-purple { background: #ede9fe; color: #6d28d9; }
-.awl-tone-green { background: #dcfce7; color: #15803d; }
-.awl-tone-rose { background: #fce7f3; color: #be185d; }
-.awl-tone-red { background: #fee2e2; color: #b91c1c; }
-.awl-tone-slate { background: #f1f5f9; color: #475569; }
+.awl-tone-yellow { background: #fffbeb; color: #92400e; box-shadow: inset 0 0 0 1px #fde68a; }
+.awl-tone-blue { background: #eff6ff; color: #1e3a8a; box-shadow: inset 0 0 0 1px #bfdbfe; }
+.awl-tone-purple { background: #211e1e; color: #ffffff; }
+.awl-tone-green { background: #f0fdf4; color: #166534; box-shadow: inset 0 0 0 1px #bbf7d0; }
+.awl-tone-rose { background: #fff9e8; color: #211e1e; box-shadow: inset 0 0 0 1px #fcde96; }
+.awl-tone-red { background: #fef2f2; color: #991b1b; box-shadow: inset 0 0 0 1px #fecaca; }
+.awl-tone-slate { background: #f1f5f9; color: #334155; box-shadow: inset 0 0 0 1px #e2e8f0; }
 .awl-status {
   display: flex;
   flex-direction: column;
@@ -75,7 +75,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #b45309;
+  color: #92400e;
   font-size: var(--aw-t-small, 12px);
 }
 .awl-error-detail {

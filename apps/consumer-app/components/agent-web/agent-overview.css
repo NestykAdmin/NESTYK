@@ -128,11 +128,11 @@
   border-radius: var(--aw-r-md);
   background: var(--aw-surface);
   color: var(--aw-ink);
-  box-shadow: 0 2px 5px #1a2b4803;
+  box-shadow: 0 2px 5px #211e1e03;
 }
 button.aov-kpi:hover {
   border-color: var(--aw-brand-line);
-  box-shadow: 0 3px 12px #1a2b4809;
+  box-shadow: 0 3px 12px #211e1e09;
 }
 .aov-kpi-top {
   display: flex;
@@ -180,7 +180,7 @@ button.aov-kpi:hover {
   border: 1px solid var(--aw-border);
   border-radius: var(--aw-r-md);
   background: var(--aw-surface);
-  box-shadow: 0 2px 5px #1a2b4803;
+  box-shadow: 0 2px 5px #211e1e03;
   overflow: hidden;
 }
 .aov-panel-heading {
@@ -341,7 +341,7 @@ button.aov-kpi:hover {
   background: var(--aw-bg);
 }
 .aov-tone-success {
-  color: #28734a;
+  color: #166534;
   background: var(--aw-success-soft);
 }
 .aov-tone-warning {
@@ -643,7 +643,7 @@ button.aov-kpi:hover {
   overflow-wrap: anywhere;
 }
 .aov-money-success {
-  color: #378256;
+  color: #166534;
 }
 .aov-money-danger {
   color: var(--aw-danger);
@@ -734,44 +734,44 @@ button.aov-kpi:hover {
   margin-top: var(--aw-s4);
 }
 .aov-scroll[data-theme="dark"] .aov-demo {
-  color: #e6c77f;
-  border-color: #625029;
+  color: #fcde96;
+  border-color: #211E1E;
   background: #f4bd4210;
 }
 .aov-scroll[data-theme="dark"] .aov-text-link,
 .aov-scroll[data-theme="dark"] .aov-next-label,
 .aov-scroll[data-theme="dark"] .aov-appointment.is-next > time {
-  color: #e6c77f !important;
+  color: #fcde96 !important;
 }
 .aov-scroll[data-theme="dark"] .aov-tone-success {
-  color: #a4d3b3;
+  color: #bbf7d0;
   background: #79bf9220;
 }
 .aov-scroll[data-theme="dark"] .aov-tone-warning {
-  color: #e3c180;
+  color: #fcde96;
   background: #dbb35020;
 }
 .aov-scroll[data-theme="dark"] .aov-tone-danger,
 .aov-scroll[data-theme="dark"] .aov-overdue .aov-row-count {
-  color: #f2a6a9;
+  color: #fecaca;
   background: #c43e4325;
 }
 .aov-scroll[data-theme="dark"] .aov-tone-info {
-  color: #a3c3ed;
+  color: #bfdbfe;
   background: #699add25;
 }
 .aov-scroll[data-theme="dark"] .aov-work-total {
-  color: #e3c180;
+  color: #fcde96;
   background: #dbb35025;
 }
 .aov-scroll[data-theme="dark"] .aov-money-success {
-  color: #92cda7;
+  color: #bbf7d0;
 }
 .aov-scroll[data-theme="dark"] .aov-money-danger {
-  color: #f2a6a9;
+  color: #fecaca;
 }
 .aov-scroll[data-theme="dark"] .aov-money-warning {
-  color: #e3c180;
+  color: #fcde96;
 }
 @container agent-overview (max-width: 1040px) {
   .aov-work-grid {

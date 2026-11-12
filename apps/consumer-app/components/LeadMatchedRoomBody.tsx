@@ -63,7 +63,7 @@ const PILLED: CompareStatus[] = [...ISSUES, 'unknown', 'notEvaluable'];
 /** Pastel pill tones wash out on dark surfaces. */
 const DARK_TONES: Partial<Record<MobileStatusPillToneKey, MobileStatusPillTone>> = {
   green: { bg: 'rgba(34,197,94,0.16)', fg: '#4ADE80' },
-  yellow: { bg: 'rgba(245,158,11,0.18)', fg: '#FBBF24' },
+  yellow: { bg: 'rgba(245,158,11,0.18)', fg: '#F8B615' },
   red: { bg: 'rgba(220,38,38,0.18)', fg: '#F87171' },
   slate: { bg: 'rgba(148,163,184,0.16)', fg: '#CBD5E1' },
 };

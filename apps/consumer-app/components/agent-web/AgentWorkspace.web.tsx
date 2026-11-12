@@ -29,10 +29,10 @@ const ROLES: UserRole[] = ["guest", "tenant", "landlord", "agent", "admin"];
 /** Role colour shows only as a small dot (design W1); same values as tokens.colors.roles. */
 const ROLE_DOT: Record<UserRole, string> = {
   guest: "#F8B615",
-  tenant: "#00C68D",
-  landlord: "#0055DA",
-  agent: "#FF0052",
-  admin: "#0F172A",
+  tenant: "#166534",
+  landlord: "#1E3A8A",
+  agent: "#211E1E",
+  admin: "#334155",
 } as Record<UserRole, string>;
 const ROLE_ICON: Record<UserRole, AppIconName> = {
   guest: "search",
@@ -331,7 +331,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     (item) => item.tab === props.activeTab,
   );
   const itemColor = (active: boolean) =>
-    active ? (isDark ? "#f4cd76" : "#795719") : theme.textSecondary;
+    active ? (isDark ? "#fcde96" : "#211E1E") : theme.textSecondary;
   const customItem = (item: WorkspaceNavItem) => (
     <button
       key={item.id}
@@ -478,7 +478,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         lang={locale}
         style={
           {
-            "--aw-bg": isDark ? theme.background : "#F3F5F8",
+            "--aw-bg": isDark ? theme.background : "#F1F5F9",
             "--aw-surface": theme.surface,
             "--aw-ink": theme.screenTitle,
             "--aw-muted": theme.textSecondary,
@@ -591,7 +591,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               trigger={
                 <>
                   <span className="aw-switch-tile" aria-hidden="true">
-                    <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color="#583C0A" />
+                    <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color="#211E1E" />
                     <span className="aw-switch-dot" style={{ "--aw-role": ROLE_DOT[shellRole] } as React.CSSProperties} />
                   </span>
                   <span className="aw-switch-copy">

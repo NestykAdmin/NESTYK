@@ -601,7 +601,7 @@ export function FinancialDocumentForm({
                   style={({ pressed }) => ({
                     borderWidth: 1,
                     borderColor: selected ? "#F8B615" : theme.border,
-                    backgroundColor: selected ? "#FFF8E7" : theme.surface,
+                    backgroundColor: selected ? "#FFF9E8" : theme.surface,
                     borderRadius: 12,
                     padding: 12,
                     gap: 4,
@@ -651,7 +651,7 @@ export function FinancialDocumentForm({
                   style={({ pressed }) => ({
                     borderWidth: 1,
                     borderColor: selected ? "#F8B615" : theme.border,
-                    backgroundColor: selected ? "#FFF8E7" : theme.surface,
+                    backgroundColor: selected ? "#FFF9E8" : theme.surface,
                     borderRadius: 12,
                     padding: 12,
                     gap: 4,

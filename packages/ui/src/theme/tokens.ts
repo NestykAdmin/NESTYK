@@ -8,6 +8,8 @@ export const tokens = {
     brand: {
       50: '#fff9e8',
       100: '#fff0c4',
+      /** Hairline border in the brand family (colour system v1.1). */
+      200: '#fcde96',
       500: '#f8b615',
       600: '#f8b615',
       700: '#d99a0d',
@@ -42,15 +44,16 @@ export const tokens = {
 
     /** Soft status surfaces (pills / icon wells) — prefer over flooding role colors */
     subtle: {
-      successBg: '#dcfce7',
-      successFg: '#15803d',
-      warningBg: '#ffedd5',
-      warningFg: '#c2410c',
-      dangerBg: '#fee2e2',
-      dangerFg: '#dc2626',
-      infoBg: '#dbeafe',
-      infoFg: '#1d4ed8',
-      brandBg: '#fef3c7',
+      // Colour system v1.1 (CI, 12 Nov 2026): bg 50 · text 800 of the CI family.
+      successBg: '#f0fdf4',
+      successFg: '#166534',
+      warningBg: '#fffbeb',
+      warningFg: '#92400e',
+      dangerBg: '#fef2f2',
+      dangerFg: '#991b1b',
+      infoBg: '#eff6ff',
+      infoFg: '#1e3a8a',
+      brandBg: '#fff9e8',
       neutralBg: '#f1f5f9',
       track: '#e2e8f0',
     },
@@ -66,12 +69,14 @@ export const tokens = {
 
     // 🎭 Multi-App Roles & Services
     roles: {
-      guest: '#f8b615',     // 🟡 Warm Yellow (Marketplace)
-      tenant: '#00c68d',    // 🟢 Neo Mint (Tenant)
-      landlord: '#0055da',  // 🔵 Electric Blue (Landlord)
-      agent: '#ff0052',     // 🔴 Neon Rose (Agent)
-      admin: '#0f172a',     // ⚫ Deep Slate (Admin / Operations)
-      services: '#0284c7',  // 🔷 Sky Blue (Services Hub)
+      // Colour system v1.1 (CI, 12 Nov 2026): deep 800 tones of the CI families; agent is brand ink + yellow.
+      guest: '#f8b615',      // brand yellow
+      tenant: '#166534',     // success 800
+      landlord: '#1e3a8a',   // info 800
+      agent: '#211e1e',      // brand ink (paired with yellow)
+      self_owner: '#92400e', // warning 800 ("Owner")
+      admin: '#334155',      // slate 700
+      services: '#475569',   // slate 600
     },
   },
 

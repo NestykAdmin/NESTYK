@@ -15,7 +15,7 @@ import type { AppIconName } from '../icons/types';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-const TRACK = '#EEF2F6';
+const TRACK = '#F1F5F9';
 const LOW = tokens.colors.error;
 const MID = tokens.colors.brand[500];
 const HIGH = tokens.colors.success;

@@ -32,7 +32,7 @@ export const MobileButton: React.FC<MobileButtonProps> = ({
     justifyContent: 'center',
     backgroundColor: isPrimary
       ? disabled
-        ? '#FEF3C7'
+        ? '#FFF9E8'
         : tokens.colors.brand[500]
       : isOutline
       ? '#FFFFFF'
@@ -49,7 +49,7 @@ export const MobileButton: React.FC<MobileButtonProps> = ({
     fontWeight: '500',
     color: isPrimary
       ? disabled
-        ? '#D1D5DB'
+        ? '#CBD5E1'
         : tokens.colors.primary
       : isOutline
       ? tokens.colors.primary

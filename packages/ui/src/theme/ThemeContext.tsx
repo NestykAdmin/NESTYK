@@ -26,19 +26,20 @@ const LIGHT_THEME: Omit<MobileThemeColors, 'mode'> = {
   textHeading: tokens.colors.textHeading,
   textSecondary: tokens.colors.textSecondary,
   border: tokens.colors.border,
-  screenTitle: '#1A2B48',
+  screenTitle: '#211E1E',
   statusBarStyle: 'dark-content',
   overlay: 'rgba(0,0,0,0.28)',
 };
 
 const DARK_THEME: Omit<MobileThemeColors, 'mode'> = {
-  background: '#0F172A',
-  surface: '#1E293B',
-  card: '#1E293B',
-  header: '#1E293B',
+  // Colour system v1.1 (CI, 12 Nov 2026): brand ink family instead of navy.
+  background: '#211E1E',
+  surface: '#2F2B2B',
+  card: '#2F2B2B',
+  header: '#2F2B2B',
   textHeading: '#F1F5F9',
   textSecondary: '#94A3B8',
-  border: '#334155',
+  border: '#3F3A3A',
   screenTitle: '#F8FAFC',
   statusBarStyle: 'light-content',
   overlay: 'rgba(0,0,0,0.55)',

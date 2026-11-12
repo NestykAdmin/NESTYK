@@ -31,19 +31,19 @@ type Accent = 'lead' | 'matching' | 'screening' | 'notes';
 
 /** Section icon tiles: one hue per section so the page reads at a glance; pastel fills wash out on dark surfaces. */
 const ACCENTS: Record<Accent, { light: MobileStatusPillTone; dark: MobileStatusPillTone }> = {
-  lead: { light: { bg: '#DBEAFE', fg: '#1D4ED8' }, dark: { bg: 'rgba(37,99,235,0.22)', fg: '#93C5FD' } },
-  matching: { light: { bg: '#FEF3C7', fg: '#B45309' }, dark: { bg: 'rgba(248,182,21,0.2)', fg: '#FBBF24' } },
-  screening: { light: { bg: '#FCE7F3', fg: '#BE185D' }, dark: { bg: 'rgba(255,0,82,0.18)', fg: '#F9A8D4' } },
+  lead: { light: { bg: '#EFF6FF', fg: '#1E3A8A' }, dark: { bg: 'rgba(37,99,235,0.22)', fg: '#93C5FD' } },
+  matching: { light: { bg: '#FFF9E8', fg: '#92400E' }, dark: { bg: 'rgba(248,182,21,0.2)', fg: '#F8B615' } },
+  screening: { light: { bg: '#211E1E', fg: '#F8B615' }, dark: { bg: 'rgba(255,255,255,0.08)', fg: '#F8B615' } },
   notes: { light: { bg: '#F1F5F9', fg: '#475569' }, dark: { bg: 'rgba(148,163,184,0.16)', fg: '#CBD5E1' } },
 };
 
 const CHIP_TONES: Record<'warn' | 'neutral', { light: MobileStatusPillTone; dark: MobileStatusPillTone }> = {
-  warn: { light: STATUS_PILL_TONES.yellow, dark: { bg: 'rgba(245,158,11,0.18)', fg: '#FBBF24' } },
+  warn: { light: STATUS_PILL_TONES.yellow, dark: { bg: 'rgba(245,158,11,0.18)', fg: '#F8B615' } },
   neutral: { light: STATUS_PILL_TONES.slate, dark: { bg: 'rgba(148,163,184,0.16)', fg: '#CBD5E1' } },
 };
 
 /** Pin rank badges fade with rank, mirroring the 100 / 85 / 70% pin weights in matching. */
-const PIN_RANK_FILL: Record<number, string> = { 1: '#FF0052', 2: 'rgba(255,0,82,0.7)', 3: 'rgba(255,0,82,0.45)' };
+const PIN_RANK_FILL: Record<number, string> = { 1: '#211E1E', 2: '#3F3A3A', 3: '#64748B' };
 
 const CALL_GREEN = '#22C55E';
 const NOTE_TINT = 'rgba(248,182,21,0.08)';

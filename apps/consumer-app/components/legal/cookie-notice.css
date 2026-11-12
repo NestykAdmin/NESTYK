@@ -16,7 +16,7 @@
   border-radius: 14px;
   background: #ffffff;
   color: #334155;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 10px 30px rgba(33, 30, 30, 0.14);
   font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
   font-size: 13px;
   line-height: 20px;
@@ -26,7 +26,7 @@
 }
 .ck-text a,
 .ck-more {
-  color: #1a2b48;
+  color: #211e1e;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -43,7 +43,7 @@
   margin: 0;
   font-size: 15px;
   line-height: 22px;
-  color: #1a2b48;
+  color: #211e1e;
   font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
   font-weight: 600;
 }
@@ -80,7 +80,7 @@
   width: 18px;
   height: 18px;
   margin: 1px 0 0;
-  accent-color: #1a2b48;
+  accent-color: #211e1e;
   cursor: pointer;
 }
 .ck-row input:disabled {
@@ -96,7 +96,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  color: #1a2b48;
+  color: #211e1e;
   font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
   font-weight: 600;
 }
@@ -125,23 +125,23 @@
   flex: 1 1 140px;
   min-height: 38px;
   padding: 0 14px;
-  border: 1px solid #1a2b48;
+  border: 1px solid #211e1e;
   border-radius: 999px;
-  background: #1a2b48;
+  background: #211e1e;
   color: #ffffff;
   font: inherit;
   font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
   cursor: pointer;
 }
 .ck-btn:hover {
-  background: #24395e;
+  background: #211e1e;
 }
 .ck-link {
   min-height: 38px;
   padding: 0 6px;
   border: 0;
   background: transparent;
-  color: #1a2b48;
+  color: #211e1e;
   font: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -158,14 +158,14 @@
 }
 .ck-notice[data-theme="dark"] {
   border-color: #334155;
-  background: #1e293b;
+  background: #211e1e;
   color: #cbd5e1;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 .ck-notice[data-theme="dark"] .ck-text a,
 .ck-notice[data-theme="dark"] .ck-more,
 .ck-notice[data-theme="dark"] .ck-link {
-  color: #f4cd76;
+  color: #fcde96;
 }
 .ck-notice[data-theme="dark"] .ck-title,
 .ck-notice[data-theme="dark"] .ck-row-title {
@@ -179,15 +179,15 @@
   color: #cbd5e1;
 }
 .ck-notice[data-theme="dark"] .ck-row input {
-  accent-color: #f4cd76;
+  accent-color: #fcde96;
 }
 .ck-notice[data-theme="dark"] .ck-btn {
-  border-color: #f4cd76;
-  background: #f4cd76;
-  color: #1e293b;
+  border-color: #fcde96;
+  background: #fcde96;
+  color: #211e1e;
 }
 .ck-notice[data-theme="dark"] .ck-btn:hover {
-  background: #f8d98f;
+  background: #fcde96;
 }
 @media (max-width: 767px) {
   .ck-notice {

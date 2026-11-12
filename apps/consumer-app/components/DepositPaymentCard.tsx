@@ -35,11 +35,11 @@ export function DepositPaymentCard({
   const deposit = contract.depositPayment;
   if (!deposit) return null;
   const status = {
-    not_issued: { color: "#6B7280", background: "#F3F4F6" },
-    unpaid: { color: "#B45309", background: "#FFFBEB" },
-    submitted: { color: "#1D4ED8", background: "#EFF6FF" },
-    paid: { color: "#15803D", background: "#F0FDF4" },
-    voided: { color: "#6B7280", background: "#F3F4F6" },
+    not_issued: { color: "#64748B", background: "#F1F5F9" },
+    unpaid: { color: "#92400E", background: "#FFFBEB" },
+    submitted: { color: "#1E3A8A", background: "#EFF6FF" },
+    paid: { color: "#166534", background: "#F0FDF4" },
+    voided: { color: "#64748B", background: "#F1F5F9" },
   }[deposit.status];
   const label = dc.status[deposit.status];
   const closed = ["cancelled", "expired", "terminated"].includes(contract.status);
@@ -91,7 +91,7 @@ export function DepositPaymentCard({
       {due && <Text style={text}>{fillTemplate(dc.due, { date: due })}</Text>}
       {deposit.status === "submitted" && <Text style={text}>{dc.submittedHint}</Text>}
       {deposit.status === "unpaid" && !closed && deposit.slipReturnReason && (
-        <Text style={{ ...text, color: "#B91C1C" }}>
+        <Text style={{ ...text, color: "#991B1B" }}>
           {fillTemplate(t.contracts.slipReturn.returned, { reason: deposit.slipReturnReason })}
         </Text>
       )}

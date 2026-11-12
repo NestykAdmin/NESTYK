@@ -530,7 +530,7 @@ export function AgentTenantsScreen({
         {!!notice && (
           <Text
             accessibilityRole="alert"
-            style={[s.body, { color: "#198460" }]}
+            style={[s.body, { color: "#166534" }]}
           >
             {notice}
           </Text>
@@ -538,7 +538,7 @@ export function AgentTenantsScreen({
         {!!error && !editing && (
           <Text
             accessibilityRole="alert"
-            style={[s.body, { color: "#C43D4C" }]}
+            style={[s.body, { color: "#991B1B" }]}
           >
             {error}
           </Text>

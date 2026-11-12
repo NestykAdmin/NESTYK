@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(33, 30, 30, 0.45);
   font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
 }
 .idle-gate-card {
@@ -16,8 +16,8 @@
   padding: 24px;
   border-radius: 16px;
   background: #ffffff;
-  color: #1a2b48;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.25);
+  color: #211e1e;
+  box-shadow: 0 20px 48px rgba(33, 30, 30, 0.25);
 }
 .idle-gate-card h2 {
   margin: 0 0 8px;
@@ -52,9 +52,9 @@
 .idle-gate-secondary {
   border: 1px solid #e2e8f0;
   background: #ffffff;
-  color: #1a2b48;
+  color: #211e1e;
 }
 .idle-gate-actions button:focus-visible {
-  outline: 2px solid #1a2b48;
+  outline: 2px solid #211e1e;
   outline-offset: 2px;
 }

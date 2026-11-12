@@ -782,7 +782,7 @@
   box-shadow: 0 16px 60px #0003;
 }
 .aw-notifications::backdrop {
-  background: #0f172a55;
+  background: #211e1e55;
 }
 .aw-collapsed {
   grid-template-columns: 80px minmax(0, 1fr);
@@ -811,7 +811,7 @@
 }
 .aw-shell[data-theme="dark"] .aw-nav-item.is-active {
   background: #f8b61524;
-  color: #f4cd76;
+  color: #fcde96;
 }
 @media (max-width: 1100px) {
   .aw-shell {
@@ -975,10 +975,10 @@
   font-size: var(--aw-t-body);
 }
 .aw-shell .aw-create:hover {
-  background: #3a3535;
+  background: #3f3a3a;
 }
 .aw-shell[data-theme="dark"] .aw-create {
-  background: #f3f5f8;
+  background: #f1f5f9;
   color: #211e1e !important;
 }
 .aw-shell[data-theme="dark"] .aw-create:hover {
@@ -1220,7 +1220,7 @@
 }
 .aw-shell[data-theme="dark"] .aw-nav-subitem.is-active {
   background: #f8b61524;
-  color: #f4cd76 !important;
+  color: #fcde96 !important;
 }
 
 @media (max-width: 1100px) {

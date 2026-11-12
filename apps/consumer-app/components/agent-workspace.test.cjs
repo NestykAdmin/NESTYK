@@ -10,7 +10,7 @@ const cache = new Map();
 let locale = 'en';
 let state = [];
 let cursor = 0;
-const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#1A2B48', textSecondary: '#64748B', border: '#E5E7EB' };
+const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#211E1E', textSecondary: '#64748B', border: '#E5E7EB' };
 function load(filename) {
   filename = path.resolve(filename);
   if (cache.has(filename)) return cache.get(filename).exports;

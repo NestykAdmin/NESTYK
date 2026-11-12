@@ -111,7 +111,7 @@ export function AgentRoomDetailModal({
               paddingBottom: sharePreviewing ? 0 : 8,
               flexShrink: 0,
               zIndex: 1,
-              backgroundColor: sharePreviewing ? '#0F172A' : theme.surface,
+              backgroundColor: sharePreviewing ? '#211E1E' : theme.surface,
               borderBottomWidth: sharePreviewing ? 0 : 1,
               borderBottomColor: theme.border,
             }}

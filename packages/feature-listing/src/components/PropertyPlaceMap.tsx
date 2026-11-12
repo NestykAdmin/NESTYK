@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   },
   adjustBtnActive: {
     backgroundColor: BRAND_PIN,
-    borderColor: '#EAB308',
+    borderColor: '#F8B615',
   },
   adjustBtnText: {
     fontFamily: tokens.typography.native.body,
