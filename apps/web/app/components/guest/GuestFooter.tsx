@@ -15,7 +15,7 @@ import {
 import { GuestSocialLinks } from './GuestSocialLinks';
 
 const LOGO_HEIGHT = 36;
-const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 322) / 107);
+const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 618) / 219);
 
 const PROPERTY_TYPES = ['condo', 'apartment', 'house', 'townhome'] as const;
 /** Footer areas, by the same English slugs as the API (apps/api/src/public-listings/public-areas.ts). */

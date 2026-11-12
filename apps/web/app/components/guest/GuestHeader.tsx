@@ -8,9 +8,9 @@ import { GUEST_NAV, guestAccountUrl, isGuestPageReady } from '../../../lib/guest
 import { HeartIcon } from './GuestIcons';
 import { GuestLanguageButtonStatic, GuestLanguageMenu } from './GuestLanguageMenu';
 
-/** The logo SVG is 322 × 107. */
+/** The logo SVG is 618 × 219 (CI, 12 Nov 2026). */
 const LOGO_HEIGHT = 32;
-const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 322) / 107);
+const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 618) / 219);
 
 function isCurrent(pathname: string, href: string): boolean {
   const path = href.split('#')[0];

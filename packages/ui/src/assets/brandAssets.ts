@@ -46,8 +46,8 @@ export type NestykLogoVariant =
   | 'wordmarkOnYellow'
   | 'wordmarkOnBlack';
 
-/** Wordmark aspect from SVG viewBox 322×107 */
-export const NESTYK_WORDMARK_ASPECT = 322 / 107;
+/** Wordmark aspect from SVG viewBox 618×219 (CI, 12 Nov 2026) */
+export const NESTYK_WORDMARK_ASPECT = 618 / 219;
 
 /** Mark aspect (square) */
 export const NESTYK_MARK_ASPECT = 1;

@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 const LOGO_HEIGHT = 28;
-const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 322) / 107);
+const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 618) / 219);
 
 /** "Your Happiness Next Home" with the middle word in brand yellow, as in the design. */
 function Tagline({ text }: { text: string }) {
