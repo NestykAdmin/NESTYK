@@ -156,7 +156,7 @@ test.describe('dev token with a user id that is not a uuid', () => {
   });
 
   test('GET /agent/leads answers 401 when the user id is not a uuid', { tag: '@known-bug' }, async ({ apiAs }) => {
-    test.fail(true, 'API ตอบ 500 เพราะไม่ตรวจรูปแบบ uuid ใน dev token ก่อนค้นฐานข้อมูล');
+    test.fail(true, 'API-001: API ตอบ 500 เพราะไม่ตรวจรูปแบบ uuid ใน dev token ก่อนค้นฐานข้อมูล');
 
     // ขั้นที่ 1: สร้างผู้เรียกที่ส่ง dev token รูปแบบครบ 3 ส่วน แต่ส่วน uuid ไม่ใช่ uuid
     const session = await apiAs('Bearer dev|e2e-not-a-uuid|e2e-nobody@example.invalid');

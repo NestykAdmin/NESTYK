@@ -97,7 +97,7 @@ test.describe('profile photo routes with a dev token whose user id is not a uuid
   });
 
   test('DELETE /auth/profile/avatar answers 401 when the user id is not a uuid', { tag: '@known-bug' }, async ({ apiAs }) => {
-    test.fail(true, 'API ตอบ 500 เพราะไม่ตรวจรูปแบบ uuid ใน dev token ก่อนค้นฐานข้อมูล');
+    test.fail(true, 'API-001: API ตอบ 500 เพราะไม่ตรวจรูปแบบ uuid ใน dev token ก่อนค้นฐานข้อมูล');
     const session = await apiAs('Bearer dev|e2e-not-a-uuid|e2e-nobody@example.invalid');
     await expectErrorQuiet(await session.auth.clearAvatar(), 401, 'DELETE ด้วย uuid ผิดรูปแบบ');
   });

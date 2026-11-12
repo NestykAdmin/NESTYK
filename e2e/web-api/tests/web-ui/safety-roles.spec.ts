@@ -79,7 +79,7 @@ test.describe('roles requested by the web app itself', () => {
       // ขั้นที่ 3: แอปต้องไม่ขอบทบาท
       // ที่ 648dd28 แอปขอเฉพาะ dev build ที่ตั้ง EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=true (agent-session.ts:72-76)
       // ผลรัน 6 พ.ย. 2026 ยังเห็นคำขอ ถ้าข้อนี้แดงว่า "Expected to fail, but passed" ให้ดูค่านี้ของเว็บที่ใช้รันก่อนเอา test.fail ออก
-      test.fail(true, 'บั๊กข้อ 1: ensureAgentSession (lib/agent-session.ts:72-76) ขอบทบาท agent เมื่อบัญชียังไม่มี ใน dev build ที่เปิดสวิตช์');
+      test.fail(true, 'WEB-001: ensureAgentSession (lib/agent-session.ts:72-76) ขอบทบาท agent เมื่อบัญชียังไม่มี ใน dev build ที่เปิดสวิตช์');
       expect(grantSeen, 'เห็นคำขอ POST /auth/dev/roles {role:"agent"} (ถูกตัดแล้ว)').toBe(false);
     },
   );
@@ -95,7 +95,7 @@ test.describe('roles requested by the web app itself', () => {
       // ขั้นที่ 2: แอปต้องไม่ขอบทบาท admin
       // ที่ 648dd28 ensureAdminRole ขอเฉพาะ dev build ที่ตั้ง EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT=true (AuthContext.tsx:81-91 เดิมขอเว้นแต่ตั้ง false)
       // ผลรัน 6 พ.ย. 2026 ยังเห็นคำขอ ถ้าข้อนี้แดงว่า "Expected to fail, but passed" ให้ดูค่านี้ของเว็บที่ใช้รันก่อนเอา test.fail ออก
-      test.fail(true, 'บั๊กข้อ 1: ensureAdminRole (lib/auth/AuthContext.tsx:81-91) ขอบทบาท admin ทุกครั้งที่ล็อกอิน ใน dev build ที่เปิดสวิตช์');
+      test.fail(true, 'WEB-001: ensureAdminRole (lib/auth/AuthContext.tsx:81-91) ขอบทบาท admin ทุกครั้งที่ล็อกอิน ใน dev build ที่เปิดสวิตช์');
       expect(guard.roleGrants('admin'), 'คำขอ POST /auth/dev/roles {role:"admin"} ที่ถูกตัด').toEqual([]);
     },
   );

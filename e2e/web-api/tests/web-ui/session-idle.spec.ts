@@ -161,7 +161,7 @@ test.describe('two tabs', () => {
     await new AgentShell(page).signOut();
     await expect(page).toHaveURL((url) => url.pathname === '/' || url.pathname === '/login', { timeout: 30_000 });
     // ขั้นที่ 3: แท็บที่กดต้องอยู่ที่หน้า login
-    test.fail(signOutKnownBug, 'ไม่ได้ตั้ง E2E_WEB_SIGN_OUT_TO=login: เว็บค่าเริ่มต้นพาแท็บที่กด Sign Out ไป "/" ทีมตอบ 6 พ.ย. ว่าต้องไปหน้า login');
+    test.fail(signOutKnownBug, 'WEB-002: ไม่ได้ตั้ง E2E_WEB_SIGN_OUT_TO=login: เว็บค่าเริ่มต้นพาแท็บที่กด Sign Out ไป "/" ทีมตอบ 6 พ.ย. ว่าต้องไปหน้า login');
     await expect(page, 'ถ้าค้างที่ "/" ให้ตรวจว่าเว็บตั้ง EXPO_PUBLIC_WEB_SIGN_OUT_TO=login ตรงกับ E2E_WEB_SIGN_OUT_TO').toHaveURL(
       (url) => url.pathname === '/login',
       { timeout: 10_000 },
@@ -183,7 +183,7 @@ test.describe('two tabs', () => {
     // ค่านี้เป็นของแท็บที่เขียนล่าสุด จึงใช้ชี้ทางได้เท่านั้น (เช่น AuthContext.tsx:134 เมื่อได้ 401 หรือ :350 ผ่าน endSession 'expired')
     test.info().annotations.push({ type: 'nestyk.web.authEvent', description: await readAuthEvent(second) });
     // ขั้นที่ 3: ผู้ใช้กด Sign Out เอง แท็บที่ 2 ต้องไม่บอกว่า session หมดเวลา
-    test.fail(true, 'แท็บอื่นขึ้น "Your session has expired" หลังผู้ใช้กด Sign Out เอง (แท็บที่ 2 ถูกนับเป็นหมดเวลา)');
+    test.fail(true, 'WEB-003: แท็บอื่นขึ้น "Your session has expired" หลังผู้ใช้กด Sign Out เอง (แท็บที่ 2 ถูกนับเป็นหมดเวลา)');
     await expect(login.expiredNotice).toHaveCount(0);
   });
 

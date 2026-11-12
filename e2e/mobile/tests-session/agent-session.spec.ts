@@ -19,7 +19,7 @@
  *   และหัวของหน้าห้องกับหน้าลีด ("Listing Room" กับ "Lead") ซึ่งเป็นค่าในไฟล์ภาษาไทยเอง
  *
  * การตรวจอีเมลใช้ assert.ok แทน expect เพื่อให้ข้อความเมื่อไม่ผ่านบอกแค่ชื่อตัวแปร ไม่มีค่าอีเมลในผลรัน
- * known-bug: ข้อ 'signs out from App Settings and lands on the guest home @known-bug' ครอบด้วย MOB-SIGNOUT-LOGIN (ดู SIGN_OUT_LANDS_ON_LOGIN)
+ * known-bug: ข้อ 'signs out from App Settings and lands on the guest home @known-bug' ครอบด้วย MOB-002 (ดู SIGN_OUT_LANDS_ON_LOGIN)
  *   รันเฉพาะข้อ known-bug ของชุดนี้ด้วย npx wdio run ./wdio.session.conf.ts --mochaOpts.grep @known-bug (npm run test:known-bugs ไม่รวมชุด session)
  */
 import assert from 'node:assert/strict';
@@ -68,7 +68,7 @@ describe('Agent session (needs the API)', function () {
    * Aof ยืนยันเมื่อ 4 พ.ย. 2026 ว่าที่ถูกคือหน้าแรกของผู้เยี่ยมชม แจ้งทีมแล้ว ทีมกำลังแก้
    */
   const SIGN_OUT_LANDS_ON_LOGIN: KnownBug = {
-    id: 'MOB-SIGNOUT-LOGIN',
+    id: 'MOB-002',
     summary: 'ออกจากระบบแล้วแอปไปหน้า login แทนหน้าแรกของผู้เยี่ยมชม (index.tsx บรรทัด 1478 และ 1486 ที่ 01d0523)',
   };
   const welcome = new WelcomeScreen();
@@ -176,14 +176,14 @@ describe('Agent session (needs the API)', function () {
 
     // ขั้นที่ 4: ปิดหน้าต่างแจ้ง แล้วเห็นหน้าของผู้เยี่ยมชมที่แท็บหน้าแรก และไม่เห็นส่วนใดของหน้าของนายหน้าแล้ว
     //   (index.tsx บรรทัด 1475 ถึง 1476 และ 1483 ถึง 1484 ที่ 01d0523: ตั้งบทบาทเป็น guest และเปิดแท็บแรกของ guest ขั้นที่ 34: 0.2 วินาทีหลังปิดหน้าต่าง)
-    //   ระหว่างที่บั๊ก MOB-SIGNOUT-LOGIN ยังอยู่ แอปไปหน้า login แทน การตรวจหน้าของผู้เยี่ยมชมจึงครอบด้วย expectKnownBug
+    //   ระหว่างที่บั๊ก MOB-002 ยังอยู่ แอปไปหน้า login แทน การตรวจหน้าของผู้เยี่ยมชมจึงครอบด้วย expectKnownBug
     //   ส่วนการตรวจว่าหน้าของนายหน้าหายไปแล้วอยู่นอกตัวครอบ เพราะต้องจริงทั้งก่อนและหลังทีมแก้ (ถ้ายังเห็นหน้าของนายหน้าหลังปิดหน้าต่าง ข้อนี้จะแดง)
     await acceptAlert();
     expect(await readUntil(() => home.isShown(), false)).toBe(false);
     await expectKnownBug(SIGN_OUT_LANDS_ON_LOGIN, async () => {
       assert.ok(await readUntil(() => guest.isHomeTabSelected(), true), 'ไม่เห็นแท็บหน้าแรกของผู้เยี่ยมชมที่ถูกเลือกอยู่หลังออกจากระบบ');
     });
-    // ถึงบรรทัดนี้ได้เฉพาะเมื่อบั๊กยังอยู่ (วันที่ทีมแก้ expectKnownBug โยน error ก่อน): อาการต้องเป็นหน้า login ตรงตาม MOB-SIGNOUT-LOGIN
+    // ถึงบรรทัดนี้ได้เฉพาะเมื่อบั๊กยังอยู่ (วันที่ทีมแก้ expectKnownBug โยน error ก่อน): อาการต้องเป็นหน้า login ตรงตาม MOB-002
     //   ไม่อย่างนั้นอาการอื่น (แอปล่ม จอว่าง หน้า error) จะถูกนับเป็นบั๊กนี้ผิด ๆ ลบบรรทัดนี้ไปพร้อมตัวครอบเมื่อทีมแก้แล้ว
     expect(await readUntil(() => login.isShown(), true)).toBe(true);
   });
@@ -197,7 +197,7 @@ describe('Agent session (needs the API)', function () {
     await settings.signOut();
     await waitForAlert(ALERT_WAIT_MS);
     await acceptAlert();
-    //   รอแค่ให้หน้าของนายหน้าหายไป ไม่รอหน้าของผู้เยี่ยมชม เพราะระหว่างที่บั๊ก MOB-SIGNOUT-LOGIN ยังอยู่ แอปไปหน้า login แทน
+    //   รอแค่ให้หน้าของนายหน้าหายไป ไม่รอหน้าของผู้เยี่ยมชม เพราะระหว่างที่บั๊ก MOB-002 ยังอยู่ แอปไปหน้า login แทน
     //   หน้าที่ไปหลังออกจากระบบตรวจในข้อก่อนแล้ว ข้อนี้ตรวจเรื่องเปิดแอปใหม่
     expect(await readUntil(() => home.isShown(), false)).toBe(false);
 
