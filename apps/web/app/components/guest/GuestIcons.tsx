@@ -287,3 +287,27 @@ export const TownhomeIcon = (props: IconProps) => (
     <path d="M4 11v9h16v-9M7 20v-4M17 20v-4" />
   </Line>
 );
+
+export const GridIcon = (props: IconProps) => (
+  <Line {...props}>
+    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+    <rect x="13" y="4" width="7" height="7" rx="1.5" />
+    <rect x="4" y="13" width="7" height="7" rx="1.5" />
+    <rect x="13" y="13" width="7" height="7" rx="1.5" />
+  </Line>
+);
+
+export const ListIcon = (props: IconProps) => (
+  <Line {...props}>
+    <rect x="4" y="5" width="5" height="5" rx="1" />
+    <rect x="4" y="14" width="5" height="5" rx="1" />
+    <path d="M12 7h8M12 16h8" />
+  </Line>
+);
+
+export const MapIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="m9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Z" />
+    <path d="M9 4v14M15 6v14" />
+  </Line>
+);

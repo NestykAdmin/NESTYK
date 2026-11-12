@@ -25,7 +25,7 @@ export type GuestPageKey =
 /** Turn a page on here when its task is done (S3 home and areas, S4 search, ...). */
 const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
   home: true,
-  search: false,
+  search: true,
   areas: false,
   commute: false,
   articles: false,

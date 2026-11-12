@@ -28,7 +28,7 @@ test('the search box sends the guest to /search with only the values that were c
   assert.equal(home.homeSearchHref({}), '/search');
   assert.equal(home.homeSearchHref({ keyword: '  อโศก ', type: 'condo', price: '10to20k', bedrooms: 'one', quick: ['nearTransit', 'petFriendly'] }),
     '/search?q=%E0%B8%AD%E0%B9%82%E0%B8%A8%E0%B8%81&type=condo&min=10000&max=20000&beds=1&quick=nearTransit%2CpetFriendly');
-  assert.equal(home.homeSearchHref({ price: 'under10k', bedrooms: 'threePlus' }), '/search?max=10000&beds=3%2C4%2C5%2C6%2C7%2C8%2C9%2C10');
+  assert.equal(home.homeSearchHref({ price: 'under10k', bedrooms: 'threePlus' }), '/search?max=10000&beds=3', '3 means 3 or more');
   assert.equal(home.homeSearchHref({ price: 'over40k', bedrooms: 'studio' }), '/search?min=40000&beds=0');
   // Values that are not in the lists (a tampered form) are dropped.
   assert.equal(home.homeSearchHref({ type: 'castle', price: 'free', bedrooms: 'many', quick: ['hack'] }), '/search');

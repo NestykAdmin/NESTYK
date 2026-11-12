@@ -20,12 +20,12 @@ export const PRICE_RANGES: readonly { id: string; min?: number; max?: number }[]
   { id: 'over40k', min: 40000 },
 ];
 
-/** Bedroom choices of the search box. "3+" covers up to the search limit of 10. */
+/** Bedroom choices of the search box. The search reads 3 as "3 or more". */
 export const BEDROOM_CHOICES: readonly { id: string; beds: number[] }[] = [
   { id: 'studio', beds: [0] },
   { id: 'one', beds: [1] },
   { id: 'two', beds: [2] },
-  { id: 'threePlus', beds: [3, 4, 5, 6, 7, 8, 9, 10] },
+  { id: 'threePlus', beds: [3] },
 ];
 
 export interface HomeSearchInput {

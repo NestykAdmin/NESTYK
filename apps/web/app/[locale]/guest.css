@@ -1625,11 +1625,12 @@ a.nk-types__item:hover {
   text-decoration: none;
 }
 
-/* Sign-in prompt for features that need an account: dialog on wide screens, bottom sheet at <= 960px. */
+/* Sign-in prompt for features that need an account: dialog on wide screens, bottom sheet at <= 960px.
+   Above the cookie card (900) so a dialog the guest opened is never covered; below cookie settings (1000). */
 .nk-prompt {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 950;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1777,5 +1778,457 @@ a.nk-types__item:hover {
     height: 4px;
     border-radius: var(--nk-radius-pill);
     background: var(--nk-color-divider);
+  }
+}
+
+/* Search page (S4.2, design v2.3 SearchWebV23; <= 960px SearchMobileV22 + SearchSheetV22) */
+.nk-search-top {
+  background: var(--nk-color-surface);
+  border-bottom: 1px solid var(--nk-color-border);
+}
+.nk-search-top__inner {
+  max-width: var(--nk-content-width);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--nk-space-4) var(--nk-space-6);
+}
+.nk-search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-search-bar__form {
+  display: flex;
+  gap: var(--nk-space-2);
+}
+.nk-search-bar__field {
+  flex: 1;
+  min-width: 0;
+}
+.nk-search-bar__submit {
+  flex: none;
+  gap: var(--nk-space-2);
+}
+.nk-search-bar__chips {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  min-width: 0;
+}
+.nk-search-bar__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+  min-width: 0;
+}
+.nk-search-sheet-btn {
+  flex: none;
+  gap: var(--nk-space-2);
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+
+.nk-search-layout {
+  width: 100%;
+  max-width: var(--nk-content-width);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--nk-space-6) var(--nk-space-6) var(--nk-space-16);
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--nk-space-8);
+  align-items: start;
+}
+.nk-search-aside {
+  position: sticky;
+  top: calc(72px + var(--nk-space-6));
+}
+.nk-search-aside__panel {
+  padding: var(--nk-space-5);
+  background: var(--nk-color-surface);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+}
+.nk-search-aside__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-2);
+  margin-bottom: var(--nk-space-2);
+}
+.nk-search-aside__title {
+  margin: 0;
+  font: 500 var(--nk-text-lg) var(--nk-font-heading);
+  color: var(--nk-color-ink);
+}
+.nk-link-btn {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-1);
+  border: 0;
+  background: none;
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.nk-link-btn:disabled {
+  color: var(--nk-color-text-disabled);
+  text-decoration: none;
+  cursor: default;
+}
+
+.nk-filters {
+  display: flex;
+  flex-direction: column;
+}
+.nk-filters__group {
+  margin: 0;
+  padding: var(--nk-space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--nk-color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+  min-width: 0;
+}
+.nk-filters__group:first-child {
+  border-top: 0;
+  padding-top: var(--nk-space-2);
+}
+.nk-filters__legend {
+  padding: 0;
+  margin-bottom: var(--nk-space-1);
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-filters__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+}
+.nk-filters__chips .nk-chip {
+  min-width: var(--nk-tap);
+}
+.nk-filters__price {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--nk-space-2);
+}
+.nk-filters__price-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-1);
+}
+.nk-filters__hint {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-filters__dash {
+  padding-bottom: var(--nk-space-3);
+  color: var(--nk-color-text-secondary);
+}
+.nk-check {
+  min-height: var(--nk-tap);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-check input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--nk-color-ink);
+}
+
+.nk-search-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
+.nk-search-title {
+  margin: 0;
+  font: 500 var(--nk-text-2xl) / 1.4 var(--nk-font-heading);
+  color: var(--nk-color-ink);
+}
+.nk-search-chips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+}
+.nk-filter-chip {
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 0 var(--nk-space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-brand-soft);
+  color: var(--nk-color-ink);
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.nk-filter-chip:hover {
+  background: var(--nk-color-brand);
+}
+
+.nk-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+  transition: opacity 0.15s ease;
+}
+.nk-search-page[data-pending] .nk-search-results {
+  opacity: 0.55;
+}
+.nk-search-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-3);
+}
+.nk-search-toolbar__count {
+  margin: 0;
+  font-weight: 600;
+  color: var(--nk-color-heading);
+}
+.nk-search-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2);
+}
+.nk-search-toolbar__sort {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-search-toolbar__select {
+  width: auto;
+  height: var(--nk-tap);
+  padding-right: var(--nk-space-8);
+}
+.nk-view-toggle {
+  display: flex;
+  gap: var(--nk-space-1);
+}
+.nk-view-toggle .nk-icon-btn {
+  background: var(--nk-color-surface);
+  cursor: pointer;
+}
+.nk-view-toggle .nk-icon-btn[aria-pressed="true"] {
+  border-color: var(--nk-color-ink);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+}
+.nk-search-map-btn {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  gap: var(--nk-space-2);
+  border-color: var(--nk-color-border);
+  color: var(--nk-color-text-disabled);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: not-allowed;
+}
+
+/* List view: photo beside the text. Phones always use it (design v2.2 row cards). */
+.nk-search-list--list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--nk-space-4);
+}
+.nk-search-list--list .nk-room {
+  flex-direction: row;
+}
+.nk-search-list--list .nk-room__media {
+  flex: none;
+  width: 280px;
+  aspect-ratio: auto;
+  min-height: 180px;
+}
+
+.nk-search-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nk-space-3);
+  padding-top: var(--nk-space-4);
+}
+.nk-search-more__text {
+  margin: 0;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-search-more__error {
+  margin: 0;
+  color: var(--nk-color-danger);
+  font-size: var(--nk-text-sm);
+}
+.nk-search-more .nk-btn {
+  min-width: 220px;
+  cursor: pointer;
+}
+
+/* Filter sheet (phones and tablets) */
+.nk-sheet__panel {
+  width: min(520px, 100%);
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.nk-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-3);
+  padding: var(--nk-space-4) var(--nk-space-5) var(--nk-space-2);
+}
+.nk-sheet__title {
+  margin: 0;
+  font: 500 var(--nk-text-xl) var(--nk-font-heading);
+  color: var(--nk-color-ink);
+}
+.nk-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--nk-space-5);
+}
+.nk-sheet__foot {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--nk-space-3);
+  padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-4) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--nk-color-border);
+  background: var(--nk-color-surface);
+}
+.nk-sheet__foot .nk-btn {
+  cursor: pointer;
+}
+
+@media (min-width: 961px) {
+  .nk-search-sheet-btn {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .nk-search-top__inner {
+    padding: var(--nk-space-3) var(--nk-space-4);
+  }
+  .nk-search-bar__submit-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .nk-search-bar__submit {
+    width: 48px;
+    padding: 0;
+  }
+  .nk-search-bar__chips {
+    margin: 0 calc(-1 * var(--nk-space-4));
+    padding: 0 var(--nk-space-4);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nk-search-bar__chips::-webkit-scrollbar {
+    display: none;
+  }
+  .nk-search-bar__quick {
+    flex-wrap: nowrap;
+  }
+  .nk-search-layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--nk-space-4) var(--nk-space-4) var(--nk-space-12);
+    gap: var(--nk-space-4);
+  }
+  .nk-search-aside {
+    display: none;
+  }
+  .nk-search-title {
+    font-size: var(--nk-text-xl);
+  }
+  .nk-view-toggle {
+    display: none;
+  }
+  .nk-search-toolbar__sort-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  /* The map button floats above the tab bar, as in the design; it stays "coming soon" until S4.3. */
+  .nk-search-map-btn {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--nk-tabbar-height) + var(--nk-space-4));
+    z-index: 30;
+    transform: translateX(-50%);
+    border-radius: var(--nk-radius-pill);
+    box-shadow: var(--nk-shadow-pop);
+  }
+  /* The home rails scroll sideways at this width (.nk-room-grid); search results stack instead. */
+  .nk-room-grid.nk-search-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--nk-space-3);
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .nk-room-grid.nk-search-list > .nk-room {
+    width: auto;
+    max-width: none;
+    flex-direction: row;
+  }
+  .nk-search-list .nk-room__media {
+    flex: none;
+    width: 128px;
+    aspect-ratio: auto;
+    min-height: 136px;
+  }
+  .nk-search-list .nk-room__body {
+    padding: var(--nk-space-3);
+    gap: var(--nk-space-1);
+  }
+  .nk-search-list .nk-room__badges .nk-badge--dark {
+    display: none;
+  }
+  .nk-search-more {
+    padding-bottom: var(--nk-space-12);
+  }
+  .nk-sheet__panel {
+    width: 100%;
+    max-height: calc(100dvh - 48px);
+  }
+}
+.nk-sheet__panel .nk-prompt__handle {
+  margin-top: var(--nk-space-3);
+}
+@media (min-width: 600px) and (max-width: 960px) {
+  .nk-room-grid.nk-search-list .nk-room__media {
+    width: 220px;
+    min-height: 168px;
   }
 }

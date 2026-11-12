@@ -1,4 +1,4 @@
-import type { PublicAreaSummary, PublicFeaturedRail, PublicRoomCard } from '@nestyk/types';
+import type { PublicAreaSummary, PublicFeaturedRail, PublicRoomCard, PublicRoomSearchQuery, PublicRoomSearchResult } from '@nestyk/types';
 import { createApiPublicRoomsSource } from '@nestyk/feature-listing/public';
 import { apiUrlMissing, HOME_RAIL_LIMIT, HOME_RAILS, keepPreviousHomePage, PUBLIC_API_TIMEOUT_MS, publicApiBase } from './guest-home';
 
@@ -9,11 +9,13 @@ import { apiUrlMissing, HOME_RAIL_LIMIT, HOME_RAILS, keepPreviousHomePage, PUBLI
  * yet (build, dev) the section shows "โหลดไม่สำเร็จ" instead.
  */
 export const PUBLIC_DATA_REVALIDATE_SECONDS = 300;
+/** Search results change with every filter: kept for 30 seconds, like the API's own cache header (plan A3). */
+export const SEARCH_REVALIDATE_SECONDS = 30;
 export const HOME_AREA_LIMIT = 6;
 
 let warnedApiUrl = false;
 
-function publicRooms() {
+function publicRooms(revalidate: number = PUBLIC_DATA_REVALIDATE_SECONDS) {
   if (!warnedApiUrl && apiUrlMissing(process.env.API_URL, process.env.NODE_ENV)) {
     warnedApiUrl = true;
     console.warn('[guest home] API_URL is not set: the public API is called on http://localhost:4000');
@@ -22,7 +24,7 @@ function publicRooms() {
     baseUrl: publicApiBase(),
     fetchImpl: (url) =>
       fetch(url, {
-        next: { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
+        next: { revalidate },
         signal: AbortSignal.timeout(PUBLIC_API_TIMEOUT_MS),
       }),
   });
@@ -59,4 +61,9 @@ export async function loadHomeData(): Promise<HomeData> {
         : null,
     areas: areas.status === 'fulfilled' ? areas.value : null,
   };
+}
+
+/** One page of search results (S4.2). Throws when the API cannot be reached; the page shows the error state. */
+export async function loadSearchResults(query: PublicRoomSearchQuery): Promise<PublicRoomSearchResult> {
+  return publicRooms(SEARCH_REVALIDATE_SECONDS).search(query);
 }

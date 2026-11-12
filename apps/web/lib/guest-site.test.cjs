@@ -38,15 +38,15 @@ test('the header menu has the 5 items of design v2.3 in order, and pages not bui
     assert.equal(typeof item.href, 'string');
     assert.ok(item.href.startsWith('/'), `${item.key} href is an in-site path`);
   }
-  // S2 builds the frame only: the search page (S4), areas (S3) and the rest are not there yet.
-  for (const key of ['search', 'areas', 'commute', 'articles', 'about']) assert.equal(site.isGuestPageReady(key), false, key);
+  // The search page is built (S4.2, 12 Nov 2026); areas, commute, articles and about are not there yet.
+  assert.equal(site.isGuestPageReady('search'), true);
+  for (const key of ['areas', 'commute', 'articles', 'about']) assert.equal(site.isGuestPageReady(key), false, key);
 });
 
 test('the tab bar has 4 tabs like the app, and every ready tab opens a page that exists', () => {
   assert.deepEqual(site.GUEST_TABS.map((tab) => tab.key), ['home', 'search', 'saved', 'profile']);
   assert.deepEqual(site.GUEST_TABS.map((tab) => tab.href), ['/', '/search', '/saved', '/profile']);
-  for (const key of ['home', 'saved', 'profile']) assert.equal(site.isGuestPageReady(key), true, key);
-  assert.equal(site.isGuestPageReady('search'), false);
+  for (const key of ['home', 'search', 'saved', 'profile']) assert.equal(site.isGuestPageReady(key), true, key);
 });
 
 test('the active tab follows the path, and a deeper page keeps its section active', () => {
