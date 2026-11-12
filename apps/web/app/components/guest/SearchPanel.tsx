@@ -3,11 +3,12 @@
 import React, { useId, useState } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { GUEST_QUICK_FILTERS } from '@nestyk/feature-search';
-import { formatPublicPrice } from '@nestyk/feature-listing/public';
 import { useRouter } from '../../../i18n/navigation';
-import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, PRICE_RANGES, searchHrefIfReady } from '../../../lib/guest-home';
+import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, searchHrefIfReady } from '../../../lib/guest-home';
 import { isGuestPageReady } from '../../../lib/guest-site';
 import { SearchIcon } from './GuestIcons';
+import { PricePopover } from './PricePopover';
+import type { Price } from './PriceRangeField';
 
 /**
  * Home search box (S3.4, design v2.3): rent / buy (buy is "coming soon"), one search row, popular filters.
@@ -21,17 +22,10 @@ export function SearchPanel() {
   const id = useId();
   const [keyword, setKeyword] = useState('');
   const [type, setType] = useState('');
-  const [price, setPrice] = useState('');
+  const [price, setPrice] = useState<Price>({ minPrice: undefined, maxPrice: undefined });
   const [bedrooms, setBedrooms] = useState('');
   const [quick, setQuick] = useState<string[]>([]);
 
-  const priceLabel = (range: (typeof PRICE_RANGES)[number]) => {
-    const min = range.min != null ? formatPublicPrice(range.min) ?? '' : '';
-    const max = range.max != null ? formatPublicPrice(range.max) ?? '' : '';
-    if (range.min == null) return fillTemplate(copy.search.priceUnder, { max });
-    if (range.max == null) return fillTemplate(copy.search.priceOver, { min });
-    return fillTemplate(copy.search.priceBetween, { min, max });
-  };
   const bedroomLabel = (choiceId: string) => {
     if (choiceId === 'studio') return copy.spec.bedroom.studio;
     if (choiceId === 'one') return fillTemplate(copy.spec.bedroom.one, { count: 1 });
@@ -45,7 +39,7 @@ export function SearchPanel() {
   const ready = isGuestPageReady('search');
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const href = searchHrefIfReady({ keyword, type, price, bedrooms, quick }, ready);
+    const href = searchHrefIfReady({ keyword, type, minPrice: price.minPrice, maxPrice: price.maxPrice, bedrooms, quick }, ready);
     if (href) router.push(href);
   };
 
@@ -93,17 +87,10 @@ export function SearchPanel() {
           </select>
         </div>
         <div className="nk-field nk-search__more">
-          <label htmlFor={`${id}-price`} className="nk-field__label">
+          <span id={`${id}-price-label`} className="nk-field__label">
             {copy.search.priceLabel}
-          </label>
-          <select id={`${id}-price`} value={price} onChange={(event) => setPrice(event.target.value)} className="nk-input">
-            <option value="">{copy.search.priceAny}</option>
-            {PRICE_RANGES.map((range) => (
-              <option key={range.id} value={range.id}>
-                {priceLabel(range)}
-              </option>
-            ))}
-          </select>
+          </span>
+          <PricePopover value={price} onApply={setPrice} labelId={`${id}-price-label`} />
         </div>
         <div className="nk-field nk-search__more">
           <label htmlFor={`${id}-beds`} className="nk-field__label">

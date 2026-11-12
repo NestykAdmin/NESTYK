@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import type { GuestSearchCriteria } from '@nestyk/feature-search';
 import type { PublicMoveIn } from '@nestyk/types';
@@ -11,17 +11,9 @@ import {
   OTHER_FILTERS,
   SEARCH_PROPERTY_TYPES,
 } from '../../../lib/guest-search';
+import { PriceRangeField } from './PriceRangeField';
 
 export type FilterChange = (patch: Partial<GuestSearchCriteria>, options?: { debounce?: boolean }) => void;
-
-function priceText(value: number | undefined): string {
-  return value === undefined ? '' : String(value);
-}
-
-function parsePrice(text: string): number | undefined {
-  const digits = text.replace(/\D/g, '');
-  return digits ? Number(digits) : undefined;
-}
 
 /**
  * The filter fields of the search page (design v2.3 filter panel / v2.2 filter sheet): property type, monthly rent,
@@ -31,22 +23,6 @@ function parsePrice(text: string): number | undefined {
 export function SearchFilterFields({ value, onChange, idPrefix }: { value: GuestSearchCriteria; onChange: FilterChange; idPrefix: string }) {
   const { t } = useLocale();
   const copy = t.guest;
-  const [minText, setMinText] = useState(priceText(value.minPrice));
-  const [maxText, setMaxText] = useState(priceText(value.maxPrice));
-  const minRef = useRef<HTMLInputElement>(null);
-  const maxRef = useRef<HTMLInputElement>(null);
-
-  // A chip removed above the results, or "clear all", changes the price from outside. The box the guest is typing
-  // in is left alone (review R3).
-  useEffect(() => {
-    if (document.activeElement === minRef.current) return;
-    setMinText((text) => (parsePrice(text) === value.minPrice ? text : priceText(value.minPrice)));
-  }, [value.minPrice]);
-  useEffect(() => {
-    if (document.activeElement === maxRef.current) return;
-    setMaxText((text) => (parsePrice(text) === value.maxPrice ? text : priceText(value.maxPrice)));
-  }, [value.maxPrice]);
-
   const types = value.propertyType ?? [];
   const beds = value.bedrooms ?? [];
   const toggle = <T,>(list: readonly T[], item: T): T[] | undefined => {
@@ -91,47 +67,12 @@ export function SearchFilterFields({ value, onChange, idPrefix }: { value: Guest
 
       <fieldset className="nk-filters__group">
         <legend className="nk-filters__legend">{copy.results.priceRangeLabel}</legend>
-        <div className="nk-filters__price">
-          <label className="nk-filters__price-field" htmlFor={`${idPrefix}-min`}>
-            <span className="nk-filters__hint">{copy.results.priceMin}</span>
-            <input
-              ref={minRef}
-              id={`${idPrefix}-min`}
-              className="nk-input"
-              inputMode="numeric"
-              autoComplete="off"
-              value={minText}
-              placeholder="0"
-              onBlur={() => setMinText((text) => (parsePrice(text) === value.minPrice ? text : priceText(value.minPrice)))}
-              onChange={(event) => {
-                setMinText(event.target.value);
-                onChange({ minPrice: parsePrice(event.target.value) }, { debounce: true });
-              }}
-              data-testid="searchFilters.priceMin"
-            />
-          </label>
-          <span className="nk-filters__dash" aria-hidden="true">
-            –
-          </span>
-          <label className="nk-filters__price-field" htmlFor={`${idPrefix}-max`}>
-            <span className="nk-filters__hint">{copy.results.priceMax}</span>
-            <input
-              ref={maxRef}
-              id={`${idPrefix}-max`}
-              className="nk-input"
-              inputMode="numeric"
-              autoComplete="off"
-              value={maxText}
-              placeholder="100,000"
-              onBlur={() => setMaxText((text) => (parsePrice(text) === value.maxPrice ? text : priceText(value.maxPrice)))}
-              onChange={(event) => {
-                setMaxText(event.target.value);
-                onChange({ maxPrice: parsePrice(event.target.value) }, { debounce: true });
-              }}
-              data-testid="searchFilters.priceMax"
-            />
-          </label>
-        </div>
+        <PriceRangeField
+          minPrice={value.minPrice}
+          maxPrice={value.maxPrice}
+          onChange={(price, options) => onChange(price, options)}
+          idPrefix={idPrefix}
+        />
       </fieldset>
 
       <fieldset className="nk-filters__group">

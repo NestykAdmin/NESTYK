@@ -131,3 +131,42 @@ test('a location in the URL is dropped: the page has no way to show or remove it
   assert.equal(parse('lat=13.7&lng=100.5&r=2').nearGps, undefined);
   assert.equal(search.searchHref(parse('lat=13.7&lng=100.5&type=condo')), '/search?type=condo');
 });
+
+test('price slider runs 0 – 100,000 in steps of 1,000; the far ends mean "no limit"', () => {
+  assert.deepEqual(search.PRICE_SLIDER, { min: 0, max: 100000, step: 1000 });
+  assert.deepEqual(search.sliderFromPrice(undefined, undefined), [0, 100000]);
+  assert.deepEqual(search.sliderFromPrice(15000, 30000), [15000, 30000]);
+  assert.deepEqual(search.sliderFromPrice(15500, 250000), [15000, 100000], 'typed values snap to the track');
+  assert.deepEqual(search.priceFromSlider(0, 100000), { minPrice: undefined, maxPrice: undefined });
+  assert.deepEqual(search.priceFromSlider(12000, 100000), { minPrice: 12000, maxPrice: undefined });
+  assert.deepEqual(search.priceFromSlider(0, 40000), { minPrice: undefined, maxPrice: 40000 });
+});
+
+test('the two handles never cross: each keeps at least one step from the other', () => {
+  assert.deepEqual(search.moveSliderHandle([20000, 30000], 'min', 45000), [29000, 30000]);
+  assert.deepEqual(search.moveSliderHandle([20000, 30000], 'max', 5000), [20000, 21000]);
+  assert.deepEqual(search.moveSliderHandle([20000, 30000], 'min', 12000), [12000, 30000]);
+});
+
+test('slider text: "฿x – ฿y", the top end reads "฿100,000+"', () => {
+  assert.equal(search.sliderText([0, 100000], '{max}+'), '฿0 – ฿100,000+');
+  assert.equal(search.sliderText([15000, 30000], '{max}+'), '฿15,000 – ฿30,000');
+});
+
+test('a lower bound alone reads "from", not "more than" (the bound is included)', () => {
+  const chip = search.activeFilterChips(parse('min=18000'), { ...labels, priceOver: 'ตั้งแต่ {min}' })[0];
+  assert.equal(chip.label, 'ตั้งแต่ ฿18,000');
+});
+
+test('price presets read short: all, "up to ฿10k", "฿10k–฿20k", "from ฿50k"', () => {
+  const words = { priceAny: 'ทุกช่วงราคา', priceUnder: 'ไม่เกิน {max}', priceBetween: '{min}–{max}', priceOver: 'ตั้งแต่ {min}' };
+  assert.deepEqual(search.RENT_PRESET_CHOICES.map((preset) => search.presetLabel(preset, words)),
+    ['ทุกช่วงราคา', 'ไม่เกิน ฿10k', '฿10k–฿20k', '฿20k–฿30k', '฿30k–฿50k', 'ตั้งแต่ ฿50k']);
+});
+
+test('the price button on the home search shows the chosen range, or "any price"', () => {
+  const words = { priceAny: 'ทุกช่วงราคา', priceUnder: 'ไม่เกิน {max}', priceBetween: '{min}–{max}', priceOver: 'ตั้งแต่ {min}' };
+  assert.equal(search.priceButtonText(undefined, undefined, words), 'ทุกช่วงราคา');
+  assert.equal(search.priceButtonText(12000, 30000, words), '฿12,000–฿30,000');
+  assert.equal(search.priceButtonText(12000, undefined, words), 'ตั้งแต่ ฿12,000');
+});

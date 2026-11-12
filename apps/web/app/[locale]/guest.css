@@ -2232,3 +2232,160 @@ a.nk-types__item:hover {
     min-height: 168px;
   }
 }
+
+/* Price range slider (two native range inputs on one track) */
+.nk-range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+  margin-bottom: var(--nk-space-2);
+}
+.nk-range__value {
+  margin: 0;
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-range__track {
+  position: relative;
+  height: var(--nk-tap);
+}
+.nk-range__track::before,
+.nk-range__track::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: var(--nk-radius-pill);
+}
+.nk-range__track::before {
+  left: 0;
+  right: 0;
+  background: var(--nk-color-track);
+}
+.nk-range__track::after {
+  left: var(--nk-range-from);
+  right: calc(100% - var(--nk-range-to));
+  background: var(--nk-color-brand);
+}
+.nk-range__input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.nk-range__input--top {
+  z-index: 2;
+}
+.nk-range__input::-webkit-slider-runnable-track {
+  background: none;
+  border: 0;
+}
+.nk-range__input::-moz-range-track {
+  background: none;
+  border: 0;
+}
+.nk-range__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--nk-radius-pill);
+  border: 3px solid var(--nk-color-surface);
+  background: var(--nk-color-ink);
+  box-shadow: 0 1px 4px rgba(33, 30, 30, 0.35);
+  pointer-events: auto;
+  cursor: grab;
+}
+.nk-range__input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--nk-radius-pill);
+  border: 3px solid var(--nk-color-surface);
+  background: var(--nk-color-ink);
+  box-shadow: 0 1px 4px rgba(33, 30, 30, 0.35);
+  pointer-events: auto;
+  cursor: grab;
+}
+.nk-range__input:focus-visible {
+  outline: none;
+}
+.nk-range__input:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--nk-color-focus);
+  outline-offset: 2px;
+}
+.nk-range__input:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--nk-color-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 960px) {
+  .nk-range__input::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* Price field: slider + preset chips + exact boxes; home search price button and its panel */
+.nk-price-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-chip--small {
+  min-height: 36px;
+  padding: 0 var(--nk-space-3);
+  font-size: var(--nk-text-xs);
+}
+.nk-price-pop {
+  position: relative;
+}
+.nk-price-pop__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-2);
+  text-align: left;
+  cursor: pointer;
+}
+.nk-price-pop__trigger[aria-expanded="true"] {
+  border-color: var(--nk-color-ink);
+}
+.nk-price-pop__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nk-price-pop__panel {
+  position: absolute;
+  top: calc(100% + var(--nk-space-2));
+  left: 0;
+  z-index: 60;
+  box-sizing: border-box;
+  width: 360px;
+  padding: var(--nk-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+  background: var(--nk-color-surface);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  box-shadow: var(--nk-shadow-pop);
+}
+.nk-price-pop__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--nk-space-3);
+  border-top: 1px solid var(--nk-color-border);
+}
+.nk-price-pop__apply {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-6);
+  border: 0;
+  cursor: pointer;
+}

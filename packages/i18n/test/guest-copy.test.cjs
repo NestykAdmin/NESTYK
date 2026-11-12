@@ -59,7 +59,10 @@ test('labels the shared formatters need are present', () => {
     assert.match(copy.results.showResults, /\{count\}/);
     assert.match(copy.results.filtersCount, /\{count\}/);
     assert.match(copy.results.durationChip, /\{count\}/);
-    for (const key of ['titleAll', 'titleAllNearTransit', 'bedroomsThreePlus', 'loadMoreFailed', 'listLabel', 'buyComingSoon']) assert.ok(copy.results[key], `results.${key}`);
+    assert.match(copy.results.priceFromChip, /\{min\}/);
+    for (const key of ['priceApply', 'priceClear']) assert.ok(copy.search[key], `search.${key}`);
+    assert.match(copy.results.priceOpenMax, /\{max\}/);
+    for (const key of ['priceSliderMin', 'priceSliderMax', 'titleAll', 'titleAllNearTransit', 'bedroomsThreePlus', 'loadMoreFailed', 'listLabel', 'buyComingSoon']) assert.ok(copy.results[key], `results.${key}`);
   }
 });
 

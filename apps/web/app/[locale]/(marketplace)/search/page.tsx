@@ -49,7 +49,8 @@ export default async function SearchPage({ params, searchParams }: Props) {
     quick: t.quick,
     priceUnder: t.search.priceUnder,
     priceBetween: t.search.priceBetween,
-    priceOver: t.search.priceOver,
+    // The lower bound is included, so it reads "ตั้งแต่" (from), not "มากกว่า" (more than).
+    priceOver: t.results.priceFromChip,
     studio: t.spec.bedroom.studio,
     bedroomOne: t.spec.bedroom.one,
     bedroomMany: t.spec.bedroom.many,

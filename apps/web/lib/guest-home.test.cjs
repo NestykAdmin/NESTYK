@@ -26,16 +26,15 @@ test('without a headline the title is built from the project (or type) and the r
 
 test('the search box sends the guest to /search with only the values that were chosen', () => {
   assert.equal(home.homeSearchHref({}), '/search');
-  assert.equal(home.homeSearchHref({ keyword: '  อโศก ', type: 'condo', price: '10to20k', bedrooms: 'one', quick: ['nearTransit', 'petFriendly'] }),
+  assert.equal(home.homeSearchHref({ keyword: '  อโศก ', type: 'condo', minPrice: 10000, maxPrice: 20000, bedrooms: 'one', quick: ['nearTransit', 'petFriendly'] }),
     '/search?q=%E0%B8%AD%E0%B9%82%E0%B8%A8%E0%B8%81&type=condo&min=10000&max=20000&beds=1&quick=nearTransit%2CpetFriendly');
-  assert.equal(home.homeSearchHref({ price: 'under10k', bedrooms: 'threePlus' }), '/search?max=10000&beds=3', '3 means 3 or more');
-  assert.equal(home.homeSearchHref({ price: 'over40k', bedrooms: 'studio' }), '/search?min=40000&beds=0');
+  assert.equal(home.homeSearchHref({ maxPrice: 10000, bedrooms: 'threePlus' }), '/search?max=10000&beds=3', '3 means 3 or more');
+  assert.equal(home.homeSearchHref({ minPrice: 40000, bedrooms: 'studio' }), '/search?min=40000&beds=0');
   // Values that are not in the lists (a tampered form) are dropped.
-  assert.equal(home.homeSearchHref({ type: 'castle', price: 'free', bedrooms: 'many', quick: ['hack'] }), '/search');
+  assert.equal(home.homeSearchHref({ type: 'castle', minPrice: -5, maxPrice: Number.NaN, bedrooms: 'many', quick: ['hack'] }), '/search');
 });
 
 test('price and bedroom choices match the design', () => {
-  assert.deepEqual(home.PRICE_RANGES.map((r) => r.id), ['under10k', '10to20k', '20to40k', 'over40k']);
   assert.deepEqual(home.BEDROOM_CHOICES.map((r) => r.id), ['studio', 'one', 'two', 'threePlus']);
   assert.deepEqual(home.HOME_RAILS, ['recommended', 'near_transit', 'new']);
 });

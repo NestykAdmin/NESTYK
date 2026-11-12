@@ -12,14 +12,6 @@ export const HOME_RAILS: readonly PublicFeaturedRail[] = ['recommended', 'near_t
 export const HOME_RAIL_LIMIT = 8;
 export const HOME_PROPERTY_TYPES: readonly PropertyType[] = ['condo', 'apartment', 'house', 'townhome'];
 
-/** Monthly rent choices of the search box (THB). */
-export const PRICE_RANGES: readonly { id: string; min?: number; max?: number }[] = [
-  { id: 'under10k', max: 10000 },
-  { id: '10to20k', min: 10000, max: 20000 },
-  { id: '20to40k', min: 20000, max: 40000 },
-  { id: 'over40k', min: 40000 },
-];
-
 /** Bedroom choices of the search box. The search reads 3 as "3 or more". */
 export const BEDROOM_CHOICES: readonly { id: string; beds: number[] }[] = [
   { id: 'studio', beds: [0] },
@@ -31,14 +23,17 @@ export const BEDROOM_CHOICES: readonly { id: string; beds: number[] }[] = [
 export interface HomeSearchInput {
   keyword?: string;
   type?: string;
-  price?: string;
+  /** Monthly rent bounds from the price slider (THB); a missing end means no limit. */
+  minPrice?: number;
+  maxPrice?: number;
   bedrooms?: string;
   quick?: readonly string[];
 }
 
 /** "/search?…" for the home search box. Values outside the lists above are dropped. */
 export function homeSearchHref(input: HomeSearchInput): string {
-  const price = PRICE_RANGES.find((range) => range.id === input.price);
+  const bound = (value: number | undefined) =>
+    value !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
   const bedrooms = BEDROOM_CHOICES.find((choice) => choice.id === input.bedrooms);
   const type = HOME_PROPERTY_TYPES.find((value) => value === input.type);
   const quick = (input.quick ?? []).filter((code): code is GuestQuickFilter =>
@@ -47,8 +42,8 @@ export function homeSearchHref(input: HomeSearchInput): string {
   const params = criteriaToSearchParams({
     keyword: input.keyword?.trim() || undefined,
     propertyType: type ? [type] : undefined,
-    minPrice: price?.min,
-    maxPrice: price?.max,
+    minPrice: bound(input.minPrice),
+    maxPrice: bound(input.maxPrice),
     bedrooms: bedrooms?.beds,
     quick,
   });

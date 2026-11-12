@@ -1,5 +1,13 @@
 import type { PropertyType, PublicMoveIn, PublicRoomSearchQuery } from '@nestyk/types';
-import { criteriaToSearchParams, type GuestQuickFilter, type GuestSearchCriteria } from '@nestyk/feature-search';
+import {
+  criteriaToSearchParams,
+  RENT_PRICE_LIMIT,
+  RENT_PRICE_PRESETS,
+  RENT_PRICE_STEP,
+  type GuestQuickFilter,
+  type GuestSearchCriteria,
+  type RentPricePreset,
+} from '@nestyk/feature-search';
 import { formatPublicPrice, publicSearchParams } from '@nestyk/feature-listing/public';
 
 /**
@@ -207,4 +215,77 @@ export function clearedFilters(criteria: GuestSearchCriteria, options: { keyword
     nearGps: undefined,
     durationMonths: undefined,
   });
+}
+
+/** Monthly rent slider (Mos 12 Nov 2026), on the scale shared with the app. The far ends mean "no limit". */
+export const PRICE_SLIDER = { min: 0, max: RENT_PRICE_LIMIT, step: RENT_PRICE_STEP } as const;
+/** Preset chips under the slider, the same six as the app's room filter. */
+export const RENT_PRESET_CHOICES: readonly RentPricePreset[] = RENT_PRICE_PRESETS;
+
+export interface PriceWords {
+  priceAny: string;
+  priceUnder: string;
+  priceBetween: string;
+  priceOver: string;
+}
+
+/** "฿10k" for whole thousands, "฿12,500" otherwise. */
+function shortBaht(value: number): string {
+  return value % 1000 === 0 ? `฿${value / 1000}k` : `฿${value.toLocaleString('en-US')}`;
+}
+
+/** Short chip text of a preset: "ทุกช่วงราคา", "ไม่เกิน ฿10k", "฿10k–฿20k", "ตั้งแต่ ฿50k". */
+export function presetLabel(preset: RentPricePreset, words: PriceWords): string {
+  if (preset.min === undefined && preset.max === undefined) return words.priceAny;
+  if (preset.min === undefined) return fill(words.priceUnder, { max: shortBaht(preset.max!) });
+  if (preset.max === undefined) return fill(words.priceOver, { min: shortBaht(preset.min) });
+  return fill(words.priceBetween, { min: shortBaht(preset.min), max: shortBaht(preset.max) });
+}
+
+/** Text of the price button in the home search box. */
+export function priceButtonText(minPrice: number | undefined, maxPrice: number | undefined, words: PriceWords): string {
+  return priceRangeLabel(minPrice, maxPrice, words) ?? words.priceAny;
+}
+export type SliderRange = [number, number];
+
+function snap(value: number): number {
+  const stepped = Math.round(value / PRICE_SLIDER.step) * PRICE_SLIDER.step;
+  return Math.min(PRICE_SLIDER.max, Math.max(PRICE_SLIDER.min, stepped));
+}
+
+/** Handle positions for a price filter. A typed price snaps to the nearest step; no bound sits at the end. */
+export function sliderFromPrice(minPrice: number | undefined, maxPrice: number | undefined): SliderRange {
+  const low = minPrice === undefined ? PRICE_SLIDER.min : Math.floor(Math.min(minPrice, PRICE_SLIDER.max) / PRICE_SLIDER.step) * PRICE_SLIDER.step;
+  const high = maxPrice === undefined ? PRICE_SLIDER.max : snap(maxPrice);
+  return [low, Math.max(low, high)];
+}
+
+/** The price filter for handle positions: a handle at its end of the track sets no bound. */
+export function priceFromSlider(low: number, high: number): { minPrice: number | undefined; maxPrice: number | undefined } {
+  return {
+    minPrice: low <= PRICE_SLIDER.min ? undefined : low,
+    maxPrice: high >= PRICE_SLIDER.max ? undefined : high,
+  };
+}
+
+/** Moves one handle, keeping it at least one step away from the other so they never cross. */
+export function moveSliderHandle(range: SliderRange, handle: 'min' | 'max', value: number): SliderRange {
+  const [low, high] = range;
+  const next = snap(value);
+  return handle === 'min' ? [Math.min(next, high - PRICE_SLIDER.step), high] : [low, Math.max(next, low + PRICE_SLIDER.step)];
+}
+
+function baht(value: number): string {
+  return `฿${value.toLocaleString('en-US')}`;
+}
+
+/** Text above the slider: "฿x – ฿y", the top end as "฿100,000+" (openMax template, e.g. "{max}+"). */
+export function sliderText(range: SliderRange, openMax: string): string {
+  const high = range[1] >= PRICE_SLIDER.max ? fill(openMax, { max: baht(PRICE_SLIDER.max) }) : baht(range[1]);
+  return `${baht(range[0])} – ${high}`;
+}
+
+/** Spoken value of one handle. */
+export function sliderValueText(value: number, openMax: string): string {
+  return value >= PRICE_SLIDER.max ? fill(openMax, { max: baht(PRICE_SLIDER.max) }) : baht(value);
 }

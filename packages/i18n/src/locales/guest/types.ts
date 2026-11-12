@@ -51,6 +51,8 @@ export interface GuestCopy {
     priceUnder: string;
     priceBetween: string;
     priceOver: string;
+    priceApply: string;
+    priceClear: string;
     bedroomsLabel: string;
     bedroomsAny: string;
     submit: string;
@@ -164,6 +166,10 @@ export interface GuestCopy {
     removeFilter: string;
     loadMore: string;
     showingOf: string;
+    priceFromChip: string;
+    priceOpenMax: string;
+    priceSliderMin: string;
+    priceSliderMax: string;
     titleAll: string;
     titleAllNearTransit: string;
     titleType: string;
