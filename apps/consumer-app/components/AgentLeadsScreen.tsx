@@ -21,7 +21,7 @@ import {
 } from '@nestyk/ui/native';
 import { listAgentLeads } from '../lib/agent-leads-api';
 import { leadMatchReady } from '../lib/lead-match-preview';
-import { LeadNewBadge, LeadStatusBadge, leadAvatarInitials, leadDisplayStatus, leadStatusTone } from './AgentLeadDetailBody';
+import { LEAD_AVATAR_TONE, LeadNewBadge, LeadStatusBadge, leadAvatarInitials, leadDisplayStatus, leadStatusTone } from './AgentLeadDetailBody';
 import { ViewingDateTile } from './ViewingDateTile';
 
 type LocationDraft = {
@@ -368,7 +368,6 @@ export function AgentLeadsScreen({
             <View style={styles.list}>
               {items.map((lead) => {
                 const status = leadDisplayStatus(lead);
-                const tone = STATUS_PILL_TONES[leadStatusTone(status)];
                 const match = lead.lastMatch ?? null;
                 const needsInfo = !leadMatchReady(lead);
                 const noRooms = match?.resultCount === 0;
@@ -389,7 +388,7 @@ export function AgentLeadsScreen({
                   <MobileCompactListRow
                     key={lead.id}
                     avatarLabel={leadAvatarInitials(lead.name)}
-                    avatarTone={tone}
+                    avatarTone={LEAD_AVATAR_TONE[isDark ? 'dark' : 'light']}
                     title={lead.name}
                     subtitle={locationLine(lead)}
                     meta={budget(lead)}

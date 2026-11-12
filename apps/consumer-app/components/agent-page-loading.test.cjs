@@ -63,7 +63,7 @@ function environment(platform = 'ios') {
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale: 'en', t: { agent: { leads: copy, dashboard: {} }, common: { noData: 'No data', cancel: 'Cancel' } } }), localizedError: err => err.message };
     if (name === '../lib/agent-leads-api') return { listAgentLeads: (...args) => new Promise((resolve, reject) => requests.push({ args, resolve, reject })) };
     if (name === '../lib/lead-match-preview') return { leadMatchReady: () => false };
-    if (name === './AgentLeadDetailBody') return { LeadStatusBadge: 'LeadStatusBadge', leadAvatarInitials: () => 'L', leadDisplayStatus: lead => lead.status, leadStatusTone: () => 'slate' };
+    if (name === './AgentLeadDetailBody') return { LeadStatusBadge: 'LeadStatusBadge', leadAvatarInitials: () => 'L', LEAD_AVATAR_TONE: { light: { bg: '#F1F5F9', fg: '#334155' }, dark: { bg: '#4A4545', fg: '#E7E5E4' } }, leadDisplayStatus: lead => lead.status, leadStatusTone: () => 'slate' };
     if (name === './LeadLocationPicker') return { LeadLocationPicker: 'LeadLocationPicker' };
     if (name === './ViewingDateTile') return { ViewingDateTile: 'ViewingDateTile' };
     throw new Error(`Unexpected dependency: ${name}`);

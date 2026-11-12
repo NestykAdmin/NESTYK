@@ -213,10 +213,9 @@ export function AgentLeadsPage({ workFilter = null, reloadToken, onReloadSettled
       key: "lead",
       header: web.colLead,
       cell: (lead) => {
-        const tone = leadStatusTone(leadDisplayStatus(lead));
         return (
           <span className="awl-lead">
-            <span className={`awl-avatar awl-tone-${tone}`} aria-hidden="true">
+            <span className="awl-avatar" aria-hidden="true">
               {leadAvatarInitials(lead.name)}
             </span>
             <span className="awr-room">
