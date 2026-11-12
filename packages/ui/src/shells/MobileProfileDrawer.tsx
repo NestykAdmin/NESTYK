@@ -30,7 +30,7 @@ import { UserRole } from '@nestyk/types';
 import { MobileIcon } from '../icons/MobileIcon';
 import { SelectionCheck } from '../components/SelectionCheck';
 import { AppIconName } from '../icons/types';
-import { tokens } from '../theme/tokens';
+import { roleOnDark, tokens } from '../theme/tokens';
 import { getCardElevation } from '../theme/elevation';
 import { useMobileTheme } from '../theme/ThemeContext';
 import { MobileBottomSheet } from '../components/MobileBottomSheet';
@@ -151,8 +151,12 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   const slideDistance = panelWidth + PANEL_MARGIN;
 
   const roleColor = tokens.colors.roles[activeRole] || tokens.colors.brand[500];
+  // Icons in the role colour: light step in dark mode (colour system v1.1).
+  const roleIcon = roleOnDark(roleColor, isDark);
   const mutedIcon = theme.textSecondary;
   const brandSoft = brandSoftFill(isDark);
+  // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
+  const switchOn = isDark ? tokens.colors.brand[500] : tokens.colors.primary;
   const decorOpacity = isDark ? 0.2 : 0.35;
   const decorRingColor = BRAND_YELLOW;
   const [mounted, setMounted] = useState(false);
@@ -356,7 +360,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
           <MobileIcon
             name={item.icon}
             size={opts?.nested ? 18 : 20}
-            color={opts?.nested || soon ? theme.textSecondary : roleColor}
+            color={opts?.nested || soon ? theme.textSecondary : roleIcon}
           />
           <Text style={[styles.navLabel, { color: soon ? theme.textSecondary : theme.textHeading }]}>
             {t.mobile.drawerMenu[item.labelKey]}
@@ -487,7 +491,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                   <MobileIcon
                     name={ROLE_OPTIONS.find((role) => role.key === activeRole)!.icon}
                     size={20}
-                    color={activeRole === 'admin' ? theme.textHeading : roleColor}
+                    color={activeRole === 'admin' ? theme.textHeading : roleIcon}
                   />
                 </View>
                 <View style={styles.profileText}>
@@ -526,8 +530,9 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                 <Switch
                   value={themeMode === 'dark'}
                   onValueChange={(value) => setThemeMode(value ? 'dark' : 'light')}
-                  trackColor={{ false: theme.border, true: tokens.colors.roles.tenant }}
+                  trackColor={{ false: theme.border, true: switchOn }}
                   thumbColor="#FFFFFF"
+                  {...({ activeThumbColor: '#FFFFFF' } as object)}
                 />
               </View>
               <TouchableOpacity
@@ -634,7 +639,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                           accessibilityLabel={child.comingSoon ? `${t.mobile.drawerMenu[child.labelKey]}, ${t.agent.dashboard.comingSoon}` : t.mobile.drawerMenu[child.labelKey]}
                           accessibilityState={{ disabled: Boolean(child.comingSoon) }}
                         >
-                          <MobileIcon name={child.icon} size={20} color={child.comingSoon ? theme.textSecondary : roleColor} />
+                          <MobileIcon name={child.icon} size={20} color={child.comingSoon ? theme.textSecondary : roleIcon} />
                           <Text style={[styles.navLabel, { color: child.comingSoon ? theme.textSecondary : theme.textHeading }]}>
                             {t.mobile.drawerMenu[child.labelKey]}
                           </Text>
@@ -704,7 +709,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                       <MobileIcon
                         name={role.icon}
                         size={22}
-                        color={role.key === 'admin' ? theme.textHeading : optionColor}
+                        color={role.key === 'admin' ? theme.textHeading : roleOnDark(optionColor, isDark)}
                       />
                     </View>
                     <View style={styles.profileText}>

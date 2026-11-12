@@ -94,7 +94,9 @@ export const MobileAccountSettingsBody = forwardRef<
   onCaptchaReset,
 }, ref) {
   const { t } = useLocale();
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
+  // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
+  const switchOn = isDark ? tokens.colors.brand[500] : tokens.colors.primary;
   const [settingsView, setSettingsView] = useState<SettingsView>('hub');
   const [paneWidth, setPaneWidth] = useState(0);
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -333,8 +335,9 @@ export const MobileAccountSettingsBody = forwardRef<
                   <Switch
                     value={pushEnabled}
                     onValueChange={setPushEnabled}
-                    trackColor={{ false: tokens.colors.divider, true: tokens.colors.roles.tenant }}
+                    trackColor={{ false: tokens.colors.divider, true: switchOn }}
                     thumbColor="#FFFFFF"
+                    {...({ activeThumbColor: '#FFFFFF' } as object)}
                   />
                 </View>
                 <View style={[styles.rowDivider, { borderTopColor: theme.border }]} />
@@ -346,8 +349,9 @@ export const MobileAccountSettingsBody = forwardRef<
                   <Switch
                     value={emailNotifEnabled}
                     onValueChange={setEmailNotifEnabled}
-                    trackColor={{ false: tokens.colors.divider, true: tokens.colors.roles.tenant }}
+                    trackColor={{ false: tokens.colors.divider, true: switchOn }}
                     thumbColor="#FFFFFF"
+                    {...({ activeThumbColor: '#FFFFFF' } as object)}
                   />
                 </View>
               </View>

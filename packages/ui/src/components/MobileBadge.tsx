@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { UserRole } from '@nestyk/types';
-import { tokens } from '../theme/tokens';
+import { roleOnDark, tokens } from '../theme/tokens';
+import { useMobileTheme } from '../theme/ThemeContext';
 
 export interface MobileBadgeProps {
   role?: UserRole | 'services';
@@ -18,6 +19,7 @@ export const MobileBadge: React.FC<MobileBadgeProps> = ({
   children,
   style,
 }) => {
+  const { isDark } = useMobileTheme();
   const roleColor = tokens.colors.roles[role] || tokens.colors.brand[500];
 
   const badgeStyle: ViewStyle = {
@@ -36,7 +38,7 @@ export const MobileBadge: React.FC<MobileBadgeProps> = ({
           fontSize: 12,
           lineHeight: 18,
           fontWeight: '500',
-          color: variant === 'solid' ? (role === 'guest' ? tokens.colors.primary : '#FFFFFF') : roleColor,
+          color: variant === 'solid' ? (role === 'guest' ? tokens.colors.primary : '#FFFFFF') : roleOnDark(roleColor, isDark),
         }}
       >
         {label || (typeof children === 'string' ? children : '')}

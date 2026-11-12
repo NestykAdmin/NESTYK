@@ -57,5 +57,14 @@
     "self_owner": "#92400e",
     "admin": "#334155",
     "services": "#475569"
+  },
+  "rolesOnDark": {
+    "guest": "#f8b615",
+    "tenant": "#4ade80",
+    "landlord": "#93c5fd",
+    "agent": "#f8b615",
+    "self_owner": "#fdba74",
+    "admin": "#cbd5e1",
+    "services": "#94a3b8"
   }
 }

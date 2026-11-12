@@ -33,6 +33,7 @@ import {
   SelectionChip,
   STATUS_PILL_TONES,
   tokens,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
   type MobileStatusPillToneKey,
@@ -162,7 +163,7 @@ export function AgentLeadDetailBody({
   const { width: windowWidth } = useWindowDimensions();
   const webColumns = Platform.OS === 'web' && windowWidth >= 768;
   const c = t.agent.leads;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const agentColor = tokens.colors.roles.agent;
 
   const [leadError, setLeadError] = useState<string | null>(null);
@@ -448,7 +449,7 @@ export function AgentLeadDetailBody({
         />
       );
     }
-    if (!matchResult) return <ActivityIndicator style={styles.loader} color={agentColor} />;
+    if (!matchResult) return <ActivityIndicator style={styles.loader} color={roleOnDark(agentColor, isDark)} />;
     if (!lastRun) {
       return (
         <MobileAiQuotaAction
@@ -600,7 +601,7 @@ export function AgentLeadDetailBody({
         <>
           <SheetHeader title={s.title} onClose={closeSheet} />
           {!value ? (
-            <ActivityIndicator style={styles.loader} color={agentColor} />
+            <ActivityIndicator style={styles.loader} color={roleOnDark(agentColor, isDark)} />
           ) : (
             <View style={styles.sheetBody}>
               <View style={styles.settingGroup}>
@@ -744,7 +745,7 @@ export function AgentLeadDetailBody({
                 {target === 'lost' ? c.markLost : c.markInProgress}
               </Text>
               {statusBusy && target === 'inprogress' ? (
-                <ActivityIndicator color={agentColor} />
+                <ActivityIndicator color={roleOnDark(agentColor, isDark)} />
               ) : (
                 <MobileIcon name="chevron-right" size={18} color={theme.textSecondary} />
               )}

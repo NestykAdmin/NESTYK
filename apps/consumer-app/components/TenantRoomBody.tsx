@@ -7,6 +7,7 @@ import {
   MobileIcon,
   MobileStatusPill,
   tokens,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
 } from "@nestyk/ui/native";
@@ -95,7 +96,7 @@ export function TenantRoomBody({ tenant }: { tenant: AgentTenant }) {
           {cover ? (
             <Image source={{ uri: cover.mediaUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
           ) : load.status === "loading" ? (
-            <ActivityIndicator color={tokens.colors.roles.agent} />
+            <ActivityIndicator color={roleOnDark(tokens.colors.roles.agent, isDark)} />
           ) : (
             <MobileIcon name="home" size={32} color={theme.textSecondary} />
           )}

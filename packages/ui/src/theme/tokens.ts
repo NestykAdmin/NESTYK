@@ -78,6 +78,19 @@ export const tokens = {
       admin: '#334155',      // slate 700
       services: '#475569',   // slate 600
     },
+
+    // 🌙 Role colours for text, icons and spinners in dark mode (v1.1). The deep role tones read under
+    // 2.4:1 on the dark background, so dark mode uses these light steps (≥ 6.5:1 on #211e1e and #2f2b2b).
+    // Solid role fills (hero card, solid badge) keep `roles` with white text.
+    rolesOnDark: {
+      guest: '#f8b615',      // brand yellow
+      tenant: '#4ade80',     // success 400
+      landlord: '#93c5fd',   // info 300
+      agent: '#f8b615',      // brand yellow (ink + yellow pair)
+      self_owner: '#fdba74', // warning 300
+      admin: '#cbd5e1',      // slate 300
+      services: '#94a3b8',   // slate 400
+    },
   },
 
   typography: {
@@ -104,6 +117,16 @@ export const tokens = {
     lineHeightRatio: 1.5, // บังคับสัดส่วน 1.45–1.5x สำหรับภาษาไทยป้องกันสระตกขอบ
   },
 } as const;
+
+type RoleKey = keyof typeof tokens.colors.roles;
+
+/** A role colour for text, icons or spinners: the light dark-mode step when `isDark`, other colours unchanged. */
+export function roleOnDark(color: string, isDark: boolean): string {
+  if (!isDark) return color;
+  const hex = color.toLowerCase();
+  const role = (Object.keys(tokens.colors.roles) as RoleKey[]).find((key) => tokens.colors.roles[key] === hex);
+  return role ? tokens.colors.rolesOnDark[role] : color;
+}
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
 export type TextVariant = 'h1' | 'h2' | 'h3' | 'body' | 'caption' | 'link';

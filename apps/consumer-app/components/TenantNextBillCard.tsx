@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { localizedError, useLocale } from "@nestyk/i18n";
-import { MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { MobileButton, roleOnDark, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { TenantNextBill } from "@nestyk/types";
 import { getMyNextBill } from "../lib/tenant-bills-api";
 import { billFormatters } from "../lib/bill-format";
@@ -19,7 +19,7 @@ export function TenantNextBillCard({
   onOpenBills?: () => void;
   accentColor?: string;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const copy = t.tenant.bills;
   const format = billFormatters(locale);
@@ -52,7 +52,7 @@ export function TenantNextBillCard({
   const body = { color: theme.textSecondary, fontFamily: tokens.typography.native.body };
   const strong = { color: theme.textHeading, fontFamily: tokens.typography.native.body };
 
-  if (loading && !next) return <ActivityIndicator color={accentColor} />;
+  if (loading && !next) return <ActivityIndicator color={roleOnDark(accentColor, isDark)} />;
   if (error) return <Text style={[styles.copy, styles.error]}>{error}</Text>;
   if (!next) return <Text style={[styles.copy, body]}>{copy.noUpcoming}</Text>;
 

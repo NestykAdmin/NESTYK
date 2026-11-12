@@ -16,6 +16,7 @@ import {
   SelectionCheck,
   STATUS_PILL_TONES,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from '@nestyk/ui/native';
 import { listAgentLeads } from '../lib/agent-leads-api';
@@ -66,7 +67,7 @@ export function AgentLeadsScreen({
   const { t, locale } = useLocale();
   const c = t.agent.leads;
   const dash = t.agent.dashboard;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const agentColor = tokens.colors.roles.agent;
   const memory = listMemory;
   const [activeWorkFilter, setActiveWorkFilter] = useState(workFilter);
@@ -241,7 +242,7 @@ export function AgentLeadsScreen({
       ) : (
         <>
           {activeWorkFilter === 'lead_follow_up' ? (
-            <View style={[styles.filterChip, { backgroundColor: theme.surface, borderColor: agentColor }]}>
+            <View style={[styles.filterChip, { backgroundColor: theme.surface, borderColor: roleOnDark(agentColor, isDark) }]}>
               <Text style={{ flex: 1, color: theme.textHeading, fontSize: 13, lineHeight: 19 }}>
                 {dash.filterActive.replace('{label}', dash.leadsFollowUp)}
               </Text>

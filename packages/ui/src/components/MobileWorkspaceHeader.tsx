@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MobileIcon } from '../icons/MobileIcon';
 import { MobileNestykLogo } from './MobileNestykLogo';
-import { tokens } from '../theme/tokens';
+import { roleOnDark, tokens } from '../theme/tokens';
 import { useMobileTheme } from '../theme/ThemeContext';
 
 export interface MobileWorkspaceHeaderProps {
@@ -27,7 +27,7 @@ export const MobileWorkspaceHeader: React.FC<MobileWorkspaceHeaderProps> = ({
   onMenuPress,
   onNotificationsPress,
 }) => {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
 
   return (
     <View style={styles.row}>
@@ -43,10 +43,10 @@ export const MobileWorkspaceHeader: React.FC<MobileWorkspaceHeaderProps> = ({
 
       <View style={styles.brandBlock} accessibilityRole="header">
         <View style={styles.primaryLine}>
-          <MobileNestykLogo variant="wordmark" height={24} />
+          <MobileNestykLogo variant={isDark ? 'wordmarkOnDark' : 'wordmark'} height={24} />
         </View>
         <View style={styles.workspaceRow}>
-          <View style={[styles.rule, { backgroundColor: accentColor }]} />
+          <View style={[styles.rule, { backgroundColor: roleOnDark(accentColor, isDark) }]} />
           <Text
             style={[styles.workspaceLabel, { color: theme.screenTitle || tokens.colors.primary }]}
             numberOfLines={1}

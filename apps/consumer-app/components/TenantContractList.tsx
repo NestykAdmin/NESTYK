@@ -16,6 +16,7 @@ import {
   MobileListSearchRow,
   MobileStatusPill,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import type {
@@ -51,7 +52,7 @@ export function TenantContractList({
   onSelectRoom: (room: PartyContractRoom) => void;
   onOpen: (contract: PartyContract) => void;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const copy = tenantWorkspaceCopy(locale);
   const [roomQuery, setRoomQuery] = useState("");
@@ -155,7 +156,7 @@ export function TenantContractList({
           <MobileIcon
             name="home"
             size={22}
-            color={current ? roleAccent : tokens.colors.textSecondary}
+            color={current ? roleOnDark(roleAccent, isDark) : tokens.colors.textSecondary}
           />
         </View>
         <View style={s.flex}>
@@ -296,7 +297,7 @@ export function TenantContractList({
               >
                 <View style={s.hubTop}>
                   <View style={[s.hubIcon, { backgroundColor: roleTint }]}>
-                    <MobileIcon name="home" size={20} color={roleAccent} />
+                    <MobileIcon name="home" size={20} color={roleOnDark(roleAccent, isDark)} />
                   </View>
                   <View style={s.flex}>
                     <Text style={[s.roomTitle, ink]} numberOfLines={1}>
@@ -378,7 +379,7 @@ export function TenantContractList({
                   <MobileIcon
                     name="user"
                     size={22}
-                    color={current ? roleAccent : tokens.colors.textSecondary}
+                    color={current ? roleOnDark(roleAccent, isDark) : tokens.colors.textSecondary}
                   />
                 </View>
                 <View style={s.flex}>
@@ -445,7 +446,7 @@ export function TenantContractList({
                   <MobileIcon
                     name="user"
                     size={22}
-                    color={current ? roleAccent : tokens.colors.textSecondary}
+                    color={current ? roleOnDark(roleAccent, isDark) : tokens.colors.textSecondary}
                   />
                 </View>
                 <View style={s.flex}>

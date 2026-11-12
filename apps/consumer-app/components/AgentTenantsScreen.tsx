@@ -10,6 +10,7 @@ import {
   MobileInput,
   MobileSegmentedTabs,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import type { AgentContract, AgentTenant, AgentTenantBill, AgentTenantBilling, TenantBill } from "@nestyk/types";
@@ -135,7 +136,7 @@ export function AgentTenantsScreen({
   const { t, locale } = useLocale();
   const c = t.agent.tenants;
   const d = c.detail;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const [items, setItems] = useState<AgentTenant[]>([]);
   const [selected, setSelected] = useState<AgentTenant | null>(
     entry?.tenant ?? createdTenant,
@@ -813,7 +814,7 @@ export function AgentTenantsScreen({
         value={listView}
         onChange={setView}
       />
-      {opening ? <ActivityIndicator color={tokens.colors.roles.agent} /> : null}
+      {opening ? <ActivityIndicator color={roleOnDark(tokens.colors.roles.agent, isDark)} /> : null}
       {!!error && (
         <Text accessibilityRole="alert" style={[s.body, { color: tokens.colors.danger }]}>
           {error}

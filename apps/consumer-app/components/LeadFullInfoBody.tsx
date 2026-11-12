@@ -10,6 +10,7 @@ import {
   MobileIcon,
   STATUS_PILL_TONES,
   tokens,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
   type MobileStatusPillTone,
@@ -213,7 +214,7 @@ export function LeadFullInfoBody({ lead }: { lead: AgentLead }) {
                                 formatKm(distanceKm(firstPin.latitude, firstPin.longitude, pin.latitude, pin.longitude)),
                               )}
                       </Text>
-                      <MobileIcon name="map-pin" size={16} color={tokens.colors.roles.agent} />
+                      <MobileIcon name="map-pin" size={16} color={roleOnDark(tokens.colors.roles.agent, isDark)} />
                     </Pressable>
                   ))}
                   {lead.radiusKm != null ? (

@@ -8,6 +8,7 @@ import {
   MobileIcon,
   MobileInput,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
@@ -99,7 +100,7 @@ export function FinancialDocumentForm({
 }) {
   const { t, locale } = useLocale();
   const labels = t.agent.contracts.financial;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const linked = fixedContractId != null;
   const standalone = kind === "invoice" && !linked;
   const needsHostPick = fixedContractId == null && !standalone && kind !== "receipt";
@@ -1025,7 +1026,7 @@ export function FinancialDocumentForm({
               <MobileIcon
                 name={option.icon}
                 size={22}
-                color={tokens.colors.roles.agent}
+                color={roleOnDark(tokens.colors.roles.agent, isDark)}
                 weight="bold"
               />
             </View>

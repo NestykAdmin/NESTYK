@@ -2,7 +2,7 @@ import type { ContractParty } from "@nestyk/types";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from "react-native-safe-area-context";
-import { MobileSectionHeader, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { MobileSectionHeader, roleOnDark, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { PartyContract } from "@nestyk/types";
 import { localizedError, useLocale } from "@nestyk/i18n";
 import { listMyContracts, listMyOwnedRooms, type OwnedRoom } from "../lib/party-contracts-api";
@@ -43,7 +43,7 @@ export function PartyContractsScreen({
   accentColor?: string;
   mode?: ContractParty;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const pc = t.contracts.party;
   const [rows, setRows] = useState<PartyContract[]>([]);
@@ -144,8 +144,8 @@ export function PartyContractsScreen({
                   <RefreshControl
                     refreshing={listSettled !== reloadToken || detailSettled !== reloadToken}
                     onRefresh={onRefresh}
-                    tintColor={accentColor}
-                    colors={[accentColor]}
+                    tintColor={roleOnDark(accentColor, isDark)}
+                    colors={[roleOnDark(accentColor, isDark)]}
                     progressBackgroundColor={theme.surface}
                   />
                 ) : undefined}

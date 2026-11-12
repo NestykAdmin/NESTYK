@@ -43,7 +43,7 @@ function harness(party) {
     if (name === 'react-native-safe-area-context') return { SafeAreaProvider: ({ children }) => children, SafeAreaView: 'section' };
     if (name === '@nestyk/ui/native') return {
       tokens: { colors: { brand: { 500: '#f8b615' }, roles: { owner: '#f8b615' } }, typography: { native: {} } },
-      useMobileTheme: () => ({ theme: {} }), MobileIcon: () => null, MobileSectionHeader: () => null,
+      useMobileTheme: () => ({ theme: {} }), roleOnDark: (c) => c, MobileIcon: () => null, MobileSectionHeader: () => null,
       MobileButton: ({ children }) => React.createElement('button', {}, children),
     };
     if (name === './PartyContractDetail') return { PartyContractDetail: props => { detail = props; return React.createElement('span', {}, `${props.contract.invoiceUrl} ${props.contract.receiptUrl ?? ''}`); } };

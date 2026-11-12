@@ -43,7 +43,7 @@ function formHarness(props, apiOverrides = {}, dataPatch = {}) {
     if (name === 'react-native') return { View: 'section', Text: 'span', Pressable: 'button', ActivityIndicator: () => null, BackHandler: { addEventListener: () => ({ remove() {} }) } };
     if (name === 'expo-document-picker' || name === 'expo-image-picker') return {};
     if (name === '@nestyk/i18n') return { fillTemplate, useLocale: () => ({ t: { contracts: contractsTh, common: { cancel: 'ยกเลิก' }, agent: { contracts: { financial: labels, invoice: 'ใบแจ้งหนี้', receipt: 'ใบเสร็จ' } } } }) };
-    if (name === '@nestyk/ui/native') return { tokens: { typography: { native: {} }, colors: { roles: { agent: '#f8b615' } } }, useMobileTheme: () => ({ theme: {} }), MobileIcon: () => null,
+    if (name === '@nestyk/ui/native') return { tokens: { typography: { native: {} }, colors: { roles: { agent: '#f8b615' } } }, useMobileTheme: () => ({ theme: {} }), roleOnDark: (c) => c, MobileIcon: () => null,
       MobileInput: (props) => { inputs.push(props); return React.createElement('input', { 'aria-label': props.label, value: props.value, onChange() {} }); },
       MobileBottomSheet: () => null,
       MobileButton: ({ children, onPress }) => { buttons.push({ children, onPress }); return React.createElement('button', {}, children); },

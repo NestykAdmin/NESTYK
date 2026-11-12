@@ -3,14 +3,14 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import type { LeadLocationCatalog } from '@nestyk/types';
 import { useLocale } from '@nestyk/i18n';
-import { MobileButton, MobileInput, tokens, useMobileTheme } from '@nestyk/ui/native';
+import { MobileButton, MobileInput, roleOnDark, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { fetchLeadLocations } from '../lib/agent-leads-api';
 
 export function LeadLocationPicker({ province, locations, onChange, filter = false, provinceOnly = false, disabled = false, markRequired = true, error }: {
   province: string; locations: string[]; onChange: (province: string, locations: string[]) => void;
   filter?: boolean; provinceOnly?: boolean; disabled?: boolean; markRequired?: boolean; error?: string;
 }) {
-  const { t, locale } = useLocale(); const c = t.agent.leads; const { theme } = useMobileTheme();
+  const { t, locale } = useLocale(); const c = t.agent.leads; const { theme, isDark } = useMobileTheme();
   const [catalog, setCatalog] = useState<LeadLocationCatalog>([]);
   const [loading, setLoading] = useState(true); const [failed, setFailed] = useState(false); const [retry, setRetry] = useState(0);
   const [panel, setPanel] = useState<'province' | 'areas' | null>(null); const [search, setSearch] = useState('');
@@ -34,14 +34,14 @@ export function LeadLocationPicker({ province, locations, onChange, filter = fal
         </View>
         <View style={{ paddingHorizontal: 20 }}><MobileInput placeholder={c.searchLocations} value={search} onChangeText={setSearch} /></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
-          {loading ? <ActivityIndicator color={tokens.colors.roles.agent} /> : failed ? <View style={styles.group}><Text style={{ color: theme.textSecondary }}>{c.loadError}</Text><MobileButton onPress={() => setRetry((n) => n + 1)}>{c.retry}</MobileButton></View> : <>
+          {loading ? <ActivityIndicator color={roleOnDark(tokens.colors.roles.agent, isDark)} /> : failed ? <View style={styles.group}><Text style={{ color: theme.textSecondary }}>{c.loadError}</Text><MobileButton onPress={() => setRetry((n) => n + 1)}>{c.retry}</MobileButton></View> : <>
             {(filter || panel === 'areas') && <MobileButton variant="outline" onPress={() => { onChange(panel === 'province' ? '' : province, []); if (panel === 'province') setPanel(null); }}>{panel === 'province' ? c.allProvinces : c.unspecifiedArea}</MobileButton>}
             {items.map((item) => {
               const checked = panel === 'province' ? province === item.value : locations.includes(item.value);
               return <Pressable key={item.value} accessibilityRole={panel === 'province' ? 'radio' : 'checkbox'} accessibilityState={{ checked }} onPress={() => {
                 if (panel === 'province') { onChange(item.value, item.value === province ? locations : []); setPanel(null); }
                 else onChange(province, checked ? locations.filter((a) => a !== item.value) : [...locations, item.value]);
-              }} style={[styles.select, rowStyle, checked && { borderColor: tokens.colors.roles.agent }]}>
+              }} style={[styles.select, rowStyle, checked && { borderColor: roleOnDark(tokens.colors.roles.agent, isDark) }]}>
                 <Text style={[styles.value, { color: theme.textHeading }]}>{item.label}</Text><Text style={{ color: tokens.colors.roles.agent }}>{checked ? '✓' : ''}</Text>
               </Pressable>;
             })}

@@ -34,6 +34,7 @@ import {
   MobileIcon,
   MobileInput,
   tokens,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
 } from '@nestyk/ui/native';
@@ -104,7 +105,7 @@ export function CreateLeadForm({
 }) {
   const { t, locale } = useLocale();
   const c = t.agent.leads;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const agent = tokens.colors.roles.agent;
   const [tab, setTab] = useState<FormTab>(initialTab);
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -584,7 +585,7 @@ export function CreateLeadForm({
           <Text style={[styles.heading, { color: theme.textHeading }]}>{c.profileTitle}</Text>
           <Text style={[styles.hint, { color: theme.textSecondary }]}>{c.profileSubtitle}</Text>
         </View>
-        <Text style={[styles.requiredLegend, { color: agent }]}>{c.requiredLegend}</Text>
+        <Text style={[styles.requiredLegend, { color: roleOnDark(agent, isDark) }]}>{c.requiredLegend}</Text>
       </View>
 
       <View style={styles.row2}>

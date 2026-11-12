@@ -29,6 +29,7 @@ import {
   MobileStatusPill,
   STATUS_PILL_TONES,
   tokens,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
   type MobileStatusPillTone,
@@ -267,7 +268,7 @@ export function LeadMatchedRoomBody({
               ) : room ? (
                 <MobileIcon name="camera" size={28} color={tokens.colors.divider} />
               ) : (
-                <ActivityIndicator color={tokens.colors.roles.agent} />
+                <ActivityIndicator color={roleOnDark(tokens.colors.roles.agent, isDark)} />
               )}
             </View>
           )}
@@ -446,7 +447,7 @@ export function LeadMatchedRoomBody({
               {roomError ? (
                 <Text style={[styles.body, { color: tokens.colors.placeholder }]}>{c.unknown}</Text>
               ) : (
-                <ActivityIndicator color={tokens.colors.roles.agent} />
+                <ActivityIndicator color={roleOnDark(tokens.colors.roles.agent, isDark)} />
               )}
             </View>
           ) : facts.length ? (

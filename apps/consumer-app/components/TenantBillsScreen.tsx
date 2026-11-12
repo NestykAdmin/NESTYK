@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { localizedError, useLocale } from "@nestyk/i18n";
-import { MobileBottomSheet, MobileButton, MobileIcon, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { MobileBottomSheet, MobileButton, MobileIcon, roleOnDark, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { TenantBill, TenantBillStatus, TenantNextBill } from "@nestyk/types";
 import { listMyBills, listReceivedBills, openMyBillSlip, openMyLateFee, openReceivedBillSlip, openReceivedLateFee, submitMyBillSlip, uploadMyBillSlip, uploadMyLateFeeSlip } from "../lib/tenant-bills-api";
 import { listMyContracts } from "../lib/party-contracts-api";
@@ -39,7 +39,7 @@ export function TenantBillsScreen({
   selectedRoom?: { property: string; room: string | null } | null;
   onSelectRoom?: (room: { property: string; room: string | null }) => void;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const tenantCopy = t.tenant.bills;
   const copy = mode === "owner" ? t.owner.bills : tenantCopy;
@@ -178,12 +178,12 @@ export function TenantBillsScreen({
         </View>
       )}
       {!!notice && <Text style={[styles.copy, styles.notice]}>{notice}</Text>}
-      {loading && !rows.length ? <ActivityIndicator color={accentColor} /> : null}
+      {loading && !rows.length ? <ActivityIndicator color={roleOnDark(accentColor, isDark)} /> : null}
 
       {!loading && !rows.length && !error ? (
         <View style={[styles.card, card]}>
           <View style={[styles.icon, { backgroundColor: `${accentColor}18` }]}>
-            <MobileIcon name="credit-card" size={20} color={accentColor} />
+            <MobileIcon name="credit-card" size={20} color={roleOnDark(accentColor, isDark)} />
           </View>
           <Text style={[styles.title, heading]}>{copy.empty}</Text>
           <Text style={[styles.copy, body]}>{copy.emptyHint}</Text>

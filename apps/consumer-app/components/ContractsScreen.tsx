@@ -60,6 +60,7 @@ import {
   MobileInput,
   ModePageScrollContext,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
@@ -261,7 +262,7 @@ export function appointmentBlocked(candidate: ContractCandidate | undefined): bo
 }
 
 function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled, backRef }: ContractsScreenProps) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const docs = t.agent.contracts;
   const cn = docs.notice;
@@ -632,6 +633,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     creating && steppedCreation
       ? tokens.colors.brand[500]
       : tokens.colors.roles.agent;
+  // Text, icons, spinners and selection borders in the accent: light step in dark mode (v1.1).
+  const accentText = roleOnDark(accent, isDark);
   const card = { backgroundColor: theme.surface, borderColor: theme.border };
   const title = { color: theme.textHeading };
   const muted = { color: theme.textSecondary };
@@ -2143,7 +2146,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           </>
         )}
         {errorView}
-        {busy && <ActivityIndicator color={accent} />}
+        {busy && <ActivityIndicator color={accentText} />}
         {renewing && (
           <Text style={[s.body, muted]}>
             {fillTemplate(sc.renewFrom, { no: renewing.contractNo })}
@@ -2214,7 +2217,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                   s.facts,
                   {
                     borderWidth: 1,
-                    borderColor: leadId === c.leadId ? accent : theme.border,
+                    borderColor: leadId === c.leadId ? accentText : theme.border,
                   },
                 ]}
               >
@@ -2570,12 +2573,12 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         {button(sc.backToContracts, back)}
         {errorView}
         {!!notice && (
-          <Text accessibilityRole="alert" style={[s.body, { color: accent }]}>
+          <Text accessibilityRole="alert" style={[s.body, { color: accentText }]}>
             {notice}
           </Text>
         )}
         <View style={[s.card, card]}>
-          <Text style={[s.eyebrow, { color: accent }]}>E-CONTRACT</Text>
+          <Text style={[s.eyebrow, { color: accentText }]}>E-CONTRACT</Text>
           <Text style={[s.heading, title]}>{selected.property}</Text>
           <Text style={[s.body, muted]}>
             {fillTemplate(tc.common.contractNo, { no: selected.contractNo })}
@@ -3413,7 +3416,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 <MobileIcon
                   name={option.icon}
                   size={22}
-                  color={accent}
+                  color={accentText}
                   weight="bold"
                 />
               </View>
