@@ -36,7 +36,7 @@ function widgetHtml(siteKey: string): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="${TURNSTILE_SCRIPT_URL}" async defer></script>
-<style>html,body{margin:0;background:transparent;}#box{display:flex;justify-content:flex-start;}</style>
+<style>html,body{margin:0;background:transparent;}#box{width:100%;}</style>
 </head>
 <body>
 <div id="box"></div>
@@ -51,7 +51,7 @@ function onTurnstileLoad() {
     sitekey: ${JSON.stringify(siteKey)},
     language: 'en',
     theme: 'light',
-    size: 'normal',
+    size: 'flexible',
     callback: function (token) { post({ token: token || '' }); },
     'expired-callback': clear,
     'error-callback': clear,
@@ -67,10 +67,18 @@ function onTurnstileLoad() {
 const MOBILE_BASE_URL = 'https://nestyk.com';
 
 /**
- * Turnstile's "normal" widget. Unlike hCaptcha's picture challenge (QA 6 Nov 2026), Turnstile runs any interactive
- * check inside this same box, so the frame keeps one size.
+ * Turnstile runs any interactive check inside its one box, so the frame keeps one height. The widget is "flexible": it
+ * fills the form's width like the inputs. The frame is not clipped or rounded: the widget has its own square border,
+ * and rounding it cut the border off at the corners (Jom, 12 Nov 2026).
  */
-export const WIDGET = { width: 300, height: 65 };
+export const WIDGET_HEIGHT = 65;
+
+/** Cloudflare's test site keys (1x…, 2x…, 3x…) add a "For testing only" line under the widget. */
+export const TEST_KEY_HEIGHT = 82;
+
+export function isTestSiteKey(siteKey: string): boolean {
+  return /^[123]x0{20}[A-Z]{2}$/.test(siteKey);
+}
 
 export function CaptchaField({
   resetKey,
@@ -84,9 +92,10 @@ export function CaptchaField({
   if (!siteKey) return null;
   const WebView = loadWebView();
   if (!WebView) return null;
+  const height = isTestSiteKey(siteKey) ? TEST_KEY_HEIGHT : WIDGET_HEIGHT;
   return (
     <View style={styles.slot}>
-      <View testID="captcha-frame" style={[styles.frame, WIDGET]}>
+      <View testID="captcha-frame" style={[styles.frame, { height }]}>
         <WebView
           key={resetKey}
           originWhitelist={['*']}
@@ -105,7 +114,7 @@ export function CaptchaField({
           domStorageEnabled
           scrollEnabled={false}
           setSupportMultipleWindows={false}
-          style={[styles.web, WIDGET]}
+          style={[styles.web, { height }]}
         />
       </View>
     </View>
@@ -114,10 +123,6 @@ export function CaptchaField({
 
 const styles = StyleSheet.create({
   slot: { alignSelf: 'stretch', marginTop: 10, marginBottom: 4 },
-  frame: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-  },
-  web: { backgroundColor: 'transparent' },
+  frame: { alignSelf: 'stretch' },
+  web: { width: '100%', backgroundColor: 'transparent' },
 });

@@ -16,8 +16,12 @@ declare global {
 
 export const TURNSTILE_SCRIPT_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 
-/** Turnstile's "normal" widget size. */
-const WIDGET = { width: 300, height: 65 };
+/**
+ * Turnstile's widget height. The widget is "flexible": it fills the form's width like the inputs (300px at least).
+ * The box is not clipped or rounded: the widget is Cloudflare's iframe with its own square border, so rounding it cut
+ * the border off at the corners (Jom, 12 Nov 2026). Its height is a minimum so a test key's notice line is not cut.
+ */
+export const WIDGET_HEIGHT = 65;
 
 let scriptPromise: Promise<void> | null = null;
 
@@ -69,17 +73,12 @@ export function CaptchaField({
           // Always English, whatever the browser language (Mos, 4 Nov 2026).
           language: 'en',
           theme: 'light',
-          size: 'normal',
+          size: 'flexible',
           callback: (token: string) => onTokenRef.current(token || null),
           'expired-callback': clear,
           'error-callback': clear,
           'timeout-callback': clear,
         });
-        const frame = host.current.querySelector('iframe');
-        if (frame instanceof HTMLIFrameElement) {
-          frame.style.display = 'block';
-          frame.style.borderRadius = '12px';
-        }
       })
       .catch(clear);
     return () => {
@@ -90,8 +89,8 @@ export function CaptchaField({
 
   if (!siteKey) return null;
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', marginTop: 10, marginBottom: 4 }}>
-      <div ref={host} style={{ ...WIDGET, borderRadius: 12, overflow: 'hidden' }} />
+    <div style={{ width: '100%', marginTop: 10, marginBottom: 4 }}>
+      <div ref={host} style={{ width: '100%', minHeight: WIDGET_HEIGHT }} />
     </div>
   );
 }

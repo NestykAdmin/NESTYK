@@ -14,12 +14,15 @@ const compile = (file) => ts.transpileModule(fs.readFileSync(path.join(__dirname
 }).outputText;
 const source = compile('CaptchaField.tsx');
 
-function load({ siteKey = randomUUID(), react = React, WebView, missingModule = false, counter = { loads: 0 } } = {}) {
+function load({ siteKey = randomUUID(), react = React, WebView, missingModule = false, counter = { loads: 0 }, views = [] } = {}) {
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', source)((id) => {
     if (id === 'react') return react;
     if (id === 'react-native') return {
-      View: ({ children }) => React.createElement('div', null, children),
+      View: (props) => {
+        views.push(props);
+        return React.createElement('div', null, props.children);
+      },
       StyleSheet: { create: (styles) => styles },
     };
     if (id === '../lib/auth/captcha-site-key') return { captchaSiteKey: () => siteKey };
@@ -35,6 +38,7 @@ function load({ siteKey = randomUUID(), react = React, WebView, missingModule = 
 
 function fixture({ siteKey = randomUUID(), forwardRef = true, missingModule = false } = {}) {
   const webviews = [];
+  const views = [];
   const tokens = [];
   const counter = { loads: 0 };
   const renderWebView = (props) => {
@@ -42,12 +46,12 @@ function fixture({ siteKey = randomUUID(), forwardRef = true, missingModule = fa
     return React.createElement('iframe', { srcDoc: props.source.html });
   };
   const WebView = forwardRef ? React.forwardRef((props) => renderWebView(props)) : renderWebView;
-  const exports = load({ siteKey, WebView, missingModule, counter });
+  const exports = load({ siteKey, WebView, missingModule, counter, views });
   const markup = renderToStaticMarkup(React.createElement(exports.CaptchaField, {
     resetKey: 0,
     onToken: (token) => tokens.push(token),
   }));
-  return { markup, webviews, tokens, siteKey, moduleLoads: counter.loads, exports };
+  return { markup, webviews, views, tokens, siteKey, moduleLoads: counter.loads, exports };
 }
 
 /** Runs the WebView page's script with a stand-in for Cloudflare's `turnstile` global. */
@@ -115,13 +119,42 @@ test('a message that is not JSON clears the token instead of crashing', () => {
   assert.deepEqual(view.tokens, [null]);
 });
 
-test('the app frame is Turnstile-sized: the widget box, with no separate challenge page', () => {
+const flat = (style) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
+
+test('the app widget fills the form width at Turnstile height, with no separate challenge page', () => {
   const view = fixture();
-  assert.deepEqual(view.exports.WIDGET, { width: 300, height: 65 });
-  const style = Object.assign({}, ...[view.webviews[0].style].flat(Infinity).filter(Boolean));
-  assert.equal(style.width, 300);
+  assert.equal(view.exports.WIDGET_HEIGHT, 65);
+  assert.match(view.webviews[0].source.html, /size: 'flexible'/);
+  assert.match(view.webviews[0].source.html, /#box\{width:100%;\}/);
+  const style = flat(view.webviews[0].style);
+  assert.equal(style.width, '100%');
   assert.equal(style.height, 65);
   assert.equal(view.exports.challengeHeight, undefined, 'the hCaptcha challenge page sizing is gone');
+});
+
+test('the app frame is not rounded or clipped, so the widget keeps its own border at the corners', () => {
+  const frame = fixture().views.find((props) => props.testID === 'captcha-frame');
+  const style = flat(frame.style);
+  assert.equal(style.borderRadius, undefined);
+  assert.equal(style.overflow, undefined);
+  assert.equal(style.height, 65);
+});
+
+test("a Cloudflare test site key gets room for its 'For testing only' line in the app", () => {
+  const view = fixture({ siteKey: '1x00000000000000000000AA' });
+  assert.equal(view.exports.isTestSiteKey('1x00000000000000000000AA'), true);
+  assert.equal(view.exports.isTestSiteKey('3x00000000000000000000FF'), true);
+  assert.equal(view.exports.isTestSiteKey('0x4AAAAAAF91u7HRwHF1pXbS'), false);
+  assert.equal(flat(view.webviews[0].style).height, view.exports.TEST_KEY_HEIGHT);
+  assert.ok(view.exports.TEST_KEY_HEIGHT > view.exports.WIDGET_HEIGHT);
+});
+
+test('the web widget fills the form width and is not rounded or clipped', () => {
+  const text = fs.readFileSync(path.join(__dirname, 'CaptchaField.web.tsx'), 'utf8');
+  assert.match(text, /size: 'flexible'/);
+  assert.match(text, /minHeight: WIDGET_HEIGHT/, 'a minimum height, so a test key notice line is not cut');
+  assert.doesNotMatch(text, /overflow: 'hidden'/);
+  assert.doesNotMatch(text, /borderRadius/);
 });
 
 test('Turnstile always shows in English on web and in the app (Mos, 4 Nov 2026)', () => {
