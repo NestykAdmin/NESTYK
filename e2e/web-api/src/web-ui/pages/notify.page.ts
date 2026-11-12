@@ -11,4 +11,20 @@ export class Notify {
   toast(tone: 'success' | 'error' | 'info', text: string): Locator {
     return this.page.getByTestId(`notify.toast.${tone}`).filter({ hasText: text });
   }
+
+  /**
+   * หน้าต่างให้เลือกที่แอปใช้แทน Alert.alert เมื่อมีปุ่ม 2 ปุ่มขึ้นไป หรือมีปุ่มที่ทำงานเมื่อกด (lib/web-notify.ts:44-48 ที่ 5dff89e)
+   *   <WebDialog testID="notify.dialog"> (WebNotifier.web.tsx:106-112, agent-web/ui/WebDialog.tsx:38 ส่งออกเป็น data-testid)
+   */
+  get dialog(): Locator {
+    return this.page.getByTestId('notify.dialog');
+  }
+
+  /**
+   * ปุ่มในหน้าต่าง: data-testid "notify.dialog.<style ของปุ่ม หรือ default>" (WebNotifier.web.tsx:114-123)
+   * กด Esc หรือพื้นหลังเท่ากับกดปุ่ม cancel (:100-105) จึงห้ามปิดหน้าต่างด้วยวิธีนั้นถ้าไม่ต้องการให้ปุ่ม cancel ทำงาน
+   */
+  dialogButton(style: 'cancel' | 'default' | 'destructive'): Locator {
+    return this.page.getByTestId(`notify.dialog.${style}`);
+  }
 }

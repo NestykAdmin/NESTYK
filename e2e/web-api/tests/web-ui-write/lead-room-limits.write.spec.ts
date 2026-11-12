@@ -30,13 +30,15 @@ import { E2E_PREFIX, findQaData, onCleanup, QA_LEAD_LABEL, restoreLead, runClean
  *     ถ้าเก็บกวาดล้ม afterEach จะแดงในรอบนั้น ข้อ footprint ไม่จับกรณีนี้
  *   - ข้อปุ่ม Edit ค้นห้องที่ไม่ใช่ของเทสด้วยชื่อ (ไม่บันทึกคำค้นในชื่อขั้น และ error ของการค้นไม่แสดงคำค้น) ถ้าเปิดห้องนั้นไม่สำเร็จ
  *     error-context.md จะมีหน้ารายการที่กรองด้วยชื่อนั้น (ข้อตกลงเรื่องไฟล์ผลใน README หัวข้อ "รายงาน": อย่าแนบหรือ commit)
+ * 2 ข้อท้ายไฟล์ (เพิ่ม 11 พ.ย. 2026 เคสของ d3bcf28 ที่ Jom ฝาก) อ้างเลขบรรทัดของ W ที่ qa/e2e 5dff89e และแก้คำตอบ GET /agent/listings/<id> ในเบราว์เซอร์
+ *   (เติม promo หรือทำให้วันเข้าอยู่เป็น null) คำขอบันทึกถูกตอบในเบราว์เซอร์เหมือนข้อวันเข้าอยู่ ไม่ถึง API
  * ข้อสงสัยข้อ "จำนวนนัดนับนัดที่ยกเลิก" ปิดด้วยโค้ดแล้ว ไม่ต้องเทส: รายการแสดงนัดที่ยกเลิกแบบจางด้วย (LeadViewingsSection.tsx:22-26, :67, :91)
  */
 
 /** ความยาวสูงสุดของเหตุผล lost ที่ API รับ (parseLostReason: agent-leads.service.ts:369) และเพดานของช่องฝั่งแอป (LOST_REASON_MAX: AgentLeadDetailBody.tsx ที่ fc1a351) */
 const LOST_REASON_MAX = 500;
 
-/** วันนี้ตามเวลา Bangkok (YYYY-MM-DD) เบราว์เซอร์ของชุดนี้ตั้ง timezoneId Asia/Bangkok (todayIsoDate ของแอปใช้เวลาเครื่อง: MoveInDateField.tsx:10-16) */
+/** วันนี้ตามเวลา Bangkok (YYYY-MM-DD) เบราว์เซอร์ของชุดนี้ตั้ง timezoneId Asia/Bangkok (playwright.web-ui.config.ts:49 ชุด write ใช้ค่าเดียวกัน) (todayIsoDate ของแอปใช้เวลาเครื่อง: MoveInDateField.tsx:10-16) */
 function bangkokToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
@@ -215,4 +217,197 @@ test('opening and saving a room whose move-in date has passed keeps that date', 
   const sent = (saved as { availableFromDate?: string } | null)?.availableFromDate;
   test.info().annotations.push({ type: 'วันเข้าอยู่', description: `เดิม ${room.date} ส่ง ${sent} วันนี้ ${today}` });
   expect(sent, 'วันเข้าอยู่ที่จะบันทึก').toBe(room.date);
+});
+
+/** ห้องของเทสหน้าเว็บ (E2E-WIZ จาก RW2) ที่วันเข้าอยู่ก่อนวันนี้ และค้นด้วยชื่อเจอ หรือ null */
+async function pastMoveInWizRoom(api: StagingApi, today: string): Promise<{ id: number; q: string; date: string } | null> {
+  const wizRooms = (await api.listings(`${E2E_PREFIX}WIZ-`)).items.filter((row) => (row.listingTitle ?? '').startsWith(`${E2E_PREFIX}WIZ-`));
+  for (const row of wizRooms) {
+    const detail = await api.listing(row.id);
+    if (!detail.availableFromDate || detail.availableFromDate >= today) continue;
+    const q = await findableBy(api, row.id, row.listingTitle as string);
+    if (q) return { id: row.id, q, date: detail.availableFromDate };
+  }
+  return null;
+}
+
+/**
+ * ตอบคำขอบันทึกห้องในเบราว์เซอร์ และจดเนื้อคำขอทุกครั้ง คำขอไม่ถึง API (route ของ page ทำงานก่อนตัวกันของ context)
+ * ต้องเรียกก่อนกด Edit path ต้องเท่ากันทั้งเส้น (lib/agent-listings-api.ts:188-192 ส่ง PATCH /agent/rooms/<id>)
+ */
+async function answerRoomSave(page: Page, roomId: number): Promise<Record<string, unknown>[]> {
+  const saved: Record<string, unknown>[] = [];
+  await page.route(
+    (url) => url.pathname === `/api/v1/agent/rooms/${roomId}`,
+    (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback();
+      saved.push(route.request().postDataJSON() as Record<string, unknown>);
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: roomId }) });
+    },
+  );
+  return saved;
+}
+
+/**
+ * แก้คำตอบของ GET /agent/listings/<id> ก่อนถึงหน้าเว็บ (หน้ารายละเอียดเรียกเส้นนี้ตอนเปิดและหลังบันทึก: AgentRoomDetailModal.web.tsx:80-101, :249)
+ * คำขอจริงยังไปถึง API (อ่านอย่างเดียว) path ต้องเท่ากันทั้งเส้น เพราะ /agent/listings/<id>/share-links เป็นอีกเส้น
+ */
+async function editRoomDetailAnswer(page: Page, roomId: number, edit: (detail: Record<string, unknown>) => void): Promise<void> {
+  await page.route(
+    (url) => url.pathname === `/api/v1/agent/listings/${roomId}`,
+    async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      const response = await route.fetch();
+      if (!response.ok()) return route.fulfill({ response });
+      const detail = (await response.json()) as Record<string, unknown>;
+      edit(detail);
+      return route.fulfill({ response, json: detail });
+    },
+  );
+}
+
+/** promo ที่เทสเติมให้เมื่อห้องไม่มี (ห้องที่ RW2 สร้างไม่มี promo: หัวข้อ promo มีในหน้าแก้เท่านั้น W:72-75 CREATE_STEPS ไม่มีหัวข้อ 7) */
+const QA_PROMO_TITLE = `${E2E_PREFIX}promo copy`;
+
+/**
+ * เคสของ d3bcf28 ข้อ 2 (Jom 10 พ.ย. 2026): ห้องที่วันเข้าอยู่ผ่านมาแล้วและมี promo เปิดหัวข้ออื่นแล้วกด Done โดยไม่แก้อะไร ต้องไม่ถูกเตือนว่า promo ไม่ตรง
+ *   เดิม: ตอนกด Done ลายนิ้วมือของ promo ใช้วันที่ถูกเปลี่ยนเป็นวันนี้ เทียบกับวันดิบตอนเปิดหน้า จึงต่างกันเอง (W:1680-1688) แล้วตอน Save ขึ้นหน้าต่างเตือน (W:2167-2183)
+ *   แก้: ถ้ายังไม่แตะช่องวันที่ ใช้วันเดิมทั้ง 2 ฝั่ง (W:1498-1503 กับ :668)
+ * หัวข้อที่เปิดคือ Room details (ช่องวันเข้าอยู่อยู่ในหัวข้อนี้ W:2913-2926 เทสไม่แตะช่องนั้น)
+ * ขั้นที่ 3 เป็นกรณีควบคุม: แก้ค่าเช่า (อยู่ในลายนิ้วมือ W:1520-1525) แล้วต้องเห็นหน้าต่างเตือน เพื่อยืนยันว่าตัวหาหน้าต่างใช้ได้ และห้องนี้มี promo จริง
+ * คำขอบันทึกทุกครั้งถูกตอบในเบราว์เซอร์ ไม่ถึง API ข้อมูลห้องไม่ถูกเปลี่ยน
+ * ถ้าห้องไม่มี promo เทสเติม promoTitle ในคำตอบ GET ให้ (annotation บอกว่าเติมหรือไม่)
+ *   ข้อจำกัด: เมื่อเทสเติมเอง ข้อนี้จับไม่ได้ว่า API ยังคืน promoTitle หรือ description ให้ห้องที่มี promo จริงหรือไม่
+ *   และยังไม่ได้ลองทางที่ห้องมีแค่ description (W:645 ใช้ promoTitle || description) (test-reviewer 12 พ.ย. 2026)
+ * ถ้าแดงที่ขั้นที่ 2 ทั้งที่ไม่ได้แตะวันที่ ให้ดูช่องอื่นของลายนิ้วมือที่ค่าตอนเปิดกับตอนกด Done อาจต่างกันเอง เช่น advance/deposit ของแถวราคา (W:665-666 กับ :580-583)
+ */
+test('a room with a past move-in date and promo copy saves without the stale-copy prompt when nothing was edited', async ({ page, loginAs }) => {
+  await blockGoogle(page);
+  await loginAs('agent');
+  const api = await StagingApi.of(page);
+  const today = bangkokToday();
+  const room = await pastMoveInWizRoom(api, today);
+  test.skip(!room, `ยังไม่มีห้อง E2E-WIZ ที่วันเข้าอยู่ก่อนวันนี้ (${today}) และค้นด้วยชื่อเจอ`);
+  const target = room as { id: number; q: string; date: string };
+
+  // แอปถือว่าห้องมี promo เมื่อมี promoTitle หรือ description อย่างใดอย่างหนึ่ง (AgentRoomEditor.tsx:27-28, W:645)
+  //   จดจำนวน (ไม่จดเนื้อหา) ของช่องอื่นในลายนิ้วมือที่ค่าตอนเปิดกับตอนกด Done อาจต่างกันเอง ไว้ดูถ้าขั้นที่ 2 แดง
+  let promoAdded = false;
+  let detailEdited = false;
+  let fingerprintRisks = '';
+  await editRoomDetailAnswer(page, target.id, (detail) => {
+    const title = typeof detail.promoTitle === 'string' ? detail.promoTitle.trim() : '';
+    const description = typeof detail.description === 'string' ? detail.description.trim() : '';
+    if (!title && !description) {
+      detail.promoTitle = QA_PROMO_TITLE;
+      promoAdded = true;
+    }
+    detailEdited = true;
+    const prices = Array.isArray(detail.prices) ? (detail.prices as Record<string, unknown>[]) : [];
+    const noTerms = prices.filter((price) => price.advanceRentMonths == null || price.depositMonths == null).length;
+    const nearby = Array.isArray(detail.nearbyPlaces) ? detail.nearbyPlaces.length : 0;
+    const custom = Array.isArray(detail.customFacilities) ? detail.customFacilities.length : 0;
+    fingerprintRisks = `แถวราคา ${prices.length} (ไม่มี advance/deposit ${noTerms}) nearby ${nearby} customFacilities ${custom}`;
+  });
+  const saved = await answerRoomSave(page, target.id);
+  const notify = new Notify(page);
+
+  // ขั้นที่ 1: Edit > Room details แล้วกด Done โดยไม่แก้อะไร (รอให้ชื่อประกาศขึ้นในช่องก่อน = ข้อมูลห้องถูกใส่ในฟอร์มแล้ว)
+  const detail = await openRoom(page, target.id, target.q);
+  expect(detailEdited, 'คำตอบ GET ของห้องต้องผ่านตัวแก้ของเทสก่อนเปิดหน้าแก้ (ห้องจึงมี promo แน่ ไม่อย่างนั้นแอปไม่ตรวจว่า promo ไม่ตรง W:645, :1681-1685)').toBe(true);
+  test.info().annotations.push({ type: 'promo', description: `${promoAdded ? 'เทสเติม promoTitle ในคำตอบ GET' : 'ห้องมี promo อยู่แล้ว'} | ${fingerprintRisks}` });
+  await detail.edit.click();
+  const wizard = new RoomWizard(page);
+  await expect(wizard.saveChanges).toBeVisible();
+  await wizard.section(WRITE.stepLayout).click();
+  await expect(wizard.listingName).toHaveValue(target.q);
+  await wizard.done.click();
+
+  // ขั้นที่ 2: Save changes ต้องส่ง PATCH ทันที ถ้ามีหน้าต่างเตือน แอปจะยังไม่ส่งจนกว่าจะกดปุ่มในหน้าต่าง (W:2167-2183)
+  await expect(wizard.saveChanges).toBeVisible();
+  await wizard.saveChanges.click();
+  await expect
+    .poll(() => saved.length, {
+      message: `คำขอ PATCH ไม่ถูกส่งหลังกด Save changes (ถ้ามีหน้าต่างเตือน promo ค้างอยู่ แปลว่าแอปถือว่า promo ไม่ตรงทั้งที่ไม่ได้แก้อะไร สาเหตุอาจเป็นวันเข้าอยู่ หรือช่องอื่นของลายนิ้วมือ: ${fingerprintRisks})`,
+    })
+    .toBe(1);
+  // ตัวตัดสินของขั้นนี้คือ poll ข้างบน: ถ้าแอปถือว่า promo ล้าสมัย จะเปิดหน้าต่างแล้วไม่ส่ง PATCH (W:2167-2183) และหน้าต่างไม่ปิดเอง
+  //   บรรทัดถัดไปยืนยันซ้ำเท่านั้น (toHaveCount รอจนนับได้ 0 จึงไม่ได้พิสูจน์ว่าหน้าต่าง "ไม่เคยขึ้น")
+  await expect(notify.dialog, 'ต้องไม่มีหน้าต่างเตือน').toHaveCount(0);
+  test.info().annotations.push({ type: 'วันเข้าอยู่', description: `เดิม ${target.date} ส่ง ${String(saved[0].availableFromDate)} วันนี้ ${today}` });
+  expect(saved[0].availableFromDate, 'วันเข้าอยู่ที่จะบันทึกต้องเป็นค่าเดิม (ไม่ได้แตะช่องวันที่)').toBe(target.date);
+  // lib/agent-listings-api.ts:190 ตัด promoCopyStale ออกก่อนส่ง ช่องนี้จึงต้องไม่อยู่ในคำขอ
+  expect(Object.keys(saved[0]), 'ช่องในคำขอ').not.toContain('promoCopyStale');
+
+  // ขั้นที่ 3 (กรณีควบคุม ไม่ใช่สิ่งที่ชื่อเทสสัญญา: ถ้าแดงตั้งแต่ขั้นนี้ไป แปลว่าการเตือน promo พังหรือหน้าจอเปลี่ยน ไม่ใช่เรื่องวันเข้าอยู่): หลังบันทึก หน้ากลับไปที่รายละเอียด (AgentRoomDetailModal.web.tsx:241-249) เปิดแก้อีกครั้ง แก้ค่าเช่า แล้ว Save ต้องเห็นหน้าต่างเตือน
+  //   และต้องยังไม่ส่ง PATCH ครั้งที่ 2 กดปุ่ม "Edit listing copy" (ไม่บันทึก: W:2176-2180) แล้วจบ ค่าเช่าที่แก้ไม่ถูกบันทึก
+  await expect(detail.edit).toBeVisible();
+  await detail.edit.click();
+  await expect(wizard.saveChanges).toBeVisible();
+  await wizard.section(WRITE.stepPricing).click();
+  await wizard.leaseCards.first().click();
+  await expect(wizard.monthlyRent).not.toHaveValue('');
+  const rent = Number(await wizard.monthlyRent.inputValue());
+  expect(Number.isFinite(rent) && rent > 0, 'ค่าเช่าเดิมในฟอร์มต้องเป็นตัวเลข').toBe(true);
+  await wizard.monthlyRent.fill(String(rent + 1));
+  await wizard.applyLeaseChanges.click();
+  await wizard.done.click();
+  await expect(wizard.saveChanges).toBeVisible();
+  await wizard.saveChanges.click();
+  await expect(notify.dialog, 'แก้ค่าเช่าแล้วต้องเห็นหน้าต่างเตือน promo').toBeVisible();
+  await expect(notify.dialog).toContainText(WRITE.promoStaleAlertTitle);
+  expect(saved.length, 'ระหว่างที่หน้าต่างเตือนเปิดอยู่ต้องยังไม่ส่ง PATCH ครั้งที่ 2').toBe(1);
+  await notify.dialogButton('default').click();
+  await expect(notify.dialog).toHaveCount(0);
+  // ปุ่มนี้เปิดหัวข้อ 7 ซึ่งมีปุ่ม Done (W:2176-2180) ถ้าแอปบันทึกแทน หน้าแก้จะปิด (AgentRoomDetailModal.web.tsx:241-243) รอให้เห็นปุ่ม Done ก่อนนับ
+  await expect(wizard.done).toBeVisible();
+  expect(saved.length, 'ปุ่ม Edit listing copy ต้องไม่บันทึก').toBe(1);
+});
+
+/**
+ * เคสของ d3bcf28 ข้อ 1 ส่วนที่ 2 (Jom 10 พ.ย. 2026): ห้องที่ไม่มีวันเข้าอยู่ กด Save โดยไม่แตะช่องวันที่ ยังต้องส่งวันนี้เหมือนเดิม
+ *   ฐานข้อมูลไม่มีห้องแบบนี้ (available_from_date เป็น NOT NULL: Jom แจ้ง 11 พ.ย. 2026) เทสจึงแก้คำตอบ GET ให้ availableFromDate เป็น null
+ *   โค้ด: W:561 ตั้งช่องเป็นวันนี้ และ W:2126-2129 ส่งวันนี้เมื่อไม่มีวันเดิม (storedMoveInDate(null) ได้ค่าว่าง W:65-68)
+ * วันนี้ตามเวลาเครื่องของเบราว์เซอร์ (MoveInDateField.tsx:10-16 ชุดนี้ตั้ง timezoneId Asia/Bangkok: playwright.web-ui.config.ts:49) อ่านก่อนและหลังกด Save
+ *   ครอบแค่ช่วงตั้งแต่กดจนแอปสร้างเนื้อคำขอ ถ้าเที่ยงคืนผ่านไประหว่างกด Edit กับกด Save แอปจะตรวจว่าวันในช่องผ่านมาแล้ว (W:1346-1354)
+ *   และไม่ส่งคำขอ ข้อนี้จะแดงด้วย "คำขอ PATCH ไม่ถูกส่ง" ทั้งที่แอปทำถูก ให้รันซ้ำหลังเที่ยงคืน (test-reviewer 12 พ.ย. 2026)
+ * คำขอบันทึกถูกตอบในเบราว์เซอร์ ไม่ถึง API
+ */
+test('a room without a move-in date is saved with today when the date was not touched', async ({ page, loginAs }) => {
+  await blockGoogle(page);
+  await loginAs('agent');
+  const api = await StagingApi.of(page);
+  const wizRooms = (await api.listings(`${E2E_PREFIX}WIZ-`)).items.filter((row) => (row.listingTitle ?? '').startsWith(`${E2E_PREFIX}WIZ-`));
+  let target: { id: number; q: string } | null = null;
+  for (const row of wizRooms) {
+    const q = await findableBy(api, row.id, row.listingTitle as string);
+    if (q) {
+      target = { id: row.id, q };
+      break;
+    }
+  }
+  test.skip(!target, 'ไม่มีห้อง E2E-WIZ ที่ค้นด้วยชื่อเจอ');
+  const room = target as { id: number; q: string };
+
+  let nulled = 0;
+  await editRoomDetailAnswer(page, room.id, (detail) => {
+    detail.availableFromDate = null;
+    nulled += 1;
+  });
+  const saved = await answerRoomSave(page, room.id);
+
+  // ขั้นที่ 1: เปิดรายละเอียดห้อง (คำตอบ GET ถูกแก้ให้ไม่มีวันเข้าอยู่) แล้วกด Edit
+  const detail = await openRoom(page, room.id, room.q);
+  expect(nulled, 'คำตอบ GET ของห้องต้องถูกแก้ก่อนเปิดหน้าแก้').toBeGreaterThan(0);
+  await detail.edit.click();
+  const wizard = new RoomWizard(page);
+  await expect(wizard.saveChanges).toBeVisible();
+  // ขั้นที่ 2: Save changes ทันทีโดยไม่แตะช่องวันที่ วันเข้าอยู่ที่ส่งต้องเป็นวันนี้
+  const before = bangkokToday();
+  await wizard.saveChanges.click();
+  await expect.poll(() => saved.length, { message: 'คำขอ PATCH ไม่ถูกส่ง' }).toBe(1);
+  const after = bangkokToday();
+  const sent = saved[0].availableFromDate;
+  test.info().annotations.push({ type: 'วันเข้าอยู่', description: `เดิม ไม่มี (แก้คำตอบ GET) ส่ง ${String(sent)} วันนี้ ${after}` });
+  expect([before, after], 'วันเข้าอยู่ที่จะบันทึกต้องเป็นวันนี้').toContain(sent);
 });

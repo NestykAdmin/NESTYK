@@ -250,6 +250,7 @@ export const WRITE = {
   roomCreated: 'Room created', // agent.createRoom.successTitle :1495
   roomEdit: 'Edit', // agent.listings.edit :2055
   roomSaveChanges: 'Save changes', // agent.listings.saveChanges :1979
+  promoStaleAlertTitle: 'Listing copy may be out of date', // agent.createRoom.promoStaleAlertTitle :1851 (ที่ 5dff89e)
   leadSaved: 'Lead saved', // agent.leads.saved :889
 } as const;
 
