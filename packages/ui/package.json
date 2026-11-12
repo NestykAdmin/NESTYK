@@ -17,6 +17,11 @@
       "types": "./src/consent/cookieConsent.ts",
       "default": "./src/consent/cookieConsent.ts"
     },
+    "./cookie-consent-panel": {
+      "types": "./src/consent/CookieConsentPanel.tsx",
+      "default": "./src/consent/CookieConsentPanel.tsx"
+    },
+    "./cookie-consent.css": "./src/consent/cookie-consent.css",
     "./public-footer": {
       "types": "./src/shells/PublicFooter.tsx",
       "default": "./src/shells/PublicFooter.tsx"

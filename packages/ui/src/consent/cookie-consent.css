@@ -1,0 +1,370 @@
+/*
+ * Cookie consent panel (design B). Shared by the guest web (apps/web) and the agent web (consumer-app web).
+ * No colours here: each web sets --ck-ink, --ck-on-ink, --ck-surface, --ck-text, --ck-muted, --ck-border,
+ * --ck-accent, --ck-accent-soft, --ck-badge-bg, --ck-switch-on, --ck-switch-off, --ck-switch-locked,
+ * --ck-backdrop, --ck-shadow, --ck-font, --ck-font-heading, and optionally --ck-heading (titles; default --ck-ink),
+ * --ck-focus (focus ring; default --ck-accent), --ck-badge-text (default --ck-muted) and --ck-bottom-offset
+ * (height of a bottom tab bar). While a docked bar reserves space, <html> has the class ck-reserving.
+ * --ck-docked: 1 marks the layouts where the first view sits across the bottom; the panel then publishes
+ * its height as --ck-reserve on <html>.
+ */
+
+/* first visit: a card, or a bar docked at the bottom; never covers the whole page */
+.ck-bar {
+  --ck-docked: 0;
+  position: fixed;
+  z-index: 900;
+  left: 24px;
+  bottom: 24px;
+  box-sizing: border-box;
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "icon text"
+    "actions actions"
+    "links links";
+  align-items: start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--ck-border);
+  border-radius: 16px;
+  background: var(--ck-surface);
+  color: var(--ck-text);
+  box-shadow: var(--ck-shadow);
+  font-family: var(--ck-font);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.ck-icon {
+  grid-area: icon;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--ck-accent-soft);
+  color: var(--ck-heading, var(--ck-ink));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ck-text {
+  grid-area: text;
+  margin: 0;
+  align-self: center;
+}
+.ck-bar .ck-actions {
+  grid-area: actions;
+}
+.ck-links {
+  grid-area: links;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.ck-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* "Accept all" and "Necessary only" share one style: neither choice is pushed. */
+.ck-btn {
+  flex: 1 1 140px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--ck-ink);
+  border-radius: 999px;
+  background: var(--ck-ink);
+  color: var(--ck-on-ink);
+  font: 600 14px var(--ck-font);
+  cursor: pointer;
+}
+.ck-link {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ck-ink);
+  font: 600 14px var(--ck-font);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ck-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ck-muted);
+  font-size: 13px;
+  text-underline-offset: 2px;
+}
+.ck-btn:focus-visible,
+.ck-link:focus-visible,
+.ck-more:focus-visible,
+.ck-close:focus-visible {
+  outline: 2px solid var(--ck-focus, var(--ck-accent));
+  outline-offset: 2px;
+}
+
+/* guest web: phones and tablets (<= 960px) float the card above the bottom tab bar */
+@media (max-width: 960px) {
+  .ck-bar[data-site="guest"] {
+    --ck-docked: 1;
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--ck-bottom-offset, 0px) + 8px);
+    width: auto;
+    max-height: calc(100vh - var(--ck-bottom-offset, 0px) - 16px);
+  }
+}
+
+/* agent web: <= 1024px the first view is a bar across the bottom */
+@media (max-width: 1024px) {
+  .ck-bar[data-site="agent"] {
+    --ck-docked: 1;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "icon text links actions";
+    align-items: center;
+    gap: 16px;
+    padding: 12px 24px;
+    border-width: 1px 0 0;
+    border-radius: 0;
+  }
+  .ck-bar[data-site="agent"] .ck-actions {
+    flex-wrap: nowrap;
+  }
+  .ck-bar[data-site="agent"] .ck-btn {
+    flex: 0 0 auto;
+    min-width: 150px;
+  }
+}
+@media (max-width: 720px) {
+  .ck-bar[data-site="agent"] {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "icon text"
+      "actions actions"
+      "links links";
+    padding: 12px 16px;
+  }
+  .ck-bar[data-site="agent"] .ck-btn {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+/* settings dialog */
+.ck-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-family: var(--ck-font);
+}
+.ck-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--ck-backdrop);
+}
+.ck-dialog {
+  position: relative;
+  box-sizing: border-box;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--ck-surface);
+  color: var(--ck-text);
+  box-shadow: var(--ck-shadow);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.ck-handle {
+  display: none;
+}
+.ck-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ck-title {
+  margin: 0;
+  font-family: var(--ck-font-heading);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--ck-heading, var(--ck-ink));
+}
+.ck-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ck-badge-bg);
+  color: var(--ck-heading, var(--ck-ink));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.ck-intro {
+  margin: 0 0 4px;
+  color: var(--ck-muted);
+  font-size: 13px;
+}
+.ck-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ck-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--ck-border);
+}
+.ck-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--ck-heading, var(--ck-ink));
+  cursor: pointer;
+}
+.ck-badge {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ck-badge-bg);
+  color: var(--ck-badge-text, var(--ck-muted));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.ck-hint {
+  color: var(--ck-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.ck-switch {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  margin-top: 2px;
+}
+.ck-switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.ck-switch input:disabled {
+  cursor: default;
+}
+.ck-switch-track {
+  box-sizing: border-box;
+  width: 44px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--ck-switch-off);
+  display: flex;
+  align-items: center;
+  transition: background-color 150ms ease;
+}
+.ck-switch-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--ck-surface);
+  transition: transform 150ms ease;
+}
+.ck-switch input:checked + .ck-switch-track {
+  background: var(--ck-switch-on);
+}
+.ck-switch input:checked + .ck-switch-track .ck-switch-thumb {
+  transform: translateX(18px);
+}
+.ck-switch input:disabled:checked + .ck-switch-track {
+  background: var(--ck-switch-locked);
+}
+.ck-switch input:focus-visible + .ck-switch-track {
+  outline: 2px solid var(--ck-focus, var(--ck-accent));
+  outline-offset: 2px;
+}
+.ck-dialog:focus {
+  outline: none;
+}
+.ck-dialog .ck-actions {
+  padding-top: 12px;
+  border-top: 1px solid var(--ck-border);
+}
+.ck-more--center {
+  align-self: center;
+  padding-top: 4px;
+}
+@media (max-width: 960px) {
+  .ck-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .ck-dialog {
+    width: 100%;
+    max-height: calc(100vh - 48px);
+    max-height: calc(100dvh - 48px);
+    border-radius: 20px 20px 0 0;
+    padding: 12px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+  .ck-handle {
+    display: block;
+    align-self: center;
+    width: 40px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--ck-border);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ck-switch-track,
+  .ck-switch-thumb {
+    transition: none;
+  }
+}
+@media print {
+  .ck-bar,
+  .ck-modal {
+    display: none;
+  }
+}
