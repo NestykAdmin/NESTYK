@@ -1,13 +1,12 @@
-export const PRICE_LIMIT = 100000;
-export const PRICE_STEP = 1000;
-export const PRICE_PRESETS = [
-  ['', ''],
-  ['', '10000'],
-  ['10000', '20000'],
-  ['20000', '30000'],
-  ['30000', '50000'],
-  ['50000', ''],
-] as const;
+import { RENT_PRICE_LIMIT, RENT_PRICE_PRESETS, RENT_PRICE_STEP } from '@nestyk/feature-search';
+
+/** The shared monthly-rent scale (packages/feature-search price-range.ts), so the app and the guest web agree. */
+export const PRICE_LIMIT = RENT_PRICE_LIMIT;
+export const PRICE_STEP = RENT_PRICE_STEP;
+/** The shared presets as text fields ('' = no limit), the form this screen keeps prices in. */
+export const PRICE_PRESETS: readonly (readonly [string, string])[] = RENT_PRICE_PRESETS.map(
+  (preset) => [preset.min === undefined ? '' : String(preset.min), preset.max === undefined ? '' : String(preset.max)] as const,
+);
 
 export type PriceRange = { minPrice: string; maxPrice: string };
 export type PriceThumb = 'min' | 'max';
