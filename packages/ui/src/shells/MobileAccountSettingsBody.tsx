@@ -199,7 +199,7 @@ export const MobileAccountSettingsBody = forwardRef<
 
   const renderInfoBody = (body: string) => (
     <ScrollView
-      style={{ width: paneWidth }}
+      style={{ width: paneWidth, flexShrink: 0 }}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
@@ -213,7 +213,7 @@ export const MobileAccountSettingsBody = forwardRef<
     switch (settingsView) {
       case 'profile':
         return (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileProfileEditBody
               initials={profile.initials}
               name={profile.name}
@@ -228,13 +228,13 @@ export const MobileAccountSettingsBody = forwardRef<
         );
       case 'linkedAccounts':
         return (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileLinkedAccountsBody email={profile.email} phone={profile.phone} />
           </View>
         );
       case 'password':
         return (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileChangePasswordBody
               onChangePassword={onChangePassword}
               onFinished={closeNested}
@@ -246,7 +246,7 @@ export const MobileAccountSettingsBody = forwardRef<
         );
       case 'delete':
         return onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion ? (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileDeleteAccountBody
               onLoad={onLoadAccountDeletion}
               onDeleteNow={onDeleteAccount}
@@ -280,7 +280,7 @@ export const MobileAccountSettingsBody = forwardRef<
         <View style={styles.slideClip}>
           <Animated.View style={[styles.slideRow, { width: paneWidth * 2 }, slideStyle]}>
             <ScrollView
-              style={{ width: paneWidth }}
+              style={{ width: paneWidth, flexShrink: 0 }}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               scrollEnabled={settingsView === 'hub'}
