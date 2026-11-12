@@ -183,6 +183,8 @@
   * ตัวอักษร ไอคอน spinner และเส้นขอบที่แสดงสถานะเลือก ในสี role ต้องผ่าน `roleOnDark(color, isDark)` เสมอ ห้ามใช้ `tokens.colors.roles.*` ตรง ๆ (เทสกันไว้ใน `apps/consumer-app/components/role-colors-dark.test.cjs`)
   * สวิตช์เปิด/ปิด: ink `#211E1E` เมื่อเปิด (dark mode ใช้เหลือง `#F8B615`) ไม่ใช้สีของ role
   * ไม่มี role `owner` แล้ว ใช้ `landlord` หรือ `self_owner`
+  * รูปโปรไฟล์ตัวย่อของคนอื่น (lead, ผู้เช่า, เจ้าของ) ใช้สีเดียวกันทุกคน `tokens.colors.avatar` (สว่าง `#F1F5F9` / `#334155` · มืด `#4A4545` / `#E7E5E4`) ห้ามใช้สีตาม status, role หรือแบรนด์ สีเหลืองใช้เฉพาะรูปของผู้ใช้ที่ login อยู่ (เทส `apps/consumer-app/components/lead-avatar-tone.test.cjs`)
+  * ป้าย "Coming soon" ในแอปใช้ `MobileComingSoonTag` (พื้นจางตามโหมด ตัวปกติ 11px) ไม่ใช้ `MobileStatusPill`
 
 ---
 

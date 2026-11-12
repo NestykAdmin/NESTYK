@@ -52,7 +52,8 @@ export function TenantDirectoryBody({
   const { t, locale } = useLocale();
   const c = t.agent.tenants;
   const l = c.list;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
+  const avatarTone = tokens.colors.avatar[isDark ? 'dark' : 'light'];
   const fmt = billFormatters(locale);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 
@@ -169,8 +170,8 @@ export function TenantDirectoryBody({
                         pressed && Platform.OS === "ios" ? ps.pressed : null,
                       ]}
                     >
-                      <View style={s.avatar}>
-                        <Text style={s.avatarText}>{initials(tenant.name)}</Text>
+                      <View style={[s.avatar, { backgroundColor: avatarTone.bg }]}>
+                        <Text style={[s.avatarText, { color: avatarTone.fg }]}>{initials(tenant.name)}</Text>
                       </View>
                       <View style={ps.grow}>
                         <Text style={[ps.rowTitle, { color: theme.textHeading }]} numberOfLines={1}>
@@ -222,7 +223,6 @@ const s = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: tokens.colors.brand[100],
     alignItems: "center",
     justifyContent: "center",
   },
@@ -230,6 +230,5 @@ const s = StyleSheet.create({
     fontFamily: tokens.typography.native.headingTh,
     fontSize: 16,
     lineHeight: 24,
-    color: tokens.colors.onBrand,
   },
 });

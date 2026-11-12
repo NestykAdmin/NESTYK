@@ -70,11 +70,8 @@ import { formatPhoneDisplay, phoneDialString } from '../lib/phone';
 
 export { leadAvatarInitials };
 
-/** Leads list avatar (Mos, 12 Nov 2026, design B4): one neutral tone for every lead; the status pill carries the status colour. */
-export const LEAD_AVATAR_TONE = {
-  light: { bg: '#F1F5F9', fg: '#334155' },
-  dark: { bg: '#4A4545', fg: '#E7E5E4' },
-} as const;
+/** Person avatar tone (Mos, 12 Nov 2026, design B4): one neutral tone for every lead; the status pill carries the status colour. */
+export const LEAD_AVATAR_TONE = tokens.colors.avatar;
 
 const LEAD_STATUS_TONE: Record<string, MobileStatusPillToneKey> = {
   new: 'yellow',
@@ -777,8 +774,8 @@ export function AgentLeadDetailBody({
 
       <View style={[styles.card, cardShadow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.heroTop}>
-          <View style={[styles.avatar, { backgroundColor: STATUS_PILL_TONES.slate.bg }]}>
-            <Text style={[styles.avatarText, { color: theme.textHeading }]}>{leadAvatarInitials(lead.name)}</Text>
+          <View style={[styles.avatar, { backgroundColor: LEAD_AVATAR_TONE[isDark ? 'dark' : 'light'].bg }]}>
+            <Text style={[styles.avatarText, { color: LEAD_AVATAR_TONE[isDark ? 'dark' : 'light'].fg }]}>{leadAvatarInitials(lead.name)}</Text>
           </View>
           <View style={styles.heroMain}>
             <View style={styles.nameRow}>

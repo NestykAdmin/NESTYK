@@ -66,5 +66,15 @@
     "self_owner": "#fdba74",
     "admin": "#cbd5e1",
     "services": "#94a3b8"
+  },
+  "avatar": {
+    "light": {
+      "bg": "#f1f5f9",
+      "fg": "#334155"
+    },
+    "dark": {
+      "bg": "#4a4545",
+      "fg": "#e7e5e4"
+    }
   }
 }

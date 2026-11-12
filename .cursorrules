@@ -225,6 +225,9 @@
   * **🟠 Self owner ("Owner" ลงประกาศเอง):** `#92400E` (warning 800)
   * **Admin:** `#334155` · **Services Hub:** `#475569`
   * สีเก่าที่เลิกใช้: Neon Rose `#FF0052`, Neo Mint `#00C68D`, Electric Blue `#0055DA`, Deep Slate `#0F172A`, Sky Blue `#0284C7`
+  * **โหมดมืด:** ตัวอักษร ไอคอน spinner และขอบตอนเลือกที่เป็นสี role ต้องผ่าน `roleOnDark(color, isDark)` (ค่าอยู่ใน `tokens.colors.rolesOnDark`: agent/guest `#F8B615` · tenant `#4ADE80` · landlord `#93C5FD` · self_owner `#FDBA74` · admin `#CBD5E1` · services `#94A3B8`) ห้ามใช้ `tokens.colors.roles.*` ตรง ๆ · พื้นทึบสี role ใช้สีหลักกับตัวขาวได้ทั้งสองโหมด · สวิตช์เปิดเป็น ink (โหมดมืดเหลือง)
+  * **รูปโปรไฟล์ตัวย่อของคนอื่น (lead, ผู้เช่า, เจ้าของ):** สีเดียวกันทุกคน `tokens.colors.avatar` — สว่าง พื้น `#F1F5F9` ตัว `#334155` · มืด พื้น `#4A4545` ตัว `#E7E5E4` (เว็บ: `.awl-avatar` / `.awt-avatar`) **ห้ามใช้สีตาม status, role หรือแบรนด์** ให้ป้าย status ข้าง ๆ เป็นตัวบอกสถานะ · สีเหลืองใช้เฉพาะรูปของผู้ใช้ที่ login อยู่
+  * **ป้าย "เร็ว ๆ นี้ / Coming soon":** แอปใช้ `MobileComingSoonTag` (พื้นจางตามโหมด ตัวปกติ 11px) ไม่ใช้ `MobileStatusPill` · agent web sidebar ใช้ `.aw-soon` (ตัวหนังสือจาง ไม่มีกรอบ)
 
 ---
 

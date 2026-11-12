@@ -1,4 +1,5 @@
-// Leads list (Mos, 12 Nov 2026, design B4): every lead's initials avatar uses one neutral colour, not the status colour.
+// Person avatars (Mos, 12 Nov 2026, design B4): every lead and tenant initials avatar uses one neutral colour,
+// not the status, role or brand colour (yellow is kept for the signed-in user's own avatar).
 // The status pill beside it still carries the status colour. Light: slate #F1F5F9 / #334155. Dark: warm grey #4A4545 / #E7E5E4.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -18,13 +19,29 @@ function contrast(a, b) {
   return (x + 0.05) / (y + 0.05);
 }
 
-test('LEAD_AVATAR_TONE is one neutral tone per mode and its initials read (4.5:1)', () => {
-  const src = read('AgentLeadDetailBody.tsx');
-  const m = src.match(/export const LEAD_AVATAR_TONE = (\{[\s\S]*?\}) as const;/);
-  assert.ok(m, 'LEAD_AVATAR_TONE export');
-  const tone = new Function(`return ${ts.transpileModule(`(${m[1]})`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText}`)();
-  assert.deepEqual(tone, { light: { bg: '#F1F5F9', fg: '#334155' }, dark: { bg: '#4A4545', fg: '#E7E5E4' } });
+test('tokens.colors.avatar is one neutral tone per mode and its initials read (4.5:1)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../../../packages/ui/src/theme/tokens.ts'), 'utf8');
+  const loaded = { exports: {} };
+  new Function('require', 'module', 'exports', ts.transpileModule(src, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText)(require, loaded, loaded.exports);
+  const tone = loaded.exports.tokens.colors.avatar;
+  assert.deepEqual(JSON.parse(JSON.stringify(tone)), { light: { bg: '#F1F5F9', fg: '#334155' }, dark: { bg: '#4A4545', fg: '#E7E5E4' } });
   for (const mode of ['light', 'dark']) assert.ok(contrast(tone[mode].fg, tone[mode].bg) >= 4.5, mode);
+  assert.match(read('AgentLeadDetailBody.tsx'), /export const LEAD_AVATAR_TONE = tokens\.colors\.avatar;/);
+});
+
+test('every other person avatar in the app (lead detail, tenant list, tenant detail) uses the same tone by mode', () => {
+  const lead = read('AgentLeadDetailBody.tsx');
+  assert.match(lead, /styles\.avatar, \{ backgroundColor: LEAD_AVATAR_TONE\[isDark \? 'dark' : 'light'\]\.bg \}/);
+  assert.match(lead, /styles\.avatarText, \{ color: LEAD_AVATAR_TONE\[isDark \? 'dark' : 'light'\]\.fg \}/);
+  for (const f of ['TenantDirectoryBody.tsx', 'TenantDetailHub.tsx']) {
+    const code = read(f);
+    assert.match(code, /const avatarTone = tokens\.colors\.avatar\[isDark \? 'dark' : 'light'\];/, f);
+    assert.match(code, /s\.avatar, \{ backgroundColor: avatarTone\.bg \}/, f);
+    assert.match(code, /s\.avatarText, \{ color: avatarTone\.fg \}/, f);
+    assert.doesNotMatch(code.slice(code.indexOf('StyleSheet.create')), /avatar: \{[^}]*backgroundColor/, f);
+  }
 });
 
 test('the app leads list gives every avatar the same tone (by mode), not the status tone', () => {
@@ -41,4 +58,11 @@ test('the agent web leads table uses one avatar class, with a dark-mode rule, an
   assert.doesNotMatch(css, /\.awl-tone-/);
   assert.match(css, /\.awl-avatar \{[^}]*background: #f1f5f9;[^}]*color: #334155;/);
   assert.match(css, /\.aw-shell\[data-theme="dark"\] \.awl-avatar \{[^}]*background: #4a4545;[^}]*color: #e7e5e4;/);
+});
+
+test('the agent web tenant avatars use the same neutral tone, with the dark-mode rule', () => {
+  const css = read('agent-web/agent-tenants.css');
+  assert.match(css, /\.awt-avatar \{[^}]*background: #f1f5f9;[^}]*color: #334155;/);
+  assert.match(css, /\.aw-shell\[data-theme="dark"\] \.awt-avatar \{[^}]*background: #4a4545;[^}]*color: #e7e5e4;/);
+  assert.doesNotMatch(css, /\.awt-avatar \{[^}]*#fff9e8/);
 });

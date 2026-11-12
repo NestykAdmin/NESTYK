@@ -91,6 +91,13 @@ export const tokens = {
       admin: '#cbd5e1',      // slate 300
       services: '#94a3b8',   // slate 400
     },
+
+    // 👤 Initials avatar of other people (leads, tenants): one neutral tone for everyone, never the status,
+    // role or brand colour (Mos, 12 Nov 2026, design B4). Yellow stays for the signed-in user's own avatar.
+    avatar: {
+      light: { bg: '#F1F5F9', fg: '#334155' },
+      dark: { bg: '#4A4545', fg: '#E7E5E4' },
+    },
   },
 
   typography: {
