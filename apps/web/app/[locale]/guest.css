@@ -654,126 +654,26 @@ summary.nk-row:hover {
   color: var(--nk-color-text-secondary);
 }
 
-/* Cookie bar (S2.10): same behaviour as the consumer-app bar, guest colours */
-.nk-cookie {
-  position: fixed;
-  left: var(--nk-space-4);
-  bottom: var(--nk-space-4);
-  z-index: 90;
-  box-sizing: border-box;
-  width: min(440px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--nk-space-3);
-  padding: var(--nk-space-4);
-  border: 1px solid var(--nk-color-track);
-  border-radius: var(--nk-radius-lg);
-  background: var(--nk-color-surface);
-  color: var(--nk-color-heading);
-  box-shadow: var(--nk-shadow-pop);
-  font-size: var(--nk-text-sm);
-  line-height: 1.6;
-}
-.nk-cookie p {
-  margin: 0;
-}
-.nk-cookie a {
-  color: var(--nk-color-ink);
-  text-underline-offset: 2px;
-}
-.nk-cookie__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--nk-space-2);
-}
-.nk-cookie__title {
-  margin: 0;
-  font-size: var(--nk-text-md);
-  font-weight: 600;
-  color: var(--nk-color-ink);
-}
-.nk-cookie__close {
-  width: var(--nk-tap);
-  height: var(--nk-tap);
-  border: 0;
-  border-radius: var(--nk-radius-pill);
-  background: transparent;
-  color: inherit;
-  font-size: var(--nk-text-xl);
-  cursor: pointer;
-}
-.nk-cookie__close:hover {
-  background: var(--nk-color-neutral-bg);
-}
-.nk-cookie__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--nk-space-3);
-}
-.nk-cookie__row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--nk-space-3);
-  cursor: pointer;
-}
-.nk-cookie__row input {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin: 1px 0 0;
-  accent-color: var(--nk-color-ink);
-}
-.nk-cookie__row-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.nk-cookie__row-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--nk-space-2);
-  font-weight: 600;
-  color: var(--nk-color-ink);
-}
-.nk-cookie__hint {
-  font-size: var(--nk-text-xs);
-  color: var(--nk-color-text-secondary);
-}
-.nk-cookie__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--nk-space-2);
-}
-/* "Accept all" and "Necessary only" look the same: neither choice is pushed. */
-.nk-cookie__btn {
-  flex: 1 1 140px;
-  min-height: var(--nk-tap);
-  padding: 0 var(--nk-space-4);
-  border: 1px solid var(--nk-color-ink);
-  border-radius: var(--nk-radius-pill);
-  background: var(--nk-color-ink);
-  color: var(--nk-color-surface);
-  font: 600 var(--nk-text-sm) var(--nk-font-body);
-  cursor: pointer;
-}
-.nk-cookie__link {
-  min-height: var(--nk-tap);
-  padding: 0 var(--nk-space-2);
-  border: 0;
-  background: transparent;
-  color: var(--nk-color-ink);
-  font: var(--nk-text-sm) var(--nk-font-body);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
+/* Cookie consent (design B): the shared panel from @nestyk/ui/cookie-consent.css, in guest colours. */
+.ck-bar,
+.ck-modal {
+  --ck-ink: var(--nk-color-ink);
+  --ck-on-ink: var(--nk-color-surface);
+  --ck-surface: var(--nk-color-surface);
+  --ck-text: var(--nk-color-heading);
+  --ck-muted: var(--nk-color-text-secondary);
+  --ck-border: var(--nk-color-border);
+  --ck-accent: var(--nk-color-brand);
+  --ck-accent-soft: var(--nk-color-brand-soft);
+  --ck-badge-bg: var(--nk-color-neutral-bg);
+  --ck-switch-on: var(--nk-color-ink);
+  --ck-switch-off: var(--nk-color-text-disabled);
+  --ck-switch-locked: var(--nk-color-text-secondary);
+  --ck-focus: var(--nk-color-focus);
+  --ck-backdrop: rgba(33, 30, 30, 0.45);
+  --ck-shadow: var(--nk-shadow-pop);
+  --ck-font: var(--nk-font-body);
+  --ck-font-heading: var(--nk-font-heading);
 }
 
 @media (min-width: 961px) {
@@ -806,9 +706,6 @@ summary.nk-row:hover {
   .nk-footer {
     display: none;
   }
-  .nk-main {
-    padding-bottom: var(--nk-tabbar-height);
-  }
   .nk-tabbar {
     position: fixed;
     left: 0;
@@ -823,18 +720,18 @@ summary.nk-row:hover {
     background: var(--nk-color-surface);
     border-top: 1px solid var(--nk-color-border);
   }
-  .nk-cookie {
-    left: var(--nk-space-2);
-    right: var(--nk-space-2);
-    bottom: calc(var(--nk-tabbar-height) + var(--nk-space-2));
-    width: auto;
-    max-height: calc(100vh - var(--nk-tabbar-height) - 16px);
+  /* The cookie card floats above the tab bar; the page keeps room for it while it is open. */
+  .ck-bar {
+    --ck-bottom-offset: max(var(--nk-tabbar-height), 72px);
+  }
+  .nk-main {
+    /* --ck-reserve is measured from the bottom of the screen, so it already covers the tab bar. */
+    padding-bottom: max(var(--nk-tabbar-height), var(--ck-reserve, 0px));
   }
 }
 
 @media print {
-  .nk-tabbar,
-  .nk-cookie {
+  .nk-tabbar {
     display: none;
   }
 }

@@ -1,205 +1,53 @@
-/* PDPA cookie bar: web only. Does not block the page; stays until the user chooses. */
-.ck-notice {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 900;
-  box-sizing: border-box;
-  width: min(440px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #334155;
-  box-shadow: 0 10px 30px rgba(33, 30, 30, 0.14);
-  font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
-  font-size: 13px;
-  line-height: 20px;
+/*
+ * Agent / account web colours for the shared cookie panel (@nestyk/ui/cookie-consent.css).
+ * Colour system v1.1 (CI, 12 Nov 2026; doc/NESTYK/PROJECT_RULES.md §3.6): agent = brand ink #211E1E with yellow
+ * #F8B615; switches are ink when on, yellow in dark mode. Values match packages/ui/src/theme/tokens.ts.
+ */
+.ck-bar,
+.ck-modal {
+  --ck-ink: #211e1e;
+  --ck-on-ink: #ffffff;
+  --ck-surface: #ffffff;
+  --ck-text: #334155;
+  --ck-muted: #475569;
+  --ck-border: #e2e8f0;
+  --ck-accent: #f8b615;
+  --ck-accent-soft: #fff9e8;
+  --ck-badge-bg: #f1f5f9;
+  --ck-switch-on: #211e1e;
+  --ck-switch-off: #64748b;
+  --ck-switch-locked: #475569;
+  --ck-focus: #211e1e;
+  --ck-backdrop: rgba(33, 30, 30, 0.45);
+  --ck-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  --ck-font: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
+  --ck-font-heading: "Mitr_500Medium", "Mitr", "NotoSansThai_600SemiBold", sans-serif;
 }
-.ck-text {
-  margin: 0;
+.ck-bar[data-theme="dark"],
+.ck-modal[data-theme="dark"] {
+  --ck-ink: #f8b615;
+  --ck-on-ink: #211e1e;
+  --ck-heading: #f1f5f9;
+  --ck-surface: #2f2b2b;
+  --ck-text: #cbd5e1;
+  --ck-muted: #94a3b8;
+  --ck-border: #3f3a3a;
+  --ck-accent: #f8b615;
+  --ck-accent-soft: #3f3a3a;
+  --ck-badge-bg: #3f3a3a;
+  --ck-badge-text: #cbd5e1;
+  --ck-switch-on: #f8b615;
+  --ck-switch-off: #94a3b8;
+  --ck-switch-locked: #cbd5e1;
+  --ck-focus: #f8b615;
+  --ck-backdrop: rgba(0, 0, 0, 0.6);
+  --ck-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
-.ck-text a,
-.ck-more {
-  color: #211e1e;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.ck-more {
-  align-self: flex-start;
-}
-.ck-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.ck-title {
-  margin: 0;
-  font-size: 15px;
-  line-height: 22px;
-  color: #211e1e;
-  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
-  font-weight: 600;
-}
-.ck-close {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  font-size: 20px;
-  line-height: 32px;
-  cursor: pointer;
-}
-.ck-close:hover {
-  background: rgba(148, 163, 184, 0.18);
-}
-.ck-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.ck-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
-}
-.ck-row input {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  margin: 1px 0 0;
-  accent-color: #211e1e;
-  cursor: pointer;
-}
-.ck-row input:disabled {
-  cursor: default;
-}
-.ck-row-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ck-row-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  color: #211e1e;
-  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
-  font-weight: 600;
-}
-.ck-badge {
-  padding: 0 8px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: #475569;
-  font-size: 11px;
-  line-height: 18px;
-  font-weight: 400;
-}
-.ck-hint {
-  color: #64748b;
-  font-size: 12px;
-  line-height: 18px;
-}
-.ck-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-/* "Accept all" and "Necessary only" share one style: neither choice is pushed. */
-.ck-btn {
-  flex: 1 1 140px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid #211e1e;
-  border-radius: 999px;
-  background: #211e1e;
-  color: #ffffff;
-  font: inherit;
-  font-family: "NotoSansThai_600SemiBold", "Noto Sans Thai", sans-serif;
-  cursor: pointer;
-}
-.ck-btn:hover {
-  background: #211e1e;
-}
-.ck-link {
-  min-height: 38px;
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
-  color: #211e1e;
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-.ck-btn:focus-visible,
-.ck-link:focus-visible,
-.ck-close:focus-visible,
-.ck-row input:focus-visible,
-.ck-text a:focus-visible,
-.ck-more:focus-visible {
-  outline: 2px solid #f8b615;
-  outline-offset: 2px;
-}
-.ck-notice[data-theme="dark"] {
-  border-color: #334155;
-  background: #211e1e;
-  color: #cbd5e1;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-}
-.ck-notice[data-theme="dark"] .ck-text a,
-.ck-notice[data-theme="dark"] .ck-more,
-.ck-notice[data-theme="dark"] .ck-link {
-  color: #fcde96;
-}
-.ck-notice[data-theme="dark"] .ck-title,
-.ck-notice[data-theme="dark"] .ck-row-title {
-  color: #f1f5f9;
-}
-.ck-notice[data-theme="dark"] .ck-hint {
-  color: #94a3b8;
-}
-.ck-notice[data-theme="dark"] .ck-badge {
-  background: #334155;
-  color: #cbd5e1;
-}
-.ck-notice[data-theme="dark"] .ck-row input {
-  accent-color: #fcde96;
-}
-.ck-notice[data-theme="dark"] .ck-btn {
-  border-color: #fcde96;
-  background: #fcde96;
-  color: #211e1e;
-}
-.ck-notice[data-theme="dark"] .ck-btn:hover {
-  background: #fcde96;
-}
-@media (max-width: 767px) {
-  .ck-notice {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    width: auto;
-    max-height: calc(100vh - 16px);
-  }
-}
-@media print {
-  .ck-notice {
-    display: none;
+
+/* While the first view is docked across the bottom (<= 1024px), the app area ends above it, so the last buttons
+   and footer links of a page (e.g. sign up on /login) stay visible and clickable. Only while it reserves space. */
+@media screen {
+  html.ck-reserving #root {
+    height: calc(100% - var(--ck-reserve, 0px)) !important;
   }
 }
