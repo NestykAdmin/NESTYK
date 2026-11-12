@@ -34,7 +34,8 @@ const VIEWS: readonly GuestSearchView[] = ['list', 'map'];
 const PROPERTY_TYPES: readonly PropertyType[] = ['condo', 'apartment', 'house', 'townhome'];
 const STATION_TYPES = ['BTS', 'MRT'] as const;
 const DURATIONS = [1, 3, 6, 12] as const;
-const SORTS = ['price_asc', 'price_desc', 'newest', 'distance'] as const;
+const SORTS = ['recommended', 'price_asc', 'price_desc', 'newest', 'distance'] as const;
+const MOVE_INS = ['now', '30d', '90d'] as const;
 const MAX_BEDROOMS = 10;
 
 export type GuestSearchParamsInput =
@@ -48,7 +49,8 @@ export function defaultGuestCriteria(): GuestSearchCriteria {
     quick: [],
     page: 1,
     limit: GUEST_PAGE_SIZE_DEFAULT,
-    sortBy: 'newest',
+    // Photos first, then newest (Mos 12 Nov 2026, Q1).
+    sortBy: 'recommended',
   };
 }
 
@@ -123,6 +125,8 @@ export function criteriaFromSearchParams(input: GuestSearchParamsInput): GuestSe
 
   const duration = pick(get('dur'), DURATIONS);
   if (duration) criteria.durationMonths = duration;
+  const moveIn = pick(get('movein'), MOVE_INS);
+  if (moveIn) criteria.moveIn = moveIn;
 
   return criteria;
 }
@@ -150,6 +154,7 @@ export function criteriaToSearchParams(criteria: Partial<GuestSearchCriteria>): 
     if (criteria.nearGps.radiusKm !== GUEST_GPS_RADIUS_DEFAULT_KM) set('r', criteria.nearGps.radiusKm);
   }
   set('dur', criteria.durationMonths);
+  set('movein', criteria.moveIn);
   if (criteria.quick?.length) set('quick', criteria.quick.join(','));
   if (criteria.sortBy && criteria.sortBy !== defaults.sortBy) set('sort', criteria.sortBy);
   if (criteria.page && criteria.page !== defaults.page) set('page', criteria.page);

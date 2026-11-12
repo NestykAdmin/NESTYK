@@ -14,7 +14,9 @@ export interface SearchFilterParams {
     radiusKm: number;
   };
   durationMonths?: 1 | 3 | 6 | 12;
-  sortBy?: 'price_asc' | 'price_desc' | 'newest' | 'distance';
+  /** Move in now, or within 30 / 90 days. */
+  moveIn?: 'now' | '30d' | '90d';
+  sortBy?: 'recommended' | 'price_asc' | 'price_desc' | 'newest' | 'distance';
   page?: number;
   limit?: number;
 }

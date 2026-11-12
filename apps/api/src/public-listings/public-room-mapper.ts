@@ -47,7 +47,7 @@ function toNumber(value: unknown): number | null {
 /** Public positions keep 3 decimals (about 100 m): enough for a map pin, never a front door (R2, Mos 11 Nov 2026). */
 export const PUBLIC_POSITION_DECIMALS = 3;
 
-function publicPosition(value: unknown): number | null {
+export function publicPosition(value: unknown): number | null {
   const number = toNumber(value);
   if (number === null) return null;
   const scale = 10 ** PUBLIC_POSITION_DECIMALS;

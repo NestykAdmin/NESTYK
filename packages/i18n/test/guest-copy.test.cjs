@@ -51,7 +51,15 @@ test('labels the shared formatters need are present', () => {
     assert.match(copy.availability.on, /\{date\}/);
     for (const code of ['nearTransit', 'moveInReady', 'petFriendly', 'shortTerm']) assert.ok(copy.quick[code], `quick.${code}`);
     for (const code of ['condo', 'apartment', 'house', 'townhome']) assert.ok(copy.propertyType[code], `propertyType.${code}`);
-    for (const code of ['price_asc', 'price_desc', 'newest', 'distance']) assert.ok(copy.results.sort[code], `results.sort.${code}`);
+    for (const code of ['recommended', 'price_asc', 'price_desc', 'newest', 'distance']) assert.ok(copy.results.sort[code], `results.sort.${code}`);
+    // Search page (S4.2).
+    assert.match(copy.results.titleType, /\{type\}/);
+    assert.match(copy.results.titleTypeNearTransit, /\{type\}/);
+    assert.match(copy.results.titleKeyword, /\{keyword\}/);
+    assert.match(copy.results.showResults, /\{count\}/);
+    assert.match(copy.results.filtersCount, /\{count\}/);
+    assert.match(copy.results.durationChip, /\{count\}/);
+    for (const key of ['titleAll', 'titleAllNearTransit', 'bedroomsThreePlus', 'loadMoreFailed', 'listLabel', 'buyComingSoon']) assert.ok(copy.results[key], `results.${key}`);
   }
 });
 

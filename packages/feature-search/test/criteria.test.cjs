@@ -7,7 +7,7 @@ const { criteriaFromSearchParams, criteriaToSearchParams, defaultGuestCriteria, 
 const parse = (qs) => criteriaFromSearchParams(new URLSearchParams(qs));
 
 test('empty query gives the default guest criteria', () => {
-  assert.deepEqual(parse(''), { mode: 'rent', view: 'list', quick: [], page: 1, limit: 12, sortBy: 'newest' });
+  assert.deepEqual(parse(''), { mode: 'rent', view: 'list', quick: [], page: 1, limit: 12, sortBy: 'recommended' });
   assert.deepEqual(defaultGuestCriteria(), parse(''));
 });
 
@@ -21,17 +21,18 @@ test('every field survives criteria -> query string -> criteria', () => {
     keyword: 'อโศก', propertyType: ['condo', 'apartment'], minPrice: 8000, maxPrice: 25000,
     bedrooms: [0, 1, 2], stationType: 'BTS', stationName: 'อโศก',
     nearGps: { latitude: 13.7367, longitude: 100.5608, radiusKm: 3 },
-    durationMonths: 12, sortBy: 'price_asc', page: 3, limit: 24,
+    durationMonths: 12, moveIn: '30d', sortBy: 'price_asc', page: 3, limit: 24,
   };
   const query = criteriaToSearchParams(full).toString();
   assert.deepEqual(criteriaFromSearchParams(new URLSearchParams(query)), full);
 });
 
 test('unknown enum values fall back to defaults and are dropped from lists', () => {
-  const c = parse('mode=lease&view=3d&sort=cheapest&type=villa,condo&st=SRT&dur=5');
+  const c = parse('mode=lease&view=3d&sort=cheapest&type=villa,condo&st=SRT&dur=5&movein=soon');
   assert.equal(c.mode, 'rent');
   assert.equal(c.view, 'list');
-  assert.equal(c.sortBy, 'newest');
+  assert.equal(c.sortBy, 'recommended');
+  assert.equal(c.moveIn, undefined);
   assert.deepEqual(c.propertyType, ['condo']);
   assert.equal(c.stationType, undefined);
   assert.equal(c.durationMonths, undefined);
@@ -91,4 +92,15 @@ test('a Next.js style searchParams record is read the same as a URLSearchParams'
 test('serializing leaves out values that equal the defaults', () => {
   const query = criteriaToSearchParams({ ...defaultGuestCriteria(), keyword: 'บางนา', page: 2 }).toString();
   assert.equal(query, 'q=%E0%B8%9A%E0%B8%B2%E0%B8%87%E0%B8%99%E0%B8%B2&page=2');
+});
+
+test('recommended is the default order, so only another order is written to the URL', () => {
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), sortBy: 'recommended' }).toString(), '');
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), sortBy: 'newest' }).toString(), 'sort=newest');
+  assert.equal(parse('sort=newest').sortBy, 'newest');
+});
+
+test('move-in accepts now, 30 days or 90 days', () => {
+  for (const value of ['now', '30d', '90d']) assert.equal(parse(`movein=${value}`).moveIn, value);
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), moveIn: 'now' }).toString(), 'movein=now');
 });

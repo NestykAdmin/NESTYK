@@ -164,6 +164,18 @@ export interface GuestCopy {
     removeFilter: string;
     loadMore: string;
     showingOf: string;
+    titleAll: string;
+    titleAllNearTransit: string;
+    titleType: string;
+    titleTypeNearTransit: string;
+    titleKeyword: string;
+    showResults: string;
+    filtersCount: string;
+    bedroomsThreePlus: string;
+    durationChip: string;
+    loadMoreFailed: string;
+    listLabel: string;
+    buyComingSoon: string;
   };
   map: {
     label: string;

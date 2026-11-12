@@ -7,6 +7,8 @@ import { PublicRoomsService } from './public-rooms.service';
  * set where the API is hosted.
  */
 export const PUBLIC_CACHE_CONTROL = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600';
+/** Search results change with every filter, so they are kept for less time (plan A3). */
+export const SEARCH_CACHE_CONTROL = 'public, max-age=30, s-maxage=60';
 
 /** Public rooms for the guest web. No sign-in: there is deliberately no guard on these controllers. */
 @Controller('public/rooms')
@@ -17,6 +19,13 @@ export class PublicRoomsController {
   @Header('Cache-Control', PUBLIC_CACHE_CONTROL)
   featured(@Query('rail') rail?: string, @Query('limit') limit?: string) {
     return this.rooms.featured(rail, limit);
+  }
+
+  /** Declared before ':id' so "search" is never read as a room id. Unknown or bad params are dropped, not errors. */
+  @Get('search')
+  @Header('Cache-Control', SEARCH_CACHE_CONTROL)
+  search(@Query() query: Record<string, string | string[] | undefined>) {
+    return this.rooms.search(query ?? {});
   }
 
   @Get(':id')

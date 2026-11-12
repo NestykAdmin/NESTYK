@@ -1,10 +1,26 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, type Repository, type SelectQueryBuilder } from 'typeorm';
-import type { PublicAreaSummary, PublicFeaturedRail, PublicRoomCard, PublicRoomDetail } from '@nestyk/types';
+import type {
+  PublicAreaSummary,
+  PublicFeaturedRail,
+  PublicRoomCard,
+  PublicRoomDetail,
+  PublicRoomSearchResult,
+} from '@nestyk/types';
 import { RentRoomEntity } from '../entities/rent-room.entity';
 import { PUBLIC_AREAS, areaOfDistrict } from './public-areas';
 import { PUBLIC_ROOM_RELATIONS, toPublicRoomCard, toPublicRoomDetail } from './public-room-mapper';
+import { bangkokToday } from '../billing/rent-schedule';
+import {
+  SEARCH_CACHE_MS,
+  SEARCH_CANDIDATES,
+  parsePublicSearch,
+  searchCandidates,
+  toSearchCandidate,
+  type RawSearchQuery,
+  type SearchCandidateRow,
+} from './public-search';
 
 /** Rails of the home page (Mos 11 Nov 2026). */
 export const PUBLIC_FEATURED_RAILS: readonly PublicFeaturedRail[] = ['recommended', 'near_transit', 'new'];
@@ -58,7 +74,9 @@ export function pickRail<T extends Pick<PublicRoomCard, 'coverImageUrl' | 'neare
 @Injectable()
 export class PublicRoomsService {
   private readonly now: () => Date;
+  private readonly logger = new Logger(PublicRoomsService.name);
   private candidates: { loadedAt: number; rooms: Promise<RentRoomEntity[]> } | null = null;
+  private searchRows: { loadedAt: number; rows: Promise<SearchCandidateRow[]> } | null = null;
 
   constructor(
     @InjectRepository(RentRoomEntity) private readonly roomsRepo: Repository<RentRoomEntity>,
@@ -130,6 +148,96 @@ export class PublicRoomsService {
     // Rented, private, needs edit or unknown: the same answer, so nobody can tell a hidden room exists (D3).
     if (!row) throw new NotFoundException('Room not found');
     return toPublicRoomDetail(row, this.now());
+  }
+
+  /**
+   * One summary row per public room, shared by every search for SEARCH_CACHE_MS (review R4: a search's cost does
+   * not depend on its filters, and changing the keyword cannot bypass the cache). No user value reaches this SQL.
+   */
+  private searchSummary(): Promise<SearchCandidateRow[]> {
+    const nowMs = this.now().getTime();
+    if (this.searchRows && nowMs - this.searchRows.loadedAt < SEARCH_CACHE_MS) return this.searchRows.rows;
+    const rows = this.publicRooms()
+      .leftJoin('room.property', 'property')
+      .leftJoin('property.property_type', 'propertyType')
+      .leftJoin('room.room_type', 'roomType')
+      .select('room.id', 'id')
+      .addSelect('room.created_at', 'created_at')
+      .addSelect(
+        '(SELECT MIN(p.price) FROM rent_room_prices p WHERE p.rent_room_id = room.id AND p.price > 0)',
+        'price_from',
+      )
+      .addSelect(
+        '(SELECT lv.value FROM room_layout_values lv INNER JOIN master_layouts ml ON ml.id = lv.layout_id ' +
+          "WHERE lv.rent_room_id = room.id AND ml.code = 'bedroom' LIMIT 1)",
+        'bedroom_layout',
+      )
+      .addSelect('roomType.bedroom_count', 'bedroom_count')
+      .addSelect('room.latitude', 'room_lat')
+      .addSelect('room.longitude', 'room_lng')
+      .addSelect('property.latitude', 'property_lat')
+      .addSelect('property.longitude', 'property_lng')
+      .addSelect('room.nearby_places', 'nearby_places')
+      .addSelect("to_char(room.available_from_date, 'YYYY-MM-DD')", 'available_from')
+      .addSelect(
+        '(EXISTS (SELECT 1 FROM room_facilities rf INNER JOIN master_facilities mf ON mf.id = rf.f_id ' +
+          "WHERE rf.rent_room_id = room.id AND mf.code = 'pet_friendly'))",
+        'pet_friendly',
+      )
+      .addSelect(
+        '(EXISTS (SELECT 1 FROM rent_room_prices sp INNER JOIN master_contract_types sct ON sct.id = sp.contract_type_id ' +
+          'WHERE sp.rent_room_id = room.id AND sp.price > 0 AND sct.term_months < 12))',
+        'short_term',
+      )
+      .addSelect(
+        "(EXISTS (SELECT 1 FROM room_medias cm WHERE cm.rent_id = room.id AND cm.media_type = 'image'))",
+        'has_cover',
+      )
+      .addSelect('propertyType.code', 'property_type')
+      .addSelect(
+        '(SELECT ARRAY(SELECT DISTINCT dct.term_months FROM rent_room_prices dp ' +
+          'INNER JOIN master_contract_types dct ON dct.id = dp.contract_type_id ' +
+          'WHERE dp.rent_room_id = room.id AND dp.price > 0))',
+        'durations',
+      )
+      .addSelect('property.name', 'project_name')
+      .addSelect('property.district', 'district')
+      .addSelect('property.subdistrict', 'subdistrict')
+      .addSelect('room.promo_title', 'promo_title')
+      .orderBy('room.created_at', 'DESC')
+      .addOrderBy('room.id', 'DESC')
+      .limit(SEARCH_CANDIDATES)
+      .getRawMany<SearchCandidateRow>()
+      .then((found) => {
+        if (found.length >= SEARCH_CANDIDATES) {
+          this.logger.warn(`Search reads only the newest ${SEARCH_CANDIDATES} public rooms; older rooms are not found (plan R1)`);
+        }
+        return found;
+      });
+    const entry = { loadedAt: nowMs, rows };
+    this.searchRows = entry;
+    rows.catch(() => {
+      if (this.searchRows === entry) this.searchRows = null;
+    });
+    return rows;
+  }
+
+  /**
+   * Guest search (S6). Every filter, the order and the page run in code over the shared summary rows (stations come
+   * from the saved nearby places, which SQL cannot read well), then only the rooms on the page are loaded.
+   */
+  async search(raw: RawSearchQuery = {}): Promise<PublicRoomSearchResult> {
+    const query = parsePublicSearch(raw);
+    const empty = { items: [], total: 0, page: query.page, limit: query.limit };
+    // No sale listings exist yet, so "buy" is an honest empty result rather than rent rooms.
+    if (query.mode === 'buy') return empty;
+
+    const rows = await this.searchSummary();
+    const now = this.now();
+    const { ids, total } = searchCandidates(rows.map(toSearchCandidate), query, bangkokToday(now));
+    if (!ids.length) return { ...empty, total };
+    const rooms = await this.loadRooms(ids);
+    return { items: rooms.map((room) => toPublicRoomCard(room, now)), total, page: query.page, limit: query.limit };
   }
 
   /**

@@ -7,7 +7,10 @@ import type { PropertyType } from './listing';
 
 export type PublicRoomStationType = 'BTS' | 'MRT';
 export type PublicRoomDuration = 1 | 3 | 6 | 12;
-export type PublicRoomSort = 'price_asc' | 'price_desc' | 'newest' | 'distance';
+/** recommended: rooms with photos first, then newest (the default order, Mos 12 Nov 2026). */
+export type PublicRoomSort = 'recommended' | 'price_asc' | 'price_desc' | 'newest' | 'distance';
+/** Move-in filter: available now, or within 30 / 90 days (Mos 12 Nov 2026). */
+export type PublicMoveIn = 'now' | '30d' | '90d';
 export type PublicRoomMode = 'rent' | 'buy';
 /** Lists on the home page: recommended (photos first), near BTS/MRT, newest. */
 export type PublicFeaturedRail = 'recommended' | 'near_transit' | 'new';
@@ -67,11 +70,13 @@ export interface PublicRoomSearchQuery {
   propertyType?: PropertyType[];
   minPrice?: number;
   maxPrice?: number;
+  /** 0 is a studio; 3 also matches rooms with more than three bedrooms ("3+"). */
   bedrooms?: number[];
   stationType?: PublicRoomStationType;
   stationName?: string;
   nearGps?: { latitude: number; longitude: number; radiusKm: number };
   durationMonths?: PublicRoomDuration;
+  moveIn?: PublicMoveIn;
   /** Popular filter chips, by code. */
   quick: string[];
   sortBy: PublicRoomSort;

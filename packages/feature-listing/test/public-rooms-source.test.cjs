@@ -95,6 +95,27 @@ test('newest keeps the order the rooms were given in', async () => {
   assert.deepEqual(ids(await source.search(query())), ['first', 'second', 'third']);
 });
 
+test('recommended puts rooms with a photo first and keeps the given order within each group', async () => {
+  const source = make([room({ id: 'a' }), room({ id: 'b', coverImageUrl: 'x' }), room({ id: 'c' }), room({ id: 'd', coverImageUrl: 'y' })]);
+  assert.deepEqual(ids(await source.search(query({ sortBy: 'recommended' }))), ['b', 'd', 'a', 'c']);
+});
+
+test('move-in: now, within 30 days or within 90 days; no date means now', async () => {
+  const source = make([
+    room({ id: 'none', availableFrom: null }), room({ id: 'past', availableFrom: '2026-10-01' }),
+    room({ id: 'd20', availableFrom: '2026-12-01' }), room({ id: 'd70', availableFrom: '2027-01-20' }),
+    room({ id: 'd200', availableFrom: '2027-06-01' }),
+  ]);
+  assert.deepEqual(ids(await source.search(query({ moveIn: 'now' }))), ['none', 'past']);
+  assert.deepEqual(ids(await source.search(query({ moveIn: '30d' }))), ['none', 'past', 'd20']);
+  assert.deepEqual(ids(await source.search(query({ moveIn: '90d' }))), ['none', 'past', 'd20', 'd70']);
+});
+
+test('three bedrooms also matches bigger rooms (3+)', async () => {
+  const source = make([room({ id: 'two', bedrooms: 2 }), room({ id: 'three', bedrooms: 3 }), room({ id: 'five', bedrooms: 5 })]);
+  assert.deepEqual(ids(await source.search(query({ bedrooms: [3] }))), ['three', 'five']);
+});
+
 test('nearby GPS keeps rooms inside the radius, sorted by distance when asked', async () => {
   const origin = { latitude: 13.7367, longitude: 100.5608 };
   const source = make([
@@ -199,7 +220,7 @@ test('the API source sends the search as query parameters and reads the result',
   const payload = { items: [], total: 0, page: 2, limit: 24 };
   const { impl, calls } = fakeFetch(() => json(payload));
   const source = createApiPublicRoomsSource({ baseUrl: 'https://api.example.test/', fetchImpl: impl });
-  const result = await source.search(query({ keyword: 'อโศก', propertyType: ['condo'], minPrice: 8000, bedrooms: [0, 1], quick: ['petFriendly'], sortBy: 'price_asc', page: 2, limit: 24 }));
+  const result = await source.search(query({ keyword: 'อโศก', propertyType: ['condo'], minPrice: 8000, bedrooms: [0, 1], quick: ['petFriendly'], moveIn: '30d', sortBy: 'price_asc', page: 2, limit: 24 }));
   assert.deepEqual(result, payload);
   const url = new URL(calls[0]);
   assert.equal(url.origin + url.pathname, 'https://api.example.test/public/rooms/search');
@@ -209,6 +230,7 @@ test('the API source sends the search as query parameters and reads the result',
   assert.equal(url.searchParams.get('beds'), '0,1');
   assert.equal(url.searchParams.get('quick'), 'petFriendly');
   assert.equal(url.searchParams.get('sort'), 'price_asc');
+  assert.equal(url.searchParams.get('movein'), '30d');
   assert.equal(url.searchParams.get('page'), '2');
   assert.equal(url.searchParams.get('limit'), '24');
 });
@@ -244,4 +266,9 @@ test('sample areas use English slugs and transit line codes', () => {
     assert.match(slug, /^[a-z0-9-]+$/, slug);
     for (const code of area.transitLines) assert.match(code, /^(bts|mrt|arl)_?[a-z]*$/, code);
   }
+});
+
+test('station name ignores letter case, like the API', async () => {
+  const source = make([room({ id: 'a', nearestStation: { type: 'BTS', name: 'Asok', distanceMeters: 200 } })]);
+  assert.deepEqual(ids(await source.search(query({ stationName: 'asok' }))), ['a']);
 });

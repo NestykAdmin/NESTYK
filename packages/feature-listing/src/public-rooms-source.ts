@@ -31,6 +31,13 @@ export const PUBLIC_ROOM_CARD_KEYS = [
 
 /** "Near transit" quick filter: a station within this many metres. */
 export const NEAR_TRANSIT_METERS = 800;
+/** A requested bedroom count of this value also matches larger rooms ("3+"), same as the API. */
+export const BEDROOMS_OR_MORE = 3;
+const MOVE_IN_DAYS = { now: 0, '30d': 30, '90d': 90 } as const;
+
+function addDays(day: string, days: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
 const DEFAULT_FEATURED_LIMIT = 6;
 const EARTH_RADIUS_KM = 6371;
@@ -138,9 +145,17 @@ export function createInMemoryPublicRoomsSource(
           if (query.minPrice != null && room.priceFrom < query.minPrice) return false;
           if (query.maxPrice != null && room.priceFrom > query.maxPrice) return false;
         }
-        if (query.bedrooms?.length && (room.bedrooms == null || !query.bedrooms.includes(room.bedrooms))) return false;
+        if (query.bedrooms?.length) {
+          if (room.bedrooms == null) return false;
+          const plus = query.bedrooms.includes(BEDROOMS_OR_MORE) && room.bedrooms >= BEDROOMS_OR_MORE;
+          if (!plus && !query.bedrooms.includes(room.bedrooms)) return false;
+        }
+        if (query.moveIn) {
+          const lastDay = addDays(todayValue, MOVE_IN_DAYS[query.moveIn]);
+          if (room.availableFrom != null && room.availableFrom > lastDay) return false;
+        }
         if (query.stationType && room.nearestStation?.type !== query.stationType) return false;
-        if (query.stationName && room.nearestStation?.name !== query.stationName) return false;
+        if (query.stationName && room.nearestStation?.name.toLowerCase() !== query.stationName.toLowerCase()) return false;
         if (query.durationMonths && !room.priceOptions.some((o) => o.durationMonths === query.durationMonths)) return false;
         if (query.nearGps) {
           if (room.latitude == null || room.longitude == null) return false;
@@ -158,6 +173,9 @@ export function createInMemoryPublicRoomsSource(
           if (b.priceFrom == null) return -1;
           return (a.priceFrom - b.priceFrom) * direction;
         });
+      } else if (query.sortBy === 'recommended') {
+        // Photos first; the stable sort keeps the given (newest first) order within each group. Same as the API.
+        matches = [...matches].sort((a, b) => Number(!!b.coverImageUrl) - Number(!!a.coverImageUrl));
       } else if (query.sortBy === 'distance' && query.nearGps) {
         const { latitude, longitude } = query.nearGps;
         const distanceOf = (room: PublicRoomDetail) =>
@@ -208,7 +226,8 @@ export interface ApiPublicRoomsOptions {
   fetchImpl?: FetchLike;
 }
 
-function searchParamsOf(query: PublicRoomSearchQuery): URLSearchParams {
+/** Query string of GET /public/rooms/search (API parameter names). */
+export function publicSearchParams(query: PublicRoomSearchQuery): URLSearchParams {
   const params = new URLSearchParams();
   const set = (key: string, value: string | number | undefined | null) => {
     if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
@@ -227,6 +246,7 @@ function searchParamsOf(query: PublicRoomSearchQuery): URLSearchParams {
     set('radius_km', query.nearGps.radiusKm);
   }
   set('duration', query.durationMonths);
+  set('movein', query.moveIn);
   if (query.quick.length) set('quick', query.quick.join(','));
   set('sort', query.sortBy);
   set('page', query.page);
@@ -252,7 +272,7 @@ export function createApiPublicRoomsSource(options: ApiPublicRoomsOptions): Publ
       return (await get<PublicRoomCard[]>(path)) as PublicRoomCard[];
     },
     async search(query) {
-      return (await get<PublicRoomSearchResult>(`/public/rooms/search?${searchParamsOf(query).toString()}`)) as PublicRoomSearchResult;
+      return (await get<PublicRoomSearchResult>(`/public/rooms/search?${publicSearchParams(query).toString()}`)) as PublicRoomSearchResult;
     },
     async detail(id) {
       return get<PublicRoomDetail>(`/public/rooms/${encodeURIComponent(id)}`, true);

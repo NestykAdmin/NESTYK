@@ -348,3 +348,252 @@ test('public routes need no sign-in and are cached for a short time', () => {
     assert.equal(Reflect.getMetadata('__guards__', handler), undefined, `${handler.name} has no guard`);
   }
 });
+
+/* ---------------------------------------------------------------- search (S6) */
+
+const search = require('../src/public-listings/public-search.ts');
+const { parsePublicSearch, searchCandidates, toSearchCandidate, SEARCH_CANDIDATES, SEARCH_RADIUS_MIN_KM, SEARCH_CACHE_MS } = search;
+const { bangkokToday } = require('../src/billing/rent-schedule.ts');
+const { SEARCH_CACHE_CONTROL } = require('../src/public-listings/public-rooms.controller.ts');
+
+const TODAY = '2026-11-11';
+
+/** A candidate row as the summary query returns it (pg gives decimals as strings, EXISTS as booleans). */
+function candidateRow(overrides = {}) {
+  return {
+    id: 41, created_at: new Date('2026-11-05T00:00:00.000Z'), price_from: '15000.00',
+    bedroom_layout: '1', bedroom_count: 1,
+    room_lat: '13.7368000', room_lng: '100.5602000', property_lat: '13.7370000', property_lng: '100.5600000',
+    nearby_places: roomRow().nearby_places, available_from: '2026-11-01',
+    pet_friendly: true, short_term: true, has_cover: true, property_type: 'condo', durations: [6, 12],
+    project_name: 'Ashton Asoke', district: 'วัฒนา', subdistrict: 'คลองเตยเหนือ', promo_title: 'คอนโดใกล้ BTS อโศก วิวเมือง',
+    ...overrides,
+  };
+}
+
+const q = (raw = {}) => parsePublicSearch(raw);
+const ids = (rows, query, today = TODAY) => searchCandidates(rows.map(toSearchCandidate), q(query), today).ids;
+
+test('search params: an empty query is a rent search, recommended first, page 1 of 12', () => {
+  assert.deepEqual(q(), { mode: 'rent', quick: [], sortBy: 'recommended', page: 1, limit: 12 });
+});
+
+test('search params: junk is dropped, numbers are clamped and lists keep only known values', () => {
+  const parsed = q({
+    mode: 'lease', q: `  ${'ก'.repeat(150)}  `, type: 'villa,condo,apartment', min: '30000', max: '10000',
+    beds: '2,0,x,11,2', station_type: 'SRT', station: '  อโศก  ', lat: '13.7', lng: '100.5', radius_km: '500',
+    duration: '5', quick: 'petFriendly,unknown', movein: 'tomorrow', sort: 'cheapest', page: '999', limit: '1000',
+  });
+  assert.equal(parsed.mode, 'rent');
+  assert.equal(parsed.keyword.length, 100);
+  assert.deepEqual(parsed.propertyType, ['condo', 'apartment']);
+  assert.equal(parsed.minPrice, 10000);
+  assert.equal(parsed.maxPrice, 30000);
+  assert.deepEqual(parsed.bedrooms, [0, 2]);
+  assert.equal(parsed.stationType, undefined);
+  assert.equal(parsed.stationName, 'อโศก');
+  assert.deepEqual(parsed.nearGps, { latitude: 13.7, longitude: 100.5, radiusKm: 50 });
+  assert.equal(parsed.durationMonths, undefined);
+  assert.deepEqual(parsed.quick, ['petFriendly']);
+  assert.equal(parsed.moveIn, undefined);
+  assert.equal(parsed.sortBy, 'recommended');
+  assert.equal(parsed.page, 50);
+  assert.equal(parsed.limit, 48);
+  assert.equal(q({ page: '-1', limit: '0', min: '-5', max: 'abc' }).page, 1);
+  assert.equal(q({ limit: '0' }).limit, 12);
+  assert.equal(q({ min: '-5' }).minPrice, undefined);
+  assert.equal(q({ lat: '99', lng: '100' }).nearGps, undefined);
+  assert.deepEqual(q({ mode: 'buy', station_type: 'MRT', duration: '6', movein: '30d', sort: 'price_desc', beds: ['1', '3'] }), {
+    mode: 'buy', quick: [], sortBy: 'price_desc', page: 1, limit: 12, stationType: 'MRT', durationMonths: 6, moveIn: '30d', bedrooms: [1],
+  });
+});
+
+test('search filter: price range uses the lowest price, a room without a price never matches a bound', () => {
+  const rows = [candidateRow({ id: 1, price_from: '9000.00' }), candidateRow({ id: 2, price_from: '15000.00' }), candidateRow({ id: 3, price_from: null })];
+  assert.deepEqual(ids(rows, { min: '10000' }).sort(), [2]);
+  assert.deepEqual(ids(rows, { max: '9000' }), [1]);
+  assert.equal(ids(rows, {}).length, 3);
+});
+
+test('search filter: bedrooms from the layout, else the room type; 3 means 3 or more', () => {
+  const rows = [
+    candidateRow({ id: 1, bedroom_layout: null, bedroom_count: 0 }),
+    candidateRow({ id: 2, bedroom_layout: '2', bedroom_count: 1 }),
+    candidateRow({ id: 3, bedroom_layout: '4', bedroom_count: null }),
+    candidateRow({ id: 4, bedroom_layout: null, bedroom_count: null }),
+  ];
+  assert.deepEqual(ids(rows, { beds: '0' }), [1]);
+  assert.deepEqual(ids(rows, { beds: '2' }), [2]);
+  assert.deepEqual(ids(rows, { beds: '3' }), [3]);
+  assert.deepEqual(ids(rows, { beds: '0,3' }).sort(), [1, 3]);
+});
+
+test('search filter: station type and name follow the nearest BTS or MRT, near transit is within 800 m', () => {
+  const far = [{ name: 'MRT Phetchaburi', type: 'subway_station', distanceMeters: 1200 }];
+  const rows = [candidateRow({ id: 1 }), candidateRow({ id: 2, nearby_places: far }), candidateRow({ id: 3, nearby_places: [] })];
+  assert.deepEqual(ids(rows, { station_type: 'BTS' }), [1]);
+  assert.deepEqual(ids(rows, { station_type: 'MRT' }), [2]);
+  assert.deepEqual(ids(rows, { station: 'Asok' }), [1]);
+  assert.deepEqual(ids(rows, { quick: 'nearTransit' }), [1]);
+});
+
+test('search filter: pets, short stays, move-in date and the move-in chip', () => {
+  const rows = [
+    candidateRow({ id: 1, available_from: '2026-11-01', pet_friendly: false, short_term: false }),
+    candidateRow({ id: 2, available_from: '2026-12-01', pet_friendly: true, short_term: false }),
+    candidateRow({ id: 3, available_from: '2027-01-20', pet_friendly: false, short_term: true }),
+    candidateRow({ id: 4, available_from: null }),
+  ];
+  assert.deepEqual(ids(rows, { quick: 'petFriendly' }).sort(), [2, 4]);
+  assert.deepEqual(ids(rows, { quick: 'shortTerm' }).sort(), [3, 4]);
+  assert.deepEqual(ids(rows, { quick: 'moveInReady' }).sort(), [1, 4]);
+  assert.deepEqual(ids(rows, { movein: 'now' }).sort(), [1, 4]);
+  assert.deepEqual(ids(rows, { movein: '30d' }).sort(), [1, 2, 4]);
+  assert.deepEqual(ids(rows, { movein: '90d' }).sort(), [1, 2, 3, 4]);
+});
+
+test('search filter: keyword matches project, district, subdistrict, headline or the nearest station, any case', () => {
+  const rows = [
+    candidateRow({ id: 1 }),
+    candidateRow({ id: 2, project_name: 'Life Ladprao', district: 'จตุจักร', subdistrict: 'จอมพล', promo_title: null, nearby_places: [] }),
+  ];
+  assert.deepEqual(ids(rows, { q: 'ashton' }), [1]);
+  assert.deepEqual(ids(rows, { q: 'จตุจักร' }), [2]);
+  assert.deepEqual(ids(rows, { q: 'จอมพล' }), [2]);
+  assert.deepEqual(ids(rows, { q: 'วิวเมือง' }), [1]);
+  assert.deepEqual(ids(rows, { q: 'asok' }), [1]);
+  assert.deepEqual(ids(rows, { q: '100%_' }), []);
+});
+
+test('search filter: GPS radius uses the room position, else the building', () => {
+  const rows = [
+    candidateRow({ id: 1 }),
+    candidateRow({ id: 2, room_lat: null, room_lng: null, property_lat: '13.9000000', property_lng: '100.6000000' }),
+  ];
+  assert.deepEqual(ids(rows, { lat: '13.7368', lng: '100.5602', radius_km: '2' }), [1]);
+  assert.deepEqual(ids(rows, { lat: '13.9', lng: '100.6', radius_km: '1' }), [2]);
+});
+
+test('search never works on a position finer than the card shows (about 100 m), so a home cannot be pinned (R1)', () => {
+  // Two rooms 30 m and 60 m from the same point: with rounded positions they always pass or fail together.
+  const candidate = toSearchCandidate(candidateRow({ room_lat: '13.7368123', room_lng: '100.5602987' }));
+  assert.equal(candidate.latitude, 13.737);
+  assert.equal(candidate.longitude, 100.56);
+  const near = candidateRow({ id: 1, room_lat: '13.7302700', room_lng: '100.5600000' });
+  const nearer = candidateRow({ id: 2, room_lat: '13.7300000', room_lng: '100.5600000' });
+  for (const radius of ['0.01', '0.03', '0.05', '0.5']) {
+    const found = ids([near, nearer], { lat: '13.73', lng: '100.56', radius_km: radius });
+    assert.ok(found.length === 0 || found.length === 2, `radius ${radius} splits the two rooms`);
+  }
+  assert.equal(SEARCH_RADIUS_MIN_KM, 0.5);
+  assert.equal(q({ lat: '13.7', lng: '100.5', radius_km: '0.001' }).nearGps.radiusKm, 0.5, 'tiny radius is raised');
+});
+
+test('search filter: property type and contract length are read from the summary row', () => {
+  const rows = [
+    candidateRow({ id: 1, property_type: 'condo', durations: [12] }),
+    candidateRow({ id: 2, property_type: 'house', durations: ['6', '12'] }),
+    candidateRow({ id: 3, property_type: null, durations: null }),
+  ];
+  assert.deepEqual(ids(rows, { type: 'house' }), [2]);
+  assert.deepEqual(ids(rows, { type: 'condo,house' }).sort(), [1, 2]);
+  assert.deepEqual(ids(rows, { duration: '6' }), [2]);
+  assert.deepEqual(ids(rows, { duration: '12' }).sort(), [1, 2]);
+});
+
+test('search sort: recommended = photos first then newest, newest, price both ways with no price last, distance', () => {
+  const rows = [
+    candidateRow({ id: 1, created_at: new Date('2026-11-01T00:00:00Z'), price_from: '20000', has_cover: true }),
+    candidateRow({ id: 2, created_at: new Date('2026-11-09T00:00:00Z'), price_from: '9000', has_cover: false }),
+    candidateRow({ id: 3, created_at: new Date('2026-11-05T00:00:00Z'), price_from: null, has_cover: true, room_lat: '13.9', room_lng: '100.6' }),
+  ];
+  assert.deepEqual(ids(rows, {}), [3, 1, 2]);
+  assert.deepEqual(ids(rows, { sort: 'newest' }), [2, 3, 1]);
+  assert.deepEqual(ids(rows, { sort: 'price_asc' }), [2, 1, 3]);
+  assert.deepEqual(ids(rows, { sort: 'price_desc' }), [1, 2, 3]);
+  assert.deepEqual(ids(rows, { sort: 'distance', lat: '13.9', lng: '100.6', radius_km: '50' })[0], 3);
+  assert.deepEqual(ids(rows, { sort: 'distance' }), [2, 3, 1], 'no position: newest');
+});
+
+test('search pages: total counts every match, ids are only the asked page', () => {
+  const rows = Array.from({ length: 30 }, (_, i) => candidateRow({ id: i + 1, created_at: new Date(Date.UTC(2026, 9, i + 1)) }));
+  const result = searchCandidates(rows.map(toSearchCandidate), q({ sort: 'newest', page: '3', limit: '12' }), TODAY);
+  assert.equal(result.total, 30);
+  assert.deepEqual(result.ids, [6, 5, 4, 3, 2, 1]);
+});
+
+test('today is the date in Bangkok (the shared billing helper)', () => {
+  assert.equal(bangkokToday(new Date('2026-11-11T16:59:00Z')), '2026-11-11');
+  assert.equal(bangkokToday(new Date('2026-11-11T17:00:00Z')), '2026-11-12');
+});
+
+test('search service: one summary query over public rooms only, with no user value in the SQL, then loads just the page', async () => {
+  const raw = [
+    candidateRow({ id: 3, created_at: new Date('2026-11-09T00:00:00Z') }), candidateRow({ id: 2 }),
+    candidateRow({ id: 1, created_at: new Date('2026-10-01T00:00:00Z') }), candidateRow({ id: 9, property_type: 'house' }),
+  ];
+  const rows = [roomRow({ id: 3 }), roomRow({ id: 2 }), roomRow({ id: 1 }), roomRow({ id: 9 })];
+  const { calls, finds, repo } = fakeRepo(rows, { raw });
+  const result = await new PublicRoomsService(repo, () => NOW).search({ type: 'condo', duration: '6', sort: 'newest', limit: '2', q: "x' OR 1=1" });
+  const where = whereText(calls);
+  assert.match(where, /room\.is_scout_room = TRUE/);
+  assert.match(where, /room\.visibility = :published/);
+  assert.match(where, /roomStatus\.code = :available/);
+  assert.match(where, /price\.price > 0/);
+  assert.doesNotMatch(JSON.stringify(calls), /condo"|OR 1=1|"duration"/, 'filters run in code, never in SQL');
+  assert.deepEqual(calls.filter(([m]) => m === 'limit'), [['limit', SEARCH_CANDIDATES]]);
+  assert.equal(SEARCH_CANDIDATES, 2000);
+  assert.equal(calls.filter(([method]) => method === 'leftJoinAndSelect').length, 0);
+  assert.equal(finds.length, 0, 'the keyword matches nothing, so no room is loaded');
+  assert.equal(result.total, 0);
+
+  const second = await new PublicRoomsService(fakeRepo(rows, { raw }).repo, () => NOW).search({ type: 'condo', duration: '6', sort: 'newest', limit: '2' });
+  assert.deepEqual(second.items.map((card) => card.id), ['3', '2']);
+  assert.equal(second.total, 3, 'the house is filtered out by type');
+  assert.equal(second.page, 1);
+  assert.equal(second.limit, 2);
+  assertNoSecrets(second);
+});
+
+test('search service: every search within 30 seconds reads the same summary rows once', async () => {
+  let clock = NOW.getTime();
+  const raw = [candidateRow({ id: 1 }), candidateRow({ id: 2, property_type: 'house' })];
+  const { calls, finds, repo } = fakeRepo([roomRow({ id: 1 }), roomRow({ id: 2 })], { raw });
+  const service = new PublicRoomsService(repo, () => new Date(clock));
+  await Promise.all([service.search({}), service.search({ type: 'house' }), service.search({ q: 'random' })]);
+  assert.equal(calls.filter(([method]) => method === 'getRawMany').length, 1);
+  assert.equal(finds.length, 2, 'only the pages with rooms load rooms');
+  assert.equal(SEARCH_CACHE_MS, 30_000);
+  clock += 29_000;
+  await service.search({ sort: 'newest' });
+  assert.equal(calls.filter(([method]) => method === 'getRawMany').length, 1, 'still fresh');
+  clock += 2_000;
+  await service.search({});
+  assert.equal(calls.filter(([method]) => method === 'getRawMany').length, 2, 'read again after 30 seconds');
+});
+
+test('search service: buying is an honest empty result and asks the database nothing', async () => {
+  const { calls, repo } = fakeRepo([roomRow()]);
+  const result = await new PublicRoomsService(repo, () => NOW).search({ mode: 'buy' });
+  assert.deepEqual(result, { items: [], total: 0, page: 1, limit: 12 });
+  assert.equal(calls.length, 0);
+});
+
+test('search service: no match skips the second load', async () => {
+  const { finds, repo } = fakeRepo([], { raw: [] });
+  const result = await new PublicRoomsService(repo, () => NOW).search({});
+  assert.deepEqual(result, { items: [], total: 0, page: 1, limit: 12 });
+  assert.equal(finds.length, 0);
+});
+
+test('search route: no sign-in, a short cache, declared before :id so "search" is never read as a room id', () => {
+  const proto = PublicRoomsController.prototype;
+  assert.equal(typeof proto.search, 'function');
+  assert.equal(Reflect.getMetadata('path', proto.search), 'search');
+  assert.equal(Reflect.getMetadata('__guards__', proto.search), undefined);
+  assert.equal(SEARCH_CACHE_CONTROL, 'public, max-age=30, s-maxage=60');
+  const headers = Reflect.getMetadata('__headers__', proto.search) ?? [];
+  assert.ok(headers.some((h) => h.name === 'Cache-Control' && h.value === SEARCH_CACHE_CONTROL));
+  const order = Object.getOwnPropertyNames(proto);
+  assert.ok(order.indexOf('search') < order.indexOf('detail'));
+});
