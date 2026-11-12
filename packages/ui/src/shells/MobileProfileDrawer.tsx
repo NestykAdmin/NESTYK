@@ -11,7 +11,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { MobileButton } from '../components/MobileButton';
-import { MobileStatusPill } from '../components/MobileStatusPill';
+import { MobileComingSoonTag } from '../components/MobileComingSoonTag';
 import { MobileNestykLogo } from '../components/MobileNestykLogo';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
 import { MobileProfileEditBody, ProfilePhotoFile, ProfileSaveInput } from '../components/MobileProfileEditBody';
@@ -366,7 +366,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
             {t.mobile.drawerMenu[item.labelKey]}
           </Text>
           {soon ? (
-            <MobileStatusPill label={t.agent.dashboard.comingSoon} tone="slate" />
+            <MobileComingSoonTag label={t.agent.dashboard.comingSoon} />
           ) : hasChildren ? (
             <MobileIcon
               name={isExpanded ? 'chevron-down' : 'chevron-right'}
@@ -644,7 +644,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                             {t.mobile.drawerMenu[child.labelKey]}
                           </Text>
                           {child.comingSoon ? (
-                            <MobileStatusPill label={t.agent.dashboard.comingSoon} tone="slate" />
+                            <MobileComingSoonTag label={t.agent.dashboard.comingSoon} />
                           ) : (
                             <MobileIcon name="chevron-right" size={18} color={mutedIcon} />
                           )}

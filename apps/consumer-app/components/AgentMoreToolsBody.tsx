@@ -5,7 +5,7 @@ import {
   getCardElevation,
   isAgentComingSoonTab,
   MobileIcon,
-  MobileStatusPill,
+  MobileComingSoonTag,
   tokens,
   useMobileTheme,
   type AppIconName,
@@ -69,7 +69,7 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
                     <View style={[styles.iconBox, soon && styles.dimmed, { backgroundColor: iconBg(item.highlight) }]}>
                       <MobileIcon name={item.icon} size={22} color={soon ? theme.textSecondary : iconColor(item.highlight)} />
                     </View>
-                    {soon ? <MobileStatusPill label={d.comingSoon} tone="slate" /> : null}
+                    {soon ? <MobileComingSoonTag label={d.comingSoon} /> : null}
                   </View>
                   <Text style={[styles.title, soon && styles.dimmed, { color: theme.textHeading }]} numberOfLines={1}>
                     {item.label}
@@ -103,7 +103,7 @@ export function AgentMoreToolsBody({ onOpen }: { onOpen: (tool: AgentMoreTool) =
             {d.commissionDesc}
           </Text>
         </View>
-        <MobileStatusPill label={d.comingSoon} tone="slate" />
+        <MobileComingSoonTag label={d.comingSoon} />
       </View>
     </View>
   );
