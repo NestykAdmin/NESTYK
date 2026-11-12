@@ -13,7 +13,7 @@ test.skip(localApiMode(), 'E2E_WEB_LOCAL_API=yes: ไฟล์นี้เปิ
 
 /**
  * บทบาทกับ URL ของเว็บ consumer-app (ผลเทสด้วยมือ 4 พ.ย. 2026 ข้อ 1, 2, 7, 8 ใน claude/nestyk-web-test-results-for-dev-2026-11-04.md)
- * โค้ดที่ qa/e2e 648dd28 (merge pre/dev/review 9821d87): บั๊กข้อ 2, 7, 8 ทีมแก้แล้ว ข้อ 1 ยังเป็น known-bug
+ * โค้ดที่ qa/e2e 648dd28 (merge pre/dev/review 9821d87): บั๊กข้อ 2, 7, 8 [WEB-004, WEB-009, WEB-010] ทีมแก้แล้ว ข้อ 1 [WEB-001] ยังเป็น known-bug
  *
  * สิ่งที่ต้องมีก่อนรัน: เว็บเปิดด้วย npm run web และเรียก API ของ staging, ตั้ง E2E_QA_TENANT_PASSWORD กับ E2E_QA_AGENT_PASSWORD
  *   (ข้อ /admin ของบัญชี admin ใช้ E2E_QA_ADMIN_PASSWORD ถ้าไม่ตั้งจะข้าม) รายละเอียดใน README หัวข้อ "เทส UI เว็บ consumer-app"
@@ -102,7 +102,7 @@ test.describe('roles requested by the web app itself', () => {
 });
 
 test.describe('pages of a role the account does not have', () => {
-  // บั๊กข้อ 2 แก้แล้วที่ 648dd28: บัญชีที่ล็อกอินแล้วเปิดหน้าของบทบาทที่ไม่มี ถูกพาไปหน้าแรกของบทบาทตัวเองเงียบ ๆ
+  // บั๊กข้อ 2 [WEB-004] แก้แล้วที่ 648dd28: บัญชีที่ล็อกอินแล้วเปิดหน้าของบทบาทที่ไม่มี ถูกพาไปหน้าแรกของบทบาทตัวเองเงียบ ๆ
   //   ไม่มีข้อความแจ้ง ไม่มีหน้า 403 (app/index.tsx:665-667) และใช้ replace จึงกดย้อนกลับไม่กลับไปหน้าที่ถูกปฏิเสธ
   // ตัวตัดสิน: lib/route-access.ts decideRoleAccess (:137-146) เรียกผ่าน roleRedirect (lib/web-routes.web.ts:191-198)
   //   หน้าแรกเลือกจากบทบาทที่จำไว้ถ้าบัญชีมี ไม่งั้นเรียง agent, landlord, tenant (landingFor :56-68) admin ไม่ถูกเลือกเอง
@@ -155,8 +155,8 @@ test.describe('pages of a role the account does not have', () => {
 
 test.describe('messages and sample numbers', () => {
   test('a tenant opening /landlord/income is sent to /tenant with no raw API error left on the page', async ({ page, loginAs, guard }) => {
-    // บั๊กข้อ 7 แก้แล้วที่ 648dd28 ใน 2 ชั้น
-    //   (1) tenant ไม่เห็นหน้ารายได้ของผู้ให้เช่าอีก: ถูกพาไปหน้าแรกของตัวเอง (บั๊กข้อ 2)
+    // บั๊กข้อ 7 [WEB-009] แก้แล้วที่ 648dd28 ใน 2 ชั้น
+    //   (1) tenant ไม่เห็นหน้ารายได้ของผู้ให้เช่าอีก: ถูกพาไปหน้าแรกของตัวเอง (บั๊กข้อ 2 [WEB-004])
     //   (2) 403 ที่เป็นภาษาอังกฤษ เช่น "Required role: landlord" ถูกนับเป็นข้อความสำหรับนักพัฒนา แสดงข้อความสำรองแทน
     //       (packages/i18n/src/error-message.ts:29-34, 40-44) ชั้นนี้ชุดนี้ตรวจผ่านหน้าจริงไม่ได้ เพราะ tenant ไปไม่ถึงหน้านั้นแล้ว
     // ข้อนี้ตรวจหน้าหลังนิ่งแล้วเท่านั้น ถ้าข้อความดิบขึ้นชั่วครู่บนหน้ารายได้ก่อนถูกพาไป เทสนี้ไม่จับ
@@ -201,7 +201,7 @@ test.describe('messages and sample numbers', () => {
   });
 
   test('the admin page shows the i18n title and no made-up numbers', async ({ page, loginAs }) => {
-    // บั๊กข้อ 8 แก้แล้วที่ 648dd28: การ์ดของแอดมินใช้ข้อความจาก i18n และไม่มีตัวเลขสมมติ (app/index.tsx:1134-1166)
+    // บั๊กข้อ 8 [WEB-010] แก้แล้วที่ 648dd28: การ์ดของแอดมินใช้ข้อความจาก i18n และไม่มีตัวเลขสมมติ (app/index.tsx:1134-1166)
     // ขั้นที่ 1: ล็อกอินเป็น admin แล้วเปิด /admin
     await loginAs('admin');
     await page.goto('/admin');

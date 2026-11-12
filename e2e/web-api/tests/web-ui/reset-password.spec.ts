@@ -4,8 +4,8 @@ import { ResetPasswordPage } from '../../src/web-ui/pages/reset-password.page';
 import { EN, RAW_ERRORS, RETIRED_RESET_SEND, TH_EMAIL, TH_RESET_SEND, UI_LOCALE } from '../../src/web-ui/labels';
 
 /**
- * หน้าลืมรหัสผ่านและตั้งรหัสใหม่ (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "รีเซ็ตรหัสผ่าน" และบั๊กข้อ 4, 6, 7)
- * โค้ด: apps/consumer-app/app/reset-password.tsx และ lib/auth/reset-password.ts (qa/e2e 648dd28: บั๊กข้อ 4, 6, 7 ของหน้านี้แก้แล้ว)
+ * หน้าลืมรหัสผ่านและตั้งรหัสใหม่ (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "รีเซ็ตรหัสผ่าน" และบั๊กข้อ 4, 6, 7 [WEB-006, WEB-008, WEB-009])
+ * โค้ด: apps/consumer-app/app/reset-password.tsx และ lib/auth/reset-password.ts (qa/e2e 648dd28: บั๊กข้อ 4, 6, 7 [WEB-006, WEB-008, WEB-009] ของหน้านี้แก้แล้ว)
  *
  * สิ่งที่ต้องมีก่อนรัน: เว็บเปิดด้วย npm run web ไม่ต้องใช้รหัสผ่านของบัญชีไหน (ทุกข้อไม่ล็อกอิน)
  * ไม่มีข้อไหนเปลี่ยนรหัสผ่านได้จริง:
@@ -50,7 +50,7 @@ test.describe('email step', () => {
     });
   }
 
-  // บั๊กข้อ 6 แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): ปุ่มเขียนว่าส่งลิงก์ และไม่มีปุ่มที่เขียนว่าส่งรหัส
+  // บั๊กข้อ 6 [WEB-008] แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): ปุ่มเขียนว่าส่งลิงก์ และไม่มีปุ่มที่เขียนว่าส่งรหัส
   test('the email button says "Send link" in English', async ({ page }) => {
     test.skip(UI_LOCALE !== 'en', 'ข้อนี้ตรวจภาษาอังกฤษ ข้อถัดไปตรวจภาษาไทยอยู่แล้ว');
     const reset = new ResetPasswordPage(page);
@@ -92,7 +92,7 @@ test.describe('recovery links', () => {
     expect(new URL(page.url()).search, 'URL ต้องยังไม่มี token หลังตรวจครั้งแรก').toBe('');
   });
 
-  // บั๊กข้อ 4 แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): ลิงก์ที่ไม่มี token กลับขั้นอีเมลพร้อมเหตุผล ไม่เปิดฟอร์มที่บันทึกไม่ได้
+  // บั๊กข้อ 4 [WEB-006] แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): ลิงก์ที่ไม่มี token กลับขั้นอีเมลพร้อมเหตุผล ไม่เปิดฟอร์มที่บันทึกไม่ได้
   //   ?type=recovery: brokenRecoveryLanding (lib/auth/reset-password.ts:37-44) ตั้งข้อความตั้งแต่เปิดหน้า (reset-password.tsx:31)
   //   ?code=: hasResetSession ตอบว่าไม่มี session แล้วกลับขั้นอีเมล (reset-password.tsx:59-70)
   for (const query of ['?type=recovery', '?code=qa-bad-code']) {
@@ -136,7 +136,7 @@ test.describe('new password form', () => {
     expect(verify, 'รหัสไม่ตรงกัน หน้าต้องหยุดก่อนตรวจลิงก์ (reset-password.tsx:109-112)').toHaveLength(0);
   });
 
-  // บั๊กข้อ 7 ของหน้านี้แก้แล้วที่ 648dd28 ข้อนี้ตรวจเฉพาะทางของ verifyOtp (reset-password.tsx:119-125)
+  // บั๊กข้อ 7 [WEB-009] ของหน้านี้แก้แล้วที่ 648dd28 ข้อนี้ตรวจเฉพาะทางของ verifyOtp (reset-password.tsx:119-125)
   //   ทางที่บันทึกเมื่อไม่มี session (RECOVERY_SESSION_MISSING :133-135) ไม่มีข้อไหนเดินถึงแล้ว (อยู่ในรายการ "ยังไม่ได้เทส" ของ README)
   test('saving with a fake link says the link expired and stops before updating the password', async ({ page }) => {
     // ขั้นที่ 1: เริ่มจดคำขอก่อนเปิดหน้า เปิดฟอร์มด้วย token ปลอม ใส่รหัสที่ถูกกฎและตรงกัน

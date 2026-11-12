@@ -9,7 +9,7 @@ import { webUiEnv } from '../../src/web-ui/web-ui-env';
 import { hasStoredSession } from '../../src/web-ui/support/idle';
 
 /**
- * URL และการนำทางของเว็บ consumer-app (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "URL และการนำทาง" และบั๊กข้อ 9)
+ * URL และการนำทางของเว็บ consumer-app (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "URL และการนำทาง" และบั๊กข้อ 9 [WEB-011])
  * กติกาของ URL อยู่ใน apps/consumer-app/lib/app-routes.ts (qa/e2e efab8d0)
  *
  * สิ่งที่ต้องมีก่อนรัน: เว็บเปิดด้วย npm run web และเรียก API ของ staging, ตั้ง E2E_QA_TENANT_PASSWORD กับ E2E_QA_AGENT_PASSWORD
@@ -117,7 +117,7 @@ test.describe('paths', () => {
     await expect(page).toHaveURL((url) => url.pathname === '/login' && url.searchParams.get('next') === '/agent');
   });
 
-  // บั๊กข้อ 9 แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): CatchAllRoute.web.tsx เรียก ownScreenPath (lib/app-routes.ts)
+  // บั๊กข้อ 9 [WEB-011] แก้แล้วที่ 648dd28 (เดิมเป็น known-bug): CatchAllRoute.web.tsx เรียก ownScreenPath (lib/app-routes.ts)
   //   แล้ว router.replace ไป path ตัวพิมพ์เล็ก พร้อม query เดิม
   test('/Login opens the login page at /login', async ({ page }) => {
     await page.goto('/Login');

@@ -8,9 +8,9 @@ import { webUiEnv } from '../../src/web-ui/web-ui-env';
 import { ACTIVITY_WRITE_MS, hasStoredSession, IN_WARNING_WINDOW, PAST_LIMIT, readAuthEvent, setLastActivityAgo } from '../../src/web-ui/support/idle';
 
 /**
- * การหมดเวลาและ session ข้ามแท็บของเว็บ (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "Session" และบั๊กข้อ 3, 5)
+ * การหมดเวลาและ session ข้ามแท็บของเว็บ (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "Session" และบั๊กข้อ 3, 5 [WEB-005, WEB-007])
  * โค้ด: apps/consumer-app/components/web-session/IdleSignOutGate.web.tsx, lib/auth/AuthContext.tsx, lib/auth/cross-tab*.ts
- * ที่ qa/e2e 648dd28 (merge pre/dev/review 9821d87) บั๊กข้อ 3 และ 5 ทีมแก้แล้ว
+ * ที่ qa/e2e 648dd28 (merge pre/dev/review 9821d87) บั๊กข้อ 3 และ 5 [WEB-005, WEB-007] ทีมแก้แล้ว
  *
  * สิ่งที่ต้องมีก่อนรัน: เว็บเปิดด้วย npm run web และเรียก API ของ staging, ตั้ง E2E_QA_AGENT_PASSWORD
  * ทุกข้อล็อกอินเป็น qa-agent ใหม่ในเบราว์เซอร์ของเทสเอง (เรียก POST /auth/sync ที่ staging ซิงก์บัญชีที่มีอยู่แล้ว)
@@ -35,7 +35,7 @@ async function openSecondAgentTab(page: Page): Promise<Page> {
 /**
  * การใช้งานที่ห่างจากการเขียนเวลาครั้งก่อนในแท็บนั้นน้อยกว่า 15 วินาทีไม่ถูกนับ (IdleSignOutGate.web.tsx:100)
  * การล็อกอินเขียนเวลาไว้ (:85) ข้อที่ต้องให้การขยับเมาส์หรือกดแป้นถูกนับ เหมือนผู้ใช้ที่ไม่ได้แตะเครื่องมานาน จึงต้องให้พ้นช่วงนี้ก่อน
- * ข้อกล่องเตือน (บั๊กข้อ 3) ยังต้องรอ: ถ้าไม่รอ เมาส์และแป้นไม่ถูกนับเพราะช่วง 15 วินาทีอยู่แล้ว เทสจะผ่านโดยไม่ได้ตรวจการแก้ที่ :98
+ * ข้อกล่องเตือน (บั๊กข้อ 3 [WEB-005]) ยังต้องรอ: ถ้าไม่รอ เมาส์และแป้นไม่ถูกนับเพราะช่วง 15 วินาทีอยู่แล้ว เทสจะผ่านโดยไม่ได้ตรวจการแก้ที่ :98
  * ไม่มีสัญญาณจากหน้าเว็บให้รอ (ค่าเวลาเก็บใน ref ของ React) จึงรอตามเวลานี้โดยตรง (ข้อยกเว้นของกฎ ง.10 ที่มีเหตุผลจากโค้ด)
  */
 async function waitPastActivityWindow(page: Page): Promise<void> {
@@ -55,7 +55,7 @@ test.describe('idle sign out', () => {
   });
 
   test('the Sign out button in the warning signs out when reached with the mouse', async ({ page, loginAs }) => {
-    // บั๊กข้อ 3 แก้แล้ว: ระหว่างกล่องเตือนแสดง การขยับเมาส์และกดแป้นไม่นับเป็นการใช้งาน (IdleSignOutGate.web.tsx:95-98)
+    // บั๊กข้อ 3 [WEB-005] แก้แล้ว: ระหว่างกล่องเตือนแสดง การขยับเมาส์และกดแป้นไม่นับเป็นการใช้งาน (IdleSignOutGate.web.tsx:95-98)
     // ปิดกล่องได้ด้วยปุ่ม "Stay signed in", "Sign out" หรือเมื่อหมดเวลาเท่านั้น
     // ขั้นที่ 1: ล็อกอิน รอให้พ้นช่วง 15 วินาที แล้วตั้งเวลาให้กล่องเตือนขึ้น
     await signInAsAgent(page, loginAs);
@@ -82,7 +82,7 @@ test.describe('idle sign out', () => {
     await setLastActivityAgo(page, IN_WARNING_WINDOW);
     const warning = new IdleWarning(page);
     await expect(warning.stay).toBeFocused();
-    // ขั้นที่ 2: Shift+Tab ไปที่ปุ่ม Sign out (อยู่ก่อนหน้าใน DOM :135) กล่องต้องยังอยู่ (บั๊กข้อ 3 แก้แล้ว: :98)
+    // ขั้นที่ 2: Shift+Tab ไปที่ปุ่ม Sign out (อยู่ก่อนหน้าใน DOM :135) กล่องต้องยังอยู่ (บั๊กข้อ 3 [WEB-005] แก้แล้ว: :98)
     await page.keyboard.press('Shift+Tab');
     await expect(warning.signOut).toBeFocused({ timeout: 3_000 });
     await expect(warning.dialog).toBeVisible();
@@ -188,7 +188,7 @@ test.describe('two tabs', () => {
   });
 
   test('a tab reloaded after the other tab timed out still shows the expired notice', async ({ page, loginAs }) => {
-    // บั๊กข้อ 5 แก้แล้ว: แท็บที่ล้าง session เพราะหมดเวลาเขียนเวลาไว้ที่ nestyk.web.expiredAt (cross-tab.web.ts:8)
+    // บั๊กข้อ 5 [WEB-007] แก้แล้ว: แท็บที่ล้าง session เพราะหมดเวลาเขียนเวลาไว้ที่ nestyk.web.expiredAt (cross-tab.web.ts:8)
     // แท็บที่โหลดใหม่โดยไม่มี session อ่านค่านี้ครั้งเดียวแล้วลบ (takeExpiryNotice :30-38, AuthContext.tsx:219) จึงขึ้นข้อความ 1 ครั้ง
     // ขั้นตอนตามผลเทสข้อ 5: ตั้งเวลาในแท็บที่ 1 แล้วโหลดแท็บที่ 1 ใหม่
     // ขั้นที่ 1: ล็อกอินในแท็บที่ 1 แล้วเปิดแท็บที่ 2

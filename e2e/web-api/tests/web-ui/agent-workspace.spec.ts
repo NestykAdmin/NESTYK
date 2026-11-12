@@ -2,8 +2,8 @@ import { test, expect } from '../../src/web-ui/web-ui.fixture';
 import { AgentShell } from '../../src/web-ui/pages/agent-shell.page';
 
 /**
- * โครงหน้าเดสก์ท็อปของนายหน้า (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "Workspace ของนายหน้า" และบั๊กข้อ 10)
- * โค้ด: apps/consumer-app/components/agent-web/AgentWorkspace.web.tsx และ ui/WebMenu.tsx (qa/e2e 648dd28: บั๊กข้อ 10 ทีมแก้แล้ว)
+ * โครงหน้าเดสก์ท็อปของนายหน้า (ผลเทสด้วยมือ 4 พ.ย. 2026 หัวข้อ "Workspace ของนายหน้า" และบั๊กข้อ 10 [WEB-012])
+ * โค้ด: apps/consumer-app/components/agent-web/AgentWorkspace.web.tsx และ ui/WebMenu.tsx (qa/e2e 648dd28: บั๊กข้อ 10 [WEB-012] ทีมแก้แล้ว)
  *
  * สิ่งที่ต้องมีก่อนรัน: เว็บเปิดด้วย npm run web และเรียก API ของ staging, ตั้ง E2E_QA_AGENT_PASSWORD
  * ทุกข้อล็อกอินเป็น qa-agent (เรียก POST /auth/sync ที่ staging ซิงก์บัญชีที่มีอยู่แล้ว) และไม่บันทึกอะไร
@@ -56,7 +56,7 @@ test.describe('Create menu', () => {
     await expect(shell.createFirstItem).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(shell.createList).toBeHidden();
-    // ขั้นที่ 2: โฟกัสต้องกลับไปที่ปุ่ม Create (บั๊กข้อ 10 แก้แล้ว: triggerRef.current?.focus() ที่ WebMenu.tsx:60)
+    // ขั้นที่ 2: โฟกัสต้องกลับไปที่ปุ่ม Create (บั๊กข้อ 10 [WEB-012] แก้แล้ว: triggerRef.current?.focus() ที่ WebMenu.tsx:60)
     await expect(shell.createButton).toBeFocused({ timeout: 3_000 });
   });
 
@@ -71,7 +71,7 @@ test.describe('Create menu', () => {
   });
 
   test('the click that closes the menu does not also press what is under it', async ({ page }) => {
-    // บั๊กข้อ 10 แก้แล้ว: mousedown นอกเมนูปิดเมนู แล้วกลืนคลิกถัดไป 1 ครั้ง (WebMenu.tsx:40-55)
+    // บั๊กข้อ 10 [WEB-012] แก้แล้ว: mousedown นอกเมนูปิดเมนู แล้วกลืนคลิกถัดไป 1 ครั้ง (WebMenu.tsx:40-55)
     // ขั้นที่ 1: เปิดเมนู Create แล้วคลิกการ์ดตัวเลขใบแรกบนแดชบอร์ด (อยู่นอกเมนู กดแล้วไปหน้าห้อง: AgentOverview.web.tsx:241)
     const shell = new AgentShell(page);
     await shell.createButton.click();
