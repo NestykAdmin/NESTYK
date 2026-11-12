@@ -91,7 +91,7 @@ export const guestJa: GuestCopy = {
     details: '部屋の情報',
     titleFallback: '{name}・{rooms}',
     roomFallback: '賃貸物件',
-    signInToSave: 'ログインして「{name}」を保存',
+    saveNamed: '「{name}」を保存',
   },
   home: {
     featuredTitle: 'おすすめの物件',
@@ -210,8 +210,18 @@ export const guestJa: GuestCopy = {
     title: 'お気に入り',
     subtitle: '保存した物件',
     emptyTitle: '保存した物件はまだありません',
-    emptyBody: '気になる物件のハートをタップすると、ここに表示されます。あとで見返したり比較したりできます。',
+    emptyBody: '保存した物件はここに表示され、あとで見返したり比較したりできます。',
     browse: 'ホームに戻る',
+    gateTitle: 'ログインしてお気に入りを見る',
+    gateBody: '保存した物件はここに表示され、どの端末からでも見られます。',
+  },
+  signInPrompt: {
+    saveTitle: 'ログインして物件を保存',
+    saveBody: '気になる物件を保存して、どの端末からでも見返せます。',
+    signIn: 'ログイン',
+    register: '新規登録',
+    later: 'あとで',
+    close: '閉じる',
   },
   profile: {
     title: 'プロフィール',

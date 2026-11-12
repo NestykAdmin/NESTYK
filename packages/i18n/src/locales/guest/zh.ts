@@ -91,7 +91,7 @@ export const guestZh: GuestCopy = {
     details: '房间信息',
     titleFallback: '{name} · {rooms}',
     roomFallback: '出租房',
-    signInToSave: '登录后收藏「{name}」',
+    saveNamed: '收藏「{name}」',
   },
   home: {
     featuredTitle: '为您推荐',
@@ -210,8 +210,18 @@ export const guestZh: GuestCopy = {
     title: '收藏',
     subtitle: '你收藏的房源',
     emptyTitle: '还没有收藏的房源',
-    emptyBody: '点击喜欢的房源上的爱心，它就会出现在这里，方便之后查看或比较。',
+    emptyBody: '你收藏的房源会显示在这里，方便之后查看或比较。',
     browse: '返回首页',
+    gateTitle: '登录后查看收藏',
+    gateBody: '你收藏的房源会显示在这里，任何设备都能查看。',
+  },
+  signInPrompt: {
+    saveTitle: '登录后即可收藏房源',
+    saveBody: '收藏感兴趣的房源，在任何设备上都能查看。',
+    signIn: '登录',
+    register: '注册',
+    later: '以后再说',
+    close: '关闭',
   },
   profile: {
     title: '我的',

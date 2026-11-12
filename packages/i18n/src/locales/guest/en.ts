@@ -91,7 +91,7 @@ export const guestEn: GuestCopy = {
     details: 'Room details',
     titleFallback: '{name} · {rooms}',
     roomFallback: 'Rental room',
-    signInToSave: 'Sign in to save {name}',
+    saveNamed: 'Save {name}',
   },
   home: {
     featuredTitle: 'Recommended for you',
@@ -210,8 +210,18 @@ export const guestEn: GuestCopy = {
     title: 'Saved',
     subtitle: 'Rooms you saved',
     emptyTitle: 'No saved rooms yet',
-    emptyBody: 'Tap the heart on a room you like and it will appear here, so you can come back to it or compare later.',
+    emptyBody: 'Rooms you save will appear here, so you can come back to them or compare later.',
     browse: 'Back to home',
+    gateTitle: 'Sign in to see your saved rooms',
+    gateBody: 'Rooms you save will be here, on any device.',
+  },
+  signInPrompt: {
+    saveTitle: 'Sign in to save rooms',
+    saveBody: 'Keep the rooms you like and see them again on any device.',
+    signIn: 'Sign in',
+    register: 'Create account',
+    later: 'Not now',
+    close: 'Close',
   },
   profile: {
     title: 'Profile',

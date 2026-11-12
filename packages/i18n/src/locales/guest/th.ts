@@ -91,7 +91,7 @@ export const guestTh: GuestCopy = {
     details: 'ข้อมูลห้อง',
     titleFallback: '{name} · {rooms}',
     roomFallback: 'ห้องเช่า',
-    signInToSave: 'เข้าสู่ระบบเพื่อบันทึก {name}',
+    saveNamed: 'บันทึก {name}',
   },
   home: {
     featuredTitle: 'ประกาศแนะนำสำหรับคุณ',
@@ -210,8 +210,18 @@ export const guestTh: GuestCopy = {
     title: 'รายการโปรด',
     subtitle: 'ห้องที่คุณบันทึกไว้',
     emptyTitle: 'ยังไม่มีห้องที่บันทึกไว้',
-    emptyBody: 'กดรูปหัวใจที่ห้องที่สนใจ แล้วห้องนั้นจะมาอยู่ที่นี่ เพื่อกลับมาดูหรือเทียบกันภายหลัง',
+    emptyBody: 'ห้องที่คุณบันทึกไว้จะอยู่ที่นี่ เพื่อกลับมาดูหรือเทียบกันภายหลัง',
     browse: 'กลับไปหน้าแรก',
+    gateTitle: 'เข้าสู่ระบบเพื่อดูรายการโปรด',
+    gateBody: 'ห้องที่คุณบันทึกไว้จะอยู่ที่นี่ ดูต่อได้ทุกอุปกรณ์',
+  },
+  signInPrompt: {
+    saveTitle: 'เข้าสู่ระบบเพื่อบันทึกห้อง',
+    saveBody: 'เก็บห้องที่สนใจไว้ดูภายหลังได้ทุกอุปกรณ์',
+    signIn: 'เข้าสู่ระบบ',
+    register: 'สมัครสมาชิก',
+    later: 'ไว้ทีหลัง',
+    close: 'ปิด',
   },
   profile: {
     title: 'โปรไฟล์',

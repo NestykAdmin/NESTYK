@@ -85,7 +85,7 @@ test('home page copy: every popular area and transit line of the API has a name 
     for (const line of new Set(lines)) assert.ok(copy.transitLines?.[line], `${code} transitLines.${line}`);
     assert.match(copy.card.titleFallback, /\{name\}/, `${code} card.titleFallback`);
     assert.match(copy.card.titleFallback, /\{rooms\}/, `${code} card.titleFallback`);
-    for (const key of ['roomFallback', 'signInToSave']) assert.ok(copy.card[key], `${code} card.${key}`);
+    for (const key of ['roomFallback', 'saveNamed']) assert.ok(copy.card[key], `${code} card.${key}`);
     for (const key of ['listingsEmpty', 'aboutTitle', 'aboutBody', 'aboutUpdatedTitle', 'aboutMatchTitle', 'aboutOnlineTitle']) {
       assert.ok(copy.home[key], `${code} home.${key}`);
     }
@@ -93,5 +93,18 @@ test('home page copy: every popular area and transit line of the API has a name 
 });
 
 test('the heart button names the room, so a screen reader can tell the cards apart (R9)', () => {
-  for (const code of Object.keys(copies)) assert.deepEqual(placeholders(copies[code].card.signInToSave), ['name'], code);
+  for (const code of Object.keys(copies)) assert.deepEqual(placeholders(copies[code].card.saveNamed), ['name'], code);
+});
+
+test('features that need an account explain it in a prompt, not by sending the guest away (Mos 11 Nov 2026)', () => {
+  for (const [code, copy] of Object.entries(copies)) {
+    for (const key of ['saveTitle', 'saveBody', 'signIn', 'register', 'later', 'close']) {
+      assert.ok(copy.signInPrompt?.[key], `${code}: signInPrompt.${key}`);
+    }
+    assert.ok(copy.saved.gateTitle && copy.saved.gateBody, `${code}: saved gate copy`);
+    assert.equal('signInToSave' in copy.card, false, `${code}: old heart label removed`);
+  }
+  // Copy describes what the page is for; it does not teach how to tap (Mos 11 Nov 2026).
+  assert.doesNotMatch(copies.th.saved.emptyBody, /กด/);
+  assert.doesNotMatch(copies.en.saved.emptyBody, /\btap\b/i);
 });

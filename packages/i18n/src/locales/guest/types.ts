@@ -97,7 +97,8 @@ export interface GuestCopy {
     details: string;
     titleFallback: string;
     roomFallback: string;
-    signInToSave: string;
+    /** Label of the heart button: "Save {name}". */
+    saveNamed: string;
   };
   home: {
     featuredTitle: string;
@@ -218,6 +219,18 @@ export interface GuestCopy {
     emptyTitle: string;
     emptyBody: string;
     browse: string;
+    /** Shown while the guest is not signed in (the web cannot see the session until single sign-on). */
+    gateTitle: string;
+    gateBody: string;
+  };
+  /** Prompt for features that need an account (Mos 11 Nov 2026): explains it in place, never jumps to sign-in. */
+  signInPrompt: {
+    saveTitle: string;
+    saveBody: string;
+    signIn: string;
+    register: string;
+    later: string;
+    close: string;
   };
   profile: {
     title: string;
