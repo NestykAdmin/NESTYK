@@ -164,12 +164,18 @@
 .aw-nav-label {
   min-width: 0;
 }
-.aw-nav-item:hover:not(:disabled) {
-  background: var(--aw-bg);
+.aw-nav-item:hover:not(:disabled):not(.is-active) {
+  /* v1.2 (12 Nov 2026, design B "ink leads"): CI slate neutral hover (#F1F5F9; warm #F5F5F4 was off-CI, Mos 12 Nov 16:13). The selected item keeps its
+     own fill: a light hover under white text was unreadable (Mos, 12 Nov 15:23). */
+  background: #f1f5f9;
+}
+.aw-nav-item.is-active:hover {
+  background: #3f3a3a;
 }
 .aw-nav-item.is-active {
-  background: var(--aw-brand-soft);
-  color: var(--aw-brand-ink);
+  /* v1.2: the selected item is the ink fill with white text and a yellow icon (icon colour set in AgentWorkspace.web.tsx). */
+  background: var(--aw-black);
+  color: #ffffff;
   font-family: "NotoSansThai_600SemiBold", sans-serif;
 }
 .aw-active-dot {
@@ -177,7 +183,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--aw-brand-text);
+  background: var(--aw-brand);
   flex-shrink: 0;
 }
 .aw-nav-divider {
@@ -328,10 +334,14 @@
   height: 36px;
   width: 36px;
   border-radius: 50%;
-  background: var(--aw-brand-soft);
-  color: var(--aw-brand-ink);
+  /* v1.2: the signed-in user's own avatar is ink with yellow initials (lifted grey in dark mode). */
+  background: var(--aw-black);
+  color: var(--aw-brand);
   font-size: var(--aw-t-caption);
   font-family: "NotoSansThai_600SemiBold", sans-serif;
+}
+.aw-shell[data-theme="dark"] .aw-avatar {
+  background: var(--aw-lift);
 }
 .aw-avatar-photo {
   object-fit: cover;
@@ -806,12 +816,17 @@
   justify-content: center;
   padding: var(--aw-s3);
 }
-.aw-shell[data-theme="dark"] .aw-nav-item:hover:not(:disabled) {
-  background: #ffffff0d;
+.aw-shell[data-theme="dark"] .aw-nav-item:hover:not(:disabled):not(.is-active) {
+  background: #ffffff0f;
+}
+.aw-shell[data-theme="dark"] .aw-nav-item.is-active:hover {
+  background: #575151;
 }
 .aw-shell[data-theme="dark"] .aw-nav-item.is-active {
-  background: #f8b61524;
-  color: #fcde96;
+  /* v1.2 B-dark 2: lifted grey + yellow bar on the left. */
+  background: var(--aw-lift);
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 var(--aw-brand);
 }
 @media (max-width: 1100px) {
   .aw-shell {
@@ -1032,18 +1047,26 @@
   width: 100%;
 }
 .aw-switcher {
+  /* v1.2: the workspace (mode) box is ink in light mode and lifted grey in dark mode, with a yellow icon. */
   display: flex;
   align-items: center;
   gap: var(--aw-s3);
   width: 100%;
   padding: var(--aw-s2);
-  border: 1px solid var(--aw-border);
+  border: 1px solid var(--aw-black);
   border-radius: var(--aw-r-md);
-  background: var(--aw-surface);
+  background: var(--aw-black);
+  color: #ffffff;
   text-align: left;
 }
 .aw-switcher:hover {
-  background: var(--aw-bg);
+  background: #3f3a3a;
+}
+.aw-switcher .aw-switch-copy strong {
+  color: #ffffff;
+}
+.aw-switcher .aw-switch-copy small {
+  color: #cbd5e1;
 }
 .aw-switch-tile {
   position: relative;
@@ -1053,7 +1076,7 @@
   height: 36px;
   flex-shrink: 0;
   border-radius: var(--aw-r-md);
-  background: var(--aw-brand-soft);
+  background: #f8b61529;
 }
 .aw-switch-dot {
   /* Role colour as a thin ring around the tile, not a filled dot: a red dot reads as an alert (design audit #4). */
@@ -1170,13 +1193,15 @@
   font-size: var(--aw-t-small);
   color: var(--aw-muted) !important;
 }
-.aw-nav-subitem:hover:not(:disabled) {
-  background: var(--aw-bg);
+.aw-nav-subitem:hover:not(:disabled):not(.is-active) {
+  background: #f1f5f9;
   color: var(--aw-ink) !important;
 }
 .aw-nav-subitem.is-active {
-  background: var(--aw-brand-soft);
-  color: var(--aw-brand-ink) !important;
+  /* v1.2: the selected sub-page under an ink parent: CI slate neutral fill, ink text and a yellow bar. */
+  background: #f1f5f9;
+  color: var(--aw-ink) !important;
+  box-shadow: inset 2px 0 0 var(--aw-brand);
   font-family: "NotoSansThai_600SemiBold", sans-serif;
 }
 .aw-collapsed .aw-nav-sub,
@@ -1212,15 +1237,22 @@
   left: 8px;
 }
 
-.aw-shell[data-theme="dark"] .aw-switch-tile {
-  background: #f8b61524;
+.aw-shell[data-theme="dark"] .aw-switcher {
+  background: var(--aw-lift);
+  border-color: var(--aw-lift);
 }
-.aw-shell[data-theme="dark"] .aw-nav-subitem:hover:not(:disabled) {
-  background: #ffffff0d;
+.aw-shell[data-theme="dark"] .aw-switcher:hover {
+  background: #575151;
+}
+.aw-shell[data-theme="dark"] .aw-switch-tile {
+  background: #f8b61529;
+}
+.aw-shell[data-theme="dark"] .aw-nav-subitem:hover:not(:disabled):not(.is-active) {
+  background: #ffffff0f;
 }
 .aw-shell[data-theme="dark"] .aw-nav-subitem.is-active {
-  background: #f8b61524;
-  color: #fcde96 !important;
+  background: #ffffff0f;
+  color: #ffffff !important;
 }
 
 @media (max-width: 1100px) {

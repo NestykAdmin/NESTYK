@@ -183,8 +183,9 @@
   * ตัวอักษร ไอคอน spinner และเส้นขอบที่แสดงสถานะเลือก ในสี role ต้องผ่าน `roleOnDark(color, isDark)` เสมอ ห้ามใช้ `tokens.colors.roles.*` ตรง ๆ (เทสกันไว้ใน `apps/consumer-app/components/role-colors-dark.test.cjs`)
   * สวิตช์เปิด/ปิด: ink `#211E1E` เมื่อเปิด (dark mode ใช้เหลือง `#F8B615`) ไม่ใช้สีของ role
   * ไม่มี role `owner` แล้ว ใช้ `landlord` หรือ `self_owner`
-  * รูปโปรไฟล์ตัวย่อของคนอื่น (lead, ผู้เช่า, เจ้าของ) ใช้สีเดียวกันทุกคน `tokens.colors.avatar` (สว่าง `#F1F5F9` / `#334155` · มืด `#4A4545` / `#E7E5E4`) ห้ามใช้สีตาม status, role หรือแบรนด์ สีเหลืองใช้เฉพาะรูปของผู้ใช้ที่ login อยู่ (เทส `apps/consumer-app/components/lead-avatar-tone.test.cjs`)
+  * รูปโปรไฟล์ตัวย่อของคนอื่น (lead, ผู้เช่า, เจ้าของ) ใช้สีเดียวกันทุกคน `tokens.colors.avatar` (สว่าง `#E2E8F0` / `#334155` · มืด `#4A4545` / `#E7E5E4`) ห้ามใช้สีตาม status, role หรือแบรนด์ · รูปของผู้ใช้ที่ login อยู่ใช้ดำ ตัวเหลือง (มืด `#4A4545`) (เทส `apps/consumer-app/components/lead-avatar-tone.test.cjs`)
   * ป้าย "Coming soon" ในแอปใช้ `MobileComingSoonTag` (พื้นจางตามโหมด ตัวปกติ 11px) ไม่ใช้ `MobileStatusPill`
+  * v1.2 (12 พ.ย. 2026): ป้ายสถานะพื้นขั้น 100 ไม่มีขอบ โหมดมืดผ่าน `pillToneFor` · เมนูที่เลือก กล่องโหมด กรอบไอคอนการ์ด และรูปของผู้ใช้เป็นดำกับเหลือง (มืด `#4A4545`) · รายละเอียดใน `.cursorrules` §3.2.1
 
 ---
 

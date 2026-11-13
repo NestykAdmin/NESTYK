@@ -145,6 +145,19 @@ button.aov-kpi:hover {
 .aov-kpi-top > svg {
   flex-shrink: 0;
 }
+/* v1.2 (12 Nov 2026, design B): KPI icons sit on an ink chip (lifted grey in dark mode) with a yellow icon. */
+.aov-kpi-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--aw-r-sm);
+  background: #211e1e;
+}
+.aov-scroll[data-theme="dark"] .aov-kpi-icon {
+  background: #4a4545;
+}
 .aov-kpi-value {
   display: block;
   font:

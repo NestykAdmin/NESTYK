@@ -6,16 +6,10 @@ import {
 } from "@nestyk/ui/native";
 import { STATUS_INTENT_TONES, type StatusIntent } from "./statusIntent";
 
-/** Read-only status capsule — the app's `MobileStatusPill` coloured by intent. */
+/** Read-only status capsule — the app's `MobileStatusPill` coloured by intent (v1.2: no border; dark mode via the pill). */
 export function StatusBadge({ label, intent }: { label: string; intent: StatusIntent }) {
-  const tone = STATUS_INTENT_TONES[intent];
-  return (
-    <MobileStatusPill
-      label={label}
-      tone={tone}
-      style={{ borderWidth: 1, borderColor: tone.border }}
-    />
-  );
+  const { bg, fg, dot } = STATUS_INTENT_TONES[intent];
+  return <MobileStatusPill label={label} tone={{ bg, fg, dot }} />;
 }
 
 export type StatusFilterChipProps = Omit<MobileFilterChipProps, "tone"> & {

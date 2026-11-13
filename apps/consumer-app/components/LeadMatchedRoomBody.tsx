@@ -27,7 +27,7 @@ import {
   MobileIcon,
   MobileScoreRing,
   MobileStatusPill,
-  STATUS_PILL_TONES,
+  pillToneFor,
   tokens,
   roleOnDark,
   useMobileTheme,
@@ -61,16 +61,9 @@ const ISSUES: CompareStatus[] = ['near', 'mismatch', 'later'];
 /** Rows that get a status pill; full passes and blanks the lead left unset speak through the % alone. */
 const PILLED: CompareStatus[] = [...ISSUES, 'unknown', 'notEvaluable'];
 
-/** Pastel pill tones wash out on dark surfaces. */
-const DARK_TONES: Partial<Record<MobileStatusPillToneKey, MobileStatusPillTone>> = {
-  green: { bg: 'rgba(34,197,94,0.16)', fg: '#4ADE80' },
-  yellow: { bg: 'rgba(245,158,11,0.18)', fg: '#F8B615' },
-  red: { bg: 'rgba(220,38,38,0.18)', fg: '#F87171' },
-  slate: { bg: 'rgba(148,163,184,0.16)', fg: '#CBD5E1' },
-};
-
+/** Pill colours for the current mode (one shared dark set, colour system v1.2). */
 function toneFor(key: MobileStatusPillToneKey, isDark: boolean): MobileStatusPillTone {
-  return (isDark && DARK_TONES[key]) || STATUS_PILL_TONES[key];
+  return pillToneFor(key, isDark);
 }
 
 const ROW_ICONS: Record<CompareKey, AppIconName> = {

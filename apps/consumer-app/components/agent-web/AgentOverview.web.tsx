@@ -443,11 +443,9 @@ export function AgentOverview({
               <>
                 <div className="aov-kpi-top">
                   <span>{item.label}</span>
-                  <MobileIcon
-                    name={item.icon}
-                    size={21}
-                    color={theme.textSecondary}
-                  />
+                  <span className="aov-kpi-icon" aria-hidden="true">
+                    <MobileIcon name={item.icon} size={18} color="#F8B615" />
+                  </span>
                 </div>
                 {isReady(item.status) ? (
                   <>

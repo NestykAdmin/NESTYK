@@ -8,6 +8,7 @@ import { useLocale } from '@nestyk/i18n';
 import {
   MobileBottomSheet,
   MobileIcon,
+  STATUS_PILL_DARK_TONES,
   STATUS_PILL_TONES,
   tokens,
   roleOnDark,
@@ -39,8 +40,9 @@ const ACCENTS: Record<Accent, { light: MobileStatusPillTone; dark: MobileStatusP
 };
 
 const CHIP_TONES: Record<'warn' | 'neutral', { light: MobileStatusPillTone; dark: MobileStatusPillTone }> = {
-  warn: { light: STATUS_PILL_TONES.yellow, dark: { bg: 'rgba(245,158,11,0.18)', fg: '#F8B615' } },
-  neutral: { light: STATUS_PILL_TONES.slate, dark: { bg: 'rgba(148,163,184,0.16)', fg: '#CBD5E1' } },
+  // Shared pill sets (colour system v1.2).
+  warn: { light: STATUS_PILL_TONES.yellow, dark: STATUS_PILL_DARK_TONES.yellow },
+  neutral: { light: STATUS_PILL_TONES.slate, dark: STATUS_PILL_DARK_TONES.slate },
 };
 
 /** Pin rank badges fade with rank, mirroring the 100 / 85 / 70% pin weights in matching. */

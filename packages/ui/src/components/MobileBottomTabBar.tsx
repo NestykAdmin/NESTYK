@@ -132,7 +132,7 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
   variant = 'floating',
 }) => {
   const { t } = useLocale();
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const tabs = getTabsForRole(activeRole);
   const useUnderline = Boolean(indicatorColor);
   const resolvedActive = useUnderline
@@ -183,7 +183,7 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
                   name={tab.icon}
                   isActive={isActive}
                   activeColor={resolvedActive}
-                  mutedColor={theme.textSecondary}
+                  mutedColor={isDark ? '#CBD5E1' : '#334155'}
                 />
               )}
               <Text

@@ -24,7 +24,7 @@ function load(filename) {
       return [state[index], value => { state[index] = value; }];
     } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale], setLocale() {} }) };
-    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader', isAgentComingSoonTab: load(`${root}/packages/ui/src/config/agentComingSoon.ts`).isAgentComingSoonTab };
+    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), roleOnDark: (c) => c, MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader', isAgentComingSoonTab: load(`${root}/packages/ui/src/config/agentComingSoon.ts`).isAgentComingSoonTab };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
     if (name === '@nestyk/ui/cookie-consent') return load(`${root}/packages/ui/src/consent/cookieConsent.ts`);
     if (name === 'react-native') return { View: () => null, StyleSheet: { create: (styles) => styles } };

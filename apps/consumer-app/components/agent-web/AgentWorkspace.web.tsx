@@ -3,6 +3,7 @@ import { dateLocale, useLocale, type SupportedLocale } from "@nestyk/i18n";
 import {
   MobileIcon,
   MobileNestykLogo,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
   type MobileModePageProps,
@@ -330,8 +331,10 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const currentMenu = [...AGENT_WEB_PRIMARY, ...AGENT_WEB_MORE].find(
     (item) => item.tab === props.activeTab,
   );
+  // v1.2 (12 Nov 2026, design B): the selected item is ink (lifted grey in dark mode) with a yellow icon;
+  // other icons are slate 700 / slate 300 so they no longer look faded.
   const itemColor = (active: boolean) =>
-    active ? (isDark ? "#fcde96" : "#211E1E") : theme.textSecondary;
+    active ? "#F8B615" : isDark ? "#CBD5E1" : "#334155";
   const customItem = (item: WorkspaceNavItem) => (
     <button
       key={item.id}
@@ -429,7 +432,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         <MobileIcon name={icon} size={20} color={itemColor(parent === tab)} />
         <span className="aw-nav-label">{label}</span>
         <span className="aw-nav-chev" aria-hidden="true">
-          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+          <MobileIcon name="chevron-right" size={14} color={parent === tab ? "#CBD5E1" : theme.textSecondary} />
         </span>
       </button>
       {open && !collapsed ? <div className="aw-nav-sub">{subs}</div> : null}
@@ -591,15 +594,16 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               trigger={
                 <>
                   <span className="aw-switch-tile" aria-hidden="true">
-                    <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color="#211E1E" />
-                    <span className="aw-switch-dot" style={{ "--aw-role": ROLE_DOT[shellRole] } as React.CSSProperties} />
+                    <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color="#F8B615" />
+                    {/* The box is dark in both modes, so the role ring uses the light dark-mode step (agent: yellow). */}
+                    <span className="aw-switch-dot" style={{ "--aw-role": roleOnDark(ROLE_DOT[shellRole], true) } as React.CSSProperties} />
                   </span>
                   <span className="aw-switch-copy">
                     <strong>{t.roles[shellRole]}</strong>
                     <small>{workspaceLabel}</small>
                   </span>
                   <span className="aw-switch-chev" aria-hidden="true">
-                    <MobileIcon name="chevron-down" size={14} color={theme.textSecondary} />
+                    <MobileIcon name="chevron-down" size={14} color="#CBD5E1" />
                   </span>
                 </>
               }

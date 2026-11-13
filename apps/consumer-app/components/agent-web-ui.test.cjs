@@ -62,8 +62,10 @@ test('status intents map every app status and fall back to neutral', () => {
 test('StatusBadge and StatusFilterChip reuse the app components with intent colours', () => {
   const [pill] = byType(render(ui.StatusBadge, { label: 'Overdue', intent: 'crit' }), 'MobileStatusPill');
   assert.equal(pill.props.label, 'Overdue');
-  assert.equal(pill.props.tone, ui.STATUS_INTENT_TONES.crit);
-  assert.equal(pill.props.style.borderColor, ui.STATUS_INTENT_TONES.crit.border);
+  // v1.2: badges have no border; the pill gets the intent fill, text and dot (dark mode is resolved by the pill).
+  const { bg, fg, dot } = ui.STATUS_INTENT_TONES.crit;
+  assert.deepEqual(pill.props.tone, { bg, fg, dot });
+  assert.equal(pill.props.style, undefined);
   const onPress = () => {};
   const [all] = byType(render(ui.StatusFilterChip, { label: 'All', count: 36, selected: true, onPress }), 'MobileFilterChip');
   assert.equal(all.props.tone, undefined);

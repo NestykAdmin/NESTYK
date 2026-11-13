@@ -28,11 +28,12 @@ export const MobileProfileAvatar: React.FC<MobileProfileAvatarProps> = ({
   size = 'md',
   style,
 }) => {
-  const { theme, isDark } = useMobileTheme();
+  const { isDark } = useMobileTheme();
   const dims = SIZE_MAP[size];
-  const fill = isDark ? 'rgba(248,182,21,0.22)' : tokens.colors.brand[100];
+  // v1.2 (12 Nov 2026, design B): the user's own avatar is ink with yellow initials (lifted grey in dark mode).
+  const fill = isDark ? tokens.colors.lift : tokens.colors.primary;
   const ring = isDark ? 'rgba(248,182,21,0.65)' : '#F8B615';
-  const text = isDark ? theme.textHeading : tokens.colors.primary;
+  const text = tokens.colors.brand[500];
 
   return (
     <View

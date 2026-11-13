@@ -153,6 +153,16 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   const roleColor = tokens.colors.roles[activeRole] || tokens.colors.brand[500];
   // Icons in the role colour: light step in dark mode (colour system v1.1).
   const roleIcon = roleOnDark(roleColor, isDark);
+  // v1.2 (design B): the current-role box is the solid role colour (ink for agent) with a yellow / white icon,
+  // lifted grey with the light role step in dark mode.
+  const roleBoxFill = isDark ? tokens.colors.lift : roleColor;
+  const roleBoxIcon = isDark
+    ? roleOnDark(roleColor, true)
+    : activeRole === 'guest'
+      ? tokens.colors.primary
+      : activeRole === 'agent'
+        ? tokens.colors.brand[500]
+        : '#FFFFFF';
   const mutedIcon = theme.textSecondary;
   const brandSoft = brandSoftFill(isDark);
   // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
@@ -487,11 +497,11 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                 accessibilityLabel={`${t.mobile.profile.role}: ${t.roles[activeRole]}`}
                 accessibilityState={{ expanded: rolePickerOpen, disabled: visibleRoleOptions.length < 2 }}
               >
-                <View style={[styles.roleIconBox, { backgroundColor: roleIconTint(activeRole, isDark) }]}>
+                <View style={[styles.roleIconBox, { backgroundColor: roleBoxFill }]}>
                   <MobileIcon
                     name={ROLE_OPTIONS.find((role) => role.key === activeRole)!.icon}
                     size={20}
-                    color={activeRole === 'admin' ? theme.textHeading : roleIcon}
+                    color={roleBoxIcon}
                   />
                 </View>
                 <View style={styles.profileText}>

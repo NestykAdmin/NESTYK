@@ -16,6 +16,8 @@ export interface MobileThemeColors {
   screenTitle: string;
   statusBarStyle: StatusBarStyle;
   overlay: string;
+  /** Loading spinners (v1.2): ink in light mode, brand yellow in dark mode. */
+  spinner: string;
 }
 
 const LIGHT_THEME: Omit<MobileThemeColors, 'mode'> = {
@@ -29,6 +31,7 @@ const LIGHT_THEME: Omit<MobileThemeColors, 'mode'> = {
   screenTitle: '#211E1E',
   statusBarStyle: 'dark-content',
   overlay: 'rgba(0,0,0,0.28)',
+  spinner: tokens.colors.primary,
 };
 
 const DARK_THEME: Omit<MobileThemeColors, 'mode'> = {
@@ -43,6 +46,7 @@ const DARK_THEME: Omit<MobileThemeColors, 'mode'> = {
   screenTitle: '#F8FAFC',
   statusBarStyle: 'light-content',
   overlay: 'rgba(0,0,0,0.55)',
+  spinner: tokens.colors.brand[500],
 };
 
 export interface MobileThemeContextValue {
@@ -77,6 +81,11 @@ export const MobileThemeProvider: React.FC<MobileThemeProviderProps> = ({
 
   return <MobileThemeContext.Provider value={value}>{children}</MobileThemeContext.Provider>;
 };
+
+/** Theme when a provider is mounted, otherwise null (for shared pieces that may render outside the app shell). */
+export function useMobileThemeOptional(): MobileThemeContextValue | null {
+  return useContext(MobileThemeContext);
+}
 
 export function useMobileTheme(): MobileThemeContextValue {
   const ctx = useContext(MobileThemeContext);

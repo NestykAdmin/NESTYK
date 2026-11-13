@@ -19,12 +19,13 @@ export type StatusIntentTone = MobileStatusPillTone & { dot: string; border: str
 export const STATUS_INTENTS: readonly StatusIntent[] = ["attn", "prog", "done", "neutral", "crit"];
 
 export const STATUS_INTENT_TONES: Record<StatusIntent, StatusIntentTone> = {
-  // Colour system v1.1 (CI, 12 Nov 2026): same values as the app's STATUS_PILL_TONES (rose, purple, green, slate, red).
-  attn: { bg: "#FFF9E8", fg: "#211E1E", dot: "#F8B615", border: "#FCDE96" },
+  // Colour system v1.2 (12 Nov 2026): same values as the app's STATUS_PILL_TONES (rose, purple, green, slate, red);
+  // badges have no border (`border` is kept for filter chips and outlines). Dark mode comes from `pillToneFor`.
+  attn: { bg: "#FFF0C4", fg: "#211E1E", dot: "#F8B615", border: "#FCDE96" },
   prog: { bg: "#211E1E", fg: "#FFFFFF", dot: "#F8B615", border: "#211E1E" },
-  done: { bg: "#F0FDF4", fg: "#166534", dot: "#15803D", border: "#BBF7D0" },
-  neutral: { bg: "#F1F5F9", fg: "#334155", dot: "#64748B", border: "#E2E8F0" },
-  crit: { bg: "#FEF2F2", fg: "#991B1B", dot: "#B91C1C", border: "#FECACA" },
+  done: { bg: "#DCFCE7", fg: "#166534", dot: "#15803D", border: "#BBF7D0" },
+  neutral: { bg: "#E2E8F0", fg: "#334155", dot: "#64748B", border: "#CBD5E1" },
+  crit: { bg: "#FEE2E2", fg: "#991B1B", dot: "#B91C1C", border: "#FECACA" },
 };
 
 const ROOM: Record<string, StatusIntent> = {

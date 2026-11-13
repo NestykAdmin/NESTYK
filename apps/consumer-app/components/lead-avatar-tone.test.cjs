@@ -1,6 +1,6 @@
 // Person avatars (Mos, 12 Nov 2026, design B4): every lead and tenant initials avatar uses one neutral colour,
 // not the status, role or brand colour (yellow is kept for the signed-in user's own avatar).
-// The status pill beside it still carries the status colour. Light: slate #F1F5F9 / #334155. Dark: warm grey #4A4545 / #E7E5E4.
+// The status pill beside it still carries the status colour. Light: slate #E2E8F0 / #334155 (v1.2, CI neutral text; #1E293B was off-CI). Dark: warm grey #4A4545 / #E7E5E4.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -26,7 +26,7 @@ test('tokens.colors.avatar is one neutral tone per mode and its initials read (4
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText)(require, loaded, loaded.exports);
   const tone = loaded.exports.tokens.colors.avatar;
-  assert.deepEqual(JSON.parse(JSON.stringify(tone)), { light: { bg: '#F1F5F9', fg: '#334155' }, dark: { bg: '#4A4545', fg: '#E7E5E4' } });
+  assert.deepEqual(JSON.parse(JSON.stringify(tone)), { light: { bg: '#E2E8F0', fg: '#334155' }, dark: { bg: '#4A4545', fg: '#E7E5E4' } });
   for (const mode of ['light', 'dark']) assert.ok(contrast(tone[mode].fg, tone[mode].bg) >= 4.5, mode);
   assert.match(read('AgentLeadDetailBody.tsx'), /export const LEAD_AVATAR_TONE = tokens\.colors\.avatar;/);
 });
@@ -56,13 +56,13 @@ test('the agent web leads table uses one avatar class, with a dark-mode rule, an
   assert.doesNotMatch(page, /awl-tone-/);
   const css = read('agent-web/agent-leads.css');
   assert.doesNotMatch(css, /\.awl-tone-/);
-  assert.match(css, /\.awl-avatar \{[^}]*background: #f1f5f9;[^}]*color: #334155;/);
+  assert.match(css, /\.awl-avatar \{[^}]*background: #e2e8f0;[^}]*color: #334155;/);
   assert.match(css, /\.aw-shell\[data-theme="dark"\] \.awl-avatar \{[^}]*background: #4a4545;[^}]*color: #e7e5e4;/);
 });
 
 test('the agent web tenant avatars use the same neutral tone, with the dark-mode rule', () => {
   const css = read('agent-web/agent-tenants.css');
-  assert.match(css, /\.awt-avatar \{[^}]*background: #f1f5f9;[^}]*color: #334155;/);
+  assert.match(css, /\.awt-avatar \{[^}]*background: #e2e8f0;[^}]*color: #334155;/);
   assert.match(css, /\.aw-shell\[data-theme="dark"\] \.awt-avatar \{[^}]*background: #4a4545;[^}]*color: #e7e5e4;/);
   assert.doesNotMatch(css, /\.awt-avatar \{[^}]*#fff9e8/);
 });

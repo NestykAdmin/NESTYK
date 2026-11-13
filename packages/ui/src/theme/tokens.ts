@@ -92,10 +92,14 @@ export const tokens = {
       services: '#94a3b8',   // slate 400
     },
 
+    // 🌗 v1.2 (12 Nov 2026, B-dark 2): lifted grey for selected / leading elements in dark mode
+    // (selected menu item, workspace box, own avatar). Same value as the web's --aw-lift.
+    lift: '#4A4545',
+
     // 👤 Initials avatar of other people (leads, tenants): one neutral tone for everyone, never the status,
     // role or brand colour (Mos, 12 Nov 2026, design B4). Yellow stays for the signed-in user's own avatar.
     avatar: {
-      light: { bg: '#F1F5F9', fg: '#334155' },
+      light: { bg: '#E2E8F0', fg: '#334155' }, // v1.2: CI neutral text (#1E293B was off-CI, Mos 12 Nov 16:13)
       dark: { bg: '#4A4545', fg: '#E7E5E4' },
     },
   },
