@@ -29,9 +29,8 @@ import {
   ShieldIcon,
   SlidersIcon,
   SunIcon,
-  UserIcon,
 } from '../../../components/guest/GuestIcons';
-import { AccountLink } from '../../../components/guest/AccountLink';
+import { ProfileAccount, ProfileSignOut } from '../../../components/guest/ProfileAccount';
 import { GuestSocialLinks } from '../../../components/guest/GuestSocialLinks';
 
 type Props = { params: Promise<{ locale: string }> };
@@ -78,23 +77,7 @@ export default async function ProfilePage({ params }: Props) {
         <p className="nk-page-head__text">{copy.subtitle}</p>
       </div>
       <div className="nk-page">
-        <section className="nk-card nk-signin-card" data-testid="profile.signInCard">
-          <div className="nk-signin-card__head">
-            <span className="nk-avatar">
-              <UserIcon size={26} />
-            </span>
-            <div>
-              <h2 className="nk-card__title">{copy.accountTitle}</h2>
-              <p className="nk-card__text">{copy.accountBody}</p>
-            </div>
-          </div>
-          <AccountLink page="signIn" className="nk-btn nk-btn--primary" data-testid="profile.signIn">
-            {copy.signIn}
-          </AccountLink>
-          <AccountLink page="register" className="nk-btn nk-btn--secondary" data-testid="profile.register">
-            {copy.register}
-          </AccountLink>
-        </section>
+        <ProfileAccount />
 
         <section aria-label={copy.activityLabel} className="nk-card nk-list">
           <Link href={localePath(locale, '/saved')} className="nk-row" data-testid="profile.saved">
@@ -157,6 +140,8 @@ export default async function ProfilePage({ params }: Props) {
             <Chevron />
           </a>
         </section>
+
+        <ProfileSignOut />
 
         <section aria-label={copy.contactLabel} className="nk-card nk-list nk-page__mobile-only" data-testid="profile.contact">
           <a href={telHref(GUEST_CONTACT.phone)} className="nk-row">

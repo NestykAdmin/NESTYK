@@ -2389,3 +2389,181 @@ a.nk-types__item:hover {
   border: 0;
   cursor: pointer;
 }
+
+/* Account (AUTH-2, design B picked by Mos 13 Nov 2026): chip + menu in the header, account card on the profile */
+.nk-account {
+  position: relative;
+  display: flex;
+}
+.nk-account--checking {
+  width: 112px;
+  height: var(--nk-tap);
+}
+.nk-avatar-initials {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--nk-radius-pill);
+  overflow: hidden;
+  background: var(--nk-color-ink);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--nk-text-md);
+  font-weight: 600;
+}
+.nk-avatar-initials img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nk-avatar-initials--sm {
+  width: 34px;
+  height: 34px;
+  font-size: var(--nk-text-xs);
+}
+.nk-avatar-initials--lg {
+  width: 56px;
+  height: 56px;
+  font-size: var(--nk-text-lg);
+  box-shadow: 0 0 0 2px var(--nk-color-brand);
+}
+.nk-account__chip {
+  height: var(--nk-tap);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  padding: 0 10px 0 4px;
+  border: 1px solid var(--nk-color-ink);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font-family: inherit;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.nk-account__chip:hover,
+.nk-account__chip[aria-expanded="true"] {
+  background: var(--nk-color-neutral-bg);
+}
+.nk-account__name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nk-account__menu {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  z-index: 60;
+  width: 300px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  background: var(--nk-color-surface);
+  box-shadow: var(--nk-shadow-pop);
+}
+.nk-account__head {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  padding: var(--nk-space-4);
+  background: var(--nk-color-bg);
+}
+.nk-account__who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nk-account__full {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-account__email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-account__group {
+  padding: var(--nk-space-2) 0;
+  border-top: 1px solid var(--nk-color-neutral-bg);
+}
+.nk-account__label {
+  margin: 0;
+  padding: var(--nk-space-1) var(--nk-space-4);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+}
+.nk-account__item {
+  width: 100%;
+  min-height: var(--nk-tap);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  padding: 0 var(--nk-space-4);
+  border: 0;
+  background: transparent;
+  color: var(--nk-color-ink);
+  font: inherit;
+  font-size: var(--nk-text-md);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.nk-account__item:hover,
+.nk-account__item:focus-visible {
+  background: var(--nk-color-bg);
+}
+.nk-account__item--soon {
+  color: var(--nk-color-text-disabled);
+  cursor: default;
+}
+.nk-account__item--soon:hover {
+  background: transparent;
+}
+.nk-account__icon {
+  flex: none;
+  color: var(--nk-color-text-secondary);
+}
+.nk-account__text {
+  flex: 1;
+}
+.nk-account-card {
+  padding: var(--nk-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+}
+.nk-signin-card--checking {
+  visibility: hidden;
+}
+.nk-btn--signout {
+  gap: var(--nk-space-2);
+  border: 1px solid var(--nk-color-border);
+  background: var(--nk-color-surface);
+  color: #b91c1c;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nk-tab__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-ink);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+}

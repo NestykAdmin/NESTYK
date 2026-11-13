@@ -274,6 +274,19 @@ export interface GuestCopy {
     call: string;
     email: string;
   };
+  /** Account menu of the guest web when signed in (AUTH-2, design B, Mos 13 Nov 2026). */
+  account: {
+    title: string;
+    button: string;
+    menuLabel: string;
+    profile: string;
+    saved: string;
+    viewingRequests: string;
+    workspace: string;
+    goToRole: string;
+    signOut: string;
+    checking: string;
+  };
   areaNames: {
     'sukhumvit-asok': string;
     'silom-sathorn': string;

@@ -265,6 +265,18 @@ export const guestJa: GuestCopy = {
     call: '電話する',
     email: 'メール',
   },
+  account: {
+    title: 'マイアカウント',
+    button: 'マイアカウント: {name}',
+    menuLabel: 'アカウントメニュー',
+    profile: 'マイプロフィール',
+    saved: 'お気に入り',
+    viewingRequests: '内見リクエスト',
+    workspace: 'ワークスペース',
+    goToRole: '{role}のページへ',
+    signOut: 'ログアウト',
+    checking: 'ログイン状態を確認中',
+  },
   areaNames: {
     'sukhumvit-asok': 'スクンビット・アソーク',
     'silom-sathorn': 'シーロム・サートーン',

@@ -265,6 +265,18 @@ export const guestTh: GuestCopy = {
     call: 'โทรหาเรา',
     email: 'อีเมล',
   },
+  account: {
+    title: 'บัญชีของฉัน',
+    button: 'บัญชีของฉัน: {name}',
+    menuLabel: 'เมนูบัญชี',
+    profile: 'โปรไฟล์ของฉัน',
+    saved: 'รายการโปรด',
+    viewingRequests: 'คำร้องนัดดูห้อง',
+    workspace: 'พื้นที่ทำงาน',
+    goToRole: 'ไปหน้าของ{role}',
+    signOut: 'ออกจากระบบ',
+    checking: 'กำลังตรวจสอบการเข้าสู่ระบบ',
+  },
   areaNames: {
     'sukhumvit-asok': 'สุขุมวิท อโศก',
     'silom-sathorn': 'สีลม สาทร',

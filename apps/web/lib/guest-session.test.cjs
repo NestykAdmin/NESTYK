@@ -97,3 +97,13 @@ test('the guest web keeps to pure rules here (no React, no browser globals): the
   assert.doesNotMatch(source, /^import /m);
   assert.doesNotMatch(source, /\b(window|localStorage|document)\./);
 });
+
+test('the account menu links to the role pages the account has (agent, landlord, tenant), never admin or guest', () => {
+  assert.deepEqual(session.roleSiteLinks(['guest', 'tenant', 'agent']), [
+    { role: 'agent', path: '/agent' },
+    { role: 'tenant', path: '/tenant' },
+  ]);
+  assert.deepEqual(session.roleSiteLinks(['admin', 'guest']), []);
+  assert.deepEqual(session.roleSiteLinks(['landlord', 'landlord', 'x']), [{ role: 'landlord', path: '/landlord' }]);
+  assert.deepEqual(session.roleSiteLinks(undefined), []);
+});

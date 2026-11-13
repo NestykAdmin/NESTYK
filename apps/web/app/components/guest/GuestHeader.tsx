@@ -5,7 +5,7 @@ import { fillTemplate, useLocale } from '@nestyk/i18n';
 import logo from '@nestyk/ui/assets/nestyk/svg/logo-nestyk-standard.svg';
 import { Link, usePathname } from '../../../i18n/navigation';
 import { GUEST_NAV, isGuestPageReady } from '../../../lib/guest-site';
-import { AccountLink } from './AccountLink';
+import { AccountMenu } from './AccountMenu';
 import { HeartIcon } from './GuestIcons';
 import { GuestLanguageButtonStatic, GuestLanguageMenu } from './GuestLanguageMenu';
 
@@ -21,7 +21,8 @@ function isCurrent(pathname: string, href: string): boolean {
 
 /**
  * Guest header, design v2.3: logo, the 5 menu items (pages not built yet show "coming soon"), one language button,
- * saved rooms and one sign-in button to the central login. Hidden at 960px and below, where the tab bar takes over.
+ * saved rooms and one sign-in button to the central login (the account menu once signed in, AUTH-2 design B).
+ * Hidden at 960px and below, where the tab bar takes over.
  */
 export function GuestHeader() {
   const { t } = useLocale();
@@ -97,9 +98,7 @@ export function GuestHeader() {
           >
             <HeartIcon />
           </Link>
-          <AccountLink page="signIn" className="nk-signin" data-testid="guest.signIn">
-            {copy.signIn}
-          </AccountLink>
+          <AccountMenu />
         </div>
       </div>
     </header>

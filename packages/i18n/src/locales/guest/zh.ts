@@ -265,6 +265,18 @@ export const guestZh: GuestCopy = {
     call: '致电我们',
     email: '电子邮件',
   },
+  account: {
+    title: '我的账户',
+    button: '我的账户：{name}',
+    menuLabel: '账户菜单',
+    profile: '我的资料',
+    saved: '收藏',
+    viewingRequests: '看房申请',
+    workspace: '工作区',
+    goToRole: '前往{role}页面',
+    signOut: '退出登录',
+    checking: '正在确认登录状态',
+  },
   areaNames: {
     'sukhumvit-asok': '素坤逸·阿索',
     'silom-sathorn': '是隆·沙吞',

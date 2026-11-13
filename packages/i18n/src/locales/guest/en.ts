@@ -265,6 +265,18 @@ export const guestEn: GuestCopy = {
     call: 'Call us',
     email: 'Email',
   },
+  account: {
+    title: 'Your account',
+    button: 'Your account: {name}',
+    menuLabel: 'Account menu',
+    profile: 'My profile',
+    saved: 'Saved',
+    viewingRequests: 'Viewing requests',
+    workspace: 'Workspace',
+    goToRole: 'Go to the {role} pages',
+    signOut: 'Sign out',
+    checking: 'Checking sign-in',
+  },
   areaNames: {
     'sukhumvit-asok': 'Sukhumvit, Asok',
     'silom-sathorn': 'Silom, Sathorn',

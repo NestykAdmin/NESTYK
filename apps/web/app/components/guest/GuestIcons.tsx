@@ -86,6 +86,26 @@ export const UserIcon = (props: IconProps) => (
   </Line>
 );
 
+export const BriefcaseIcon = (props: IconProps) => (
+  <Line {...props}>
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18" />
+  </Line>
+);
+
+export const ExternalIcon = (props: IconProps) => (
+  <Line strokeWidth={2} {...props}>
+    <path d="M7 17 17 7M8 7h9v9" />
+  </Line>
+);
+
+export const SignOutIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+    <path d="M9 8l-4 4 4 4M5 12h11" />
+  </Line>
+);
+
 export const CalendarIcon = (props: IconProps) => (
   <Line {...props}>
     <rect x="4" y="5" width="16" height="15" rx="2" />

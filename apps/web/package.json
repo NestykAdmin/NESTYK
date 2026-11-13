@@ -16,6 +16,7 @@
     "@nestyk/i18n": "*",
     "@nestyk/types": "*",
     "@nestyk/ui": "*",
+    "@supabase/supabase-js": "^2.116.0",
     "dotenv": "^16.4.7",
     "next": "^15.3.3",
     "next-intl": "^4.14.10",

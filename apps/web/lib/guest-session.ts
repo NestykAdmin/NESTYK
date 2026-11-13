@@ -96,3 +96,17 @@ export function idleExpired(lastActivityRaw: string | null | undefined, now: num
   if (!lastActivityRaw || !Number.isFinite(last) || last <= 0 || last > now) return false;
   return now - last >= IDLE_LIMIT_MS;
 }
+
+/** Role pages the account menu links to, in the app's landing order. Admin is never offered here; guest is this site. */
+const ROLE_SITES = [
+  { role: 'agent', path: '/agent' },
+  { role: 'landlord', path: '/landlord' },
+  { role: 'tenant', path: '/tenant' },
+] as const;
+
+export type RoleSiteLink = { role: (typeof ROLE_SITES)[number]['role']; path: string };
+
+export function roleSiteLinks(roles: readonly string[] | null | undefined): RoleSiteLink[] {
+  const have = new Set(roles ?? []);
+  return ROLE_SITES.filter((site) => have.has(site.role)).map((site) => ({ role: site.role, path: site.path }));
+}

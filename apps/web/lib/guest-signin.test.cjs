@@ -47,9 +47,11 @@ test('every sign-in / sign-up link on the guest web goes through AccountLink, wh
   walk(app);
   const plain = files.filter((file) => /guestAccountUrl\('(signIn|register)'\)/.test(read(file)) && !file.endsWith('AccountLink.tsx'));
   assert.deepEqual(plain.map((file) => path.relative(app, file)), []);
-  const header = read(path.join(guest, 'GuestHeader.tsx'));
+  // AUTH-2: the header's sign-in button lives in AccountMenu (signed-out state).
+  const header = read(path.join(guest, 'AccountMenu.tsx'));
   assert.match(header, /<AccountLink[^>]*page="signIn"/);
-  const profile = read(path.join(app, '[locale]', '(marketplace)', 'profile', 'page.tsx'));
+  // AUTH-2: the profile page's sign-in card moved into ProfileAccount (signed-out state).
+  const profile = read(path.join(guest, 'ProfileAccount.tsx'));
   assert.match(profile, /<AccountLink[^>]*page="signIn"/);
   assert.match(profile, /<AccountLink[^>]*page="register"/);
 });
