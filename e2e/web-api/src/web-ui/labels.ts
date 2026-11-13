@@ -218,6 +218,42 @@ export const FLOW_EN = {
     commissionFee: 'Agreed commission (THB) — leave blank if in months', // :269
     commissionMonths: 'Commission in months of rent — leave blank if in THB', // :270
   },
+  // สร้างเอกสารสัญญาของนายหน้า รอบที่ 2 เคส CCR-012 ถึง CCR-023: การ์ดงานถัดไปในหน้า Overview และฟอร์มหนังสือจอง (TenantDetailHub.tsx, ReservationLetterFields.tsx ที่ qa/e2e 11d80af)
+  ccNowTitle: 'To do now', // agent.tenants.detail.nowTitle :633 (ป้ายของการ์ดงานถัดไปในหน้า Overview: TenantDetailHub.tsx:194-213)
+  ccOverviewPhone: 'Phone', // agent.tenants.fieldPhone :599 (ป้ายเบอร์โทรในการ์ดแรกของหน้า Overview: TenantDetailHub.tsx:185 ใช้รอว่าหน้า Overview โหลดเสร็จ)
+  ccNowBrokerTitle: 'Broker appointment first', // agent.tenants.detail.nowBrokerTitle :642 (TenantDetailHub.tsx:119-124)
+  ccNowBrokerCta: 'Create broker appointment', // agent.tenants.detail.nowBrokerCta :644 (ปุ่มเมื่อยังไม่มีร่างสัญญาแต่งตั้ง: TenantDetailHub.tsx:123)
+  ccNowReservationTitle: 'Next step: reservation letter', // agent.tenants.nextStepTitle :618 (TenantDetailHub.tsx:149-154)
+  ccNowReservationCta: 'Make reservation letter', // agent.tenants.makeReservation :620 (ปุ่มเมื่อผู้เช่ามีอีเมลและเลขบัตร: TenantDetailHub.tsx:153)
+  ccTypeReservation: 'Reservation letter', // contracts.common.kinds.reservation :59 (ชื่อชนิดในหัวข้อของฟอร์มเมื่อภาษาไม่ใช่ไทย: ContractsScreen.tsx:2038-2040)
+  ccNextStep: 'Next: {step} →', // contracts.screen.nextStep :826 (ContractsScreen.tsx:2463-2470)
+  ccPreviousStep: '← Back', // contracts.screen.previousStep :825 (ContractsScreen.tsx:2455-2461)
+  ccStepRequired: 'Please complete the required fields in this step', // agent.contracts.notice.stepRequired :1301 (ข้อความรวมเมื่อขั้นปัจจุบันมีช่องผิด: ContractsScreen.tsx:467-470)
+  ccTenantLocked: 'From tenant details · read-only', // contracts.reservation.tenantLocked :129 (ReservationLetterFields.tsx:499)
+  ccAddLandlord: '+ Add landlord', // contracts.reservation.addLandlord :133 (ReservationLetterFields.tsx:513-520)
+  ccEmailFormat: 'Invalid email format', // contracts.validation.emailFormat :73 (ReservationLetterFields.tsx:107-112)
+  // ชื่อขั้นของฟอร์มหนังสือจอง 4 ขั้น ตามลำดับ: contracts.screen.reservationSteps :798 (ContractsScreen.tsx:407-409)
+  ccReservationSteps: {
+    parties: 'Parties',
+    room: 'Room and contract',
+    amounts: 'Amounts and payment',
+    review: 'Review',
+  },
+  // ป้ายของช่องในฟอร์มหนังสือจองที่เทสใช้ (ป้าย = accessibilityLabel ของช่อง: ReservationLetterFields.tsx:373-376) คีย์ contracts.reservation.fields.<ชื่อ>
+  ccReservationFields: {
+    tenantFirstName: 'Booker first name', // :85
+    tenantLastName: 'Booker last name', // :86
+    tenantPhone: 'Booker phone', // :87
+    tenantEmail: 'Booker email', // :88
+    tenantId: 'Booker ID / passport / company no.', // :89
+    tenantNationality: 'Booker nationality', // :90
+    landlordFirstName: 'Landlord first name', // :91
+    landlordPhone: 'Landlord phone', // :93
+    landlordEmail: 'Landlord email', // :94
+    project: 'Project', // :100
+    termFrom: 'Start / move-in date (YYYY-MM-DD)', // :108
+    reservationPayment: 'Reservation fee (THB)', // :115
+  },
 
   // ปฏิทิน (copy = t.agent.calendar: components/AgentCalendarScreen.tsx บนจอแคบ และ agent-web/AgentCalendarPage.web.tsx บนจอ 1280 ที่ fc1a351)
   calendarLoadError: 'Unable to load appointments. Please try again.', // agent.calendar.loadError :493
@@ -372,6 +408,8 @@ export const CONTRACT_SAVE_CONFIRM = {
   titleSuffix: 'นี้?',
   /** เนื้อความเมื่อเป็นร่างใหม่ที่ไม่ใช่หนังสือจอง (:2503) */
   bodyNewDraft: 'บันทึกเป็นฉบับร่าง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที',
+  /** เนื้อความเมื่อเป็นร่างใหม่ของหนังสือจอง (:2502) */
+  bodyReservation: 'บันทึกเป็นฉบับร่างและสร้างใบแจ้งหนี้ค่าจอง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที',
   cancel: 'ยกเลิก', // :2512
   save: 'บันทึกฉบับร่าง', // :2522
   /** ปุ่มพื้นหลังของกล่อง (packages/ui/src/components/MobileBottomSheet.tsx:139-144 accessibilityLabel เขียนตายตัว) */

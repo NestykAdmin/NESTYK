@@ -67,6 +67,45 @@ export function brokerFieldLabel(key: BrokerFieldKey): string {
 /** ค่าที่ fieldErrorText คืนเมื่อไม่พบกล่องของช่อง */
 export const BOX_MISSING = '(ไม่พบกล่องของช่อง)';
 
+/** ช่องของฟอร์มหนังสือจองที่เทสใช้ (ป้ายของช่องเป็น accessibilityLabel ด้วย: ReservationLetterFields.tsx:373-376) */
+export type ReservationFieldKey = keyof typeof FLOW.ccReservationFields;
+
+/** ช่องผู้เช่า 6 ช่องของขั้น Parties ซึ่งแก้ไม่ได้ (ReservationLetterFields.tsx:131-138) */
+export const RESERVATION_TENANT_FIELDS: readonly ReservationFieldKey[] = ['tenantFirstName', 'tenantLastName', 'tenantPhone', 'tenantEmail', 'tenantId', 'tenantNationality'];
+
+/** ขั้นของฟอร์มหนังสือจอง 1-4 (ContractsScreen.tsx:407-409 ; contracts.screen.reservationSteps) */
+export type ReservationStep = 1 | 2 | 3 | 4;
+const STEP_LABELS: readonly string[] = [FLOW.ccReservationSteps.parties, FLOW.ccReservationSteps.room, FLOW.ccReservationSteps.amounts, FLOW.ccReservationSteps.review];
+
+/** ชื่อของขั้น */
+export function reservationStepLabel(step: ReservationStep): string {
+  return STEP_LABELS[step - 1];
+}
+
+/**
+ * ตัวช่วยอ่านและตั้งค่าของช่องกรอกแบบไม่ให้ค่าในช่องไปอยู่ในรายงาน: ทำงานผ่าน evaluateAll และคืนแค่สถานะ
+ * (เหตุผล: ดู AgentContractsPage.field) ใช้ได้ทั้ง input และ textarea
+ */
+function setValueHidden(inputs: Locator, value: string): Promise<'ok' | 'missing' | 'readonly'> {
+  return inputs.evaluateAll((found, next) => {
+    if (found.length !== 1) return 'missing';
+    const input = found[0] as HTMLInputElement | HTMLTextAreaElement;
+    if (input.readOnly || input.disabled) return 'readonly';
+    const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value')?.set?.call(input, next);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return 'ok';
+  }, value);
+}
+
+function isEmptyHidden(inputs: Locator): Promise<boolean | null> {
+  return inputs.evaluateAll((found) => (found.length === 1 ? (found[0] as HTMLInputElement | HTMLTextAreaElement).value === '' : null));
+}
+
+function valueIsHidden(inputs: Locator, text: string): Promise<boolean | null> {
+  return inputs.evaluateAll((found, expected) => (found.length === 1 ? (found[0] as HTMLInputElement | HTMLTextAreaElement).value === expected : null), text);
+}
+
 export class AgentContractsPage {
   constructor(private readonly page: Page) {}
 
@@ -207,15 +246,7 @@ export class AgentContractsPage {
    * คืน 'ok' เมื่อตั้งได้ 'missing' เมื่อไม่พบช่องหรือพบมากกว่า 1 ช่อง 'readonly' เมื่อช่องยังแก้ไม่ได้ (ฟอร์มยัง busy: BrokerAppointmentFields.tsx:171)
    */
   setField(key: BrokerFieldKey, value: string): Promise<'ok' | 'missing' | 'readonly'> {
-    return this.field(key).evaluateAll((inputs, next) => {
-      if (inputs.length !== 1) return 'missing';
-      const input = inputs[0] as HTMLInputElement | HTMLTextAreaElement;
-      if (input.readOnly || input.disabled) return 'readonly';
-      const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      Object.getOwnPropertyDescriptor(proto, 'value')?.set?.call(input, next);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      return 'ok';
-    }, value);
+    return setValueHidden(this.field(key), value);
   }
 
   /**
@@ -235,15 +266,108 @@ export class AgentContractsPage {
 
   /** ช่องนี้ว่างหรือไม่ คืนแค่ true/false ไม่คืนค่าในช่อง (null = ไม่พบช่อง หรือพบมากกว่า 1 ช่อง) */
   fieldIsEmpty(key: BrokerFieldKey): Promise<boolean | null> {
-    return this.field(key).evaluateAll((inputs) => (inputs.length === 1 ? (inputs[0] as HTMLInputElement | HTMLTextAreaElement).value === '' : null));
+    return isEmptyHidden(this.field(key));
   }
 
   /** ค่าในช่องเท่ากับข้อความนี้หรือไม่ คืนแค่ true/false เพื่อไม่ให้ค่าตั้งต้นของฟอร์มไปอยู่ในรายงานเมื่อไม่ผ่าน (null = ไม่พบช่อง หรือพบมากกว่า 1 ช่อง) */
   fieldValueIs(key: BrokerFieldKey, text: string): Promise<boolean | null> {
-    return this.field(key).evaluateAll(
-      (inputs, expected) => (inputs.length === 1 ? (inputs[0] as HTMLInputElement | HTMLTextAreaElement).value === expected : null),
-      text,
-    );
+    return valueIsHidden(this.field(key), text);
+  }
+
+  // ---- การ์ดงานถัดไปในหน้า Overview ของผู้เช่า (TenantDetailHub.tsx:194-214) ----
+
+  /**
+   * ป้ายเบอร์โทรในการ์ดแรกของหน้า Overview (:185) มีเฉพาะเมื่อหน้า Overview แสดงแล้ว
+   * ระหว่างข้อมูลบิลของผู้เช่ากำลังโหลด หน้าแสดงตัวหมุนแทนหน้า Overview (AgentTenantsScreen.tsx:551-554) จึงใช้ชิ้นนี้รอว่าหน้าโหลดเสร็จ
+   * ใต้ tenant.detail ไม่มีที่อื่นแสดงคำนี้ตรงตัวในหน้า Overview (เมนูข้างกับส่วนหัวมีแค่ชื่อหัวข้อ ชื่อ และสถานที่: agent-web/TenantDetailFrame.web.tsx:18-38
+   *   ส่วนข้อความ "Not filled in: Phone, …" ที่ :222 เป็นข้อความต่อกัน จึงไม่ตรงตัว) ใช้ตัวแรกไว้กันกรณีแอปเพิ่มป้ายคำเดียวกันในภายหลัง
+   */
+  get overviewPhoneLabel(): Locator {
+    return this.root.getByText(FLOW.ccOverviewPhone, { exact: true }).first();
+  }
+
+  /** ป้าย "To do now" ของการ์ด (:206) การ์ดแสดงเมื่อผู้เช่ามีการกระทำถัดไปเท่านั้น (:194) */
+  get nowLabel(): Locator {
+    return this.root.getByText(FLOW.ccNowTitle, { exact: true });
+  }
+
+  /** หัวข้อของการ์ด (:208) */
+  nowTitle(text: string): Locator {
+    return this.root.getByText(text, { exact: true });
+  }
+
+  /** ปุ่มของการ์ด (:210-212 MobileButton role=button) */
+  nowButton(name: string): Locator {
+    return this.root.getByRole('button', { name, exact: true });
+  }
+
+  // ---- ฟอร์มหนังสือจอง 4 ขั้น (ContractsScreen.tsx:2060-2142, 2262-2289, 2453-2481 ; ReservationLetterFields.tsx) ----
+
+  /** ชื่อขั้นในแถบขั้น (ContractsScreen.tsx:2123-2135) หัวของขั้นมีเลขนำหน้าจึงไม่ชนกับข้อความนี้ */
+  stepLabel(step: ReservationStep): Locator {
+    return this.root.getByText(reservationStepLabel(step), { exact: true });
+  }
+
+  /** หัวของขั้นปัจจุบัน "0{n} {ชื่อขั้น}" (ContractsScreen.tsx:2139-2142 accessibilityRole="header" บนเว็บเป็น role heading) */
+  stepHeader(step: ReservationStep): Locator {
+    return this.root.getByRole('heading', { name: `0${step} ${reservationStepLabel(step)}`, exact: true });
+  }
+
+  /** ปุ่ม "Next: {ขั้นถัดไป} →" ของขั้นที่ระบุ (ContractsScreen.tsx:2463-2470) ขั้นที่ 4 ไม่มีปุ่มนี้ */
+  nextButton(from: 1 | 2 | 3): Locator {
+    return this.root.getByRole('button', { name: fill(FLOW.ccNextStep, { step: reservationStepLabel((from + 1) as ReservationStep) }), exact: true });
+  }
+
+  /** ปุ่ม "← Back" แสดงตั้งแต่ขั้นที่ 2 (ContractsScreen.tsx:2455-2461) */
+  get backButton(): Locator {
+    return this.root.getByRole('button', { name: FLOW.ccPreviousStep, exact: true });
+  }
+
+  /** ข้อความ "From tenant details · read-only" ในการ์ดผู้เช่าของขั้น Parties (ReservationLetterFields.tsx:499) */
+  get tenantLockedNote(): Locator {
+    return this.root.getByText(FLOW.ccTenantLocked, { exact: true });
+  }
+
+  /** ปุ่ม "+ Add landlord" (ReservationLetterFields.tsx:513-520 Pressable role=button) กดแล้วล้างช่องผู้ให้เช่าและแสดงช่อง ไม่เรียก API (:334-353) */
+  get addLandlord(): Locator {
+    return this.root.getByRole('button', { name: FLOW.ccAddLandlord, exact: true });
+  }
+
+  /**
+   * ช่องของฟอร์มหนังสือจองตามป้าย (accessibilityLabel = ป้าย: ReservationLetterFields.tsx:373-376)
+   * ช่องมีข้อมูลของผู้เช่าและผู้ให้เช่า จึงใช้ตรงได้เฉพาะการนับจำนวน อ่านและตั้งค่าผ่าน rSetField / rFieldIsEmpty / rFieldValueIs / rFieldReadOnly
+   */
+  rField(key: ReservationFieldKey): Locator {
+    return this.root.getByLabel(FLOW.ccReservationFields[key], { exact: true });
+  }
+
+  rSetField(key: ReservationFieldKey, value: string): Promise<'ok' | 'missing' | 'readonly'> {
+    return setValueHidden(this.rField(key), value);
+  }
+
+  rFieldIsEmpty(key: ReservationFieldKey): Promise<boolean | null> {
+    return isEmptyHidden(this.rField(key));
+  }
+
+  rFieldValueIs(key: ReservationFieldKey, text: string): Promise<boolean | null> {
+    return valueIsHidden(this.rField(key), text);
+  }
+
+  /** ช่องนี้แก้ไม่ได้หรือไม่ (แอตทริบิวต์ readonly: ช่องที่ล็อกใช้ editable={false}: ReservationLetterFields.tsx:381) null = ไม่พบช่อง หรือพบมากกว่า 1 ช่อง */
+  rFieldReadOnly(key: ReservationFieldKey): Promise<boolean | null> {
+    return this.rField(key).evaluateAll((found) => (found.length === 1 ? (found[0] as HTMLInputElement | HTMLTextAreaElement).readOnly === true : null));
+  }
+
+  /**
+   * ข้อความผิดพลาดใต้ช่อง (null = ไม่มี) กล่องของ MobileInput คือพ่อของช่องกรอก มีลูกเรียงเป็น ป้าย, ช่องกรอก, ข้อความผิดพลาด (มีเมื่อผิด)
+   * (MobileInput.tsx:54-124 ฟอร์มนี้ไม่ส่ง helperText และไม่มีไอคอนหรือหน่วยท้ายช่อง: ReservationLetterFields.tsx:373-396)
+   */
+  rFieldErrorText(key: ReservationFieldKey): Promise<string | null> {
+    return this.rField(key).evaluateAll((found, missing) => {
+      const box = found.length === 1 ? found[0].parentElement : null;
+      if (!box) return missing;
+      return box.children.length > 2 ? (box.children[box.children.length - 1].textContent ?? '') : null;
+    }, BOX_MISSING);
   }
 
   // ---- กล่องยืนยันก่อนบันทึก (ContractsScreen.tsx:2488-2526 ใน MobileBottomSheet) ----
@@ -266,6 +390,16 @@ export class AgentContractsPage {
   /** เนื้อความของกล่อง (:2498-2504) */
   get confirmBody(): Locator {
     return this.confirm.getByText(CONTRACT_SAVE_CONFIRM.bodyNewDraft, { exact: true });
+  }
+
+  /** เนื้อความของกล่องเมื่อเป็นหนังสือจอง (:2501-2502) */
+  get confirmBodyReservation(): Locator {
+    return this.confirm.getByText(CONTRACT_SAVE_CONFIRM.bodyReservation, { exact: true });
+  }
+
+  /** ข้อความทั้งหมดในกล่องยืนยัน (ข้อความของแอป ไม่มีข้อมูลของผู้เช่า) ใช้ตรวจภาษาของกล่อง */
+  confirmText(): Promise<string> {
+    return this.confirm.innerText();
   }
 
   /** ปุ่ม "ยกเลิก" ของกล่อง (:2506-2513) กดแล้วปิดกล่องอย่างเดียว */

@@ -1,23 +1,29 @@
 import type { Page, Response } from '@playwright/test';
 import { test, expect } from '../../src/web-ui/web-ui.fixture';
-import type { RequestGuard } from '../../src/web-ui/guard';
+import { billReadsAllowed, type RequestGuard } from '../../src/web-ui/guard';
 import { AgentTenantsPage } from '../../src/web-ui/pages/agent-tenants.page';
 import {
   AgentContractsPage,
   BROKER_FIELDS,
+  BOX_MISSING,
   BROKER_REQUIRED,
   DOCUMENT_KINDS,
+  RESERVATION_TENANT_FIELDS,
   brokerFieldLabel,
   kindButtonName,
   type BrokerFieldKey,
+  type ReservationFieldKey,
+  type ReservationStep,
 } from '../../src/web-ui/pages/agent-contracts.page';
 import { CONTRACT_SAVE_CONFIRM, FLOW, UI_LOCALE } from '../../src/web-ui/labels';
 import { ApiLog, apiPathOf, okJson, waitForApi } from '../../src/web-ui/support/api';
 import { watchForRequest } from '../../src/web-ui/support/wait';
 
 /**
- * นายหน้าสร้างเอกสารสัญญาบนจอกว้าง (รายละเอียดผู้เช่า หัวข้อ Contracts): เคส CCR-001 ถึง CCR-011
- * ตารางเคส: เอกสารโปรเจกต์ claude/nestyk-topic-contracts-create-web-ui-part2.md หัวข้อ 8 (Aof อนุมัติ 13 พ.ย. 2026)
+ * นายหน้าสร้างเอกสารสัญญาบนจอกว้าง (รายละเอียดผู้เช่า หัวข้อ Contracts): เคส CCR-001 ถึง CCR-023
+ * ตารางเคส: เอกสารโปรเจกต์ claude/nestyk-topic-contracts-create-web-ui-part2.md หัวข้อ 8 (CCR-001 ถึง CCR-011)
+ *   และ claude/nestyk-topic-contracts-create-web-ui-part3.md (CCR-012 ถึง CCR-023) Aof อนุมัติ 13 พ.ย. 2026
+ * CCR-012 ติดเครื่องหมายบั๊กที่รู้แล้ว WEB-024 (e2e/KNOWN-BUGS.md) และรันเฉพาะภาษาอังกฤษ
  * กฎ K1-K17: claude/nestyk-topic-contracts-create-web-ui.md หัวข้อ 1
  * โค้ด: apps/consumer-app/components/ContractsScreen.tsx (CS), ContractTypePicker.tsx (CTP), BrokerAppointmentFields.tsx (BAF),
  *   AgentContractLibrary.tsx, lib/contract-renewal.ts ที่ qa/e2e 40e0496 (แอปเท่ากับ pre/dev/review d3bcf28)
@@ -34,6 +40,8 @@ import { watchForRequest } from '../../src/web-ui/support/wait';
  *   - เปิดรายละเอียดผู้เช่า: GET /agent/tenants/:id และ GET /bills/agent/tenants/:id (ดูหัวไฟล์ agent-tenants.spec.ts)
  *   - เปิดหัวข้อ Contracts: GET /agent/contracts, /agent/contracts/invoices, /agent/contracts/commission-confirmations (CS:327-358)
  *   - เปิดฟอร์มสัญญาแต่งตั้ง: GET /agent/contracts/types, /types/<code>/templates, /broker-appointment-defaults/<leadId> (CS:1868, 1357-1358, 1404-1407)
+ *   - เปิดฟอร์มหนังสือจอง: GET types, แม่แบบ, /reservation-defaults/<leadId> และ GET /agent/leads/<leadId>/deal-offers (CS:1389-1391, 582-594)
+ *     เทสไม่พิมพ์ในช่อง Search landlord ของฟอร์มหนังสือจอง เพราะช่องนั้นเรียก GET /agent/contracts/owner-users (ReservationLetterFields.tsx:278-305)
  *
  * ค่าที่คาดเรื่องการล็อกเทียบกับคำตอบของ GET /agent/tenants ในรอบเดียวกัน เพราะข้อมูลของ qa-agent ในฐานข้อมูลของทีมเปลี่ยนได้
  *   (ผลนับ 13 พ.ย. 2026: ผู้เช่า 10 ราย, ไม่มีเอกสารเลย 4 ราย, brokerAppointmentReady จริง 4 ราย ซึ่งเป็น E2E id 7-10, มีหนังสือจองที่ออกแล้ว 0 ราย)
@@ -43,7 +51,9 @@ import { watchForRequest } from '../../src/web-ui/support/wait';
  * ข้อมูลบนจอ:
  *   - ปิดภาพหน้าจอของไฟล์นี้ (ข้อที่ไม่ผ่านยังมี error-context.md ซึ่งมีข้อความบนหน้า ห้ามส่งออกนอกทีม)
  *   - CCR-002 ต้องใช้ผู้เช่าที่ยังไม่มีเอกสาร ซึ่งอาจไม่ใช่ข้อมูลทดสอบ ข้อนั้นแค่เปิดตัวเลือกชนิดเอกสาร ไม่พิมพ์อะไร และไม่ใส่ชื่อในข้อความผล
- *   - ข้อที่เปิดฟอร์ม (CCR-005 ถึง CCR-011) ใช้เฉพาะผู้เช่าที่ชื่อขึ้นต้นด้วย E2E ถ้าไม่มีจะข้าม เพราะฟอร์มเติมข้อมูลของผู้ให้เช่าและนายหน้ามาให้
+ *   - CCR-013 กดปุ่มของการ์ดงานถัดไปของผู้เช่าที่ยังไม่มีเอกสาร ซึ่งอาจไม่ใช่ข้อมูลทดสอบ (Aof อนุมัติ 13 พ.ย. 2026) ฟอร์มสัญญาแต่งตั้งจะเปิดและแสดง
+ *     ข้อมูลของผู้ให้เช่าบนจอ ข้อนั้นตรวจแค่หัวข้อของฟอร์ม ไม่อ่านและไม่พิมพ์ในช่อง
+ *   - ข้อที่เปิดฟอร์ม (CCR-005 ถึง CCR-012 และ CCR-016 ถึง CCR-023) ใช้เฉพาะผู้เช่าที่ชื่อขึ้นต้นด้วย E2E ถ้าไม่มีจะข้าม เพราะฟอร์มเติมข้อมูลของผู้ให้เช่าและนายหน้ามาให้
  *     ค่าในช่องอ่านเป็น true/false ผ่าน fieldIsEmpty / fieldValueIs และตั้งค่าผ่าน setField เท่านั้น ไม่ใช้ fill หรือ expect กับช่องโดยตรง
  *     เพราะถ้าไม่ผ่าน Playwright จะพิมพ์ตัวชิ้นส่วนพร้อมค่าในช่องลงรายงาน ข้อความที่เทสพิมพ์เองขึ้นต้นด้วย E2E
  * วิธีหาชิ้นส่วนของหน้านี้มาจากการอ่านโค้ด (หน้าสัญญาไม่มี testID: K12) ดูคำอธิบายใน src/web-ui/pages/agent-contracts.page.ts
@@ -57,11 +67,16 @@ interface ContractRow {
   formKind: string;
   status: string;
   reservationLetterStatus?: string | null;
+  /** วันสุดท้ายที่ควรลงนามหนังสือจองครบ (agent-contracts.ts:105-109) */
+  signDueDate?: string | null;
 }
 interface TenantRow {
   id: number;
   leadId: number;
   name: string;
+  /** ใช้ตรวจแค่ว่ามีค่าหรือไม่ ห้ามพิมพ์ค่า */
+  email: string | null;
+  identityNumber: string | null;
   brokerAppointmentReady: boolean;
   contracts: ContractRow[];
 }
@@ -520,5 +535,466 @@ test.describe('contracts: confirmation before saving a draft', () => {
     expect(await docs.fieldValueIs('brokerAddress', marker), 'ช่อง Broker address ยังมีข้อความที่พิมพ์ไว้ก่อนกดกลับ').toBe(false);
 
     expectReadOnly(guard, opened, 'เปิดฟอร์ม กดกลับ แล้วเปิดใหม่');
+  });
+});
+
+// ---------------- รอบที่ 2: การ์ดงานถัดไปในหน้า Overview และฟอร์มหนังสือจอง (CCR-012 ถึง CCR-023) ----------------
+// ตารางเคสและกฎ K18-K26: เอกสารโปรเจกต์ claude/nestyk-topic-contracts-create-web-ui-part3.md (Aof อนุมัติ 13 พ.ย. 2026)
+
+/** สิ่งที่ปุ่มของการ์ด "To do now" จะพาไป ตามลำดับของ tenantNextAction (apps/consumer-app/lib/tenant-detail.ts:149-173) */
+type NextAction = 'slip' | 'confirm' | 'sign' | 'deposit' | 'handover' | 'reservation' | 'broker-open' | 'broker-create' | null;
+
+/**
+ * คัดลอกลำดับของ tenantNextAction: สลิปรอตรวจ → สัญญาที่ลงนามครบรอตรวจ → หนังสือจองเลยกำหนดลงนาม → รอลงนาม → รอเงินประกัน → รอส่งมอบ
+ *   → ถ้าเอกสารที่ไม่ยกเลิกมีแต่สัญญาแต่งตั้ง (หรือไม่มีเลย): ทำหนังสือจองเมื่อมีสัญญาแต่งตั้งที่ใช้ได้ ไม่อย่างนั้นทำสัญญาแต่งตั้ง (เปิดร่างที่ค้างถ้ามี)
+ * hasSlip = มีบิลสถานะ awaiting_review ในคำตอบของ GET /bills/agent/tenants/:id ของผู้เช่ารายนี้ (tenant-detail.ts:150-153)
+ */
+function nextActionOf(tenant: TenantRow, hasSlip: boolean): NextAction {
+  if (hasSlip) return 'slip';
+  const open = tenant.contracts.filter((row) => row.status !== 'cancelled');
+  if (open.some((row) => row.status === 'awaiting_agent_review')) return 'confirm';
+  const today = bangkokToday();
+  if (open.some((row) => row.formKind === 'reservation' && !!row.signDueDate && today > row.signDueDate)) return 'sign';
+  if (open.some((row) => row.status === 'awaiting_signatures')) return 'sign';
+  if (open.some((row) => row.status === 'awaiting_deposit')) return 'deposit';
+  if (open.some((row) => row.status === 'awaiting_handover')) return 'handover';
+  if (open.every((row) => row.formKind === 'broker_appointment')) {
+    if (tenant.brokerAppointmentReady === true) return 'reservation';
+    return open.some((row) => row.status === 'draft') ? 'broker-open' : 'broker-create';
+  }
+  return null;
+}
+
+interface Overview {
+  screen: AgentTenantsPage;
+  docs: AgentContractsPage;
+  tenant: TenantRow;
+  log: ApiLog;
+  /** จำนวนคำขอที่ไม่ใช่การอ่าน ณ ตอนที่หน้า Overview ของผู้เช่าโหลดเสร็จ */
+  writesBefore: number;
+}
+
+/**
+ * เปิด /agent/clients เลือกผู้เช่าจากคำตอบของ API โดยถือว่ายังไม่มีสลิปรอตรวจ แล้วเปิดรายละเอียด (หน้า Overview)
+ * หน้าเว็บขอ GET /bills/agent/tenants/:id เมื่อเปิดรายละเอียด (AgentTenantsScreen.tsx:166-181) และใช้คำตอบนั้นตัดสินการ์ดงานถัดไป (:558)
+ *   ถ้าตัวกันปล่อยคำขอบิลผ่าน (guard.ts billReadsAllowed) เทสรอคำตอบนั้น แล้วข้ามข้อนี้เมื่อผู้เช่าที่เลือกมีบิลรอตรวจ เพราะการ์ดจะเป็นของสลิปแทน
+ *   ถ้าตัวกันตัดคำขอบิล หน้าเว็บไม่ได้ข้อมูลบิล จึงไม่มีข้อสลิป (tenantNextAction รับ billing เป็น null)
+ */
+async function openOverview(page: Page, loginAs: LoginAs, wanted: (tenant: TenantRow) => boolean, missing: string): Promise<Overview> {
+  const log = new ApiLog(page);
+  const listed = waitForApi(page, 'GET', '/agent/tenants');
+  await loginAs('agent', { next: '/agent/clients' });
+  const tenants = await okJson<TenantRow[]>(await listed);
+  expect(Array.isArray(tenants), 'คำตอบของ GET /agent/tenants ต้องเป็นรายการ').toBe(true);
+  const chosen = pick(tenants, wanted);
+  test.skip(!chosen, missing);
+  const list = chosen as TenantRow;
+
+  const screen = new AgentTenantsPage(page);
+  await screen.tabCount('all');
+  await screen.tab('all').click();
+  const detail = waitForApi(page, 'GET', `/agent/tenants/${list.id}`);
+  const billing = billReadsAllowed() ? waitForApi(page, 'GET', `/bills/agent/tenants/${list.id}`) : null;
+  await screen.row(list.id).click();
+  // แอปตัดสินการ์ดจากคำตอบของ GET /agent/tenants/:id (AgentTenantsScreen.tsx:275, 558) จึงยืนยันเงื่อนไขซ้ำกับคำตอบนี้ และใช้คำตอบนี้ต่อ
+  const tenant = await okJson<TenantRow>(await detail);
+  expect(wanted(tenant), 'คำตอบของ GET /agent/tenants/:id ต้องตรงเงื่อนไขเดียวกับที่เลือกจากรายการ').toBe(true);
+  await expect(screen.detail).toBeVisible();
+  await expect(screen.section('overview')).toHaveAttribute('aria-current', 'page');
+  if (billing) {
+    const bills = (await okJson<{ bills?: { status: string }[] }>(await billing)).bills ?? [];
+    test.skip(bills.some((bill) => bill.status === 'awaiting_review'), 'ผู้เช่าที่เลือกมีบิลรอตรวจ การ์ดงานถัดไปจึงเป็นของสลิป');
+  }
+  // ระหว่างข้อมูลบิลกำลังโหลด หน้าแสดงตัวหมุนแทนหน้า Overview (AgentTenantsScreen.tsx:551-554) จึงต้องรอให้การโหลดบิลจบก่อนตรวจการ์ด
+  //   กรณีตัวกันปล่อยคำขอบิล: รอคำตอบแล้วข้างบน
+  //   กรณีตัวกันตัดคำขอบิล: รอข้อความโหลดสลิปไม่ได้ ซึ่งแอปตั้งพร้อมกับตอนเลิกหมุน (:175-178) แบบเดียวกับ agent-tenants-calendar.spec.ts ระยะ 1
+  //     ไม่รอแค่ป้ายเบอร์โทร เพราะหน้า Overview แสดงได้ 1 รอบก่อนตัวหมุนขึ้น (billingLoading ถูกตั้งใน effect หลังแสดงรอบแรก: :166-169)
+  if (!billing) await expect(screen.alert(FLOW.tenantsSlipsLoadError)).toBeVisible();
+  const docs = new AgentContractsPage(page);
+  await expect(docs.overviewPhoneLabel).toBeVisible();
+  return { screen, docs, tenant, log, writesBefore: writeCalls(log).length };
+}
+
+type FormKind = 'broker' | 'reservation';
+
+/**
+ * เริ่มรอคำขอที่แอปส่งเมื่อเปิดฟอร์มสร้างเอกสาร (ต้องเรียกก่อนกดปุ่มที่เปิดฟอร์ม) แล้วคืนฟังก์ชันที่รอจนฟอร์มพร้อม
+ * ใช้ได้ทั้งเมื่อเปิดจากตัวเลือกชนิดเอกสารและจากปุ่มของการ์ดงานถัดไป (ContractsScreen.tsx:359-372 เริ่มฟอร์มหลังรายการเอกสารโหลดเสร็จ)
+ * ฟอร์มพร้อมเมื่อปุ่มหลักเลิกปิด: สัญญาแต่งตั้งคือ Save draft ส่วนหนังสือจองคือ Next ของขั้นที่ 1 (ปุ่มจาก button() ปิดระหว่าง busy: :647-648)
+ */
+function expectForm(page: Page, docs: AgentContractsPage, tenant: TenantRow, kind: FormKind): () => Promise<BrokerForm> {
+  const formKind = kind === 'broker' ? 'broker_appointment' : 'reservation';
+  const typesAsked = waitForApi(page, 'GET', '/agent/contracts/types');
+  const templatesAsked = waitForApi(page, 'GET', /^\/agent\/contracts\/types\/[^/]+\/templates$/);
+  const defaultsAsked = waitForApi(page, 'GET', `/agent/contracts/${kind === 'broker' ? 'broker-appointment' : 'reservation'}-defaults/${tenant.leadId}`);
+  return async () => {
+    const types = await okJson<AgreementTypeRow[]>(await typesAsked);
+    const type = types.find((row) => row.formKind === formKind || row.code === formKind);
+    expect(type, `คำตอบของ GET /agent/contracts/types ต้องมีประเภท ${formKind}`).toBeTruthy();
+    const templates = await templatesAsked;
+    const defaults = await defaultsAsked;
+    const found = type as AgreementTypeRow;
+    const headingType = UI_LOCALE === 'th' ? found.nameTh : kind === 'broker' ? FLOW.ccTypeBroker : FLOW.ccTypeReservation;
+    await expect(docs.formHeading(headingType)).toBeVisible();
+    await expect(kind === 'broker' ? docs.saveDraft : docs.nextButton(1)).toBeEnabled();
+    return { type: found, templates, defaults, headingType };
+  };
+}
+
+/** เปิดฟอร์มหนังสือจองของผู้เช่าทดสอบ (ชื่อขึ้นต้นด้วย E2E และแท็บหนังสือจองไม่ล็อก) จากตัวเลือกชนิดเอกสาร */
+async function openReservationFormOfTestTenant(page: Page, loginAs: LoginAs): Promise<Opened & BrokerForm & { offers: Response }> {
+  const opened = await openContracts(
+    page,
+    loginAs,
+    (tenants) => tenants.find((tenant) => isE2e(tenant) && tenant.brokerAppointmentReady === true),
+    'qa-agent ไม่มีผู้เช่าทดสอบ (ชื่อขึ้นต้นด้วย E2E) ที่มีสัญญาแต่งตั้งนายหน้าที่ใช้ได้',
+  );
+  await openPicker(opened.docs);
+  const ready = expectForm(page, opened.docs, opened.tenant, 'reservation');
+  // ฟอร์มหนังสือจองขอข้อเสนอของลีดเพื่อรู้ว่าต้องล็อกช่องตัวเลขหรือไม่ (ContractsScreen.tsx:582-594)
+  const offersAsked = waitForApi(page, 'GET', `/agent/leads/${opened.tenant.leadId}/deal-offers`);
+  await opened.docs.kind('reservation').click();
+  const form = await ready();
+  const offers = await offersAsked;
+  await expect(opened.docs.stepHeader(1)).toBeVisible();
+  return { ...opened, ...form, offers };
+}
+
+/** ตั้งค่าในช่องของฟอร์มหนังสือจองแบบไม่ให้ค่าเดิมของช่องไปอยู่ในรายงาน แล้วรอจนช่องมีค่านั้น (ข้อความที่ส่งเข้ามาเป็นของเทสเอง) */
+async function typeIntoReservation(docs: AgentContractsPage, key: ReservationFieldKey, value: string): Promise<void> {
+  expect(await docs.rSetField(key, value), `ตั้งค่าช่อง ${key}`).toBe('ok');
+  await expect.poll(() => docs.rFieldValueIs(key, value), { message: `ช่อง ${key} ต้องมีค่าที่เทสตั้ง` }).toBe(true);
+}
+
+/** ข้อมูลผู้ให้เช่าของเทส (ไม่ใช่ข้อมูลจริง) */
+const TEST_LANDLORD = { landlordFirstName: 'E2E Landlord', landlordPhone: '0800000000', landlordEmail: 'e2e-landlord@example.com' } as const;
+
+/** ช่องผู้ให้เช่าที่ขั้น Parties บังคับ (ReservationLetterFields.tsx:65-70, 105-106) ชนิดผูกกับ TEST_LANDLORD เพื่อให้คีย์ที่ไม่มีค่าของเทสไม่ผ่านการตรวจชนิด */
+const LANDLORD_REQUIRED: readonly (keyof typeof TEST_LANDLORD)[] = ['landlordFirstName', 'landlordPhone', 'landlordEmail'];
+
+/** กด "+ Add landlord" (ล้างช่องผู้ให้เช่าและแสดงช่อง: ReservationLetterFields.tsx:334-353) แล้วรอให้ช่องผู้ให้เช่าขึ้น */
+async function addLandlord(docs: AgentContractsPage): Promise<void> {
+  await docs.addLandlord.click();
+  for (const key of LANDLORD_REQUIRED) await expect(docs.rField(key), `ช่อง ${key} ต้องขึ้นหลังกด + Add landlord`).toHaveCount(1);
+}
+
+/** กด "+ Add landlord" แล้วกรอกผู้ให้เช่าของเทสให้ผ่านการตรวจของขั้น Parties */
+async function fillTestLandlord(docs: AgentContractsPage): Promise<void> {
+  await addLandlord(docs);
+  for (const key of LANDLORD_REQUIRED) await typeIntoReservation(docs, key, TEST_LANDLORD[key]);
+}
+
+/**
+ * กด Next ของขั้นนี้ในฐานะขั้นเตรียม (ไม่ใช่สิ่งที่ข้อนั้นตรวจ) แล้วรอขั้นถัดไป
+ * ถ้าแอปหยุดที่ขั้นเดิมพร้อมข้อความรวม (ContractsScreen.tsx:467-470) แปลว่าข้อมูลตั้งต้นของผู้เช่าทดสอบไม่ผ่านการตรวจของฟอร์ม
+ *   ข้อนั้นข้ามพร้อมเหตุผล แต่ถ้าช่องที่เทสกรอกเอง (typedByTest) มีข้อความผิดพลาด หรือขั้นที่ 1 กับ 3 ไม่พบช่องที่ผิดเลย ถือว่าเป็นความผิดของเทสหรือของแอป ข้อนั้นแดง
+ */
+async function advance(docs: AgentContractsPage, from: 1 | 2 | 3, why: string, typedByTest: readonly ReservationFieldKey[] = []): Promise<void> {
+  const next = (from + 1) as ReservationStep;
+  await docs.nextButton(from).click();
+  await expect(docs.stepHeader(next).or(docs.alert(FLOW.ccStepRequired))).toBeVisible();
+  if (await docs.stepHeader(next).isVisible()) return;
+  // ช่องที่เทสกรอกเองต้องไม่ใช่สาเหตุ ไม่อย่างนั้นเป็นความผิดของเทสหรือของแอป ไม่ใช่ของข้อมูลตั้งต้น
+  for (const key of typedByTest) expect(await docs.rFieldErrorText(key), `ช่อง ${key} ที่เทสกรอกเองต้องไม่มีข้อความผิดพลาด`).toBeNull();
+  // จดชื่อคีย์ของช่องที่มีข้อความผิดพลาดบนขั้นนี้ (เฉพาะชื่อคีย์ ไม่จดค่าและไม่จดข้อความ) ให้คนอ่านผลรู้ว่าข้ามเพราะช่องไหน
+  const failing: string[] = [];
+  for (const key of Object.keys(FLOW.ccReservationFields) as ReservationFieldKey[]) {
+    const error = await docs.rFieldErrorText(key);
+    if (error !== null && error !== BOX_MISSING) failing.push(key);
+  }
+  test.info().annotations.push({ type: `ช่องที่มีข้อความผิดพลาดตอนกด Next ของขั้นที่ ${from}`, description: failing.join(', ') || '(ไม่พบในช่องที่เทสรู้จัก)' });
+  // ขั้นที่ 1 และ 3: ทุกช่องที่แอปตรวจอยู่ในรายการที่เทสรู้จัก (ขั้น 1 = tenant*/landlord*, ขั้น 3 = reservationPayment: ContractsScreen.tsx:410-415 ; ReservationLetterFields.tsx:83-120)
+  //   ถ้าข้อความรวมขึ้นแต่ไม่มีช่องไหนมีข้อความผิดพลาด จึงเป็นความผิดของแอปหรือของตัวหาช่อง ไม่ใช่ของข้อมูลตั้งต้น → แดง ไม่ข้าม
+  //   ขั้นที่ 2 ยังข้ามได้ เพราะช่อง issueDate กับ termTo ไม่อยู่ในรายการที่เทสรู้จัก
+  if (from !== 2) expect(failing.length, `ขั้นที่ ${from} ขึ้นข้อความรวม แต่ไม่พบช่องที่มีข้อความผิดพลาด`).toBeGreaterThan(0);
+  test.skip(true, why);
+}
+
+const PARTIES_BLOCKED = 'ข้อมูลของผู้เช่าทดสอบ (เบอร์ อีเมล หรือเลขบัตร) ไม่ผ่านการตรวจของขั้น Parties จึงไปขั้นถัดไปไม่ได้';
+const ROOM_BLOCKED = 'ค่าตั้งต้นของขั้น Room and contract ของผู้เช่าทดสอบไม่ผ่านการตรวจ จึงไปขั้นถัดไปไม่ได้';
+const AMOUNTS_BLOCKED = 'ค่าตั้งต้นของขั้น Amounts and payment ของผู้เช่าทดสอบไม่ผ่านการตรวจ จึงไปขั้นถัดไปไม่ได้';
+
+/** ข้ามข้อนี้เมื่อช่องถูกล็อกจากข้อเสนอที่ผู้ให้เช่ายืนยันแล้ว (K25: ContractsScreen.tsx:580-594, 2265 ; ReservationLetterFields.tsx:381) */
+async function skipIfLocked(docs: AgentContractsPage, key: ReservationFieldKey): Promise<void> {
+  const locked = await docs.rFieldReadOnly(key);
+  expect(locked, `ต้องพบช่อง ${key} 1 ช่อง`).not.toBeNull();
+  test.skip(locked === true, `ช่อง ${key} ถูกล็อกจากข้อเสนอที่ยืนยันแล้ว จึงพิมพ์ไม่ได้`);
+}
+
+test.describe('contracts: the next step card of a tenant', () => {
+  test('a tenant with no documents is offered a broker appointment, and the button opens that form', { tag: '@CCR-013' }, async ({ page, loginAs, guard }) => {
+    // ขั้นที่ 1: เปิดรายละเอียดของผู้เช่าที่ยังไม่มีเอกสารและยังไม่มีสัญญาแต่งตั้งที่ใช้ได้ (หน้า Overview)
+    const opened = await openOverview(
+      page,
+      loginAs,
+      (tenant) => tenant.contracts.length === 0 && nextActionOf(tenant, false) === 'broker-create',
+      'qa-agent ไม่มีผู้เช่าที่ยังไม่มีเอกสารและยังไม่มีสัญญาแต่งตั้งที่ใช้ได้',
+    );
+    const { screen, docs, tenant } = opened;
+
+    // ค่าที่คาด: การ์ด "To do now" หัวข้อ "Broker appointment first" ปุ่ม "Create broker appointment" (K18: TenantDetailHub.tsx:119-124, 194-213)
+    await expect(docs.nowLabel).toBeVisible();
+    await expect(docs.nowTitle(FLOW.ccNowBrokerTitle)).toBeVisible();
+    await expect(docs.nowButton(FLOW.ccNowBrokerCta)).toBeVisible();
+
+    // ขั้นที่ 2: กดปุ่มของการ์ด (เทสไม่อ่านและไม่พิมพ์ในช่องของฟอร์ม เพราะผู้เช่ารายนี้อาจไม่ใช่ข้อมูลทดสอบ)
+    const ready = expectForm(page, docs, tenant, 'broker');
+    await docs.nowButton(FLOW.ccNowBrokerCta).click();
+
+    // ค่าที่คาด: หัวข้อ Contracts ถูกเลือก และฟอร์มสัญญาแต่งตั้งเปิดพร้อมคำขอค่าตั้งต้นของลีดนี้ (K19: AgentTenantsScreen.tsx:454-457 ; CS:359-372)
+    await expect(screen.section('contracts')).toHaveAttribute('aria-current', 'page');
+    const form = await ready();
+    expect(form.defaults.ok(), 'GET ค่าตั้งต้นของสัญญาแต่งตั้งต้องสำเร็จ').toBe(true);
+    await expect(docs.brokerCardTitle).toBeVisible();
+
+    expectReadOnly(guard, opened, 'กดปุ่มของการ์ดงานถัดไป (สัญญาแต่งตั้ง)');
+  });
+
+  test('a tenant ready for a reservation letter is offered one, and the button opens that form', { tag: '@CCR-014' }, async ({ page, loginAs, guard }) => {
+    // ขั้นที่ 1: เปิดรายละเอียดของผู้เช่าที่งานถัดไปคือหนังสือจอง และมีอีเมลกับเลขบัตรแล้ว (ถ้าขาด ปุ่มจะพาไปแก้ข้อมูลผู้เช่าแทน: AgentTenantsScreen.tsx:459-462)
+    const opened = await openOverview(
+      page,
+      loginAs,
+      (tenant) => nextActionOf(tenant, false) === 'reservation' && !!tenant.email && !!tenant.identityNumber,
+      'qa-agent ไม่มีผู้เช่าที่งานถัดไปคือหนังสือจองและมีอีเมลกับเลขบัตรครบ',
+    );
+    const { screen, docs, tenant } = opened;
+
+    // ค่าที่คาด: หัวข้อ "Next step: reservation letter" ปุ่ม "Make reservation letter" (K18: TenantDetailHub.tsx:149-154)
+    await expect(docs.nowLabel).toBeVisible();
+    await expect(docs.nowTitle(FLOW.ccNowReservationTitle)).toBeVisible();
+    await expect(docs.nowButton(FLOW.ccNowReservationCta)).toBeVisible();
+
+    // ขั้นที่ 2: กดปุ่มของการ์ด
+    const ready = expectForm(page, docs, tenant, 'reservation');
+    await docs.nowButton(FLOW.ccNowReservationCta).click();
+
+    // ค่าที่คาด: หัวข้อ Contracts ถูกเลือก ฟอร์มหนังสือจองเปิดที่ขั้น "01 Parties" พร้อมคำขอค่าตั้งต้นของลีดนี้ (K19: AgentTenantsScreen.tsx:463-464 ; CS:1389-1391)
+    await expect(screen.section('contracts')).toHaveAttribute('aria-current', 'page');
+    const form = await ready();
+    expect(form.defaults.ok(), 'GET ค่าตั้งต้นของหนังสือจองต้องสำเร็จ').toBe(true);
+    await expect(docs.stepHeader(1)).toBeVisible();
+
+    expectReadOnly(guard, opened, 'กดปุ่มของการ์ดงานถัดไป (หนังสือจอง)');
+  });
+
+  test('a tenant with nothing to do next has no next step card', { tag: '@CCR-015' }, async ({ page, loginAs, guard }) => {
+    // ขั้นที่ 1: เปิดรายละเอียดของผู้เช่าที่ไม่มีงานถัดไปตามลำดับของแอป (K2, K20)
+    const opened = await openOverview(page, loginAs, (tenant) => nextActionOf(tenant, false) === null, 'qa-agent ไม่มีผู้เช่าที่ไม่มีงานถัดไป');
+    const { screen, docs } = opened;
+
+    // ค่าที่คาด: ไม่มีการ์ด "To do now" (K18: TenantDetailHub.tsx:194 แสดงเมื่อมีงานถัดไปเท่านั้น) ตรวจหลังหน้า Overview และข้อมูลบิลโหลดเสร็จแล้ว
+    await expect(screen.detailName).toBeVisible();
+    await expect(docs.nowLabel).toHaveCount(0);
+
+    expectReadOnly(guard, opened, 'เปิดหน้า Overview ของผู้เช่า');
+  });
+});
+
+test.describe('contracts: reservation letter form', () => {
+  test('Create Reservation letter opens a four-step form with the tenant fields locked', { tag: '@CCR-016' }, async ({ page, loginAs, guard }) => {
+    // ขั้นที่ 1: กด "Create Reservation letter" ในตัวเลือกชนิดเอกสารของผู้เช่าทดสอบ
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs, type, templates, defaults, offers } = opened;
+
+    // ค่าที่คาด: คำขอ GET ประเภท แม่แบบ ค่าตั้งต้น และข้อเสนอของลีด สำเร็จ (K21, K25: CS:1868, 1357-1358, 1389-1391, 582-594)
+    expect(apiPathOf(templates.url()), 'คำขอแม่แบบต้องใช้ code ของประเภทหนังสือจอง').toBe(`/agent/contracts/types/${encodeURIComponent(type.code)}/templates`);
+    const templateRows = await okJson<unknown[]>(templates);
+    expect(Array.isArray(templateRows) && templateRows.length > 0, 'คำตอบของ GET แม่แบบต้องเป็นรายการที่มีอย่างน้อย 1 รายการ').toBe(true);
+    expect(defaults.ok(), 'GET ค่าตั้งต้นของหนังสือจองต้องสำเร็จ').toBe(true);
+    expect(offers.ok(), 'GET ข้อเสนอของลีดต้องสำเร็จ').toBe(true);
+    await expect(docs.alerts).toHaveCount(0);
+
+    // ค่าที่คาด: ชื่อขั้น 4 ขั้น หัวของขั้น "01 Parties" ปุ่ม Next ของขั้นที่ 1 และยังไม่มีปุ่ม Save draft (K21: CS:407-409, 2139-2142, 2463-2481)
+    for (const step of [1, 2, 3, 4] as const) await expect(docs.stepLabel(step), `ชื่อขั้นที่ ${step}`).toBeVisible();
+    await expect(docs.stepHeader(1)).toBeVisible();
+    await expect(docs.nextButton(1)).toBeVisible();
+    await expect(docs.saveDraft).toHaveCount(0);
+
+    // ค่าที่คาด: ข้อความ "From tenant details · read-only" และช่องผู้เช่า 6 ช่องแก้ไม่ได้ (K24: ReservationLetterFields.tsx:131-138, 381, 499)
+    await expect(docs.tenantLockedNote).toBeVisible();
+    for (const key of RESERVATION_TENANT_FIELDS) expect(await docs.rFieldReadOnly(key), `ช่อง ${key} ต้องแก้ไม่ได้`).toBe(true);
+
+    expectReadOnly(guard, opened, 'เปิดฟอร์มหนังสือจอง');
+  });
+
+  test('Next on the first step asks for the landlord name, phone and email', { tag: '@CCR-017' }, async ({ page, loginAs, guard }) => {
+    // ขั้นที่ 1: เปิดฟอร์ม แล้วกด "+ Add landlord" (ช่องผู้ให้เช่าว่างทั้งหมด)
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs } = opened;
+    await addLandlord(docs);
+
+    // ขั้นที่ 2: กด Next
+    const posted = watchForRequest(page, (request) => isSaveDraftRequest(request.method(), request.url()), QUIET_MS);
+    await docs.nextButton(1).click();
+
+    // ค่าที่คาด: ข้อความรวมของขั้น และ "This field is required." ใต้ช่องชื่อ เบอร์ และอีเมลของผู้ให้เช่า (K22, K23: CS:455-470 ; ReservationLetterFields.tsx:88-90, 105-106)
+    //   ไม่ตรวจข้อความของช่องผู้เช่า เพราะขึ้นกับข้อมูลของผู้เช่ารายนั้น
+    await expect(docs.alert(FLOW.ccStepRequired)).toBeVisible();
+    for (const key of LANDLORD_REQUIRED) expect(await docs.rFieldErrorText(key), `ข้อความใต้ช่อง ${key}`).toBe(FLOW.ccRequired);
+    // ค่าที่คาด: ยังอยู่ขั้น "01 Parties" และไม่มีคำขอบันทึก
+    await expect(docs.stepHeader(1)).toBeVisible();
+    expect(await posted, `มีคำขอ POST /agent/contracts ภายใน ${QUIET_MS} ms หลังกด Next`).toBe(false);
+    expectReadOnly(guard, opened, 'กด Next ตอนช่องผู้ให้เช่าว่าง');
+  });
+
+  test('a landlord email in the wrong format is refused on the first step', { tag: '@CCR-018' }, async ({ page, loginAs, guard }) => {
+    // ขั้นที่ 1: เปิดฟอร์ม กด "+ Add landlord" แล้วพิมพ์ชื่อ เบอร์ และอีเมลที่ผิดรูปแบบ
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs } = opened;
+    await addLandlord(docs);
+    await typeIntoReservation(docs, 'landlordFirstName', TEST_LANDLORD.landlordFirstName);
+    await typeIntoReservation(docs, 'landlordPhone', TEST_LANDLORD.landlordPhone);
+    await typeIntoReservation(docs, 'landlordEmail', 'e2e-not-an-email');
+
+    // ขั้นที่ 2: กด Next
+    await docs.nextButton(1).click();
+
+    // ค่าที่คาด: ข้อความรวม ใต้ช่องอีเมลผู้ให้เช่าขึ้น "Invalid email format" ส่วนชื่อกับเบอร์ไม่มีข้อความ และยังอยู่ขั้น "01 Parties" (K23: ReservationLetterFields.tsx:107-112)
+    await expect(docs.alert(FLOW.ccStepRequired)).toBeVisible();
+    expect(await docs.rFieldErrorText('landlordEmail'), 'ข้อความใต้ช่องอีเมลผู้ให้เช่า').toBe(FLOW.ccEmailFormat);
+    expect(await docs.rFieldErrorText('landlordFirstName'), 'ข้อความใต้ช่องชื่อผู้ให้เช่า').toBeNull();
+    expect(await docs.rFieldErrorText('landlordPhone'), 'ข้อความใต้ช่องเบอร์ผู้ให้เช่า').toBeNull();
+    await expect(docs.stepHeader(1)).toBeVisible();
+    expectReadOnly(guard, opened, 'กด Next ตอนอีเมลผู้ให้เช่าผิดรูปแบบ');
+  });
+
+  test('a complete first step leads to the second step, and Back keeps what was typed', { tag: '@CCR-019' }, async ({ page, loginAs, guard }) => {
+    // เงื่อนไขตั้งต้น: ฟอร์มเปิดที่ขั้น Parties และกรอกผู้ให้เช่าของเทสถูกต้อง
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs } = opened;
+    await fillTestLandlord(docs);
+
+    // ขั้นที่ 1: กด Next ; ค่าที่คาด: หัวของขั้นเป็น "02 Room and contract" (K21, K22: CS:472-473)
+    await advance(docs, 1, PARTIES_BLOCKED, LANDLORD_REQUIRED);
+    await expect(docs.stepHeader(2)).toBeVisible();
+    await expect(docs.stepHeader(1)).toHaveCount(0);
+
+    // ขั้นที่ 2: กด "← Back" ; ค่าที่คาด: กลับมา "01 Parties" และค่าผู้ให้เช่าที่พิมพ์ทั้ง 3 ช่องยังอยู่ (K21: CS:2455-2461)
+    await docs.backButton.click();
+    await expect(docs.stepHeader(1)).toBeVisible();
+    for (const key of LANDLORD_REQUIRED) {
+      await expect.poll(() => docs.rFieldValueIs(key, TEST_LANDLORD[key]), { message: `ช่อง ${key} ยังเป็นข้อความที่เทสพิมพ์ไว้` }).toBe(true);
+    }
+
+    expectReadOnly(guard, opened, 'ไปขั้นที่ 2 แล้วกลับ');
+  });
+
+  test('the second step needs the project name', { tag: '@CCR-020' }, async ({ page, loginAs, guard }) => {
+    // เงื่อนไขตั้งต้น: อยู่ขั้น "02 Room and contract"
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs } = opened;
+    await fillTestLandlord(docs);
+    await advance(docs, 1, PARTIES_BLOCKED, LANDLORD_REQUIRED);
+
+    // ขั้นที่ 1: ล้างช่อง Project ; ขั้นที่ 2: กด Next
+    await typeIntoReservation(docs, 'project', '');
+    await docs.nextButton(2).click();
+
+    // ค่าที่คาด: ข้อความรวม "This field is required." ใต้ช่อง Project และยังอยู่ขั้น 02 (K22, K23: CS:413 ; ReservationLetterFields.tsx:65-70, 88-90)
+    await expect(docs.alert(FLOW.ccStepRequired)).toBeVisible();
+    expect(await docs.rFieldErrorText('project'), 'ข้อความใต้ช่อง Project').toBe(FLOW.ccRequired);
+    await expect(docs.stepHeader(2)).toBeVisible();
+    expectReadOnly(guard, opened, 'กด Next ตอนช่อง Project ว่าง');
+  });
+
+  test('a start date in the wrong format is refused on the second step', { tag: '@CCR-021' }, async ({ page, loginAs, guard }) => {
+    // เงื่อนไขตั้งต้น: อยู่ขั้น "02 Room and contract" และช่องวันเริ่มไม่ถูกล็อกจากข้อเสนอ
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs } = opened;
+    await fillTestLandlord(docs);
+    await advance(docs, 1, PARTIES_BLOCKED, LANDLORD_REQUIRED);
+    await skipIfLocked(docs, 'termFrom');
+
+    // ขั้นที่ 1: พิมพ์วันที่ผิดรูปแบบในช่อง Start / move-in date ; ขั้นที่ 2: กด Next
+    await typeIntoReservation(docs, 'termFrom', '13/11/2026');
+    await docs.nextButton(2).click();
+
+    // ค่าที่คาด: ข้อความรวม ใต้ช่องขึ้น "Invalid date format (YYYY-MM-DD)" และยังอยู่ขั้น 02 (K23: ReservationLetterFields.tsx:96-100)
+    await expect(docs.alert(FLOW.ccStepRequired)).toBeVisible();
+    expect(await docs.rFieldErrorText('termFrom'), 'ข้อความใต้ช่องวันเริ่ม').toBe(FLOW.ccDateFormat);
+    await expect(docs.stepHeader(2)).toBeVisible();
+    expectReadOnly(guard, opened, 'กด Next ตอนวันเริ่มผิดรูปแบบ');
+  });
+
+  test('the third step needs the reservation fee', { tag: '@CCR-022' }, async ({ page, loginAs, guard }) => {
+    // เงื่อนไขตั้งต้น: อยู่ขั้น "03 Amounts and payment" และช่องค่าจองไม่ถูกล็อกจากข้อเสนอ
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs } = opened;
+    await fillTestLandlord(docs);
+    await advance(docs, 1, PARTIES_BLOCKED, LANDLORD_REQUIRED);
+    await advance(docs, 2, ROOM_BLOCKED);
+    await skipIfLocked(docs, 'reservationPayment');
+
+    // ขั้นที่ 1: ล้างช่อง Reservation fee (THB) ; ขั้นที่ 2: กด Next
+    await typeIntoReservation(docs, 'reservationPayment', '');
+    await docs.nextButton(3).click();
+
+    // ค่าที่คาด: ข้อความรวม "This field is required." ใต้ช่องค่าจอง และยังอยู่ขั้น 03 (K22, K23: ReservationLetterFields.tsx:65-70, 88-90, 174)
+    await expect(docs.alert(FLOW.ccStepRequired)).toBeVisible();
+    expect(await docs.rFieldErrorText('reservationPayment'), 'ข้อความใต้ช่องค่าจอง').toBe(FLOW.ccRequired);
+    await expect(docs.stepHeader(3)).toBeVisible();
+    expectReadOnly(guard, opened, 'กด Next ตอนช่องค่าจองว่าง');
+  });
+
+  test('Save draft on the last step opens the reservation confirmation, and cancelling it sends nothing', { tag: '@CCR-023' }, async ({ page, loginAs, guard }) => {
+    // เงื่อนไขตั้งต้น: อยู่ขั้น "04 Review" โดยทุกขั้นผ่านการตรวจ (ช่องค่าจองที่ว่างเติม 5000 ถ้าไม่ถูกล็อก ; 5000 คือค่าตัวอย่างในช่อง: ReservationLetterFields.tsx:174)
+    const opened = await openReservationFormOfTestTenant(page, loginAs);
+    const { docs, type } = opened;
+    await fillTestLandlord(docs);
+    await advance(docs, 1, PARTIES_BLOCKED, LANDLORD_REQUIRED);
+    await advance(docs, 2, ROOM_BLOCKED);
+    const feeEmpty = await docs.rFieldIsEmpty('reservationPayment');
+    expect(feeEmpty, 'ต้องพบช่อง reservationPayment 1 ช่อง').not.toBeNull();
+    if (feeEmpty) {
+      await skipIfLocked(docs, 'reservationPayment');
+      await typeIntoReservation(docs, 'reservationPayment', '5000');
+    }
+    await advance(docs, 3, AMOUNTS_BLOCKED, feeEmpty ? ['reservationPayment'] : []);
+    await expect(docs.stepHeader(4)).toBeVisible();
+
+    // ขั้นที่ 1: กด Save draft ของฟอร์ม (K21: ปุ่มนี้มีที่ขั้นสุดท้ายเท่านั้น CS:2474-2481)
+    const posted = watchForRequest(page, (request) => isSaveDraftRequest(request.method(), request.url()), QUIET_MS);
+    await docs.saveDraft.click();
+
+    // ค่าที่คาด: กล่องยืนยันขึ้น หัวข้อ "บันทึก<ชื่อไทยของประเภท>นี้?" เนื้อความของหนังสือจอง และปุ่ม 2 ปุ่ม (K26: CS:1595-1610, 1697-1699, 2495-2523)
+    const title = `${CONTRACT_SAVE_CONFIRM.titlePrefix}${type.nameTh || CONTRACT_SAVE_CONFIRM.titleFallbackType}${CONTRACT_SAVE_CONFIRM.titleSuffix}`;
+    await expect(docs.confirmTitle(title)).toBeVisible();
+    await expect(docs.confirmBodyReservation).toBeVisible();
+    await expect(docs.confirmCancel).toBeVisible();
+    await expect(docs.confirmSave).toBeVisible();
+    // ค่าที่คาด: ยังไม่มีคำขอ POST /agent/contracts ภายในช่วงเฝ้า (เทสไม่กด "บันทึกฉบับร่าง" ในกล่อง)
+    expect(await posted, `มีคำขอ POST /agent/contracts ภายใน ${QUIET_MS} ms หลังกด Save draft ทั้งที่ยังไม่ได้ยืนยัน`).toBe(false);
+
+    // ขั้นที่ 2: กด "ยกเลิก" ในกล่อง ; ค่าที่คาด: กล่องปิด ฟอร์มยังอยู่ขั้น 04 และไม่มีคำขอ POST (CS:2506-2512)
+    const postedAfterCancel = watchForRequest(page, (request) => isSaveDraftRequest(request.method(), request.url()), QUIET_MS);
+    await docs.confirmCancel.click();
+    await expect(docs.confirmBackdrop).toHaveCount(0);
+    await expect(docs.stepHeader(4)).toBeVisible();
+    expect(await postedAfterCancel, `มีคำขอ POST /agent/contracts ภายใน ${QUIET_MS} ms หลังกด "ยกเลิก"`).toBe(false);
+    expectReadOnly(guard, opened, 'เปิดและปิดกล่องยืนยันของหนังสือจอง');
+  });
+});
+
+test.describe('contracts: language of the confirmation', () => {
+  test('the confirmation before saving is in the language of the page', { tag: ['@CCR-012', '@known-bug'] }, async ({ page, loginAs, guard }) => {
+    // ตรวจเฉพาะภาษาอังกฤษ: ข้อความในกล่องเขียนเป็นภาษาไทยตายตัว (CS:2494-2525) ในหน้าภาษาไทยจึงถูกอยู่แล้ว
+    test.skip(UI_LOCALE !== 'en', 'ตรวจเฉพาะหน้าภาษาอังกฤษ (กล่องยืนยันเป็นภาษาไทยตายตัว จึงถูกอยู่แล้วในหน้าภาษาไทย)');
+
+    // เงื่อนไขตั้งต้น: กล่องยืนยันของฟอร์มสัญญาแต่งตั้งเปิดอยู่ (ขั้นเดียวกับ CCR-009) หากล่องจากปุ่มพื้นหลังซึ่งไม่ขึ้นกับภาษา
+    const opened = await openBrokerFormOfTestTenant(page, loginAs);
+    const { docs } = opened;
+    await completeRequired(docs);
+    await docs.saveDraft.click();
+    await expect(docs.confirmBackdrop).toBeVisible();
+    // รอจนกล่องมีข้อความ โดยไม่อาศัยข้อความภาษาไทย เพื่อให้ข้อนี้ยังทำงานได้เมื่อทีมแก้บั๊กแล้ว
+    await expect.poll(async () => (await docs.confirmText()).trim().length, { message: 'กล่องยืนยันต้องมีข้อความ' }).toBeGreaterThan(0);
+    const text = await docs.confirmText();
+    expectReadOnly(guard, opened, 'เปิดกล่องยืนยัน');
+
+    // ขั้นที่ 1: อ่านข้อความในกล่อง ; ค่าที่คาด: ไม่มีตัวอักษรไทยในกล่องยืนยันของหน้าภาษาอังกฤษ (S2 ; Aof ตัดสินว่าเป็นบั๊ก 13 พ.ย. 2026)
+    // test.fail อยู่ตรงนี้เพื่อให้ความล้มของขั้นเตรียมข้างบนยังทำให้ข้อนี้แดง (test.fail กลับผลเฉพาะความล้มที่เกิดหลังบรรทัดนี้)
+    test.fail(true, 'WEB-024: กล่องยืนยันก่อนบันทึกสัญญาเป็นภาษาไทยในหน้าภาษาอังกฤษ (ข้อความเขียนตายตัวใน ContractsScreen.tsx:2494-2525)');
+    expect(text, 'ข้อความในกล่องยืนยันของหน้าภาษาอังกฤษต้องไม่มีตัวอักษรไทย').not.toMatch(/[\u0E00-\u0E7F]/);
   });
 });

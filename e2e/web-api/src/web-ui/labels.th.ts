@@ -174,6 +174,42 @@ export const FLOW_TH: { [K in keyof typeof FLOW_EN]: (typeof FLOW_EN)[K] extends
     commissionFee: 'ค่าคอมที่ตกลง (บาท) — หรือเว้นว่างถ้าคิดเป็นเดือน', // :267
     commissionMonths: 'ค่าคอมเป็นจำนวนเดือนของค่าเช่า — หรือเว้นว่างถ้าคิดเป็นบาท', // :268
   },
+  // สร้างเอกสารสัญญาของนายหน้า รอบที่ 2 เคส CCR-012 ถึง CCR-023 (คีย์เดียวกับ labels.ts)
+  ccNowTitle: 'ต้องทำตอนนี้', // agent.tenants.detail.nowTitle :633
+  ccOverviewPhone: 'เบอร์โทร', // agent.tenants.fieldPhone :599
+  ccNowBrokerTitle: 'ทำสัญญาแต่งตั้งนายหน้าก่อน', // agent.tenants.detail.nowBrokerTitle :642
+  ccNowBrokerCta: 'ทำสัญญาแต่งตั้งนายหน้า', // agent.tenants.detail.nowBrokerCta :644
+  ccNowReservationTitle: 'ขั้นถัดไป: ทำหนังสือจอง', // agent.tenants.nextStepTitle :618
+  ccNowReservationCta: 'ทำหนังสือจอง', // agent.tenants.makeReservation :620
+  ccTypeReservation: 'หนังสือจอง', // contracts.common.kinds.reservation :57
+  ccNextStep: 'ถัดไป: {step} →', // contracts.screen.nextStep :827
+  ccPreviousStep: '← ย้อนกลับ', // contracts.screen.previousStep :826
+  ccStepRequired: 'กรุณากรอกข้อมูลที่จำเป็นในขั้นตอนนี้ให้ครบ', // agent.contracts.notice.stepRequired :1301
+  ccTenantLocked: 'ดึงจากข้อมูลผู้เช่า · แก้ไขไม่ได้', // contracts.reservation.tenantLocked :127
+  ccAddLandlord: '+ เพิ่มผู้ให้เช่า', // contracts.reservation.addLandlord :131
+  ccEmailFormat: 'รูปแบบอีเมลไม่ถูกต้อง', // contracts.validation.emailFormat :71
+  // ชื่อขั้นของฟอร์มหนังสือจอง 4 ขั้น ตามลำดับ: contracts.screen.reservationSteps :799
+  ccReservationSteps: {
+    parties: 'คู่สัญญา',
+    room: 'ห้องและสัญญา',
+    amounts: 'จำนวนเงินและการชำระ',
+    review: 'ตรวจสอบ',
+  },
+  // ป้ายของช่องในฟอร์มหนังสือจองที่เทสใช้ คีย์ contracts.reservation.fields.<ชื่อ>
+  ccReservationFields: {
+    tenantFirstName: 'ชื่อผู้จอง', // :83
+    tenantLastName: 'นามสกุลผู้จอง', // :84
+    tenantPhone: 'เบอร์ติดต่อผู้จอง', // :85
+    tenantEmail: 'อีเมลผู้จอง', // :86
+    tenantId: 'เลขบัตร / พาสปอร์ต / นิติบุคคล ผู้จอง', // :87
+    tenantNationality: 'สัญชาติผู้จอง', // :88
+    landlordFirstName: 'ชื่อผู้ให้เช่า', // :89
+    landlordPhone: 'เบอร์ติดต่อผู้ให้เช่า', // :91
+    landlordEmail: 'อีเมลผู้ให้เช่า', // :92
+    project: 'โครงการ', // :98
+    termFrom: 'เริ่ม / วันที่เข้าอยู่ (YYYY-MM-DD)', // :106
+    reservationPayment: 'เงินจอง (บาท)', // :113
+  },
   // ปฏิทิน (components/AgentCalendarScreen.tsx copy = t.agent.calendar)
   calendarLoadError: 'โหลดนัดหมายไม่สำเร็จ กรุณาลองใหม่', // agent.calendar.loadError :493
   // บิล (components/TenantBillsScreen.tsx, TenantNextBillCard.tsx, OwnerConfirmedRent.tsx)
