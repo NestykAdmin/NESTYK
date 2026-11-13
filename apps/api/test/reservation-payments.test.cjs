@@ -356,7 +356,7 @@ test('D11: no slip return without a reason, without a slip, after the receipt, o
 
 test('D11: a slip the tenant sent after the agent looked is not returned (409) and is kept', async () => {
   const newer = { slipPath: '7/payment-slips/B.jpg', submittedAt: '2026-10-22T05:00:00.000Z', submittedBy: 8 };
-  for (const [label, seen] of [['an older slip', '2026-10-22T03:00:00.000Z'], ['no slip time', undefined], ['not a string', 5]]) {
+  for (const [label, seen] of [['an older slip', '2026-10-22T03:00:00.000Z']]) {
     // The tenant's new slip B lands just before the agent's return (made after looking at slip A) locks the reservation.
     const patch = {};
     const fx = fixture({ concurrentPatch: patch });
@@ -365,6 +365,18 @@ test('D11: a slip the tenant sent after the agent looked is not returned (409) a
     await assert.rejects(() => fx.service.returnReservationSlip(7, 11, { reason: 'ยอดไม่ตรง', submittedAt: seen }),
       e => e.getStatus() === 409 && e.getResponse().code === 'SLIP_CHANGED', label);
     assert.deepEqual(fx.row.data.reservationPayment, newer, `${label}: the new slip is kept`);
+    assert.deepEqual(fx.removed, [], `${label}: no file removed`);
+  }
+});
+
+test('Q4: a return without the slip time the agent looked at is a bad request (400), not SLIP_CHANGED', async () => {
+  for (const [label, seen] of [['missing', undefined], ['not a string', 5], ['blank', '  '], ['not a time', 'abc']]) {
+    const fx = fixture();
+    fx.row.data.reservationPayment = { slipPath: '7/payment-slips/A.jpg', submittedAt: '2026-10-22T03:00:00.000Z', submittedBy: 8 };
+    const before = fx.row.data.reservationPayment;
+    await assert.rejects(() => fx.service.returnReservationSlip(7, 11, { reason: 'ยอดไม่ตรง', submittedAt: seen }),
+      (e) => e.getStatus() === 400 && /เวลาของสลิป/.test(e.message), label);
+    assert.deepEqual(fx.row.data.reservationPayment, before, `${label}: the slip is kept`);
     assert.deepEqual(fx.removed, [], `${label}: no file removed`);
   }
 });

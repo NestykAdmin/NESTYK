@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const ts = require('typescript');
 require('reflect-metadata');
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, emitDecoratorMetadata: true, esModuleInterop: true }, fileName: filename }).outputText, filename);
-const { lateFeeDays, lateFeeOpen, lateFeeInvoice, lateFeeInvoiceNo, lateFeeReceiptNo, lateFeeInput } = require('../src/billing/late-fee-invoice.ts');
+const { lateFeeDays, lateFeeOpen, lateFeeInvoice, lateFeeInvoiceNo, lateFeeReceiptNo, lateFeeInput, sameLateFeeSlip } = require('../src/billing/late-fee-invoice.ts');
 const { TenantBillingService } = require('../src/billing/tenant-billing.service.ts');
 const { AgentBillsController } = require('../src/billing/agent-bills.controller.ts');
 const { TenantBillsController } = require('../src/billing/tenant-bills.controller.ts');
@@ -180,4 +180,13 @@ test('M8 (Aof 29 Oct 2026): only the deal agent issues a late fee; the landlord 
   assert.equal(OwnerBillsController.prototype.createLateFee, undefined, 'no landlord route to issue one');
   for (const name of Object.getOwnPropertyNames(OwnerBillsController.prototype))
     assert.notEqual(Reflect.getMetadata('method', OwnerBillsController.prototype[name]), 1, `${name}: the landlord has no POST route`);
+});
+
+test('Q4: a late fee slip return without the slip time is a bad request (400), a changed slip stays 409', () => {
+  const at = new Date('2026-10-22T03:00:00.000Z');
+  for (const [label, body] of [['missing', {}], ['not a string', { submittedAt: 5 }], ['blank', { submittedAt: ' ' }], ['not a time', { submittedAt: 'abc' }], ['no body', null]])
+    assert.throws(() => sameLateFeeSlip(body, at), (e) => e.getStatus() === 400 && /เวลาของสลิป/.test(e.message), label);
+  assert.throws(() => sameLateFeeSlip({ submittedAt: '2026-10-21T03:00:00.000Z' }, at),
+    (e) => e.getStatus() === 409 && e.getResponse().code === 'SLIP_CHANGED');
+  assert.doesNotThrow(() => sameLateFeeSlip({ submittedAt: at.toISOString() }, at));
 });

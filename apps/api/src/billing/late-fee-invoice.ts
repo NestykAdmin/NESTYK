@@ -64,8 +64,11 @@ export function lateFeeInput(input: unknown, today: string) {
 /** The slip the agent is looking at must still be the tenant's latest one. */
 export function sameLateFeeSlip(input: unknown, submittedAt: Date | null) {
   const seen = input && typeof input === "object" && !Array.isArray(input) ? (input as { submittedAt?: unknown }).submittedAt : undefined;
+  // Q4 (Aof 12 Nov 2026): a missing or malformed slip time is a bad request, not a slip that changed.
+  if (typeof seen !== "string" || !seen.trim() || Number.isNaN(Date.parse(seen)))
+    throw new BadRequestException("ไม่พบเวลาของสลิปที่เปิดดู กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง");
   const current = submittedAt ? new Date(submittedAt).toISOString() : null;
-  if (typeof seen !== "string" || !current || seen !== current)
+  if (!current || seen !== current)
     throw new ConflictException({ code: "SLIP_CHANGED", message: "ผู้เช่าส่งสลิปใหม่แล้ว กรุณาเปิดดูสลิปล่าสุดก่อนตีกลับ" });
 }
 

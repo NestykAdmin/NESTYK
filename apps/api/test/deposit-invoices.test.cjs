@@ -764,7 +764,7 @@ test('D11: no deposit slip return without a reason, for the agent\'s own slip, a
 });
 
 test('D11: a deposit slip the tenant sent after the agent looked is not returned (409) and is kept', async () => {
-  for (const [label, at] of [['an older slip', '2026-10-20T03:00:00.000Z'], ['no slip time', undefined]]) {
+  for (const [label, at] of [['an older slip', '2026-10-20T03:00:00.000Z']]) {
     const h = harness();
     await h.service.issueDepositInvoice(7, 11);
     await h.service.uploadDepositPaymentSlip(8, 11, slip);
@@ -775,6 +775,22 @@ test('D11: a deposit slip the tenant sent after the agent looked is not returned
     await assert.rejects(() => h.service.returnDepositSlip(7, 11, { reason: 'ยอดไม่ตรง', submittedAt: at }),
       (e) => e.getStatus() === 409 && e.getResponse().code === 'SLIP_CHANGED', label);
     assert.equal(invoice.payment_slip_path, '7/payment-slips/newer.jpg', label);
+    assert.equal(invoice.slip_return_note ?? null, null, label);
+    assert.equal(h.removed.length, removedBefore, `${label}: no file removed`);
+  }
+});
+
+test('Q4: a deposit slip return without the slip time is a bad request (400)', async () => {
+  for (const [label, at] of [['missing', undefined], ['not a string', 5], ['blank', '  '], ['not a time', 'abc']]) {
+    const h = harness();
+    await h.service.issueDepositInvoice(7, 11);
+    await h.service.uploadDepositPaymentSlip(8, 11, slip);
+    const invoice = h.invoices[0];
+    const path = invoice.payment_slip_path;
+    const removedBefore = h.removed.length;
+    await assert.rejects(() => h.service.returnDepositSlip(7, 11, { reason: 'ยอดไม่ตรง', submittedAt: at }),
+      (e) => e.getStatus() === 400 && /เวลาของสลิป/.test(e.message), label);
+    assert.equal(invoice.payment_slip_path, path, label);
     assert.equal(invoice.slip_return_note ?? null, null, label);
     assert.equal(h.removed.length, removedBefore, `${label}: no file removed`);
   }

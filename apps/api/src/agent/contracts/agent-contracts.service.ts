@@ -211,7 +211,10 @@ export function renewalSignedOn(c: Pick<LeaseContractEntity, "owner_signed_at" |
 export const SLIP_CHANGED = "SLIP_CHANGED";
 function assertSameSlip(input: unknown, current: string | null | undefined) {
   const seen = input && typeof input === "object" && !Array.isArray(input) ? (input as { submittedAt?: unknown }).submittedAt : undefined;
-  if (typeof seen !== "string" || !current || seen !== current)
+  // Q4 (Aof 12 Nov 2026): a missing or malformed slip time is a bad request, not a slip that changed.
+  if (typeof seen !== "string" || !seen.trim() || Number.isNaN(Date.parse(seen)))
+    throw new BadRequestException("ไม่พบเวลาของสลิปที่เปิดดู กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง");
+  if (!current || seen !== current)
     throw new ConflictException({ code: SLIP_CHANGED, message: "ผู้เช่าส่งสลิปใหม่แล้ว กรุณาเปิดดูสลิปล่าสุดก่อนตีกลับ" });
 }
 /** D11: the reason the agent gives when returning a slip (the same rule as rent bills: required, up to 500 characters). */
