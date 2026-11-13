@@ -11,7 +11,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'app-rout
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('app-routes must stay dependency free'); }, mod, mod.exports);
-const { guestWebBase, guestWebPath, signInTarget, withNextParam, guestWebUrlFor, GUEST_WEB_PAGES, GUEST_WEB_TREES, GUEST_WEB_LOCALES } = mod.exports;
+const { guestWebBase, guestWebPath, signInTarget, withNextParam, guestWebUrlFor, authPageLocale, GUEST_WEB_PAGES, GUEST_WEB_TREES, GUEST_WEB_LOCALES } = mod.exports;
 const read = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
 test('EXPO_PUBLIC_GUEST_WEB_URL: unset = off, "/" = this same site, an http(s) address = that site', () => {
@@ -113,4 +113,28 @@ test('the web route sync hands guest pages to the guest web (sign-out, logo, swi
   assert.match(first, /guestWebUrlFor\(target\.href, GUEST_WEB_BASE\)/);
   assert.match(sync, /leaveToGuestWeb\(/);
   assert.match(web, /window\.location\.pathname === new URL\(url, window\.location\.href\)\.pathname[\s\S]*window\.location\.replace\(url\)/, 'no second history entry for the same page');
+});
+
+test('D6 (Mos 13 Nov 2026): sign-in / sign-up opened from a guest page shows the language of that page', () => {
+  assert.equal(authPageLocale('/login', '?next=%2Fen%2Fsearch%3Fbeds%3D1'), 'en');
+  assert.equal(authPageLocale('/register', '?next=%2Fja%2Fsaved'), 'ja');
+  assert.equal(authPageLocale('/login', '?next=%2Fzh'), 'zh');
+  assert.equal(authPageLocale('/login', '?next=%2Fsearch'), 'th', 'Thai pages have no prefix');
+  assert.equal(authPageLocale('/reset-password', '?next=%2F'), 'th');
+  assert.equal(authPageLocale('/login', '?lang=ja&next=%2Fen%2Fsearch'), 'ja', 'an explicit lang wins');
+});
+
+test('D6: anything else keeps the language the app remembers', () => {
+  assert.equal(authPageLocale('/login', ''), null);
+  assert.equal(authPageLocale('/login', '?next=%2Fagent%2Fleads'), null, 'role pages: their own language setting');
+  assert.equal(authPageLocale('/login', '?next=%2F%2Fevil.example'), null);
+  assert.equal(authPageLocale('/login', '?lang=fr'), null);
+  assert.equal(authPageLocale('/agent', '?next=%2Fen'), null, 'only the sign-in pages');
+  assert.equal(authPageLocale('/search', '?lang=en'), null);
+});
+
+test('D6: the root layout uses it on the web before the saved language', () => {
+  const layout = read('app/_layout.tsx');
+  assert.match(layout, /authPageLocale\(window\.location\.pathname, window\.location\.search\)/);
+  assert.match(layout, /setInitialLocale\(fromUrl \?\? saved \?\? deviceLocale\)/);
 });

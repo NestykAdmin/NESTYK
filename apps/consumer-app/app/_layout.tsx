@@ -15,6 +15,7 @@ import { IdleSignOutGate } from '../components/web-session/IdleSignOutGate';
 import { WebNotifier } from '../components/web-notify/WebNotifier';
 import { CookieNotice } from '../components/legal/CookieNotice';
 import { loadPreferredLocale, savePreferredLocale } from '../lib/locale-storage';
+import { authPageLocale } from '../lib/app-routes';
 import { Mitr_400Regular, Mitr_500Medium } from '@expo-google-fonts/mitr';
 import {
   Baloo2_400Regular,
@@ -81,8 +82,13 @@ export default function Layout() {
 
   useEffect(() => {
     let cancelled = false;
+    // D6 (Mos 13 Nov 2026): a sign-in page opened from a guest web page shows that page's language.
+    const fromUrl =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? authPageLocale(window.location.pathname, window.location.search)
+        : null;
     loadPreferredLocale().then((saved) => {
-      if (!cancelled) setInitialLocale(saved ?? deviceLocale);
+      if (!cancelled) setInitialLocale(fromUrl ?? saved ?? deviceLocale);
     });
     return () => {
       cancelled = true;

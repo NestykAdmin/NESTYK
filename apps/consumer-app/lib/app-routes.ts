@@ -197,6 +197,26 @@ export function signInTarget(next: unknown, base: string | null, appHref: string
   return guestWeb ? { kind: 'guestWeb', url: guestWeb } : { kind: 'app', href: appHref };
 }
 
+/** Languages the guest web and this app share. */
+const PAGE_LOCALES = ['th', 'en', 'ja', 'zh'] as const;
+export type PageLocale = (typeof PAGE_LOCALES)[number];
+
+/**
+ * D6 (Mos 13 Nov 2026): the language of a sign-in page (login, register, reset, no-access) opened from a guest web
+ * page: `?lang=` when given, else the `next` page's language prefix (none = Thai). Null otherwise, so the language
+ * the app remembers stays (role pages keep their own setting).
+ */
+export function authPageLocale(pathname: string, search: string): PageLocale | null {
+  if (parseAppPath(pathname).kind !== 'auth') return null;
+  const query = parseQuery(search);
+  const lang = (query.lang ?? '').toLowerCase();
+  if ((PAGE_LOCALES as readonly string[]).includes(lang)) return lang as PageLocale;
+  const back = guestWebPath(query.next);
+  if (!back) return null;
+  const head = back.split(/[/?#]/)[1] ?? '';
+  return (GUEST_WEB_LOCALES as readonly string[]).includes(head) ? (head as PageLocale) : 'th';
+}
+
 /** "/register?next=…" / "/login?next=…" when `next` is a safe in-app or guest web page, so switching keeps it. */
 export function withNextParam(pathname: string, next: unknown): string {
   const value = Array.isArray(next) ? next[0] : next;
