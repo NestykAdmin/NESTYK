@@ -36,7 +36,8 @@ import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
 import { socialLoginProvider } from "../lib/auth/google-oauth";
 import { requestGuestBrowse } from "../lib/auth/role-gate";
 import { APP_CONFIG } from "../lib/config";
-import { postLoginHref } from "../lib/web-routes";
+import { withNextParam } from "../lib/app-routes";
+import { goAfterSignIn, goToGuestHome } from "../lib/web-routes";
 
 function GoogleMark() {
   return (
@@ -99,8 +100,9 @@ export default function LoginScreen() {
 
   React.useEffect(() => {
     if (isAuthenticated) {
-      // Web: back to `next` or the landing role's page (route plan R1, Q5). Mobile: "/" as before.
-      router.replace(postLoginHref(next, session?.roles) as never);
+      // Web: back to `next` (a role page here, or the guest web page sign-in started from) or the landing role's
+      // page (route plan R1, Q5; guest session plan A6). Mobile: "/" as before.
+      goAfterSignIn(router, next, session?.roles);
     }
   }, [isAuthenticated, router, next, session?.roles]);
 
@@ -472,7 +474,7 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 style={[styles.signUpButton, compact && styles.signUpButtonCompact, { borderTopColor: theme.border }]}
-                onPress={() => router.push('/register')}
+                onPress={() => router.push(withNextParam('/register', next) as never)}
                 accessibilityRole="button"
                 accessibilityLabel={copy.signUp}
                 activeOpacity={0.7}
@@ -491,7 +493,7 @@ export default function LoginScreen() {
                 onPress={() => {
                   dismissSessionExpired();
                   requestGuestBrowse();
-                  router.replace("/");
+                  goToGuestHome(router);
                 }}
                 style={[styles.guestLink, compact && styles.guestLinkCompact]}
                 accessibilityRole="button"

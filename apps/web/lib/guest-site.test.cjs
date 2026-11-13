@@ -54,7 +54,8 @@ test('only an in-site path becomes `next`; anything else leaves the link plain',
     assert.equal(site.safeGuestNext(bad), null, String(bad));
   }
   assert.equal(site.accountUrlWithNext('signIn', '', '//evil.example'), '/login');
-  assert.equal(site.safeGuestNext('/' + 'x'.repeat(2100)), null, 'very long paths are dropped');
+  assert.equal(site.safeGuestNext('/' + 'x'.repeat(511)), '/' + 'x'.repeat(511));
+  assert.equal(site.safeGuestNext('/' + 'x'.repeat(512)), null, 'longer than the consumer-app accepts (512): dropped');
 });
 
 test('the header menu has the 5 items of design v2.3 in order, and pages not built yet are "coming soon"', () => {

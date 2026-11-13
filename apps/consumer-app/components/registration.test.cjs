@@ -43,7 +43,8 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
     'react-native-svg': { __esModule: true, default: 'Svg', Path: 'Path' },
     'expo-image': { Image: 'Image' },
     'expo-status-bar': { StatusBar: 'StatusBar' },
-    'expo-router': { useRouter: () => ({ replace: route => routes.push(route) }) },
+    // register.tsx reads `next` (guest session plan A6); none here, so sign-up still goes to "/" (lib/web-routes.ts).
+    'expo-router': { useRouter: () => ({ replace: route => routes.push(route) }), useLocalSearchParams: () => ({}) },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@nestyk/i18n': { useLocale: () => ({ t, locale: 'en' }), localizedError: (e, fallback) => e?.message ?? fallback },
     '@nestyk/ui/native': { MobileInput: 'Input', MobileButton: 'Button', MobileIcon: 'Icon', MobileNestykLogo: 'Logo', SelectionCheck: 'SelectionCheck',

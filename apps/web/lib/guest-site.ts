@@ -140,8 +140,11 @@ export function accountOrigin(sameSite: string | undefined, value: string | unde
   return sameSite === '1' ? '' : accountWebOrigin(value, nodeEnv);
 }
 
-/** Longest `next` we send; longer ones are dropped rather than cut (a cut query would be a different search). */
-const NEXT_MAX_LENGTH = 2000;
+/**
+ * Longest `next` we send, the same limit as the consumer-app's check (app-routes safeNextPath / guestWebPath).
+ * Longer ones are dropped rather than cut (a cut query would be a different search).
+ */
+const NEXT_MAX_LENGTH = 512;
 
 /**
  * The page to come back to after sign-in: an in-site path with its query, never another site

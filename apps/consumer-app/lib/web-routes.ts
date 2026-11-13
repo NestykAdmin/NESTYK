@@ -29,6 +29,18 @@ export function postLoginHref(_next: unknown, _roles: readonly string[] | null |
   return '/';
 }
 
+type Router = { replace: (href: never) => void };
+
+/** Mobile (frozen): after sign-in / sign-up go to "/" as before. The web may go back to the guest web. */
+export function goAfterSignIn(router: Router, _next: unknown, _roles: readonly string[] | null | undefined): void {
+  router.replace('/' as never);
+}
+
+/** Mobile: "Continue as guest" opens this app's guest home as before. */
+export function goToGuestHome(router: Router): void {
+  router.replace('/' as never);
+}
+
 /** The role a signed-in account goes to when its role is one it does not have (no remembered role on mobile). */
 export function landingRoleFor(roles: readonly string[] | null | undefined): UserRole {
   return pickLandingRole(roles);

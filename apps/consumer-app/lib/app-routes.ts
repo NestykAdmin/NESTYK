@@ -124,6 +124,71 @@ export function postLoginPath(next: unknown, roles: readonly string[] | null | u
 }
 
 /* ------------------------------------------------------------------------------------------------------------------
+ * Guest web on the same site (nestyk-guest-session-plan-20261112.md A5–A6, Mos D1 12 Nov 2026). On nestyk.com the
+ * guest pages are the guest web (apps/web, Next.js); this app keeps sign-in, sign-up and the role pages. Sign-in
+ * started on a guest page comes back to it with a full page load (it is another app on the same site).
+ * ---------------------------------------------------------------------------------------------------------------- */
+
+/** Language prefixes of the guest web (Thai has none). Kept in step with apps/web/i18n/routing.ts by a test. */
+export const GUEST_WEB_LOCALES = ['en', 'ja', 'zh'] as const;
+/** One-segment guest web pages. */
+export const GUEST_WEB_PAGES = ['search', 'saved', 'profile'] as const;
+/** Guest web pages with one id below them: /rooms/<id>, /rent/<area>. */
+export const GUEST_WEB_TREES = ['rooms', 'rent'] as const;
+
+/**
+ * EXPO_PUBLIC_GUEST_WEB_URL: unset (or not usable) = off, as before. "/" = the guest web is this same site
+ * (production nestyk.com). An http(s) address = the guest web there (local dev: http://localhost:3000).
+ */
+export function guestWebBase(value: unknown): string | null {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (text === '/') return '';
+  if (!/^https?:\/\/[^/]/i.test(text)) return null;
+  try {
+    return new URL(text).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** A `next` that is a guest web page (path + query, optional language prefix), else null. Same safety as safeNextPath. */
+export function guestWebPath(next: unknown): string | null {
+  const value = Array.isArray(next) ? next[0] : next;
+  if (typeof value !== 'string' || value.length === 0 || value.length > 512) return null;
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null;
+  if (/^\/[^?#]*:/.test(value) || /[\u0000-\u001f]/.test(value)) return null;
+  const segments = segmentsOf(value.split(/[?#]/)[0]);
+  const rest = (GUEST_WEB_LOCALES as readonly string[]).includes(segments[0] ?? '') ? segments.slice(1) : segments;
+  if (rest.length === 0) return value;
+  if (rest.length === 1 && (GUEST_WEB_PAGES as readonly string[]).includes(rest[0])) return value;
+  if (rest.length === 2 && (GUEST_WEB_TREES as readonly string[]).includes(rest[0])) return value;
+  return null;
+}
+
+export type SignInTarget = { kind: 'app'; href: string } | { kind: 'guestWeb'; url: string };
+
+/**
+ * Where to go after sign-in / sign-up. `appHref` is this app's answer (postLoginHref). With the guest web on
+ * (`base` not null): a guest web `next` goes back there, and a landing on the guest home goes to the guest web.
+ * Role pages always stay in this app. With it off: `appHref`, exactly as before.
+ */
+export function signInTarget(next: unknown, base: string | null, appHref: string): SignInTarget {
+  if (base === null) return { kind: 'app', href: appHref };
+  const back = guestWebPath(next);
+  if (back) return { kind: 'guestWeb', url: `${base}${back}` };
+  const parsed = parseAppPath(appHref.split(/[?#]/)[0]);
+  if (parsed.kind === 'app' && parsed.role === 'guest') return { kind: 'guestWeb', url: `${base}${guestWebPath(appHref) ?? '/'}` };
+  return { kind: 'app', href: appHref };
+}
+
+/** "/register?next=…" / "/login?next=…" when `next` is a safe in-app or guest web page, so switching keeps it. */
+export function withNextParam(pathname: string, next: unknown): string {
+  const value = Array.isArray(next) ? next[0] : next;
+  const keep = safeNextPath(value) ?? guestWebPath(value);
+  return keep ? `${pathname}?next=${encodeURIComponent(keep)}` : pathname;
+}
+
+/* ------------------------------------------------------------------------------------------------------------------
  * Route plan R2 (web tab paths). One table maps every page that has a path to the shell state behind it, so
  * routeToState and stateToRoute always agree (rule 15: going there and back gives the same value).
  * Detail pages (a lead, a tenant, a contract, a bill room) are R3: stateToRoute returns null for them and the

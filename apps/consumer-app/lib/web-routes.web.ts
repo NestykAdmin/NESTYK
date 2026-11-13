@@ -13,6 +13,8 @@ import {
   routeToState,
   NO_ACCESS_PATH,
   roleHomePath,
+  guestWebBase,
+  signInTarget,
 } from './app-routes';
 import {
   afterSignOutPath,
@@ -203,6 +205,27 @@ export function postLoginHref(next: unknown, roles: readonly string[] | null | u
   if (decision.kind === 'redirect') return decision.to;
   if (decision.kind === 'noRole') return NO_ACCESS_PATH;
   return target;
+}
+
+/**
+ * The guest web on this site (nestyk-guest-session-plan-20261112.md A6): EXPO_PUBLIC_GUEST_WEB_URL is "/" on
+ * nestyk.com and http://localhost:3000 in local dev. Unset (agent.nestyk.com and the other role sites) = off.
+ */
+export const GUEST_WEB_BASE = guestWebBase(process.env.EXPO_PUBLIC_GUEST_WEB_URL);
+
+type Router = ReturnType<typeof useRouter>;
+
+/** After sign-in / sign-up: back to the guest web page with a page load, else this app's page (postLoginHref). */
+export function goAfterSignIn(router: Router, next: unknown, roles: readonly string[] | null | undefined): void {
+  const target = signInTarget(next, GUEST_WEB_BASE, postLoginHref(next, roles));
+  if (target.kind === 'guestWeb') window.location.assign(target.url);
+  else router.replace(target.href as never);
+}
+
+/** "Continue as guest": the guest web home when it is on, else this app's guest home as before. */
+export function goToGuestHome(router: Router): void {
+  if (GUEST_WEB_BASE !== null) window.location.assign(`${GUEST_WEB_BASE}/`);
+  else router.replace('/' as never);
 }
 
 /** The role a signed-in account goes to when the page it asked for belongs to a role it does not have (Q5 order). */

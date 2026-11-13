@@ -5,7 +5,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { MobileButton, MobileIcon, MobileInput, MobileNestykLogo, SelectionCheck, tokens, useMobileTheme } from '@nestyk/ui/native';
@@ -19,6 +19,8 @@ import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 import { ConsentLabel } from '../components/legal/ConsentLabel';
 import { PhoneField } from '../components/PhoneField';
 import { phoneDraftToE164, type PhoneDraft } from '../lib/phone';
+import { withNextParam } from '../lib/app-routes';
+import { goAfterSignIn } from '../lib/web-routes';
 
 function GoogleMark() {
   return (
@@ -35,7 +37,9 @@ export default function RegisterScreen() {
   const { t, locale } = useLocale();
   const copy = t.mobile.auth;
   const { theme } = useMobileTheme();
-  const { signUp, verifySignupCode, resendSignupCode, signInWithGoogle, signInWithFacebook, isAuthenticated } = useAuth();
+  const { signUp, verifySignupCode, resendSignupCode, signInWithGoogle, signInWithFacebook, isAuthenticated, session } = useAuth();
+  // Sign-up started from a guest web page comes back to it (guest session plan A6); mobile goes to "/" as before.
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [firstName, setFirstName] = useState('');
@@ -69,8 +73,8 @@ export default function RegisterScreen() {
   const confirmationRef = useRef<TextInput>(null);
 
   React.useEffect(() => {
-    if (isAuthenticated) router.replace('/');
-  }, [isAuthenticated, router]);
+    if (isAuthenticated) goAfterSignIn(router, next, session?.roles);
+  }, [isAuthenticated, router, next, session?.roles]);
 
   useEffect(() => {
     if (!needsEmailConfirmation || resendIn <= 0) return;
@@ -118,7 +122,7 @@ export default function RegisterScreen() {
         setResendIn(60);
         setNeedsEmailConfirmation(true);
       } else {
-        router.replace('/');
+        goAfterSignIn(router, next, session?.roles);
       }
     } catch (e) {
       resetCaptcha();
@@ -148,7 +152,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await verifySignupCode(email, code.trim(), { firstName, lastName, phone: phoneNumber });
-      router.replace('/');
+      goAfterSignIn(router, next, session?.roles);
     } catch (e) {
       setError(isInvalidOtp(e) ? copy.otpInvalid : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: t.common.errorGeneric }));
     } finally {
@@ -327,7 +331,7 @@ export default function RegisterScreen() {
                   </TouchableOpacity>
                 </>
               )}
-              <MobileButton variant="outline" disabled={loading} onPress={() => router.replace('/login')}>
+              <MobileButton variant="outline" disabled={loading} onPress={() => router.replace(withNextParam('/login', next) as never)}>
                 {copy.backToLogin}
               </MobileButton>
             </View>
