@@ -208,7 +208,7 @@ export function TenantForm({
           />
           <Text style={[s.small, muted]}>{c.leadListHint}</Text>
           {loading ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : (
             !failed && (
               <>
@@ -256,7 +256,7 @@ export function TenantForm({
           />
           <Text style={[s.small, muted]}>{c.roomListHint}</Text>
           {loading ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : (
             !failed &&
             rooms.map((r) => (

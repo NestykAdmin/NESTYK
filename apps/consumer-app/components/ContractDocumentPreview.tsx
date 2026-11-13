@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { WebView } from "react-native-webview";
+import { tokens } from "@nestyk/ui/native";
 import { isPdfDocumentUrl, pdfViewerHtml } from "../lib/pdf-viewer/html";
 export { isPdfDocumentUrl } from "../lib/pdf-viewer/html";
 
@@ -44,7 +45,7 @@ export function ContractDocumentPreview({ url }: { url: string }) {
           onMessage={() => {}}
           renderLoading={() => (
             <View style={styles.overlay}>
-              <ActivityIndicator />
+              <ActivityIndicator color={tokens.colors.primary} />
             </View>
           )}
           renderError={() => (

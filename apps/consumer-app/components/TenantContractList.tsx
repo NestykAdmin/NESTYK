@@ -863,7 +863,7 @@ export function TenantContractAttachments({
       <Text style={[s.sectionTitle, { color: theme.textHeading }]}>
         {copy.attachments}
       </Text>
-      {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+      {loading ? <ActivityIndicator color={theme.spinner} /> : null}
       {!loading && attachments && !documents.length ? (
         <Text style={[s.caption, { color: theme.textSecondary }]}>
           {copy.noAttachments}

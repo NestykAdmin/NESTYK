@@ -104,7 +104,7 @@ export function PartyContractsScreen({
           {error}
         </Text>
       )}
-      {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+      {loading ? <ActivityIndicator color={theme.spinner} /> : null}
       {/* D2: offers on the landlord's rooms, to confirm before the agent books the room. */}
       {mode === "owner" && !history ? <LandlordDealOffers reloadToken={reloadToken} /> : null}
       {/* D4 (AC-7.5): rent 15 days late on the landlord's rooms. */}

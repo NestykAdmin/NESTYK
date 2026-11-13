@@ -550,7 +550,7 @@ export function AgentTenantsScreen({
           style={s.section}
         >
         {(section === null || section === 'bills' || section === 'payments') && billingLoading ? (
-          <ActivityIndicator size="small" color={theme.textHeading} />
+          <ActivityIndicator size="small" color={theme.spinner} />
         ) : section === null ? (
           <TenantDetailHub
             tenant={selected}

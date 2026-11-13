@@ -456,7 +456,7 @@ export function AgreementAttachments({
           )}
         </View>
 
-        {busy && !state && <ActivityIndicator />}
+        {busy && !state && <ActivityIndicator color={theme.spinner} />}
         {!!error && (
           <Text accessibilityRole="alert" style={{ color: "#991B1B" }}>
             {error}

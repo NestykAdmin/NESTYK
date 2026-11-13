@@ -304,7 +304,7 @@ function LeadPinSheet({
         />
         {showResults ? (
           <View style={[styles.results, { borderColor: theme.border }]}>
-            {searching ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+            {searching ? <ActivityIndicator color={theme.spinner} /> : null}
             {!searching && !error && !items.length ? (
               <Text style={[styles.hint, { color: theme.textSecondary }]}>{t.agent.createRoom.placesEmpty}</Text>
             ) : null}
@@ -349,7 +349,7 @@ function LeadPinSheet({
               )}
               {resolving ? (
                 <View style={styles.mapBusy}>
-                  <ActivityIndicator color={tokens.colors.brand[500]} />
+                  <ActivityIndicator color={theme.spinner} />
                 </View>
               ) : null}
             </View>

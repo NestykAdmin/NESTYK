@@ -505,7 +505,7 @@ export function PartyContractDetail({
 
       <View style={[styles.card, card]}>
         <Text style={[styles.contractNo, title]}>{tc.party.myDocuments}</Text>
-        {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+        {loading ? <ActivityIndicator color={theme.spinner} /> : null}
         {!loading && !ownRequirements.length ? (
           <Text style={[styles.copy, body]}>{tc.party.noMyDocuments}</Text>
         ) : null}

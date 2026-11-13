@@ -103,7 +103,7 @@ function SlipImage({ billId, label, onPress }: { billId: number; label: string; 
       ) : failed ? (
         <MobileIcon name="camera" size={22} color={theme.textSecondary} />
       ) : (
-        <ActivityIndicator color={tokens.colors.brand[500]} />
+        <ActivityIndicator color={theme.spinner} />
       )}
     </Pressable>
   );

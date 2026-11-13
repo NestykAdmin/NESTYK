@@ -719,7 +719,7 @@ export function AgentRoomsScreen({
               </MobileButton>
             </>
           ) : loadingMore || hasMore ? (
-            <ActivityIndicator color={tokens.colors.primary} />
+            <ActivityIndicator color={theme.spinner} />
           ) : total > PAGE_SIZE ? (
             <Text style={[styles.listFooterText, { color: theme.textSecondary }]}>
               {copy.allLoaded.replace('{count}', String(total))}

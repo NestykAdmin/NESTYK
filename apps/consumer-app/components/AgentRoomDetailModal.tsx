@@ -169,7 +169,7 @@ export function AgentRoomDetailModal({
             )}
           </View>
           {!modalReady ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : detailError ? (
             <View style={{ padding: 24, gap: 16 }}>
               <Text style={{ color: theme.textHeading }}>{detailError}</Text>
@@ -216,7 +216,7 @@ export function AgentRoomDetailModal({
               />
             )
           ) : (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           )}
         </SafeAreaView>
       </SafeAreaProvider>

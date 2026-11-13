@@ -220,7 +220,7 @@ export function CommissionConfirmationForm({
         {labels.hint}
       </Text>
       {loading ? (
-        <ActivityIndicator />
+        <ActivityIndicator color={theme.spinner} />
       ) : !form.documentNo ? (
         <MobileButton onPress={() => setRetry((n) => n + 1)}>
           {shared.retry}

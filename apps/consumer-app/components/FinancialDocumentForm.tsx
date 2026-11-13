@@ -584,7 +584,7 @@ export function FinancialDocumentForm({
             {labels.pickInvoice} *
           </Text>
           {loading && invoiceId == null ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : !invoiceChoices.length ? (
             <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
               {labels.needInvoiceFirst}
@@ -681,7 +681,7 @@ export function FinancialDocumentForm({
         </Text>
       )}
       {isReceipt && !linked && invoiceId == null ? null : !standalone && !isReceipt && contractId == null ? null : loading ? (
-        <ActivityIndicator />
+        <ActivityIndicator color={theme.spinner} />
       ) : !form ? (
         <MobileButton onPress={() => setRetry((n) => n + 1)}>
           {labels.retry}

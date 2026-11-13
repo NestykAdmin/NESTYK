@@ -83,7 +83,7 @@ export function MobileActionSheetBody({
               ]}
             >
               {action.loading ? (
-                <ActivityIndicator color={theme.textHeading} />
+                <ActivityIndicator color={theme.spinner} />
               ) : (
                 <Text
                   style={[

@@ -142,7 +142,7 @@ export function AgentCalendarScreen({ viewings, status: loadStatus, onRetry, onS
       </View>
       {loadStatus === 'loading' ? (
         <View style={[styles.empty, surface]}>
-          <ActivityIndicator color={theme.textSecondary} />
+          <ActivityIndicator color={theme.spinner} />
           <Text accessibilityLiveRegion="polite" style={[styles.caption, secondary]}>{t.common.loading}</Text>
         </View>
       ) : loadStatus === 'error' ? (

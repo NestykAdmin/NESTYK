@@ -3701,7 +3701,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   return (
     <View style={s.root}>
       {errorView}
-      {(loadingList || busy) && <ActivityIndicator color={tokens.colors.brand[500]} />}
+      {(loadingList || busy) && <ActivityIndicator color={theme.spinner} />}
       {!!listError && <View style={[s.card, card]}>
         <Text accessibilityRole="alert" style={[s.body, muted]}>{listError}</Text>
         {button(tc.common.retry, () => setRetry(value => value + 1))}

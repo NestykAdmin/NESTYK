@@ -289,7 +289,7 @@ export function HandoverCard({
     setSigning(null);
   }
 
-  if (loading && !record) return <ActivityIndicator color={tokens.colors.brand[500]} />;
+  if (loading && !record) return <ActivityIndicator color={theme.spinner} />;
   if (!record) return error ? <Text accessibilityRole="alert" style={{ ...text, color: tokens.colors.danger }}>{error}</Text> : null;
   if (kind === "move_out" && record.blockedReason === "not_leaving" && record.id == null) return null;
   const setItem = (index: number, patch: Partial<HandoverDraft["items"][number]>) =>
