@@ -32,6 +32,31 @@ test('an env value that is not an http(s) address is ignored', () => {
   }
 });
 
+test('with the account web on this same site (ACCOUNT_WEB_UPSTREAM set), account links stay on this site', () => {
+  // AUTH-1.4: next.config.js turns NEXT_PUBLIC_ACCOUNT_SAME_SITE on when it hands /login across.
+  assert.equal(site.accountOrigin('1', 'http://localhost:8081', 'development'), '');
+  assert.equal(site.accountOrigin('1', undefined, 'development'), '');
+  assert.equal(site.accountOrigin('', 'https://nestyk.com', 'production'), 'https://nestyk.com');
+  assert.equal(site.accountOrigin(undefined, undefined, 'development'), 'http://localhost:8081', 'unset = as before');
+});
+
+test('sign-in and sign-up links carry the page the guest is on, so login brings them back (AUTH-1.4)', () => {
+  assert.equal(site.accountUrlWithNext('signIn', '', '/en/search?beds=1&sort=price'), '/login?next=%2Fen%2Fsearch%3Fbeds%3D1%26sort%3Dprice');
+  assert.equal(site.accountUrlWithNext('register', '', '/saved'), '/register?next=%2Fsaved');
+  assert.equal(site.accountUrlWithNext('signIn', '', '/'), '/login?next=%2F');
+  assert.equal(site.accountUrlWithNext('signIn', 'http://localhost:8081', '/ja/search'), 'http://localhost:8081/login?next=%2Fja%2Fsearch');
+  assert.equal(site.accountUrlWithNext('signIn', '', '/search#top'), '/login?next=%2Fsearch', 'no hash');
+});
+
+test('only an in-site path becomes `next`; anything else leaves the link plain', () => {
+  assert.equal(site.safeGuestNext('/en/search?beds=1'), '/en/search?beds=1');
+  for (const bad of [undefined, '', 'search', '//evil.example/x', '/\\evil.example', 'https://evil.example/', 'javascript:alert(1)', '/a\nb']) {
+    assert.equal(site.safeGuestNext(bad), null, String(bad));
+  }
+  assert.equal(site.accountUrlWithNext('signIn', '', '//evil.example'), '/login');
+  assert.equal(site.safeGuestNext('/' + 'x'.repeat(2100)), null, 'very long paths are dropped');
+});
+
 test('the header menu has the 5 items of design v2.3 in order, and pages not built yet are "coming soon"', () => {
   assert.deepEqual(site.GUEST_NAV.map((item) => item.key), ['search', 'areas', 'commute', 'articles', 'about']);
   for (const item of site.GUEST_NAV) {

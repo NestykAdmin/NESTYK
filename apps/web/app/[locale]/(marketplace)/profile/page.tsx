@@ -31,6 +31,7 @@ import {
   SunIcon,
   UserIcon,
 } from '../../../components/guest/GuestIcons';
+import { AccountLink } from '../../../components/guest/AccountLink';
 import { GuestSocialLinks } from '../../../components/guest/GuestSocialLinks';
 
 type Props = { params: Promise<{ locale: string }> };
@@ -87,12 +88,12 @@ export default async function ProfilePage({ params }: Props) {
               <p className="nk-card__text">{copy.accountBody}</p>
             </div>
           </div>
-          <a href={guestAccountUrl('signIn')} className="nk-btn nk-btn--primary" data-testid="profile.signIn">
+          <AccountLink page="signIn" className="nk-btn nk-btn--primary" data-testid="profile.signIn">
             {copy.signIn}
-          </a>
-          <a href={guestAccountUrl('register')} className="nk-btn nk-btn--secondary" data-testid="profile.register">
+          </AccountLink>
+          <AccountLink page="register" className="nk-btn nk-btn--secondary" data-testid="profile.register">
             {copy.register}
-          </a>
+          </AccountLink>
         </section>
 
         <section aria-label={copy.activityLabel} className="nk-card nk-list">

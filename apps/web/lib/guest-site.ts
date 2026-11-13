@@ -131,9 +131,44 @@ export function accountUrl(page: AccountPage, origin: string): string {
   return `${origin}${ACCOUNT_PATHS[page]}`;
 }
 
-/** Account web of this deploy. Next inlines NEXT_PUBLIC_* at build time. */
+/**
+ * Origin for account links. When this site hands the account pages to the consumer-app itself
+ * (ACCOUNT_WEB_UPSTREAM set; next.config.js then sets NEXT_PUBLIC_ACCOUNT_SAME_SITE=1), links stay on this
+ * site so both share one sign-in (nestyk-guest-session-plan-20261112.md, AUTH-1.4). Otherwise as before.
+ */
+export function accountOrigin(sameSite: string | undefined, value: string | undefined, nodeEnv: string | undefined): string {
+  return sameSite === '1' ? '' : accountWebOrigin(value, nodeEnv);
+}
+
+/** Longest `next` we send; longer ones are dropped rather than cut (a cut query would be a different search). */
+const NEXT_MAX_LENGTH = 2000;
+
+/**
+ * The page to come back to after sign-in: an in-site path with its query, never another site
+ * (no scheme, no `//` or `/\`, no control characters). The consumer-app checks it again (app-routes).
+ */
+export function safeGuestNext(here: string | undefined | null): string | null {
+  const path = String(here ?? '').split('#')[0];
+  if (!path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return null;
+  if (/[\u0000-\u001f\u007f]/.test(path) || path.length > NEXT_MAX_LENGTH) return null;
+  return path;
+}
+
+/** Sign-in / sign-up link that brings the guest back to `here` (path + query, with the language prefix). */
+export function accountUrlWithNext(page: 'signIn' | 'register', origin: string, here: string | undefined | null): string {
+  const base = accountUrl(page, origin);
+  const next = safeGuestNext(here);
+  return next ? `${base}?${new URLSearchParams({ next }).toString()}` : base;
+}
+
+/** Origin of the account web for this deploy. Next inlines NEXT_PUBLIC_* at build time. */
+export function guestAccountOrigin(): string {
+  return accountOrigin(process.env.NEXT_PUBLIC_ACCOUNT_SAME_SITE, process.env.NEXT_PUBLIC_ACCOUNT_WEB_ORIGIN, process.env.NODE_ENV);
+}
+
+/** Account web of this deploy. Sign-in and sign-up links use <AccountLink> instead, which adds ?next=. */
 export function guestAccountUrl(page: AccountPage): string {
-  return accountUrl(page, accountWebOrigin(process.env.NEXT_PUBLIC_ACCOUNT_WEB_ORIGIN, process.env.NODE_ENV));
+  return accountUrl(page, guestAccountOrigin());
 }
 
 /** Company contact (Mos 11 Nov 2026). The company name and address are copy: t.guest.footer.companyName / address. */

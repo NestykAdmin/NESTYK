@@ -20,8 +20,8 @@ test('the sign-in prompt is an accessible dialog with sign in, register and "not
   assert.match(prompt, /aria-modal="true"/);
   assert.match(prompt, /aria-labelledby=/);
   assert.match(prompt, /'Escape'/, 'Esc closes it');
-  assert.match(prompt, /guestAccountUrl\('signIn'\)/);
-  assert.match(prompt, /guestAccountUrl\('register'\)/);
+  assert.match(prompt, /<AccountLink[^>]*page="signIn"/);
+  assert.match(prompt, /<AccountLink[^>]*page="register"/);
   assert.match(prompt, /\.later\b/);
   assert.match(prompt, /focus\(\)/, 'focus moves into the dialog and back');
 });
@@ -30,6 +30,40 @@ test('saved rooms ask the guest to sign in first, with both account links', () =
   const page = read(path.join(__dirname, '..', 'app', '[locale]', '(marketplace)', 'saved', 'page.tsx'));
   assert.match(page, /gateTitle/);
   assert.match(page, /gateBody/);
-  assert.match(page, /guestAccountUrl\('signIn'\)/);
-  assert.match(page, /guestAccountUrl\('register'\)/);
+  assert.match(page, /<AccountLink[^>]*page="signIn"/);
+  assert.match(page, /<AccountLink[^>]*page="register"/);
+});
+
+test('every sign-in / sign-up link on the guest web goes through AccountLink, which adds ?next= (AUTH-1.4)', () => {
+  const app = path.join(__dirname, '..', 'app');
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.tsx?$/.test(entry.name)) files.push(full);
+    }
+  };
+  walk(app);
+  const plain = files.filter((file) => /guestAccountUrl\('(signIn|register)'\)/.test(read(file)) && !file.endsWith('AccountLink.tsx'));
+  assert.deepEqual(plain.map((file) => path.relative(app, file)), []);
+  const header = read(path.join(guest, 'GuestHeader.tsx'));
+  assert.match(header, /<AccountLink[^>]*page="signIn"/);
+  const profile = read(path.join(app, '[locale]', '(marketplace)', 'profile', 'page.tsx'));
+  assert.match(profile, /<AccountLink[^>]*page="signIn"/);
+  assert.match(profile, /<AccountLink[^>]*page="register"/);
+});
+
+test('AccountLink reads the current page in the browser, also right before the click (search filters change the URL in place)', () => {
+  const link = read(path.join(guest, 'AccountLink.tsx'));
+  assert.match(link, /^'use client';/);
+  assert.match(link, /accountUrlWithNext\(/);
+  assert.match(link, /window\.location\.pathname \+ window\.location\.search/);
+  assert.match(link, /onClick=/);
+  assert.match(link, /usePathname\(/, 'refreshes after client-side page changes');
+});
+
+test('next.config.js tells the browser bundle when the account web is on this same site', () => {
+  const config = read(path.join(__dirname, '..', 'next.config.js'));
+  assert.match(config, /NEXT_PUBLIC_ACCOUNT_SAME_SITE: ACCOUNT_WEB_UPSTREAM \? '1' : ''/);
 });

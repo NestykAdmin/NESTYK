@@ -4,7 +4,8 @@ import React, { Suspense, useLayoutEffect, useRef } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import logo from '@nestyk/ui/assets/nestyk/svg/logo-nestyk-standard.svg';
 import { Link, usePathname } from '../../../i18n/navigation';
-import { GUEST_NAV, guestAccountUrl, isGuestPageReady } from '../../../lib/guest-site';
+import { GUEST_NAV, isGuestPageReady } from '../../../lib/guest-site';
+import { AccountLink } from './AccountLink';
 import { HeartIcon } from './GuestIcons';
 import { GuestLanguageButtonStatic, GuestLanguageMenu } from './GuestLanguageMenu';
 
@@ -96,9 +97,9 @@ export function GuestHeader() {
           >
             <HeartIcon />
           </Link>
-          <a href={guestAccountUrl('signIn')} className="nk-signin" data-testid="guest.signIn">
+          <AccountLink page="signIn" className="nk-signin" data-testid="guest.signIn">
             {copy.signIn}
-          </a>
+          </AccountLink>
         </div>
       </div>
     </header>

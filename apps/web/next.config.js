@@ -20,6 +20,8 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
       process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
       '',
+    // Account links stay on this site when it hands the account pages across (lib/guest-site.ts accountOrigin).
+    NEXT_PUBLIC_ACCOUNT_SAME_SITE: ACCOUNT_WEB_UPSTREAM ? '1' : '',
   },
   transpilePackages: [
     '@nestyk/ui',

@@ -3,7 +3,7 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocale } from '@nestyk/i18n';
-import { guestAccountUrl } from '../../../lib/guest-site';
+import { AccountLink } from './AccountLink';
 import { CloseIcon, HeartIcon, PhotoIcon } from './GuestIcons';
 
 /** The room the guest tried to save, shown in the prompt so it is clear what will be kept. */
@@ -102,12 +102,12 @@ export function SignInPrompt({
           </div>
         ) : null}
         <div className="nk-prompt__actions">
-          <a ref={firstRef} href={guestAccountUrl('signIn')} className="nk-btn nk-btn--primary" data-testid="signInPrompt.signIn">
+          <AccountLink ref={firstRef} page="signIn" className="nk-btn nk-btn--primary" data-testid="signInPrompt.signIn">
             {copy.signIn}
-          </a>
-          <a href={guestAccountUrl('register')} className="nk-btn nk-btn--outline" data-testid="signInPrompt.register">
+          </AccountLink>
+          <AccountLink page="register" className="nk-btn nk-btn--outline" data-testid="signInPrompt.register">
             {copy.register}
-          </a>
+          </AccountLink>
         </div>
         <button type="button" className="nk-prompt__later" onClick={onClose} data-testid="signInPrompt.later">
           {copy.later}

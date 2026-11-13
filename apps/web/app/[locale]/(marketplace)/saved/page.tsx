@@ -2,7 +2,7 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { getTranslations, type SupportedLocale } from '@nestyk/i18n';
 import { guestPageMetadata } from '../../../../lib/guest-seo';
-import { guestAccountUrl } from '../../../../lib/guest-site';
+import { AccountLink } from '../../../components/guest/AccountLink';
 import { HeartIcon } from '../../../components/guest/GuestIcons';
 
 type Props = { params: Promise<{ locale: string }> };
@@ -39,12 +39,12 @@ export default async function SavedPage({ params }: Props) {
           </h2>
           <p className="nk-empty__text">{copy.gateBody}</p>
           <div className="nk-empty__actions">
-            <a href={guestAccountUrl('signIn')} className="nk-btn nk-btn--primary" data-testid="saved.signInLink">
+            <AccountLink page="signIn" className="nk-btn nk-btn--primary" data-testid="saved.signInLink">
               {t.signInPrompt.signIn}
-            </a>
-            <a href={guestAccountUrl('register')} className="nk-btn nk-btn--outline" data-testid="saved.registerLink">
+            </AccountLink>
+            <AccountLink page="register" className="nk-btn nk-btn--outline" data-testid="saved.registerLink">
               {t.signInPrompt.register}
-            </a>
+            </AccountLink>
           </div>
         </section>
       </div>
