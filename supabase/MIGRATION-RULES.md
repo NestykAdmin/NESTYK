@@ -98,6 +98,7 @@ baseline ตั้ง `search_path` เป็นค่าว่างระห�
 
 | วันที่ | ไฟล์ | เรื่อง |
 |---|---|---|
+| 2026-11-13 | `20261113072444_saved_rooms.sql` | ห้องที่บันทึกไว้ของ guest (AUTH-3): ตารางใหม่ `saved_rooms` (`user_id` → `users`, `rent_room_id` → `rent_rooms` ทั้งคู่ `ON DELETE CASCADE`, unique ต่อคู่, index 2 ตัว, เปิด RLS ไม่มี policy) ไม่แก้ตารางเดิม ย้อนด้วย `DROP TABLE public.saved_rooms` (ห้องที่บันทึกไว้หายถาวร) · การลบบัญชีไม่ลบแถว `users` จึงลบแถวของบัญชีใน `deleteAccount` แทน |
 | 2026-11-03 | `20261103110000_reservation_fulfilled.sql` | หนังสือจองจบเมื่อสัญญาเช่ามีผล (N1/L6): เพิ่มเหตุผลจบสัญญา `reservation_fulfilled` (id 11) ใน `master_contract_end_reasons` และ backfill หนังสือจองที่ยัง `active` ซึ่งสัญญาเช่าของดีลเดียวกัน (lead, ห้อง, ผู้เช่า) มีผลหรือจบแล้ว ให้เป็น `terminated` ด้วยเหตุผลนี้ รันซ้ำได้ (`ON CONFLICT DO NOTHING`, แก้เฉพาะแถว `active`) วิธีย้อนอยู่ท้ายไฟล์ ต้องรันมือเท่านั้น |
 | 2026-11-02 | `20261102100000_account_deletion_schedule.sql` | ลบบัญชีแบบตั้งเวลา 30 วัน: `users` เพิ่ม `deletion_requested_at`, `deletion_effective_at` และ partial index `idx_users_deletion_effective_at` (เฉพาะแถวที่ไม่ว่าง) ล็อกอินใช้ได้จนถึงเวลานั้น |
 | 2026-10-29 | `20261029100000_deposit_settlement_search_path.sql` | สร้างฟังก์ชัน `validate_deposit_settlement` ใหม่ด้วย `SET search_path TO 'public'` และเขียน `public.` หน้าทุกตาราง แทน `SET search_path FROM CURRENT` ของไฟล์ `20261028100000` กติกาในฟังก์ชันเหมือนเดิม ไม่แก้ตารางและข้อมูล |

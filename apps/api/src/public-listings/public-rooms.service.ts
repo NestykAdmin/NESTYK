@@ -129,6 +129,23 @@ export class PublicRoomsService {
     return rooms;
   }
 
+  /** AUTH-3 saved rooms: which of these room ids are public now (same rules as every public list). */
+  async publicIdsAmong(ids: number[]): Promise<number[]> {
+    if (!ids.length) return [];
+    const rows = await this.publicRooms()
+      .andWhere('room.id IN (:...ids)', { ids })
+      .select('room.id', 'id')
+      .getRawMany<{ id: number | string }>();
+    const open = new Set(rows.map((row) => Number(row.id)));
+    return ids.filter((id) => open.has(id));
+  }
+
+  /** AUTH-3 saved rooms: public cards for these ids, in the given order (callers pass public ids only). */
+  async cardsFor(ids: number[]): Promise<PublicRoomCard[]> {
+    const now = this.now();
+    return (await this.loadRooms(ids)).map((room) => toPublicRoomCard(room, now));
+  }
+
   async featured(rail: string | undefined, limit: unknown): Promise<PublicRoomCard[]> {
     const chosen = (rail ?? 'recommended') as PublicFeaturedRail;
     if (!PUBLIC_FEATURED_RAILS.includes(chosen)) throw new BadRequestException('Unknown rail');

@@ -102,3 +102,11 @@ export interface PublicAreaSummary {
   priceFrom: number | null;
   coverImageUrl: string | null;
 }
+
+/** GET /me/saved-rooms/ids (AUTH-3): ids of the account's saved rooms that are still public, newest first. */
+export interface SavedRoomIds {
+  ids: string[];
+}
+
+/** Error code of PUT /me/saved-rooms/:roomId (409) when the account already has the most saved rooms. */
+export type SavedRoomsErrorCode = 'SAVED_ROOMS_LIMIT';

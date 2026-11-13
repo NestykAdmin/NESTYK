@@ -9,5 +9,6 @@ import { PublicRoomsService } from './public-rooms.service';
   imports: [TypeOrmModule.forFeature([RentRoomEntity])],
   controllers: [PublicRoomsController, PublicAreasController],
   providers: [PublicRoomsService],
+  exports: [PublicRoomsService],
 })
 export class PublicListingsModule {}

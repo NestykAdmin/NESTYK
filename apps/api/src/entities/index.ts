@@ -20,6 +20,8 @@ import { ContractReminderEntity } from "./contract-reminder.entity";
 import { DealCancellationEntity } from "./deal-cancellation.entity";
 export * from "./deal-offer.entity";
 import { RoomShareLinkEntity } from "./room-share-link.entity";
+import { SavedRoomEntity } from "./saved-room.entity";
+export * from "./saved-room.entity";
 import { MasterAgreementTypeEntity } from './master-agreement-type.entity';
 export * from './base.entity';
 export * from './user.entity';
@@ -105,6 +107,7 @@ export const ALL_ENTITIES = [
   DealCancellationEntity,
   HandoverRecordEntity, HandoverItemEntity, HandoverPhotoEntity,
   RoomShareLinkEntity,
+  SavedRoomEntity,
   MasterAgreementTypeEntity,
   UserEntity,
   MasterRoleEntity,
