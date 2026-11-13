@@ -125,6 +125,55 @@ export const FLOW_TH: { [K in keyof typeof FLOW_EN]: (typeof FLOW_EN)[K] extends
   tenantsEmailLocked: 'อีเมลนี้ใช้เข้าแอปของผู้เช่าแล้ว จึงเปลี่ยนไม่ได้', // agent.tenants.detail.emailLocked :669
   tenantsRequiredNamePhone: 'กรุณากรอกชื่อและเบอร์โทร', // agent.tenants.detail.requiredNamePhone :677
   webClearFilters: 'ล้างตัวกรอง', // agent.dashboard.webStates.clearFilters :2149
+
+  // สร้างเอกสารสัญญาของนายหน้า เคส CCR-001 ถึง CCR-011 (คีย์เดียวกับ labels.ts)
+  //   คีย์ที่ขึ้นต้นด้วย contracts. มาจาก packages/i18n/src/locales/contracts/th.ts ส่วนคีย์ agent. มาจาก locales/th.ts
+  ccLibraryCreate: 'สร้างเอกสาร', // contracts.screen.library.create :885
+  ccPickerBack: '‹ กลับไปหน้าสัญญา', // contracts.picker.back :792
+  ccPickerTitle: 'เลือกประเภทสัญญา', // contracts.picker.title :793
+  ccPickerQuestion: 'ต้องการสร้างเอกสารอะไร?', // contracts.picker.question :794
+  ccPickerCreate: 'สร้าง{label}', // contracts.picker.createA11y :795
+  ccKindReservation: 'หนังสือจองห้อง', // contracts.picker.reservation :787
+  ccKindLease: 'สัญญาเช่า', // contracts.picker.lease :788
+  ccKindRenewal: 'ต่อสัญญา(ล่วงหน้า30วัน)', // contracts.picker.renewal :789
+  ccKindInvoice: 'ใบแจ้งหนี้', // contracts.picker.invoice :790
+  ccKindBroker: 'แต่งตั้งนายหน้า', // contracts.picker.brokerAppointment :791
+  ccGroupRental: 'การเช่า', // contracts.screen.library.rental :887
+  ccGroupFinance: 'การเงิน', // contracts.screen.library.finance :889
+  ccGroupBrokerage: 'งานนายหน้า', // contracts.screen.library.brokerage :891
+  ccLockReservation: 'ทำหนังสือจองได้เมื่อมีสัญญาแต่งตั้งนายหน้าที่สร้างเอกสารแล้วสำหรับห้องและผู้เช่านี้ และยังไม่เกิน 1 ปี', // agent.contracts.reservationNeedsBroker :1473
+  ccLockLease: 'ต้องสร้างหนังสือจองและสร้างเอกสารก่อนทำสัญญาเช่า', // agent.contracts.notice.leaseRequiresReservation :1322
+  ccLockRenewalNoLease: 'ต้องมีสัญญาเช่าฉบับแรกก่อน จึงจะต่อสัญญาได้', // contracts.renewalForm.disabled :748
+  ccBackToTypes: '← เลือกประเภทสัญญา', // contracts.screen.backToTypes :801
+  ccCreateTitle: 'สร้าง{type}', // contracts.screen.createTitle :804
+  ccTypeBroker: 'แต่งตั้งนายหน้า', // contracts.common.kinds.broker_appointment :59
+  ccBrokerDetails: 'รายละเอียดแต่งตั้งนายหน้า', // contracts.broker.details :270
+  ccSaveDraft: 'บันทึกฉบับร่าง', // contracts.screen.saveDraft :829
+  ccRequired: 'กรุณากรอกข้อมูลนี้', // contracts.validation.required :69
+  ccDateFormat: 'รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)', // contracts.validation.dateFormat :70
+  ccCommissionEither: 'เลือกค่าคอมเป็นจำนวนเงิน หรือจำนวนเดือนอย่างใดอย่างหนึ่ง', // contracts.validation.commissionEither :79
+  ccBrokerRequired: 'กรุณากรอกข้อมูลแต่งตั้งนายหน้าให้ครบ', // agent.contracts.notice.brokerRequired :1313
+  // ป้ายของช่อง 18 ช่องในฟอร์มสัญญาแต่งตั้งนายหน้า คีย์ contracts.broker.fields.<ชื่อ>
+  ccBrokerFields: {
+    issueDate: 'วันที่ (YYYY-MM-DD)', // :251
+    landlordFirstName: 'ชื่อผู้ให้เช่า', // :252
+    landlordLastName: 'นามสกุลผู้ให้เช่า', // :253
+    landlordNationality: 'สัญชาติผู้ให้เช่า', // :254
+    landlordId: 'เลขบัตร / พาสปอร์ตผู้ให้เช่า', // :255
+    landlordAddress: 'ที่อยู่ผู้ให้เช่า', // :256
+    landlordPhone: 'เบอร์ติดต่อผู้ให้เช่า', // :257
+    brokerCompany: 'บริษัทนายหน้า', // :258
+    brokerContact: 'ผู้ติดต่อนายหน้า', // :259
+    brokerNationality: 'สัญชาตินายหน้า', // :260
+    brokerId: 'เลขบัตร / พาสปอร์ตนายหน้า', // :261
+    brokerPhone: 'เบอร์ติดต่อนายหน้า', // :262
+    brokerAddress: 'ที่อยู่นายหน้า', // :263
+    propertyLine: 'โครงการ / ห้อง / ที่อยู่', // :264
+    monthlyRent: 'ค่าเช่า (บาท)', // :265
+    leaseMonths: 'ระยะเช่าที่เสนอ (เดือน)', // :266
+    commissionFee: 'ค่าคอมที่ตกลง (บาท) — หรือเว้นว่างถ้าคิดเป็นเดือน', // :267
+    commissionMonths: 'ค่าคอมเป็นจำนวนเดือนของค่าเช่า — หรือเว้นว่างถ้าคิดเป็นบาท', // :268
+  },
   // ปฏิทิน (components/AgentCalendarScreen.tsx copy = t.agent.calendar)
   calendarLoadError: 'โหลดนัดหมายไม่สำเร็จ กรุณาลองใหม่', // agent.calendar.loadError :493
   // บิล (components/TenantBillsScreen.tsx, TenantNextBillCard.tsx, OwnerConfirmedRent.tsx)

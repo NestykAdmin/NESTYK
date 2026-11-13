@@ -170,6 +170,55 @@ export const FLOW_EN = {
   tenantsRequiredNamePhone: 'Please enter a name and phone number', // agent.tenants.detail.requiredNamePhone :677
   webClearFilters: 'Clear filters', // agent.dashboard.webStates.clearFilters :2149 (ปุ่มในสถานะ state.filtered: agent-web/ui/WebState.tsx:77-81)
 
+  // สร้างเอกสารสัญญาของนายหน้า เคส CCR-001 ถึง CCR-011 (components/ContractsScreen.tsx, ContractTypePicker.tsx, BrokerAppointmentFields.tsx ที่ qa/e2e 40e0496)
+  //   คีย์ที่ขึ้นต้นด้วย contracts. มาจาก packages/i18n/src/locales/contracts/en.ts ส่วนคีย์ agent. มาจาก locales/en.ts
+  ccLibraryCreate: 'Create document', // contracts.screen.library.create :884 (ปุ่มในหน้ารายการเอกสารของผู้เช่า: AgentContractLibrary.tsx:124)
+  ccPickerBack: '‹ Back to contracts', // contracts.picker.back :791 (ContractTypePicker.tsx:58-60)
+  ccPickerTitle: 'Choose contract type', // contracts.picker.title :792
+  ccPickerQuestion: 'What document do you want to create?', // contracts.picker.question :793
+  ccPickerCreate: 'Create {label}', // contracts.picker.createA11y :794 (aria-label ของปุ่มชนิดเอกสาร: ContractTypePicker.tsx:84-85)
+  ccKindReservation: 'Reservation letter', // contracts.picker.reservation :786
+  ccKindLease: 'Lease agreement', // contracts.picker.lease :787
+  ccKindRenewal: 'Renew lease (30 days ahead)', // contracts.picker.renewal :788
+  ccKindInvoice: 'Invoice', // contracts.picker.invoice :789
+  ccKindBroker: 'Broker appointment', // contracts.picker.brokerAppointment :790
+  ccGroupRental: 'Rental', // contracts.screen.library.rental :886 (ชื่อกลุ่มในตัวเลือกชนิดเอกสาร: ContractTypePicker.tsx:75-80)
+  ccGroupFinance: 'Finance', // contracts.screen.library.finance :888
+  ccGroupBrokerage: 'Brokerage', // contracts.screen.library.brokerage :890
+  ccLockReservation: 'A reservation letter can start once a broker appointment for this room and tenant is issued and less than 1 year old', // agent.contracts.reservationNeedsBroker :1473 (เหตุผลที่ล็อกหนังสือจอง: ContractsScreen.tsx:1910-1915)
+  ccLockLease: 'Create and issue the booking letter before the lease', // agent.contracts.notice.leaseRequiresReservation :1322 (เหตุผลที่ล็อกสัญญาเช่า: ContractsScreen.tsx:1920)
+  ccLockRenewalNoLease: 'A first lease must exist before you can renew', // contracts.renewalForm.disabled :747 (เหตุผลที่ล็อกการต่อสัญญาเมื่อไม่มีสัญญาเช่า: lib/contract-renewal.ts:56-57)
+  ccBackToTypes: '← Choose contract type', // contracts.screen.backToTypes :800 (ปุ่มกลับของฟอร์ม: ContractsScreen.tsx:2021-2032)
+  ccCreateTitle: 'Create {type}', // contracts.screen.createTitle :803 (หัวข้อของฟอร์ม: ContractsScreen.tsx:2033-2050)
+  ccTypeBroker: 'Broker appointment', // contracts.common.kinds.broker_appointment :61 (ชื่อชนิดในหัวข้อของฟอร์มเมื่อภาษาไม่ใช่ไทย: ContractsScreen.tsx:2038-2042)
+  ccBrokerDetails: 'Broker appointment details', // contracts.broker.details :272 (หัวการ์ดของฟอร์ม: BrokerAppointmentFields.tsx:147)
+  ccSaveDraft: 'Save draft', // contracts.screen.saveDraft :828 (ContractsScreen.tsx:2474-2481)
+  ccRequired: 'This field is required.', // contracts.validation.required :71 (BrokerAppointmentFields.tsx:66-68)
+  ccDateFormat: 'Invalid date format (YYYY-MM-DD)', // contracts.validation.dateFormat :72 (BrokerAppointmentFields.tsx:69-70)
+  ccCommissionEither: 'Enter the commission as an amount or a number of months, not both', // contracts.validation.commissionEither :81 (BrokerAppointmentFields.tsx:71-72)
+  ccBrokerRequired: 'Please complete the broker appointment fields', // agent.contracts.notice.brokerRequired :1313 (ข้อความรวมเมื่อมีช่องผิด: ContractsScreen.tsx:1616-1620)
+  // ป้ายของช่อง 18 ช่องในฟอร์มสัญญาแต่งตั้งนายหน้า เรียงตามที่แสดงบนจอ (BrokerAppointmentFields.tsx:76-112) คีย์ contracts.broker.fields.<ชื่อ>
+  ccBrokerFields: {
+    issueDate: 'Date (YYYY-MM-DD)', // :253
+    landlordFirstName: 'Landlord first name', // :254
+    landlordLastName: 'Landlord last name', // :255
+    landlordNationality: 'Landlord nationality', // :256
+    landlordId: 'Landlord ID / passport', // :257
+    landlordAddress: 'Landlord address', // :258
+    landlordPhone: 'Landlord phone', // :259
+    brokerCompany: 'Broker company', // :260
+    brokerContact: 'Broker contact person', // :261
+    brokerNationality: 'Broker nationality', // :262
+    brokerId: 'Broker ID / passport', // :263
+    brokerPhone: 'Broker phone', // :264
+    brokerAddress: 'Broker address', // :265
+    propertyLine: 'Project / unit / address', // :266
+    monthlyRent: 'Rent (THB)', // :267
+    leaseMonths: 'Proposed lease term (months)', // :268
+    commissionFee: 'Agreed commission (THB) — leave blank if in months', // :269
+    commissionMonths: 'Commission in months of rent — leave blank if in THB', // :270
+  },
+
   // ปฏิทิน (copy = t.agent.calendar: components/AgentCalendarScreen.tsx บนจอแคบ และ agent-web/AgentCalendarPage.web.tsx บนจอ 1280 ที่ fc1a351)
   calendarLoadError: 'Unable to load appointments. Please try again.', // agent.calendar.loadError :493
 
@@ -310,6 +359,23 @@ export function fill(template: string, values: Record<string, string | number>):
 export const RETIRED_ADMIN = {
   title: 'Operations Dashboard',
   summary: 'Pending tickets: 3 · Inspections today: 2',
+} as const;
+
+/**
+ * ข้อความในกล่องยืนยันก่อนบันทึกฉบับร่างของหน้าสัญญา โค้ดเขียนเป็นภาษาไทยตายตัว ไม่ผ่านไฟล์ภาษา จึงเป็นข้อความเดียวกันทุกภาษา
+ * (apps/consumer-app/components/ContractsScreen.tsx:2494-2525 ที่ qa/e2e 40e0496) เรื่องที่หน้าภาษาอังกฤษขึ้นข้อความไทยยังรอ Aof ตัดสิน (CCR-012)
+ * หัวข้อ = titlePrefix + ชื่อไทยของประเภทจากคำตอบ GET /agent/contracts/types (ถ้าไม่มีใช้ titleFallbackType) + titleSuffix (:2495-2497)
+ */
+export const CONTRACT_SAVE_CONFIRM = {
+  titlePrefix: 'บันทึก',
+  titleFallbackType: 'สัญญา',
+  titleSuffix: 'นี้?',
+  /** เนื้อความเมื่อเป็นร่างใหม่ที่ไม่ใช่หนังสือจอง (:2503) */
+  bodyNewDraft: 'บันทึกเป็นฉบับร่าง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที',
+  cancel: 'ยกเลิก', // :2512
+  save: 'บันทึกฉบับร่าง', // :2522
+  /** ปุ่มพื้นหลังของกล่อง (packages/ui/src/components/MobileBottomSheet.tsx:139-144 accessibilityLabel เขียนตายตัว) */
+  backdrop: 'Close',
 } as const;
 
 /** ข้อความดิบจาก API และ Supabase ที่ไม่ควรถึงผู้ใช้ (บั๊กข้อ 7) ข้อความมาจาก API/ไลบรารี ไม่อยู่ใน locales */
