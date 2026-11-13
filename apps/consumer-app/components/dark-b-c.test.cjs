@@ -239,3 +239,15 @@ test('D4: the calendar "prog" dot is not repainted in dark mode (yellow like the
 test('tab bar icons in dark mode use the body step #E2E8F0', () => {
   assert.match(read(path.join(ui, 'components/MobileBottomTabBar.tsx')), /mutedColor=\{isDark \? '#E2E8F0' : '#334155'\}/);
 });
+
+// ---- One yellow button per page (13 Nov 2026): row actions and empty-card actions are secondary ----
+
+test('one yellow button per page: tenant work rows use the outline button, the dashboard empty rooms card too', () => {
+  const rows = read(path.join(web, 'TenantWorkTable.web.tsx'));
+  assert.doesNotMatch(rows, /awu-btn-primary/);
+  assert.match(rows, /className="awu-btn awt-cta"/);
+  const overview = read(path.join(web, 'AgentOverview.web.tsx'));
+  // the header keeps the page's one yellow "add room" button
+  assert.equal((overview.match(/aw-button aw-button-primary/g) || []).length, 1);
+  assert.doesNotMatch(overview, /awu-btn awu-btn-primary/);
+});

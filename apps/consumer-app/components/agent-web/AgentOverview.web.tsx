@@ -628,7 +628,7 @@ export function AgentOverview({
                     action={
                       <button
                         type="button"
-                        className="awu-btn awu-btn-primary"
+                        className="awu-btn"
                         onClick={() => onNavigate({ type: "action", id: "addListing" })}
                       >
                         {copy.addListing}
