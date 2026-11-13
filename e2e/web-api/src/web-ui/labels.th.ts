@@ -97,11 +97,34 @@ export const FLOW_TH: { [K in keyof typeof FLOW_EN]: (typeof FLOW_EN)[K] extends
   kpiViewingsToday: 'นัดดูห้องวันนี้', // agent.dashboard.webOverview.viewingsToday :2083
   kpiLoadFailed: 'โหลดข้อมูลไม่สำเร็จ', // agent.dashboard.webOverview.loadFailed :2085
   unavailableSection: 'เร็ว ๆ นี้', // agent.dashboard.unavailableSection :2162
-  // ผู้เช่าของนายหน้า (components/AgentTenantsScreen.tsx, agent-web/TenantDirectoryTable.web.tsx)
-  tenantsTabWork: 'งานค้าง', // agent.tenants.list.tabWork :768
-  tenantsTabAll: 'ผู้เช่าทั้งหมด', // agent.tenants.list.tabAll :769
-  tenantsShowing: 'แสดง {shown} จาก {total} คน', // agent.tenants.list.showing :820
-  tenantsSlipsLoadError: 'โหลดสลิปรอตรวจไม่สำเร็จ', // agent.tenants.list.slipsLoadError :824
+  // ผู้เช่าของนายหน้า (components/AgentTenantsScreen.tsx, agent-web/TenantDirectoryTable.web.tsx, TenantWorkTable.web.tsx)
+  //   เลขบรรทัดของกลุ่มนี้เป็นของ th.ts ที่ qa/e2e ac7f3d8 (เลขเดียวกับ en.ts)
+  tenantsTabWork: 'งานค้าง', // agent.tenants.list.tabWork :801
+  tenantsTabAll: 'ผู้เช่าทั้งหมด', // agent.tenants.list.tabAll :802
+  tenantsShowing: 'แสดง {shown} จาก {total} คน', // agent.tenants.list.showing :853
+  tenantsSlipsLoadError: 'โหลดสลิปรอตรวจไม่สำเร็จ', // agent.tenants.list.slipsLoadError :857
+  tenantsFilterGroup: 'สถานะ', // agent.tenants.list.web.colStatus :811
+  tenantsFilterAll: 'ทั้งหมด', // agent.tenants.list.filterAll :850
+  tenantsFilterSigning: 'กำลังทำสัญญา', // agent.tenants.list.filterSigning :851
+  tenantsFilterActive: 'ผู้เช่าแล้ว', // agent.tenants.list.filterActive :852
+  tenantsGroupToggle: '{property}, {count} คน', // agent.tenants.list.groupToggle :848
+  tenantsNoProject: 'ไม่ระบุโครงการ', // agent.tenants.list.noProject :849
+  tenantsWorkGroup: 'งานที่ต้องจัดการ', // agent.tenants.list.web.tableWork :812
+  tenantsTileSlip: 'รอตรวจสลิป', // agent.tenants.list.tileSlip :815
+  tenantsTileOverdue: 'ค้างชำระ', // agent.tenants.list.tileOverdue :817
+  tenantsTileSigning: 'รอลงนาม', // agent.tenants.list.tileSigning :819
+  tenantsTileRenewal: 'ใกล้ครบสัญญา', // agent.tenants.list.tileRenewal :821
+  tenantsWorkFiltered: 'กำลังดู: {label}', // agent.tenants.list.workFiltered :826
+  tenantsShowAllWork: 'ดูงานทั้งหมด', // agent.tenants.list.showAllWork :827
+  tenantsWorkEmpty: 'ไม่มีงานค้างตอนนี้', // agent.tenants.list.workEmpty :845
+  tenantsEdit: 'แก้ไขข้อมูลผู้เช่า', // agent.tenants.edit :563
+  tenantsSave: 'บันทึก', // agent.tenants.save :564
+  tenantsCancel: 'ยกเลิก', // agent.tenants.cancel :565
+  tenantsFieldFirstName: 'ชื่อ', // agent.tenants.fieldFirstName :597
+  tenantsFieldEmail: 'อีเมล', // agent.tenants.detail.fieldEmail :668
+  tenantsEmailLocked: 'อีเมลนี้ใช้เข้าแอปของผู้เช่าแล้ว จึงเปลี่ยนไม่ได้', // agent.tenants.detail.emailLocked :669
+  tenantsRequiredNamePhone: 'กรุณากรอกชื่อและเบอร์โทร', // agent.tenants.detail.requiredNamePhone :677
+  webClearFilters: 'ล้างตัวกรอง', // agent.dashboard.webStates.clearFilters :2149
   // ปฏิทิน (components/AgentCalendarScreen.tsx copy = t.agent.calendar)
   calendarLoadError: 'โหลดนัดหมายไม่สำเร็จ กรุณาลองใหม่', // agent.calendar.loadError :493
   // บิล (components/TenantBillsScreen.tsx, TenantNextBillCard.tsx, OwnerConfirmedRent.tsx)

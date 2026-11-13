@@ -141,11 +141,34 @@ export const FLOW_EN = {
   kpiLoadFailed: 'Unable to load data', // agent.dashboard.webOverview.loadFailed :2085
   unavailableSection: 'Coming soon', // agent.dashboard.unavailableSection :2162 (ข้อความใต้หัวเรื่องของหน้า Coming soon: index.tsx:1366-1367)
 
-  // ผู้เช่าของนายหน้า (components/AgentTenantsScreen.tsx, agent-web/TenantDirectoryTable.web.tsx)
-  tenantsTabWork: 'To do', // agent.tenants.list.tabWork :768
-  tenantsTabAll: 'All tenants', // agent.tenants.list.tabAll :769
-  tenantsShowing: 'Showing {shown} of {total}', // agent.tenants.list.showing :820
-  tenantsSlipsLoadError: 'Could not load slips to review', // agent.tenants.list.slipsLoadError :824 (AgentTenantsScreen.tsx:176 เมื่อ GET /bills/agent/tenants/:id ล้ม)
+  // ผู้เช่าของนายหน้า (components/AgentTenantsScreen.tsx, agent-web/TenantDirectoryTable.web.tsx, TenantWorkTable.web.tsx)
+  //   เลขบรรทัดของกลุ่มนี้เป็นของ en.ts ที่ qa/e2e ac7f3d8 (แอปเท่ากับ pre/dev/review d3bcf28)
+  tenantsTabWork: 'To do', // agent.tenants.list.tabWork :801
+  tenantsTabAll: 'All tenants', // agent.tenants.list.tabAll :802
+  tenantsShowing: 'Showing {shown} of {total}', // agent.tenants.list.showing :853
+  tenantsSlipsLoadError: 'Could not load slips to review', // agent.tenants.list.slipsLoadError :857 (AgentTenantsScreen.tsx:176 เมื่อ GET /bills/agent/tenants/:id ล้ม)
+  tenantsFilterGroup: 'Status', // agent.tenants.list.web.colStatus :811 (role=group ของตัวกรอง: TenantDirectoryTable.web.tsx:136)
+  tenantsFilterAll: 'All', // agent.tenants.list.filterAll :850
+  tenantsFilterSigning: 'Signing contract', // agent.tenants.list.filterSigning :851
+  tenantsFilterActive: 'Tenant', // agent.tenants.list.filterActive :852
+  tenantsGroupToggle: '{property}, {count} people', // agent.tenants.list.groupToggle :848 (aria-label ของหัวกลุ่มโครงการ: TenantDirectoryTable.web.tsx:180)
+  tenantsNoProject: 'No project', // agent.tenants.list.noProject :849 (ชื่อกลุ่มของผู้เช่าที่ไม่มีชื่อโครงการ: TenantDirectoryTable.web.tsx:173)
+  tenantsWorkGroup: 'Open work', // agent.tenants.list.web.tableWork :812 (role=group ของกล่องสรุปงาน: TenantWorkTable.web.tsx:150)
+  tenantsTileSlip: 'Slips to review', // agent.tenants.list.tileSlip :815
+  tenantsTileOverdue: 'Overdue', // agent.tenants.list.tileOverdue :817
+  tenantsTileSigning: 'Awaiting signatures', // agent.tenants.list.tileSigning :819
+  tenantsTileRenewal: 'Lease ending', // agent.tenants.list.tileRenewal :821
+  tenantsWorkFiltered: 'Showing: {label}', // agent.tenants.list.workFiltered :826
+  tenantsShowAllWork: 'Show all work', // agent.tenants.list.showAllWork :827
+  tenantsWorkEmpty: 'Nothing to do right now', // agent.tenants.list.workEmpty :845
+  tenantsEdit: 'Edit tenant', // agent.tenants.edit :563 (ปุ่มที่หัวหน้า: app/index.tsx:897-907, agent-web/AgentSectionHeader.web.tsx:64-77)
+  tenantsSave: 'Save', // agent.tenants.save :564 (แถบล่างตอนแก้ไข: AgentTenantsScreen.tsx TenantEditBar)
+  tenantsCancel: 'Cancel', // agent.tenants.cancel :565
+  tenantsFieldFirstName: 'First name', // agent.tenants.fieldFirstName :597 (ป้ายของช่องคือ "<ค่านี้> *": AgentTenantsScreen.tsx:700)
+  tenantsFieldEmail: 'Email', // agent.tenants.detail.fieldEmail :668
+  tenantsEmailLocked: "This email is already the tenant's app login, so it cannot be changed", // agent.tenants.detail.emailLocked :669
+  tenantsRequiredNamePhone: 'Please enter a name and phone number', // agent.tenants.detail.requiredNamePhone :677
+  webClearFilters: 'Clear filters', // agent.dashboard.webStates.clearFilters :2149 (ปุ่มในสถานะ state.filtered: agent-web/ui/WebState.tsx:77-81)
 
   // ปฏิทิน (copy = t.agent.calendar: components/AgentCalendarScreen.tsx บนจอแคบ และ agent-web/AgentCalendarPage.web.tsx บนจอ 1280 ที่ fc1a351)
   calendarLoadError: 'Unable to load appointments. Please try again.', // agent.calendar.loadError :493
