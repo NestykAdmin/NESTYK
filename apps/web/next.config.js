@@ -5,6 +5,11 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const API_URL = process.env.API_URL || 'http://localhost:4000';
 
+// Account web (consumer-app) on this same site: /login, /register, legal pages, role sites.
+// Unset ACCOUNT_WEB_UPSTREAM = no hand-over (links go to NEXT_PUBLIC_ACCOUNT_WEB_ORIGIN as before).
+const { accountWebUpstream, accountRewrites, accountDevFallback } = require('./lib/account-routes');
+const ACCOUNT_WEB_UPSTREAM = accountWebUpstream(process.env.ACCOUNT_WEB_UPSTREAM);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Also expose root `.env` / `.env.*` via Next env loading
@@ -26,13 +31,19 @@ const nextConfig = {
     '@nestyk/feature-listing',
   ],
   async rewrites() {
-    return [
-      // ⚡ Unified Backend API (/api/* -> localhost:4000/api/v1/*)
-      {
-        source: '/api/:path*',
-        destination: `${API_URL}/api/v1/:path*`,
-      },
-    ];
+    return {
+      // Before the guest pages, so /login never reaches the [locale] route.
+      beforeFiles: accountRewrites(ACCOUNT_WEB_UPSTREAM),
+      afterFiles: [
+        // ⚡ Unified Backend API (/api/* -> localhost:4000/api/v1/*)
+        {
+          source: '/api/:path*',
+          destination: `${API_URL}/api/v1/:path*`,
+        },
+      ],
+      // Local dev with the Expo dev server as upstream: its bundle paths too (off on a deploy).
+      fallback: accountDevFallback(ACCOUNT_WEB_UPSTREAM, process.env.NODE_ENV),
+    };
   },
 };
 
