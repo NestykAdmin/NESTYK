@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { MobileButton, STATUS_PILL_DARK_TONES, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { AgentContract, DepositFinancialDocumentKind } from "@nestyk/types";
 import { fillTemplate, useLocale } from "@nestyk/i18n";
 import { localeTag } from "../lib/lead-format";
@@ -29,18 +29,22 @@ export function DepositPaymentCard({
   /** D11 (AC-5.4): the agent returns the tenant's slip with a reason. */
   onReturnSlip?: (reason: string) => Promise<boolean | void> | boolean | void;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const dc = t.contracts.deposit;
   const deposit = contract.depositPayment;
   if (!deposit) return null;
-  const status = {
-    not_issued: { color: "#64748B", background: "#F1F5F9" },
-    unpaid: { color: "#92400E", background: "#FFFBEB" },
-    submitted: { color: "#1E3A8A", background: "#EFF6FF" },
-    paid: { color: "#166534", background: "#F0FDF4" },
-    voided: { color: "#64748B", background: "#F1F5F9" },
-  }[deposit.status];
+  // v1.2 B+C (13 Nov 2026, D5): dark mode uses the dark status pill tones.
+  const pillKey = ({ not_issued: "slate", unpaid: "yellow", submitted: "blue", paid: "green", voided: "slate" } as const)[deposit.status];
+  const status = isDark
+    ? { color: STATUS_PILL_DARK_TONES[pillKey].fg, background: STATUS_PILL_DARK_TONES[pillKey].bg }
+    : {
+        not_issued: { color: "#64748B", background: "#F1F5F9" },
+        unpaid: { color: "#92400E", background: "#FFFBEB" },
+        submitted: { color: "#1E3A8A", background: "#EFF6FF" },
+        paid: { color: "#166534", background: "#F0FDF4" },
+        voided: { color: "#64748B", background: "#F1F5F9" },
+      }[deposit.status];
   const label = dc.status[deposit.status];
   const closed = ["cancelled", "expired", "terminated"].includes(contract.status);
   const voided = deposit.status === "voided";
@@ -91,7 +95,7 @@ export function DepositPaymentCard({
       {due && <Text style={text}>{fillTemplate(dc.due, { date: due })}</Text>}
       {deposit.status === "submitted" && <Text style={text}>{dc.submittedHint}</Text>}
       {deposit.status === "unpaid" && !closed && deposit.slipReturnReason && (
-        <Text style={{ ...text, color: "#991B1B" }}>
+        <Text style={{ ...text, color: isDark ? tokens.colors.statusOnDark.danger : "#991B1B" }}>
           {fillTemplate(t.contracts.slipReturn.returned, { reason: deposit.slipReturnReason })}
         </Text>
       )}

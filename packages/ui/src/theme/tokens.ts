@@ -108,6 +108,14 @@ export const tokens = {
 
     // 🌙 Text fields in dark mode (v1.2 B+C, 13 Nov 2026): card fill, lifted-hover edge, page fill when read-only,
     // white text, muted placeholder, light red error. Used by MobileInput and the lead form fields.
+    // 🌙 Status text on dark surfaces (v1.2 B+C, 13 Nov 2026): same steps as the dark status pill text.
+    statusOnDark: {
+      success: '#4ADE80',
+      warning: '#FCD34D',
+      danger: '#FCA5A5',
+      info: '#93C5FD',
+    },
+
     fieldOnDark: {
       fill: '#2F2B2B',
       line: '#575151',

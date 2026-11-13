@@ -83,7 +83,7 @@ test('app: own avatar ink with yellow initials, lifted grey in dark; tab bar and
   assert.match(avatar, /const fill = isDark \? tokens\.colors\.lift : tokens\.colors\.primary;/);
   assert.match(avatar, /const text = tokens\.colors\.brand\[500\];/);
   assert.ok(contrast('#F8B615', '#211E1E') >= 4.5 && contrast('#F8B615', '#4A4545') >= 4.5);
-  assert.match(read(path.join(ui, 'components/MobileBottomTabBar.tsx')), /mutedColor=\{isDark \? '#CBD5E1' : '#334155'\}/);
+  assert.match(read(path.join(ui, 'components/MobileBottomTabBar.tsx')), /mutedColor=\{isDark \? '#E2E8F0' : '#334155'\}/);
   const drawer = read(path.join(ui, 'shells/MobileProfileDrawer.tsx'));
   assert.match(drawer, /styles\.roleIconBox, \{ backgroundColor: roleBoxFill \}/);
   assert.match(drawer, /const roleBoxFill = isDark \? tokens\.colors\.lift : roleColor;/);

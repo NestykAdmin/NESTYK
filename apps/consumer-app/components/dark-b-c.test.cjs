@@ -193,3 +193,49 @@ test('lead form fields (select, pins, radius chips) follow the theme in dark mod
   assert.doesNotMatch(pins, /backgroundColor: '#FFFFFF'/);
   assert.match(pins, /tokens\.colors\.fieldOnDark/);
 });
+
+// ---- D4 + D5 (13 Nov 2026): close the dark mode gaps in shared contract pieces, the calendar dot and the tab bar ----
+
+test('tokens: status text on dark surfaces = the dark pill text steps, readable on page and card', () => {
+  const S = tokens.colors.statusOnDark;
+  const D = pill.STATUS_PILL_DARK_TONES;
+  assert.deepEqual({ ...S }, { success: D.green.fg, warning: D.yellow.fg, danger: D.red.fg, info: D.blue.fg });
+  for (const [k, v] of Object.entries(S)) for (const under of [PAGE, CARD]) assert.ok(contrast(v, under) >= 4.5, `${k} on ${under}`);
+});
+
+test('D5: deposit and handover status badges use the dark pill tones in dark mode, light values unchanged', () => {
+  for (const f of ['DepositPaymentCard.tsx', 'HandoverCard.tsx']) {
+    const code = read(path.join(__dirname, f));
+    assert.match(code, /const \{ theme, isDark \} = useMobileTheme\(\);/, f);
+    assert.match(code, /STATUS_PILL_DARK_TONES/, f);
+    assert.match(code, /color: "#92400E", background: "#FFFBEB"/, `${f} light unchanged`);
+  }
+  assert.doesNotMatch(read(path.join(__dirname, 'DepositPaymentCard.tsx')), /color: "#991B1B" \}/);
+});
+
+test('D5: attachments and financial forms: selected cards tint yellow and status / error text uses statusOnDark in dark mode', () => {
+  const att = read(path.join(__dirname, 'AgreementAttachments.tsx'));
+  assert.match(att, /tokens\.colors\.statusOnDark/);
+  assert.match(att, /DARK_SELECTED/);
+  // light values stay, once each, behind the isDark switch
+  assert.equal(att.match(/"#991B1B"/g).length, 1);
+  assert.equal(att.match(/"#166534"/g).length, 1);
+  assert.match(att, /const errorColor = isDark \? tokens\.colors\.statusOnDark\.danger : "#991B1B";/);
+  const fin = read(path.join(__dirname, 'FinancialDocumentForm.tsx'));
+  assert.doesNotMatch(fin, /color: "#DC2626"/);
+  assert.doesNotMatch(fin, /backgroundColor: selected \? "#FFF9E8" : theme\.surface/);
+  assert.match(fin, /tokens\.colors\.statusOnDark\.danger/);
+  for (const fill of ['rgba(248,182,21,0.16)']) assert.ok(contrast('#FFFFFF', fill, CARD) >= 4.5);
+});
+
+test('D4: the calendar "prog" dot is not repainted in dark mode (yellow like the pill dot)', () => {
+  const css = read(path.join(web, 'agent-calendar.css'));
+  assert.doesNotMatch(css, /\[data-theme="dark"\] \.awc-dot\[data-intent="prog"\]/);
+  const { STATUS_INTENT_TONES } = load(path.join(web, 'ui/statusIntent.ts'));
+  assert.equal(STATUS_INTENT_TONES.prog.dot, '#F8B615');
+  assert.ok(contrast('#F8B615', CARD) >= 3);
+});
+
+test('tab bar icons in dark mode use the body step #E2E8F0', () => {
+  assert.match(read(path.join(ui, 'components/MobileBottomTabBar.tsx')), /mutedColor=\{isDark \? '#E2E8F0' : '#334155'\}/);
+});

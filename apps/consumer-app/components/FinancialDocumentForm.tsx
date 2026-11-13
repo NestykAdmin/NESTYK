@@ -602,7 +602,7 @@ export function FinancialDocumentForm({
                   style={({ pressed }) => ({
                     borderWidth: 1,
                     borderColor: selected ? "#F8B615" : theme.border,
-                    backgroundColor: selected ? "#FFF9E8" : theme.surface,
+                    backgroundColor: selected ? (isDark ? "rgba(248,182,21,0.16)" : "#FFF9E8") : theme.surface,
                     borderRadius: 12,
                     padding: 12,
                     gap: 4,
@@ -652,7 +652,7 @@ export function FinancialDocumentForm({
                   style={({ pressed }) => ({
                     borderWidth: 1,
                     borderColor: selected ? "#F8B615" : theme.border,
-                    backgroundColor: selected ? "#FFF9E8" : theme.surface,
+                    backgroundColor: selected ? (isDark ? "rgba(248,182,21,0.16)" : "#FFF9E8") : theme.surface,
                     borderRadius: 12,
                     padding: 12,
                     gap: 4,
@@ -675,7 +675,7 @@ export function FinancialDocumentForm({
       {!!error && (
         <Text
           accessibilityRole="alert"
-          style={{ color: "#DC2626", lineHeight: 24 }}
+          style={{ color: isDark ? tokens.colors.statusOnDark.danger : "#DC2626", lineHeight: 24 }}
         >
           {error}
         </Text>
@@ -803,7 +803,7 @@ export function FinancialDocumentForm({
           {!!error && (
             <Text
               accessibilityRole="alert"
-              style={{ color: "#DC2626", lineHeight: 24 }}
+              style={{ color: isDark ? tokens.colors.statusOnDark.danger : "#DC2626", lineHeight: 24 }}
             >
               {error}
             </Text>
@@ -936,7 +936,7 @@ export function FinancialDocumentForm({
           {!!error && (
             <Text
               accessibilityRole="alert"
-              style={{ color: "#DC2626", lineHeight: 24 }}
+              style={{ color: isDark ? tokens.colors.statusOnDark.danger : "#DC2626", lineHeight: 24 }}
             >
               {error}
             </Text>

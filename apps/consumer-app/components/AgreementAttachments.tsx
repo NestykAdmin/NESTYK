@@ -108,7 +108,7 @@ function Chip({
   onPress: () => void;
   disabled?: boolean;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -119,7 +119,7 @@ function Chip({
         s.chip,
         {
           borderColor: selected ? "#F8B615" : theme.border,
-          backgroundColor: selected ? "#FCDE96" : theme.surface,
+          backgroundColor: selected ? (isDark ? DARK_SELECTED.backgroundColor : "#FCDE96") : theme.surface,
           opacity: pressed || disabled ? 0.65 : 1,
         },
       ]}
@@ -127,7 +127,7 @@ function Chip({
       <Text
         style={[
           s.chipText,
-          { color: selected ? "#211E1E" : theme.textSecondary },
+          { color: selected ? (isDark ? DARK_SELECTED.color : "#211E1E") : theme.textSecondary },
         ]}
       >
         {label}
@@ -148,7 +148,10 @@ export function AgreementAttachments({
   /** B3: `rejected` lists the current attachments the agent rejected, for the signing card. */
   onReadinessChange?: (value: { contractId: number; ready: boolean; rejected: RejectedAttachmentNotice[] }) => void;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
+  // v1.2 B+C (13 Nov 2026, D5): status and error text in dark mode use the dark pill text steps.
+  const okColor = isDark ? tokens.colors.statusOnDark.success : "#166534";
+  const errorColor = isDark ? tokens.colors.statusOnDark.danger : "#991B1B";
   const { t, locale } = useLocale();
   const cn = t.agent.contracts.notice;
   const tc = t.contracts;
@@ -348,7 +351,7 @@ export function AgreementAttachments({
 
   function renderReviewLine(document: AgreementAttachment) {
     const color =
-      document.reviewStatus === "accepted" ? "#166534" : document.reviewStatus === "rejected" ? "#991B1B" : theme.textSecondary;
+      document.reviewStatus === "accepted" ? okColor : document.reviewStatus === "rejected" ? errorColor : theme.textSecondary;
     return <Text style={[s.docMeta, { color }]}>{attachmentReviewText(document, ar)}</Text>;
   }
 
@@ -375,7 +378,7 @@ export function AgreementAttachments({
       .map((code) => typeName(code, state.documentTypes))
       .join(tc.common.or);
     const complete = !!doc;
-    const statusColor = complete ? "#166534" : theme.textSecondary;
+    const statusColor = complete ? okColor : theme.textSecondary;
 
     return (
       <View
@@ -448,8 +451,8 @@ export function AgreementAttachments({
         <View style={s.header}>
           <Text style={[s.heading, ink]}>{ac.required}</Text>
           {progress && (
-            <View style={[s.progressPill, { backgroundColor: "#FCDE96" }]}>
-              <Text style={s.progressText}>
+            <View style={[s.progressPill, { backgroundColor: isDark ? DARK_SELECTED.pill : "#FCDE96" }]}>
+              <Text style={[s.progressText, isDark ? { color: DARK_SELECTED.color } : null]}>
                 {fillTemplate(ac.progress, { done: progress.done, total: progress.total })}
               </Text>
             </View>
@@ -458,7 +461,7 @@ export function AgreementAttachments({
 
         {busy && !state && <ActivityIndicator color={theme.spinner} />}
         {!!error && (
-          <Text accessibilityRole="alert" style={{ color: "#991B1B" }}>
+          <Text accessibilityRole="alert" style={{ color: errorColor }}>
             {error}
           </Text>
         )}
@@ -546,7 +549,7 @@ export function AgreementAttachments({
           {extraSlots.map((slot) => {
             const files = docsForExtraSlot(slot.code);
             const hasFile = files.length > 0;
-            const statusColor = hasFile ? "#166534" : theme.textSecondary;
+            const statusColor = hasFile ? okColor : theme.textSecondary;
             const typeAvailable =
               slot.code === "other" ||
               state.documentTypes.some((t) => t.code === slot.code);
@@ -823,7 +826,7 @@ export function AgreementAttachments({
           {preview && <ContractDocumentPreview url={preview.url} />}
           {preview && renderReviewLine(preview.document)}
           {!!error && preview && (
-            <Text accessibilityRole="alert" style={[s.docMeta, { color: "#991B1B" }]}>
+            <Text accessibilityRole="alert" style={[s.docMeta, { color: errorColor }]}>
               {error}
             </Text>
           )}
@@ -896,6 +899,9 @@ export function AgreementAttachments({
     </View>
   );
 }
+
+// Dark mode (v1.2 B+C): selected chip = yellow tint with light yellow text; progress pill = 30% yellow.
+const DARK_SELECTED = { backgroundColor: "rgba(248,182,21,0.16)", color: "#FCDE96", pill: "rgba(248,182,21,0.3)" } as const;
 
 const s = StyleSheet.create({
   stack: { gap: 12 },

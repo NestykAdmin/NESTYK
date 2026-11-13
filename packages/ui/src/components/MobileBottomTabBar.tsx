@@ -183,7 +183,7 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
                   name={tab.icon}
                   isActive={isActive}
                   activeColor={resolvedActive}
-                  mutedColor={isDark ? '#CBD5E1' : '#334155'}
+                  mutedColor={isDark ? '#E2E8F0' : '#334155'}
                 />
               )}
               <Text
