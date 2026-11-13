@@ -24,9 +24,11 @@ test('EXPO_PUBLIC_GUEST_WEB_URL: unset = off, "/" = this same site, an http(s) a
 });
 
 test('guest web pages (with or without a language prefix) are accepted as `next`, query kept', () => {
-  for (const ok of ['/', '/search', '/en', '/en/search?beds=1&sort=price', '/ja/saved', '/zh/profile', '/rooms/abc-123', '/en/rent/asok', '/SEARCH']) {
+  for (const ok of ['/', '/search', '/en', '/en/search?beds=1&sort=price', '/ja/saved', '/zh/profile', '/rooms/abc-123', '/en/rent/asok']) {
     assert.equal(guestWebPath(ok), ok, ok);
   }
+  // Review R7: the guest web's paths are lower case; the query keeps its case.
+  assert.equal(guestWebPath('/EN/Search?Q=Asok'), '/en/search?Q=Asok');
 });
 
 test('anything else is not a guest web page (open redirect and role pages stay out)', () => {
@@ -79,8 +81,10 @@ test('login and sign-up use the shared helpers (web: page load to the guest web;
   assert.match(login, /withNextParam\('\/register', next\)/);
   const register = read('app/register.tsx');
   assert.match(register, /useLocalSearchParams/);
-  assert.equal((register.match(/goAfterSignIn\(router, next, session\?\.roles\)/g) || []).length, 3, 'signed in, signed up, code verified');
-  assert.doesNotMatch(register, /router\.replace\('\/'\)/);
+  // Review R1 (13 Nov 2026): only the signed-in effect decides on the web (it has the roles); after sign-up and code
+  // check the handlers move only on mobile, like login.tsx.
+  assert.equal((register.match(/goAfterSignIn\(router, next, session\?\.roles\)/g) || []).length, 1, 'the signed-in effect only');
+  assert.equal((register.match(/if \(Platform\.OS !== 'web'\) router\.replace\('\/'\);/g) || []).length, 2, 'signed up, code verified');
   assert.match(register, /withNextParam\('\/login', next\)/);
 
   const web = read('lib/web-routes.web.ts');

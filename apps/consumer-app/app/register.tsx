@@ -122,7 +122,8 @@ export default function RegisterScreen() {
         setResendIn(60);
         setNeedsEmailConfirmation(true);
       } else {
-        goAfterSignIn(router, next, session?.roles);
+        // Mobile: home as before. Web: the signed-in effect above moves on with the new account's roles (review R1).
+        if (Platform.OS !== 'web') router.replace('/');
       }
     } catch (e) {
       resetCaptcha();
@@ -152,7 +153,8 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await verifySignupCode(email, code.trim(), { firstName, lastName, phone: phoneNumber });
-      goAfterSignIn(router, next, session?.roles);
+      // Web: the signed-in effect above moves on with the account's roles (review R1). Mobile: home as before.
+      if (Platform.OS !== 'web') router.replace('/');
     } catch (e) {
       setError(isInvalidOtp(e) ? copy.otpInvalid : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: t.common.errorGeneric }));
     } finally {

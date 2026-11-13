@@ -14,12 +14,28 @@ test('the list covers every sign-in, legal and role path of the consumer-app (ke
   const app = require(appRoutesFile);
   for (const p of [...app.AUTH_PATHS, ...app.LEGAL_PATHS]) assert.ok(routes.ACCOUNT_PAGE_PATHS.includes(p), `missing ${p}`);
   for (const p of Object.values(app.ROLE_PATH)) assert.ok(routes.ACCOUNT_ROLE_PATHS.includes(p), `missing ${p}`);
+  // Old /owner links: the consumer-app sends them on to /landlord (review R5).
+  assert.equal(app.parseAppPath('/owner/rooms').kind, 'redirect');
+  assert.ok(routes.ACCOUNT_ROLE_PATHS.includes('/owner'), 'missing /owner');
   assert.deepEqual(routes.ACCOUNT_ASSET_PATHS, ['/_expo', '/assets']);
 });
 
-test('no account path clashes with a guest page', () => {
-  const guestDirs = fs.readdirSync(path.join(__dirname, '..', 'app', '[locale]', '(marketplace)'));
-  for (const p of routes.ACCOUNT_PATHS) assert.ok(!guestDirs.includes(p.slice(1)), `${p} is also a guest page`);
+test('no account path clashes with a page or file of the guest web (review R5: every route folder, public/)', () => {
+  const app = path.join(__dirname, '..', 'app');
+  const names = new Set();
+  const collect = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) { names.add(entry.name.replace(/\.[^.]+$/, '')); continue; }
+      if (/^\(.*\)$/.test(entry.name)) collect(path.join(dir, entry.name)); // route group: its children are top level
+      else names.add(entry.name);
+    }
+  };
+  collect(app);
+  collect(path.join(app, '[locale]'));
+  collect(path.join(__dirname, '..', 'public'));
+  assert.ok(names.has('search') && names.has('saved'), 'the scan sees the guest pages');
+  for (const p of routes.ACCOUNT_PATHS) assert.ok(!names.has(p.slice(1)), `${p} is also a guest web page or file`);
 });
 
 test('the upstream must be an http(s) address; anything else turns the rewrite off', () => {

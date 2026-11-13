@@ -57,6 +57,10 @@
   - URL `*.vercel.app` ของ project นี้ยังเปิดตรงได้ แต่ session แยกจาก nestyk.com · ไม่ต้องประกาศที่ไหน
 - **เว็บบทบาท** (agent.nestyk.com ฯลฯ): ไม่เปลี่ยน · `EXPO_PUBLIC_WEB_PORTAL_URLS=all=https://nestyk.com` ยังใช้ได้ (nestyk.com/agent ส่งต่อให้ consumer-app)
 - **นอก Vercel:** Supabase Redirect URLs, hCaptcha, Maps referrer ใช้ `nestyk.com` เดิม (ผู้ใช้เห็นทุกหน้าเป็น nestyk.com)
+- **Vercel Deployment Protection ของ `nestyk-web` ต้องปิด** (หรือตั้งให้ `nestyk-guest` ผ่านได้) ไม่งั้นการส่งต่อได้ 401
+- **API:** `/api/...` ของเว็บ guest ส่งเป็น `<API_URL>/api/v1/...` · `/api/v1/...` (ที่หน้าบัญชีเรียกตอน dev) ส่งไปตรง ๆ
+- **ค่าถูกฝังตอน build:** `ACCOUNT_WEB_UPSTREAM` อ่านตอน `next build` และ `next.config.js` โหลด `.env` ที่ root · **ห้าม build เพื่อ deploy จากเครื่องที่ตั้งค่า dev ไว้** (จะได้ build ที่ส่ง `/login` ไป 127.0.0.1) ให้ build บน Vercel เท่านั้น
+- **ก่อนตั้ง env บน production (รีวิว AUTH-1, 13 พ.ย.):** ต้องจบ AUTH-2 ก่อน (เมนูบัญชีบนเว็บ guest, ออกจากระบบแล้วไปเว็บ guest, CSP, robots ไม่ให้ index `/agent…` `/admin…`) · ระหว่างนี้ผู้ที่ login อยู่แล้วกด "เข้าสู่ระบบ" บนเว็บ guest จะถูกพากลับหน้าเดิม
 
 **ตอน dev บนเครื่อง (`npm run dev` คำสั่งเดียว):** ใส่ใน `.env` ที่ root
 `ACCOUNT_WEB_UPSTREAM=http://127.0.0.1:8081` และ `EXPO_PUBLIC_GUEST_WEB_URL=http://localhost:3000` แล้วเปิด `http://localhost:3000`

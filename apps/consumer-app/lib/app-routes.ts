@@ -151,17 +151,23 @@ export function guestWebBase(value: unknown): string | null {
   }
 }
 
-/** A `next` that is a guest web page (path + query, optional language prefix), else null. Same safety as safeNextPath. */
+/**
+ * A `next` that is a guest web page (path + query, optional language prefix), else null. Same safety as safeNextPath.
+ * The path comes back in lower case (the guest web's paths are; review R7); the query keeps its case.
+ */
 export function guestWebPath(next: unknown): string | null {
   const value = Array.isArray(next) ? next[0] : next;
   if (typeof value !== 'string' || value.length === 0 || value.length > 512) return null;
   if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null;
   if (/^\/[^?#]*:/.test(value) || /[\u0000-\u001f]/.test(value)) return null;
-  const segments = segmentsOf(value.split(/[?#]/)[0]);
+  const cut = value.search(/[?#]/);
+  const pathname = (cut === -1 ? value : value.slice(0, cut)).toLowerCase();
+  const back = cut === -1 ? pathname : `${pathname}${value.slice(cut)}`;
+  const segments = segmentsOf(pathname);
   const rest = (GUEST_WEB_LOCALES as readonly string[]).includes(segments[0] ?? '') ? segments.slice(1) : segments;
-  if (rest.length === 0) return value;
-  if (rest.length === 1 && (GUEST_WEB_PAGES as readonly string[]).includes(rest[0])) return value;
-  if (rest.length === 2 && (GUEST_WEB_TREES as readonly string[]).includes(rest[0])) return value;
+  if (rest.length === 0) return back;
+  if (rest.length === 1 && (GUEST_WEB_PAGES as readonly string[]).includes(rest[0])) return back;
+  if (rest.length === 2 && (GUEST_WEB_TREES as readonly string[]).includes(rest[0])) return back;
   return null;
 }
 
