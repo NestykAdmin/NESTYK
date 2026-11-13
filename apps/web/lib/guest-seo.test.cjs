@@ -121,11 +121,29 @@ test('the sitemap lists every language of each indexable page, and is empty on a
 
 test('robots.txt lets pages be crawled (so noindex is seen), keeps /api out, and names the sitemap only when indexable', () => {
   const open = seo.robotsRules(SITE, true);
-  assert.deepEqual(open.rules, [{ userAgent: '*', allow: '/', disallow: ['/api/'] }]);
+  assert.deepEqual(open.rules, [{ userAgent: '*', allow: '/', disallow: seo.ROBOTS_DISALLOW }]);
   assert.equal(open.sitemap, 'https://nestyk.com/sitemap.xml');
   const closed = seo.robotsRules('https://sit.nestyk.com', false);
-  assert.deepEqual(closed.rules, [{ userAgent: '*', allow: '/', disallow: ['/api/'] }]);
+  assert.deepEqual(closed.rules, [{ userAgent: '*', allow: '/', disallow: seo.ROBOTS_DISALLOW }]);
   assert.equal('sitemap' in closed, false);
+});
+
+/** Google's robots matching: prefix, with "$" = end of the URL. */
+const blocked = (url) => seo.ROBOTS_DISALLOW.some((rule) =>
+  rule.endsWith('$') ? url === rule.slice(0, -1) : url.startsWith(rule));
+
+test('robots.txt keeps out the sign-in and role pages handed to the consumer-app on this site; legal pages stay open', () => {
+  const routes = require('./account-routes.js');
+  for (const p of [...routes.ACCOUNT_ROLE_PATHS, '/login', '/register', '/reset-password', '/no-access']) {
+    assert.ok(blocked(p), p);
+    assert.ok(blocked(`${p}?next=%2F`), `${p}?next=`);
+  }
+  for (const p of routes.ACCOUNT_ROLE_PATHS) assert.ok(blocked(`${p}/leads`), `${p}/...`);
+  assert.ok(blocked('/api/public/rooms'));
+  // Review R4: exact pages and trees only, so a guest page that starts the same way stays crawlable.
+  for (const p of ['/privacy', '/terms', '/', '/search', '/agents-guide', '/administration', '/login-help', '/owners']) {
+    assert.ok(!blocked(p), `${p} must stay crawlable`);
+  }
 });
 
 function pagesUnder(dir) {

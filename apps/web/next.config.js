@@ -10,6 +10,13 @@ const API_URL = process.env.API_URL || 'http://localhost:4000';
 const { accountWebUpstream, accountRewrites, accountDevFallback } = require('./lib/account-routes');
 const ACCOUNT_WEB_UPSTREAM = accountWebUpstream(process.env.ACCOUNT_WEB_UPSTREAM);
 
+// Content-Security-Policy of the guest pages (AUTH-2.6): own scripts only, connections to this site and Supabase.
+const { guestCsp, GUEST_CSP_SOURCE } = require('./lib/guest-csp');
+const GUEST_CSP = guestCsp({
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL,
+  dev: process.env.NODE_ENV === 'development',
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Also expose root `.env` / `.env.*` via Next env loading
@@ -35,6 +42,13 @@ const nextConfig = {
     '@nestyk/feature-services',
     '@nestyk/feature-listing',
   ],
+  async headers() {
+    const headers = [{ key: 'Content-Security-Policy', value: GUEST_CSP }];
+    return [
+      { source: '/', headers },
+      { source: GUEST_CSP_SOURCE, headers },
+    ];
+  },
   async rewrites() {
     return {
       // Before the guest pages, so /login never reaches the [locale] route.
