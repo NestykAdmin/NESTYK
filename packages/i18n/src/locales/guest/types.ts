@@ -101,6 +101,8 @@ export interface GuestCopy {
     roomFallback: string;
     /** Label of the heart button: "Save {name}". */
     saveNamed: string;
+    /** Heart of a saved room (AUTH-3), with the room name. */
+    unsaveNamed: string;
   };
   home: {
     featuredTitle: string;
@@ -237,9 +239,23 @@ export interface GuestCopy {
     emptyTitle: string;
     emptyBody: string;
     browse: string;
-    /** Shown while the guest is not signed in (the web cannot see the session until single sign-on). */
+    /** Shown while the guest is not signed in. */
     gateTitle: string;
     gateBody: string;
+    /** /saved could not load the list (AUTH-3). */
+    errorTitle: string;
+    /** Short notes after a heart press (AUTH-3, Mos 13 Nov 2026: a toast every time). */
+    toastSaved: string;
+    toastRemoved: string;
+    toastFailed: string;
+    /** Unsaving did not go through (review R6). */
+    toastRemoveFailed: string;
+    /** {count}: the most rooms one account can save. */
+    toastLimit: string;
+    toastGone: string;
+    toastSignIn: string;
+    /** Link in the "saved" toast. */
+    viewSaved: string;
   };
   /** Prompt for features that need an account (Mos 11 Nov 2026): explains it in place, never jumps to sign-in. */
   signInPrompt: {

@@ -94,6 +94,7 @@ export const guestZh: GuestCopy = {
     titleFallback: '{name} · {rooms}',
     roomFallback: '出租房',
     saveNamed: '收藏「{name}」',
+    unsaveNamed: '将「{name}」移出收藏',
   },
   home: {
     featuredTitle: '为您推荐',
@@ -232,6 +233,15 @@ export const guestZh: GuestCopy = {
     browse: '返回首页',
     gateTitle: '登录后查看收藏',
     gateBody: '你收藏的房源会显示在这里，任何设备都能查看。',
+    errorTitle: '无法加载收藏',
+    toastSaved: '已收藏',
+    toastRemoved: '已移出收藏',
+    toastFailed: '收藏失败，请重试',
+    toastRemoveFailed: '移除失败，请重试',
+    toastLimit: '最多可收藏 {count} 个房源，请先移除一些',
+    toastGone: '该房源已下架',
+    toastSignIn: '请重新登录后再收藏',
+    viewSaved: '查看收藏',
   },
   signInPrompt: {
     saveTitle: '登录后即可收藏房源',

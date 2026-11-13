@@ -58,7 +58,9 @@ export function RoomCard({ card, copy, locale, today }: RoomCardProps) {
           {card.isNew ? <span className="nk-badge nk-badge--brand">{copy.card.newBadge}</span> : null}
         </span>
         <FavoriteButton
+          roomId={card.id}
           label={fillTemplate(copy.card.saveNamed, { name: title })}
+          unsaveLabel={fillTemplate(copy.card.unsaveNamed, { name: title })}
           room={{ title, priceText: price ? `฿${price} ${copy.card.perMonthLong}` : null, coverImageUrl: card.coverImageUrl }}
         />
       </div>

@@ -94,6 +94,7 @@ export const guestJa: GuestCopy = {
     titleFallback: '{name}・{rooms}',
     roomFallback: '賃貸物件',
     saveNamed: '「{name}」を保存',
+    unsaveNamed: '「{name}」をお気に入りから外す',
   },
   home: {
     featuredTitle: 'おすすめの物件',
@@ -232,6 +233,15 @@ export const guestJa: GuestCopy = {
     browse: 'ホームに戻る',
     gateTitle: 'ログインしてお気に入りを見る',
     gateBody: '保存した物件はここに表示され、どの端末からでも見られます。',
+    errorTitle: 'お気に入りを読み込めませんでした',
+    toastSaved: '保存しました',
+    toastRemoved: 'お気に入りから外しました',
+    toastFailed: '保存できませんでした。もう一度お試しください',
+    toastRemoveFailed: '外せませんでした。もう一度お試しください',
+    toastLimit: '保存できるのは{count}件までです。先にいくつか外してください',
+    toastGone: 'この物件は掲載終了しました',
+    toastSignIn: '保存するには再度ログインしてください',
+    viewSaved: 'お気に入りを見る',
   },
   signInPrompt: {
     saveTitle: 'ログインして物件を保存',

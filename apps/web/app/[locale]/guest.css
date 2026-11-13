@@ -1109,6 +1109,16 @@ summary.nk-row:hover {
   justify-content: center;
   box-shadow: var(--nk-shadow-pop);
 }
+/* Saved (AUTH-3, Mos 13 Nov 2026): filled red. The label and aria-pressed carry the state for screen readers. */
+.nk-fav[aria-pressed='true'] {
+  color: var(--nk-color-danger);
+}
+.nk-fav[aria-pressed='true'] svg {
+  fill: currentColor;
+}
+.nk-fav[aria-busy='true'] {
+  cursor: progress;
+}
 .nk-room__body {
   flex: 1;
   padding: var(--nk-space-4);
@@ -2566,4 +2576,92 @@ a.nk-types__item:hover {
   justify-content: center;
   font-size: 10px;
   font-weight: 600;
+}
+
+/* ===== Saved-room toast (AUTH-3, Mos 13 Nov 2026: a short note after every heart press) ===== */
+.nk-toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: var(--nk-space-6);
+  z-index: 70;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--nk-space-4));
+  pointer-events: none;
+}
+.nk-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  min-height: var(--nk-tap);
+  box-sizing: border-box;
+  padding: var(--nk-space-2) var(--nk-space-2) var(--nk-space-2) var(--nk-space-4);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+  font-size: var(--nk-text-sm);
+  line-height: 1.4;
+  box-shadow: var(--nk-shadow-pop);
+  animation: nk-toast-in 200ms ease-out;
+}
+.nk-toast__icon {
+  display: flex;
+  color: var(--nk-color-danger);
+}
+.nk-toast__icon svg {
+  fill: currentColor;
+}
+.nk-toast__text {
+  flex: 1;
+}
+.nk-toast__action {
+  color: var(--nk-color-brand);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  min-height: var(--nk-tap);
+  display: inline-flex;
+  align-items: center;
+}
+.nk-toast__action:hover {
+  text-decoration: underline;
+}
+.nk-toast__close {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--nk-radius-pill);
+  background: transparent;
+  color: inherit;
+}
+.nk-toast__close:hover {
+  background: var(--nk-color-dark-raised);
+}
+@keyframes nk-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 960px) {
+  /* Above the tab bar. */
+  .nk-toast-region {
+    bottom: calc(var(--nk-tabbar-height) + var(--nk-space-3));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nk-toast {
+    animation: none;
+  }
 }

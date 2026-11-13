@@ -27,7 +27,8 @@ test('the sign-in prompt is an accessible dialog with sign in, register and "not
 });
 
 test('saved rooms ask the guest to sign in first, with both account links', () => {
-  const page = read(path.join(__dirname, '..', 'app', '[locale]', '(marketplace)', 'saved', 'page.tsx'));
+  // AUTH-3: the sign-in card moved into SavedRoomsList (signed-out state).
+  const page = read(path.join(guest, 'SavedRoomsList.tsx'));
   assert.match(page, /gateTitle/);
   assert.match(page, /gateBody/);
   assert.match(page, /<AccountLink[^>]*page="signIn"/);

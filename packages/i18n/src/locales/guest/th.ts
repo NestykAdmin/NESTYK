@@ -94,6 +94,7 @@ export const guestTh: GuestCopy = {
     titleFallback: '{name} · {rooms}',
     roomFallback: 'ห้องเช่า',
     saveNamed: 'บันทึก {name}',
+    unsaveNamed: 'เอา {name} ออกจากรายการโปรด',
   },
   home: {
     featuredTitle: 'ประกาศแนะนำสำหรับคุณ',
@@ -232,6 +233,15 @@ export const guestTh: GuestCopy = {
     browse: 'กลับไปหน้าแรก',
     gateTitle: 'เข้าสู่ระบบเพื่อดูรายการโปรด',
     gateBody: 'ห้องที่คุณบันทึกไว้จะอยู่ที่นี่ ดูต่อได้ทุกอุปกรณ์',
+    errorTitle: 'โหลดรายการโปรดไม่สำเร็จ',
+    toastSaved: 'บันทึกแล้ว',
+    toastRemoved: 'เอาออกจากรายการโปรดแล้ว',
+    toastFailed: 'บันทึกไม่สำเร็จ ลองอีกครั้ง',
+    toastRemoveFailed: 'เอาออกไม่สำเร็จ ลองอีกครั้ง',
+    toastLimit: 'บันทึกได้สูงสุด {count} ห้อง เอาห้องเก่าออกก่อน',
+    toastGone: 'ห้องนี้ปิดประกาศแล้ว',
+    toastSignIn: 'เข้าสู่ระบบอีกครั้งเพื่อบันทึกห้อง',
+    viewSaved: 'ดูรายการโปรด',
   },
   signInPrompt: {
     saveTitle: 'เข้าสู่ระบบเพื่อบันทึกห้อง',

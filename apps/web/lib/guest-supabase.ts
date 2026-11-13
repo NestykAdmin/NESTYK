@@ -32,3 +32,19 @@ export function loadGuestSupabase(): Promise<SupabaseClient | null> {
   }
   return client;
 }
+
+/**
+ * Access token of this tab's sign-in and the Supabase user it belongs to, for calls to our API (AUTH-3).
+ * supabase-js refreshes an expired token here. Read per call and never stored elsewhere. Null when signed out or
+ * when Supabase cannot be reached. The caller checks userId, so a switch of account mid-press is never sent.
+ */
+export async function guestSessionToken(): Promise<{ token: string; userId: string } | null> {
+  const supabase = await loadGuestSupabase();
+  if (!supabase) return null;
+  try {
+    const session = (await supabase.auth.getSession()).data.session;
+    return session?.access_token ? { token: session.access_token, userId: session.user.id } : null;
+  } catch {
+    return null;
+  }
+}

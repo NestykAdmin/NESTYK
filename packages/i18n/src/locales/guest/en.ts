@@ -94,6 +94,7 @@ export const guestEn: GuestCopy = {
     titleFallback: '{name} · {rooms}',
     roomFallback: 'Rental room',
     saveNamed: 'Save {name}',
+    unsaveNamed: 'Remove {name} from saved',
   },
   home: {
     featuredTitle: 'Recommended for you',
@@ -232,6 +233,15 @@ export const guestEn: GuestCopy = {
     browse: 'Back to home',
     gateTitle: 'Sign in to see your saved rooms',
     gateBody: 'Rooms you save will be here, on any device.',
+    errorTitle: 'Could not load your saved rooms',
+    toastSaved: 'Saved',
+    toastRemoved: 'Removed from saved',
+    toastFailed: 'Could not save. Try again.',
+    toastRemoveFailed: 'Could not remove. Try again.',
+    toastLimit: 'You can save up to {count} rooms. Remove some first.',
+    toastGone: 'This room is no longer listed',
+    toastSignIn: 'Sign in again to save rooms',
+    viewSaved: 'View saved',
   },
   signInPrompt: {
     saveTitle: 'Sign in to save rooms',
