@@ -268,7 +268,6 @@ export const guestZh: GuestCopy = {
   account: {
     title: '我的账户',
     button: '我的账户：{name}',
-    menuLabel: '账户菜单',
     profile: '我的资料',
     saved: '收藏',
     viewingRequests: '看房申请',

@@ -31,16 +31,25 @@ test('the provider reads the sign-in in the browser only, follows other tabs and
   assert.match(provider, /idleExpired\(/);
   assert.match(provider, /ACTIVITY_KEY/);
   assert.match(provider, /status: 'checking'/, 'server render and first paint do not know the sign-in yet');
+  // Review R5: supabase-js loads only for someone with a sign-in copy (public pages stay light).
+  assert.match(read(web, 'lib', 'guest-supabase.ts'), /await import\('@supabase\/supabase-js'\)/);
+  assert.doesNotMatch(read(web, 'lib', 'guest-supabase.ts'), /^import \{ createClient/m);
+  // Review R6: the answer is checked against the copy as it is then, not as it was at the start.
+  assert.match(provider, /readGuestProfile\(readKey\(SESSION_STORAGE_KEY\)\)[\s\S]*getSession\(\)[\s\S]*readGuestProfile\(readKey\(SESSION_STORAGE_KEY\)\)/);
   const shell = read(guest, 'GuestShell.tsx');
   assert.match(shell, /<GuestSessionProvider>/);
 });
 
 test('sign-out from the guest web follows the consumer-app order and stays on the page', () => {
+  // consumer-app AuthContext endSession: Supabase (this device) → reason for other tabs → profile copy (review R3).
   const provider = read(guest, 'GuestSession.tsx');
-  const reason = provider.indexOf('setItem(AUTH_EVENT_KEY');
-  const copy = provider.indexOf('removeItem(SESSION_STORAGE_KEY');
-  const supa = provider.indexOf("signOut({ scope: 'local' })");
-  assert.ok(reason > -1 && copy > reason && supa > copy, 'reason → copy → supabase local sign-out');
+  const body = provider.slice(provider.indexOf('const signOut = useCallback'));
+  const shown = body.indexOf('setState(SIGNED_OUT)');
+  const supa = body.indexOf("signOut({ scope: 'local' })");
+  const reason = body.indexOf('setItem(AUTH_EVENT_KEY');
+  const copy = body.indexOf('removeItem(SESSION_STORAGE_KEY');
+  assert.ok(shown > -1 && supa > shown, 'the header changes at once, then the network call');
+  assert.ok(reason > supa && copy > reason, 'supabase local sign-out → reason → copy');
   assert.doesNotMatch(provider, /location\.(assign|replace|href\s*=)/, 'no page change on sign-out (public page)');
 });
 
@@ -52,9 +61,13 @@ test('header: sign-in button when signed out, design B chip + menu when signed i
   assert.match(menu, /useGuestSession\(\)/);
   assert.match(menu, /nk-account--checking/);
   assert.match(menu, /<AccountLink page="signIn" className="nk-signin" data-testid="guest\.signIn">/);
-  assert.match(menu, /aria-haspopup="menu"/);
+  // Review R7: a disclosure (links and buttons), not an ARIA menu without arrow keys.
+  assert.doesNotMatch(menu, /role="menu(item)?"|aria-haspopup/);
   assert.match(menu, /aria-expanded=\{open\}/);
+  assert.match(menu, /aria-controls=\{panelId\}/);
   assert.match(menu, /'Escape'/);
+  assert.match(menu, /onBlur=/, 'closes when focus leaves it');
+  assert.match(menu, /onError=/, 'a picture that fails shows the initials (review R8)');
   assert.match(menu, /roleSiteLinks\(/);
   assert.match(menu, /data-testid="guest\.account"/);
   assert.match(menu, /data-testid="guest\.signOut"/);

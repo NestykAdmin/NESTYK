@@ -268,12 +268,11 @@ export const guestTh: GuestCopy = {
   account: {
     title: 'บัญชีของฉัน',
     button: 'บัญชีของฉัน: {name}',
-    menuLabel: 'เมนูบัญชี',
     profile: 'โปรไฟล์ของฉัน',
     saved: 'รายการโปรด',
     viewingRequests: 'คำร้องนัดดูห้อง',
     workspace: 'พื้นที่ทำงาน',
-    goToRole: 'ไปหน้าของ{role}',
+    goToRole: 'ไปที่หน้า{role}',
     signOut: 'ออกจากระบบ',
     checking: 'กำลังตรวจสอบการเข้าสู่ระบบ',
   },

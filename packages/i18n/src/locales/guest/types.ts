@@ -278,7 +278,6 @@ export interface GuestCopy {
   account: {
     title: string;
     button: string;
-    menuLabel: string;
     profile: string;
     saved: string;
     viewingRequests: string;

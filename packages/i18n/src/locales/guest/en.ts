@@ -268,7 +268,6 @@ export const guestEn: GuestCopy = {
   account: {
     title: 'Your account',
     button: 'Your account: {name}',
-    menuLabel: 'Account menu',
     profile: 'My profile',
     saved: 'Saved',
     viewingRequests: 'Viewing requests',

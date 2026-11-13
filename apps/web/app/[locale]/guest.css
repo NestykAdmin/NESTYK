@@ -2406,7 +2406,7 @@ a.nk-types__item:hover {
   border-radius: var(--nk-radius-pill);
   overflow: hidden;
   background: var(--nk-color-ink);
-  color: #ffffff;
+  color: var(--nk-color-surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2550,7 +2550,7 @@ a.nk-types__item:hover {
   gap: var(--nk-space-2);
   border: 1px solid var(--nk-color-border);
   background: var(--nk-color-surface);
-  color: #b91c1c;
+  color: var(--nk-color-danger);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -2560,7 +2560,7 @@ a.nk-types__item:hover {
   height: 24px;
   border-radius: var(--nk-radius-pill);
   background: var(--nk-color-ink);
-  color: #ffffff;
+  color: var(--nk-color-surface);
   display: flex;
   align-items: center;
   justify-content: center;

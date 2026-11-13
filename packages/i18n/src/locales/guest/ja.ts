@@ -268,7 +268,6 @@ export const guestJa: GuestCopy = {
   account: {
     title: 'マイアカウント',
     button: 'マイアカウント: {name}',
-    menuLabel: 'アカウントメニュー',
     profile: 'マイプロフィール',
     saved: 'お気に入り',
     viewingRequests: '内見リクエスト',

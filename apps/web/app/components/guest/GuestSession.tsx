@@ -11,7 +11,7 @@ import {
   readGuestProfile,
   type GuestProfile,
 } from '../../../lib/guest-session';
-import { guestSupabase } from '../../../lib/guest-supabase';
+import { loadGuestSupabase } from '../../../lib/guest-supabase';
 
 /**
  * Who is signed in, for the guest web (AUTH-2.3, nestyk-guest-session-plan-20261112.md B3–B6).
@@ -57,28 +57,32 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
   const userIdRef = useRef<string | null>(null);
   userIdRef.current = state.status === 'signedIn' ? state.profile.userId : null;
 
-  /** Same order as the consumer-app (AuthContext signOut): reason → profile copy → Supabase, this device only. */
+  /**
+   * Same order as the consumer-app (AuthContext endSession, review R3): Supabase, this device only → the reason for
+   * other tabs → the profile copy. The header changes at once; the network call does not hold it up.
+   */
   const signOut = useCallback(async (reason: 'signedOut' | 'expired' = 'signedOut') => {
+    setState(SIGNED_OUT);
+    try {
+      const supabase = await loadGuestSupabase();
+      await supabase?.auth.signOut({ scope: 'local' });
+    } catch {
+      // The local session is removed even when the server call fails.
+    }
     const store = browserStorage();
     try {
       store?.setItem(AUTH_EVENT_KEY, reason);
       store?.removeItem(SESSION_STORAGE_KEY);
     } catch {
-      // storage blocked: the Supabase sign-out below still ends the session
+      // storage blocked: nothing more to clear
     }
-    try {
-      await guestSupabase()?.auth.signOut({ scope: 'local' });
-    } catch {
-      // offline: the local session is gone either way
-    }
-    setState(SIGNED_OUT);
   }, []);
 
-  // First look, in the browser only.
+  // First look, in the browser only. supabase-js loads only when there is a sign-in copy (review R5).
   useEffect(() => {
     let cancelled = false;
-    const profile = readGuestProfile(readKey(SESSION_STORAGE_KEY));
-    if (!profile) {
+    let unsubscribe: (() => void) | null = null;
+    if (!readGuestProfile(readKey(SESSION_STORAGE_KEY))) {
       setState(SIGNED_OUT);
       return;
     }
@@ -86,22 +90,26 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
       void signOut('expired');
       return;
     }
-    const supabase = guestSupabase();
-    if (!supabase) {
-      setState({ status: 'signedIn', profile });
-      return;
-    }
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
+    void loadGuestSupabase()
+      .then(async (supabase) => {
         if (cancelled) return;
-        setState(data.session?.user.id === profile.userId ? { status: 'signedIn', profile } : SIGNED_OUT);
+        const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+        if (cancelled) return;
+        // Read the copy again: another tab may have switched the account meanwhile (review R6).
+        const profile = readGuestProfile(readKey(SESSION_STORAGE_KEY));
+        if (profile && (!supabase || session?.user.id === profile.userId)) setState({ status: 'signedIn', profile });
+        else setState(SIGNED_OUT);
+        const sub = supabase?.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT') setState(SIGNED_OUT);
+        });
+        unsubscribe = sub ? () => sub.data.subscription.unsubscribe() : null;
       })
       .catch(() => {
         if (!cancelled) setState(SIGNED_OUT);
       });
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, [signOut]);
 
@@ -118,13 +126,7 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
       }
     };
     window.addEventListener('storage', onStorage);
-    const subscription = guestSupabase()?.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') setState(SIGNED_OUT);
-    });
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      subscription?.data.subscription.unsubscribe();
-    };
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   // Idle: count use on this page into the shared time, and sign out after 8 hours with none on any tab.
