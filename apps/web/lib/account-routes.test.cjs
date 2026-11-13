@@ -65,6 +65,15 @@ test('next.config.js sends account paths across before the guest pages, and keep
   assert.match(config, /fallback:\s*accountDevFallback\(ACCOUNT_WEB_UPSTREAM, process\.env\.NODE_ENV\)/);
 });
 
+test('the consumer-app on this site calls /api/v1/... (its dev API proxy path); that goes to the API as it is, not /api/v1/v1', () => {
+  const config = fs.readFileSync(path.join(__dirname, '..', 'next.config.js'), 'utf8');
+  const v1 = config.indexOf("source: '/api/v1/:path*'");
+  const api = config.indexOf("source: '/api/:path*'");
+  assert.ok(v1 > -1, 'has an /api/v1 rule');
+  assert.ok(v1 < api, 'the /api/v1 rule comes first (Next uses the first match)');
+  assert.match(config, /source: '\/api\/v1\/:path\*',\s*destination: `\$\{API_URL\}\/api\/v1\/:path\*`/);
+});
+
 test('the language middleware leaves account paths alone and still handles guest pages', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'middleware.ts'), 'utf8');
   const matcher = source.match(/matcher:\s*\[\s*'([^']+)'/)[1].replace(/\\\\/g, '\\');

@@ -37,6 +37,12 @@ const nextConfig = {
       // Before the guest pages, so /login never reaches the [locale] route.
       beforeFiles: accountRewrites(ACCOUNT_WEB_UPSTREAM),
       afterFiles: [
+        // The consumer-app on this site (account pages) calls "/api/v1/..." in local dev (its dev API proxy path,
+        // lib/web-api-proxy.ts). Send it to the API as it is; the rule below would make it /api/v1/v1/...
+        {
+          source: '/api/v1/:path*',
+          destination: `${API_URL}/api/v1/:path*`,
+        },
         // ⚡ Unified Backend API (/api/* -> localhost:4000/api/v1/*)
         {
           source: '/api/:path*',
