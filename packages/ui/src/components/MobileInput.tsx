@@ -10,12 +10,16 @@ import {
   Platform,
 } from 'react-native';
 import { tokens } from '../theme/tokens';
+import { useMobileThemeOptional } from '../theme/ThemeContext';
 import { MobileIcon } from '../icons/MobileIcon';
 import type { AppIconName } from '../icons/types';
 
 // Keep Safari's read-only text color override on the web only.
 const readOnlyWebStyle: TextStyle & Pick<React.CSSProperties, 'WebkitTextFillColor'> = {
   WebkitTextFillColor: tokens.colors.primary,
+};
+const readOnlyWebStyleDark: TextStyle & Pick<React.CSSProperties, 'WebkitTextFillColor'> = {
+  WebkitTextFillColor: tokens.colors.fieldOnDark.text,
 };
 
 export interface MobileInputProps extends TextInputProps {
@@ -49,6 +53,14 @@ export const MobileInput = React.forwardRef<TextInput, MobileInputProps>(
   ) => {
     const hasChrome = !!leadingIcon || !!trailingText;
     const alignVertical = multiline ? 'top' : 'center';
+    // v1.2 B+C (13 Nov 2026): dark field colours when a dark theme is mounted; light stays as before.
+    const theme = useMobileThemeOptional();
+    const dark = theme?.isDark ? tokens.colors.fieldOnDark : null;
+    const errorColor = dark ? dark.error : tokens.colors.error;
+    const fieldDark = dark ? { backgroundColor: dark.fill, borderColor: dark.line } : null;
+    const readOnlyDark = dark && !editable ? { backgroundColor: dark.readOnly } : null;
+    const textDark = dark ? { color: dark.text } : null;
+    const mutedColor = dark ? tokens.colors.textOnDark.muted : tokens.colors.textSecondary;
 
     return (
       <View
@@ -57,9 +69,9 @@ export const MobileInput = React.forwardRef<TextInput, MobileInputProps>(
         style={[{ width: '100%', gap: 6 }, containerStyle]}
       >
         {label && (
-          <Text style={styles.label}>
+          <Text style={[styles.label, dark ? { color: dark.text } : null]}>
             {label}
-            {required ? <Text style={styles.requiredMark}> *</Text> : null}
+            {required ? <Text style={[styles.requiredMark, { color: errorColor }]}> *</Text> : null}
           </Text>
         )}
         {hasChrome ? (
@@ -67,15 +79,17 @@ export const MobileInput = React.forwardRef<TextInput, MobileInputProps>(
             style={[
               styles.inputShell,
               multiline ? styles.inputShellMultiline : null,
+              fieldDark,
               !editable ? styles.inputReadOnly : null,
-              error ? { borderColor: tokens.colors.error } : null,
+              readOnlyDark,
+              error ? { borderColor: errorColor } : null,
             ]}
           >
             {leadingIcon ? (
               <MobileIcon
                 name={leadingIcon}
                 size={18}
-                color={tokens.colors.textSecondary}
+                color={mutedColor}
               />
             ) : null}
             <TextInput
@@ -87,14 +101,15 @@ export const MobileInput = React.forwardRef<TextInput, MobileInputProps>(
               style={[
                 styles.inputInner,
                 multiline ? styles.inputInnerMultiline : styles.inputInnerSingle,
-                !editable && Platform.OS === 'web' ? readOnlyWebStyle : null,
+                textDark,
+                !editable && Platform.OS === 'web' ? (dark ? readOnlyWebStyleDark : readOnlyWebStyle) : null,
                 style,
               ]}
-              placeholderTextColor={tokens.colors.placeholder}
+              placeholderTextColor={dark ? dark.placeholder : tokens.colors.placeholder}
               {...props}
             />
             {trailingText ? (
-              <Text style={styles.trailingText}>{trailingText}</Text>
+              <Text style={[styles.trailingText, { color: mutedColor }]}>{trailingText}</Text>
             ) : null}
           </View>
         ) : (
@@ -107,19 +122,24 @@ export const MobileInput = React.forwardRef<TextInput, MobileInputProps>(
             style={[
               styles.inputBase,
               multiline ? styles.inputMultiline : styles.inputSingle,
+              fieldDark,
+              textDark,
               !editable ? styles.inputReadOnly : null,
-              !editable && Platform.OS === 'web' ? readOnlyWebStyle : null,
-              error ? { borderColor: tokens.colors.error } : null,
+              readOnlyDark,
+              // inputReadOnly sets ink text for light mode; keep white text in dark mode
+              !editable ? textDark : null,
+              !editable && Platform.OS === 'web' ? (dark ? readOnlyWebStyleDark : readOnlyWebStyle) : null,
+              error ? { borderColor: errorColor } : null,
               style,
             ]}
-            placeholderTextColor={tokens.colors.placeholder}
+            placeholderTextColor={dark ? dark.placeholder : tokens.colors.placeholder}
             {...props}
           />
         )}
         {error ? (
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={[styles.errorText, { color: errorColor }]}>{error}</Text>
         ) : helperText ? (
-          <Text style={styles.helperText}>{helperText}</Text>
+          <Text style={[styles.helperText, { color: mutedColor }]}>{helperText}</Text>
         ) : null}
       </View>
     );

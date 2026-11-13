@@ -89,6 +89,9 @@ function readThemePref(): WebThemePref {
   }
 }
 
+/** Layout effect in the browser (runs before paint); plain effect where there is no window. */
+const useBeforePaint = typeof window === "undefined" ? useEffect : React.useLayoutEffect;
+
 export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t, locale, setLocale } = useLocale();
   const { theme, isDark, setThemeMode } = useMobileTheme();
@@ -199,7 +202,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     else if (dialog?.open) dialog.close();
   }, [props.enabled, props.notificationsOpen]);
 
-  useEffect(() => {
+  // D3 (13 Nov 2026): apply the saved theme before the browser paints, so a dark reload shows no light frame.
+  useBeforePaint(() => {
     if (!props.enabled) return;
     if (themePref !== "system") {
       setThemeMode(themePref);
@@ -332,9 +336,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     (item) => item.tab === props.activeTab,
   );
   // v1.2 (12 Nov 2026, design B): the selected item is ink (lifted grey in dark mode) with a yellow icon;
-  // other icons are slate 700 / slate 300 so they no longer look faded.
+  // other icons are slate 700 / the dark body step #E2E8F0 (v1.2 B+C) so they no longer look faded.
   const itemColor = (active: boolean) =>
-    active ? "#F8B615" : isDark ? "#CBD5E1" : "#334155";
+    active ? "#F8B615" : isDark ? "#E2E8F0" : "#334155";
   const customItem = (item: WorkspaceNavItem) => (
     <button
       key={item.id}

@@ -41,7 +41,9 @@ export function LeadSelectField<T extends string | number>({
   hideLabel?: boolean;
 }) {
   const { t } = useLocale();
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
+  // v1.2 B+C (13 Nov 2026): the select field matches MobileInput in dark mode.
+  const field = isDark ? tokens.colors.fieldOnDark : null;
   const [open, setOpen] = useState(false);
   const selected = options.find((option) => option.value === value);
 
@@ -61,6 +63,7 @@ export function LeadSelectField<T extends string | number>({
         styles.optionRow,
         { borderColor: theme.border, opacity: pressed && Platform.OS === 'ios' ? 0.85 : 1 },
         on && styles.optionRowOn,
+        on && isDark ? DARK_OPTION_ON : null,
       ]}
     >
       <Text style={[styles.optionText, { color: theme.textHeading }]}>{text}</Text>
@@ -83,22 +86,29 @@ export function LeadSelectField<T extends string | number>({
         {...(Platform.OS === 'android' ? { android_ripple: { color: 'rgba(0,0,0,0.06)' } } : {})}
         style={({ pressed }) => [
           styles.shell,
-          { borderColor: error ? tokens.colors.error : tokens.colors.border },
-          disabled && styles.shellDisabled,
+          {
+            backgroundColor: field ? field.fill : tokens.colors.white,
+            borderColor: error ? (field ? field.error : tokens.colors.error) : field ? field.line : tokens.colors.border,
+          },
+          disabled && (field ? { backgroundColor: field.readOnly } : styles.shellDisabled),
           pressed && Platform.OS === 'ios' ? { opacity: 0.85 } : null,
         ]}
       >
-        {icon ? <MobileIcon name={icon} size={18} color={tokens.colors.textSecondary} /> : null}
+        {icon ? <MobileIcon name={icon} size={18} color={field ? field.placeholder : tokens.colors.textSecondary} /> : null}
         <Text
           style={[
             styles.value,
-            { color: selected ? tokens.colors.primary : tokens.colors.placeholder },
+            {
+              color: selected
+                ? field ? field.text : tokens.colors.primary
+                : field ? field.placeholder : tokens.colors.placeholder,
+            },
           ]}
           numberOfLines={1}
         >
           {selected ? selected.shortLabel ?? selected.label : placeholder}
         </Text>
-        <MobileIcon name="chevron-down" size={16} color={tokens.colors.textSecondary} />
+        <MobileIcon name="chevron-down" size={16} color={field ? field.placeholder : tokens.colors.textSecondary} />
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -125,6 +135,9 @@ export function LeadSelectField<T extends string | number>({
   );
 }
 
+// Selected option in dark mode: yellow tint, as the dark filter chips (v1.2 B+C).
+const DARK_OPTION_ON = { backgroundColor: 'rgba(248,182,21,0.16)' } as const;
+
 const styles = StyleSheet.create({
   group: { gap: 6, minWidth: 0 },
   label: {
@@ -138,7 +151,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,

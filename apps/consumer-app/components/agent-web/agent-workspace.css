@@ -820,7 +820,7 @@
   background: #ffffff0f;
 }
 .aw-shell[data-theme="dark"] .aw-nav-item.is-active:hover {
-  background: #575151;
+  background: var(--aw-lift-hover);
 }
 .aw-shell[data-theme="dark"] .aw-nav-item.is-active {
   /* v1.2 B-dark 2: lifted grey + yellow bar on the left. */
@@ -1242,7 +1242,7 @@
   border-color: var(--aw-lift);
 }
 .aw-shell[data-theme="dark"] .aw-switcher:hover {
-  background: #575151;
+  background: var(--aw-lift-hover);
 }
 .aw-shell[data-theme="dark"] .aw-switch-tile {
   background: #f8b61529;

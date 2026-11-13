@@ -59,7 +59,7 @@ test('web shell: selected item ink / lifted grey with a yellow icon, warm hover,
   assert.match(css, /\.aw-nav-item:hover:not\(:disabled\):not\(\.is-active\) \{[^}]*background: #f1f5f9;/);
   assert.match(css, /\.aw-nav-item\.is-active:hover \{[^}]*background: #3f3a3a;/);
   assert.match(css, /\[data-theme="dark"\] \.aw-nav-item:hover:not\(:disabled\):not\(\.is-active\) \{/);
-  assert.match(css, /\[data-theme="dark"\] \.aw-nav-item\.is-active:hover \{[^}]*background: #575151;/);
+  assert.match(css, /\[data-theme="dark"\] \.aw-nav-item\.is-active:hover \{[^}]*background: var\(--aw-lift-hover\);/);
   assert.doesNotMatch(css, /\.aw-nav-item:hover:not\(:disabled\) \{/);
   assert.match(css, /\.aw-nav-subitem:hover:not\(:disabled\):not\(\.is-active\) \{[^}]*background: #f1f5f9;/);
   assert.match(css, /\.aw-nav-subitem\.is-active \{[^}]*background: #f1f5f9;[^}]*box-shadow: inset 2px 0 0 var\(--aw-brand\);/);
@@ -70,12 +70,12 @@ test('web shell: selected item ink / lifted grey with a yellow icon, warm hover,
   assert.match(css, /\[data-theme="dark"\] \.aw-switcher \{[^}]*background: var\(--aw-lift\);/);
   assert.match(css, /\.aw-avatar \{[^}]*background: var\(--aw-black\);[^}]*color: var\(--aw-brand\);/);
   const shell = read(path.join(web, 'AgentWorkspace.web.tsx'));
-  assert.match(shell, /active \? "#F8B615" : isDark \? "#CBD5E1" : "#334155"/);
+  assert.match(shell, /active \? "#F8B615" : isDark \? "#E2E8F0" : "#334155"/);
   // The group chevron on a selected (ink) parent must stay visible.
   assert.match(shell, /name="chevron-right" size=\{14\} color=\{parent === tab \? "#CBD5E1" : theme\.textSecondary\}/);
   const overview = read(path.join(web, 'AgentOverview.web.tsx'));
   assert.match(overview, /<span className="aov-kpi-icon" aria-hidden="true">\s*<MobileIcon name=\{item\.icon\} size=\{18\} color="#F8B615" \/>/);
-  assert.match(read(path.join(web, 'agent-overview.css')), /\.aov-kpi-icon \{[^}]*background: #211e1e;[\s\S]*\[data-theme="dark"\] \.aov-kpi-icon \{\s*background: #4a4545;/);
+  assert.match(read(path.join(web, 'agent-overview.css')), /\.aov-kpi-icon \{[^}]*background: #211e1e;[\s\S]*\[data-theme="dark"\] \.aov-kpi-icon \{\s*background: #f8b61533;/);
 });
 
 test('app: own avatar ink with yellow initials, lifted grey in dark; tab bar and drawer role box follow the same design', () => {

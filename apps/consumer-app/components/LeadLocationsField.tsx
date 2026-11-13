@@ -48,7 +48,9 @@ export function LeadLocationsField({
 }) {
   const { t } = useLocale();
   const c = t.agent.leads;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
+  // v1.2 B+C (13 Nov 2026): pin rows and radius chips on the field fill in dark mode.
+  const fieldFill = { backgroundColor: isDark ? tokens.colors.fieldOnDark.fill : tokens.colors.white };
   /** Index being edited; `pins.length` means a new pin. */
   const [editing, setEditing] = useState<number | null>(null);
   const full = pins.length >= LEAD_MAX_PINS;
@@ -90,7 +92,7 @@ export function LeadLocationsField({
       ) : null}
 
       {pins.map((pin, index) => (
-        <View key={`${pin.placeId ?? coordKey(pin)}`} style={[styles.pinRow, { borderColor: theme.border }]}>
+        <View key={`${pin.placeId ?? coordKey(pin)}`} style={[styles.pinRow, fieldFill, { borderColor: theme.border }]}>
           <View style={[styles.rank, index === 0 ? styles.rankTop : { backgroundColor: tokens.colors.brand[50] }]}>
             <Text style={styles.rankText}>{index + 1}</Text>
           </View>
@@ -162,7 +164,12 @@ export function LeadLocationsField({
                   accessibilityRole="radio"
                   accessibilityState={{ checked: on, disabled }}
                   onPress={() => onRadiusChange(km)}
-                  style={[styles.chip, { borderColor: on ? tokens.colors.brand[500] : theme.border }, on && styles.chipOn]}
+                  style={[
+                    styles.chip,
+                    fieldFill,
+                    { borderColor: on ? tokens.colors.brand[500] : theme.border },
+                    on && (isDark ? DARK_CHIP_ON : styles.chipOn),
+                  ]}
                 >
                   <Text style={[styles.chipText, { color: theme.textHeading }]}>
                     {c.mapWithin.replace('{km}', String(km))}
@@ -384,6 +391,9 @@ function LeadPinSheet({
   );
 }
 
+// Selected radius chip in dark mode: yellow tint (v1.2 B+C).
+const DARK_CHIP_ON = { backgroundColor: 'rgba(248,182,21,0.16)' } as const;
+
 const styles = StyleSheet.create({
   wrap: { gap: 10 },
   flex: { flex: 1, minWidth: 0 },
@@ -416,7 +426,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingLeft: 10,
     paddingRight: 6,
-    backgroundColor: '#FFFFFF',
   },
   rank: {
     width: 28,
@@ -451,7 +460,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
   },
   chipOn: { backgroundColor: tokens.colors.brand[50] },
   chipText: {

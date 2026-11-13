@@ -106,6 +106,17 @@ export const tokens = {
       muted: '#A8B4C6',
     },
 
+    // 🌙 Text fields in dark mode (v1.2 B+C, 13 Nov 2026): card fill, lifted-hover edge, page fill when read-only,
+    // white text, muted placeholder, light red error. Used by MobileInput and the lead form fields.
+    fieldOnDark: {
+      fill: '#2F2B2B',
+      line: '#575151',
+      readOnly: '#211E1E',
+      text: '#FFFFFF',
+      placeholder: '#A8B4C6',
+      error: '#FCA5A5',
+    },
+
     // 👤 Initials avatar of other people (leads, tenants): one neutral tone for everyone, never the status,
     // role or brand colour (Mos, 12 Nov 2026, design B4). Yellow stays for the signed-in user's own avatar.
     avatar: {

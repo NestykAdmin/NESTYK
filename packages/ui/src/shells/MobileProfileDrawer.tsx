@@ -156,6 +156,8 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   // v1.2 (design B): the current-role box is the solid role colour (ink for agent) with a yellow / white icon,
   // lifted grey with the light role step in dark mode.
   const roleBoxFill = isDark ? tokens.colors.lift : roleColor;
+  // D1 (v1.2 B+C): the agent hero is ink, which vanishes on the ink page in dark mode, so it lifts to grey there.
+  const heroFill = isDark && activeRole === 'agent' ? tokens.colors.lift : roleColor;
   const roleBoxIcon = isDark
     ? roleOnDark(roleColor, true)
     : activeRole === 'guest'
@@ -437,7 +439,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                   showsVerticalScrollIndicator={false}
                   scrollEnabled={settingsView === 'main'}
                 >
-            <View style={[styles.heroCard, { backgroundColor: roleColor }]}>
+            <View style={[styles.heroCard, { backgroundColor: heroFill }]}>
               <TouchableOpacity
                 style={[styles.headerActionBtn, { backgroundColor: headerBtnBg }]}
                 onPress={onClose}

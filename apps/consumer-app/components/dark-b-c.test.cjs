@@ -98,3 +98,98 @@ test('colors.json (package + doc copy) carries lift, liftHover and textOnDark wi
     }
   }
 });
+
+// ---- Commit 2 (13 Nov 2026): web shell, overview, drawer hero (D1) and the create-lead form (D2) in dark mode ----
+
+test('web shell: lifted hover uses --aw-lift-hover, sidebar icons are the body step #E2E8F0 in dark mode', () => {
+  const css = read(path.join(web, 'agent-workspace.css'));
+  assert.match(css, /\[data-theme="dark"\] \.aw-nav-item\.is-active:hover \{[^}]*background: var\(--aw-lift-hover\);/);
+  assert.match(css, /\[data-theme="dark"\] \.aw-switcher:hover \{[^}]*background: var\(--aw-lift-hover\);/);
+  assert.doesNotMatch(css, /#575151/);
+  const shell = read(path.join(web, 'AgentWorkspace.web.tsx'));
+  assert.match(shell, /isDark \? "#E2E8F0" : "#334155"/);
+  assert.ok(contrast('#E2E8F0', '#2F2B2B') >= 4.5);
+});
+
+test('overview: KPI chip is a yellow tint with a yellow icon; tone chips in dark mode use the pill fills and text', () => {
+  const css = read(path.join(web, 'agent-overview.css'));
+  assert.match(css, /\[data-theme="dark"\] \.aov-kpi-icon \{\s*background: #f8b61533;/);
+  // the yellow icon still reads as an icon (>= 3:1) on the tinted chip over a card
+  assert.ok(contrast('#F8B615', 'rgba(248,182,21,0.2)', CARD) >= 3);
+  const D = pill.STATUS_PILL_DARK_TONES;
+  const rule = (sel) => css.match(new RegExp(`${sel} \\{([^}]*)\\}`))[1];
+  const tones = [
+    ['\\.aov-tone-success', D.green],
+    ['\\.aov-tone-warning', D.rose],
+    ['\\.aov-overdue \\.aov-row-count', D.red],
+    ['\\.aov-tone-info', D.blue],
+    ['\\.aov-work-total', D.rose],
+  ];
+  for (const [sel, tone] of tones) {
+    const body = rule(`\\[data-theme="dark"\\] ${sel}`);
+    assert.match(body, new RegExp(`color: ${tone.fg.toLowerCase()};`, 'i'), sel);
+    assert.match(body, new RegExp(`background: ${tone.bg.replace(/[()]/g, '\\$&').replace(/\./g, '\\.')};`), sel);
+  }
+});
+
+test('D1: the agent hero in the drawer is lifted grey in dark mode (ink on the ink page vanished)', () => {
+  const code = read(path.join(ui, 'shells/MobileProfileDrawer.tsx'));
+  assert.match(code, /const heroFill = isDark && activeRole === 'agent' \? tokens\.colors\.lift : roleColor;/);
+  assert.match(code, /styles\.heroCard, \{ backgroundColor: heroFill \}/);
+});
+
+test('D2: create-lead form tabs, care box and matching banner follow the theme in dark mode', () => {
+  const code = read(path.join(__dirname, 'CreateLeadForm.tsx'));
+  assert.match(code, /styles\.tabs, \{ borderColor: theme\.border, backgroundColor: isDark \? theme\.background : '#F1F5F9' \}/);
+  assert.match(code, /styles\.careBox, \{ borderColor: theme\.border, backgroundColor: isDark \? DARK_WELL : '#F8FAFC' \}/);
+  assert.match(code, /const DARK_WELL = '#3F3A3A';/);
+  assert.doesNotMatch(code, /bannerIconReady: \{ backgroundColor: '#FFFFFF' \}/);
+  // banner text on the 30% tints over a card: heading white, body #E2E8F0 (the muted step is too faint there)
+  for (const fill of ['rgba(248,182,21,0.3)', 'rgba(34,197,94,0.3)']) {
+    assert.match(code, new RegExp(fill.replace(/[().]/g, '\\$&')));
+    for (const fg of ['#FFFFFF', '#E2E8F0']) assert.ok(contrast(fg, fill, CARD) >= 4.5, `${fg} on ${fill}`);
+  }
+  assert.match(code, /styles\.bannerBody, \{ color: isDark \? tokens\.colors\.textOnDark\.secondary : theme\.textSecondary \}/);
+});
+
+test('D3 (web): the saved theme is applied before the first paint of the shell, so a dark reload has no light frame', () => {
+  const shell = read(path.join(web, 'AgentWorkspace.web.tsx'));
+  // a layout effect runs before the browser paints; the plain effect ran after it (one light frame on reload)
+  assert.match(shell, /const useBeforePaint = typeof window === "undefined" \? useEffect : React\.useLayoutEffect;/);
+  assert.match(shell, /useBeforePaint\(\(\) => \{\s*if \(!props\.enabled\) return;\s*if \(themePref !== "system"\) \{\s*setThemeMode\(themePref\);/);
+});
+
+// ---- Commit 3 (13 Nov 2026): text fields follow the theme (they stayed white in dark mode) ----
+
+test('tokens: one set of dark field colours, readable on cards', () => {
+  const f = tokens.colors.fieldOnDark;
+  assert.deepEqual({ ...f }, {
+    fill: '#2F2B2B', line: '#575151', readOnly: '#211E1E', text: '#FFFFFF', placeholder: '#A8B4C6', error: '#FCA5A5',
+  });
+  for (const fg of [f.text, f.placeholder, f.error]) {
+    assert.ok(contrast(fg, f.fill) >= 4.5, `${fg} on fill`);
+    assert.ok(contrast(fg, f.readOnly) >= 4.5, `${fg} on read-only`);
+  }
+  // the field edge must show on a card (>= 3:1 is not required for a decorative border, but it must differ)
+  assert.notEqual(f.line, CARD);
+});
+
+test('MobileInput follows the theme: dark fill, edge, text, placeholder, label and error in dark mode', () => {
+  const code = read(path.join(ui, 'components/MobileInput.tsx'));
+  assert.match(code, /useMobileThemeOptional\(\)/);
+  assert.match(code, /const dark = theme\?\.isDark \? tokens\.colors\.fieldOnDark : null;/);
+  for (const k of ['fill', 'line', 'text', 'placeholder', 'error', 'readOnly']) {
+    assert.match(code, new RegExp(`dark\\.${k}\\b`), k);
+  }
+  assert.match(code, /placeholderTextColor=\{dark \? dark\.placeholder : tokens\.colors\.placeholder\}/);
+});
+
+test('lead form fields (select, pins, radius chips) follow the theme in dark mode', () => {
+  const select = read(path.join(__dirname, 'LeadSelectField.tsx'));
+  assert.match(select, /const \{ theme, isDark \} = useMobileTheme\(\);/);
+  assert.match(select, /tokens\.colors\.fieldOnDark/);
+  assert.doesNotMatch(select, /backgroundColor: '#FFFFFF'/);
+  const pins = read(path.join(__dirname, 'LeadLocationsField.tsx'));
+  assert.doesNotMatch(pins, /backgroundColor: '#FFFFFF'/);
+  assert.match(pins, /tokens\.colors\.fieldOnDark/);
+});
