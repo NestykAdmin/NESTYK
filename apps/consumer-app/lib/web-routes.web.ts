@@ -14,6 +14,7 @@ import {
   NO_ACCESS_PATH,
   roleHomePath,
   guestWebBase,
+  guestWebUrlFor,
   signInTarget,
 } from './app-routes';
 import {
@@ -128,6 +129,12 @@ export function holdShellMove(href: string): void {
   heldShellMove = href;
 }
 
+/** Load the guest web page. Already on that path (sign-out after router.replace('/')): no second history entry. */
+function leaveToGuestWeb(url: string): void {
+  if (window.location.pathname === new URL(url, window.location.href).pathname) window.location.replace(url);
+  else window.location.assign(url);
+}
+
 export function useAppRouteSync(
   routeHref: string | null,
   activeRole: UserRole,
@@ -143,6 +150,14 @@ export function useAppRouteSync(
   useEffect(() => {
     if (!target) return;
     if (target.href !== synced.current) {
+      // Guest web on this site: a URL that turns into a guest page from outside the shell (router.replace('/'),
+      // Back) loads the guest web too (review R2, AUTH-2), not this app's old guest shell.
+      const guestWeb = guestWebUrlFor(target.href, GUEST_WEB_BASE);
+      if (guestWeb) {
+        synced.current = target.href;
+        leaveToGuestWeb(guestWeb);
+        return;
+      }
       heldShellMove = null; // a new URL from outside: nothing left to hold
       trackUrl(stack.current, routeEntryKey(target.href));
       synced.current = target.href;
@@ -158,6 +173,14 @@ export function useAppRouteSync(
     if (heldShellMove === routeHref) {
       heldShellMove = null;
       synced.current = routeHref; // the shell is there now; the URL is the sign-out page's business
+      return;
+    }
+    // Guest web on this site (review R4): guest pages are the guest web's, so sign-out, the logo, switching to Guest
+    // and another tab signing out all load it instead of this app's old guest shell.
+    const guestWeb = guestWebUrlFor(routeHref, GUEST_WEB_BASE);
+    if (guestWeb) {
+      synced.current = routeHref;
+      leaveToGuestWeb(guestWeb);
       return;
     }
     const from = synced.current;

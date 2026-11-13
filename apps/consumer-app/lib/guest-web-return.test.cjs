@@ -11,7 +11,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, 'app-rout
 }).outputText;
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => { throw new Error('app-routes must stay dependency free'); }, mod, mod.exports);
-const { guestWebBase, guestWebPath, signInTarget, withNextParam, GUEST_WEB_PAGES, GUEST_WEB_TREES, GUEST_WEB_LOCALES } = mod.exports;
+const { guestWebBase, guestWebPath, signInTarget, withNextParam, guestWebUrlFor, GUEST_WEB_PAGES, GUEST_WEB_TREES, GUEST_WEB_LOCALES } = mod.exports;
 const read = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
 test('EXPO_PUBLIC_GUEST_WEB_URL: unset = off, "/" = this same site, an http(s) address = that site', () => {
@@ -93,4 +93,24 @@ test('login and sign-up use the shared helpers (web: page load to the guest web;
   const native = read('lib/web-routes.ts');
   assert.match(native, /export function goAfterSignIn\([^)]*\): void \{\s*router\.replace\('\/' as never\);/);
   assert.match(native, /export function goToGuestHome\([^)]*\): void \{\s*router\.replace\('\/' as never\);/);
+});
+
+test('review R4: with the guest web on, any move of this app to a guest page loads the guest web instead', () => {
+  assert.equal(guestWebUrlFor('/', ''), '/');
+  assert.equal(guestWebUrlFor('/search?q=asok', 'http://localhost:3000'), 'http://localhost:3000/search?q=asok');
+  assert.equal(guestWebUrlFor('/services', ''), '/', 'no such page there: its home');
+  for (const role of ['/agent', '/agent/leads', '/landlord', '/tenant/bills', '/login', '/privacy']) assert.equal(guestWebUrlFor(role, ''), null, role);
+  for (const href of ['/', '/search']) assert.equal(guestWebUrlFor(href, null), null, 'off without EXPO_PUBLIC_GUEST_WEB_URL');
+});
+
+test('the web route sync hands guest pages to the guest web (sign-out, logo, switch to Guest, another tab signing out)', () => {
+  const web = read('lib/web-routes.web.ts');
+  const sync = web.slice(web.indexOf('export function useAppRouteSync'));
+  assert.match(sync, /const guestWeb = guestWebUrlFor\(routeHref, GUEST_WEB_BASE\);/);
+  assert.ok(sync.indexOf('guestWebUrlFor(') < sync.indexOf('router.replace(routeHref'), 'before any in-app move');
+  // Review R2 (AUTH-2): a URL that changes to a guest page from outside the shell (router.replace('/'), Back) too.
+  const first = sync.slice(0, sync.indexOf('applyRoute(target.state)'));
+  assert.match(first, /guestWebUrlFor\(target\.href, GUEST_WEB_BASE\)/);
+  assert.match(sync, /leaveToGuestWeb\(/);
+  assert.match(web, /window\.location\.pathname === new URL\(url, window\.location\.href\)\.pathname[\s\S]*window\.location\.replace\(url\)/, 'no second history entry for the same page');
 });

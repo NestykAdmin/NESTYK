@@ -171,6 +171,17 @@ export function guestWebPath(next: unknown): string | null {
   return null;
 }
 
+/**
+ * Where a move of this app to a guest page goes when the guest web is on (`base` not null): that page on the guest
+ * web (its home when it has no such page). Null for role, sign-in and legal pages, or with the guest web off.
+ */
+export function guestWebUrlFor(appHref: string, base: string | null): string | null {
+  if (base === null) return null;
+  const parsed = parseAppPath(appHref.split(/[?#]/)[0]);
+  if (parsed.kind !== 'app' || parsed.role !== 'guest') return null;
+  return `${base}${guestWebPath(appHref) ?? '/'}`;
+}
+
 export type SignInTarget = { kind: 'app'; href: string } | { kind: 'guestWeb'; url: string };
 
 /**
@@ -182,9 +193,8 @@ export function signInTarget(next: unknown, base: string | null, appHref: string
   if (base === null) return { kind: 'app', href: appHref };
   const back = guestWebPath(next);
   if (back) return { kind: 'guestWeb', url: `${base}${back}` };
-  const parsed = parseAppPath(appHref.split(/[?#]/)[0]);
-  if (parsed.kind === 'app' && parsed.role === 'guest') return { kind: 'guestWeb', url: `${base}${guestWebPath(appHref) ?? '/'}` };
-  return { kind: 'app', href: appHref };
+  const guestWeb = guestWebUrlFor(appHref, base);
+  return guestWeb ? { kind: 'guestWeb', url: guestWeb } : { kind: 'app', href: appHref };
 }
 
 /** "/register?next=…" / "/login?next=…" when `next` is a safe in-app or guest web page, so switching keeps it. */
