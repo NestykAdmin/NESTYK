@@ -383,6 +383,20 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const broker = agreementType?.formKind === "broker_appointment";
   const lease = agreementType?.formKind === "lease";
   const renewal = agreementType?.formKind === "renewal";
+  // WEB-024 (Aof 13 Nov 2026): the agreement type's name in the reader's language; the API only has the Thai name.
+  const typeName = (renewalName: string = tc.common.kinds.renewal) =>
+    (locale !== "th" &&
+      (reservation
+        ? tc.common.kinds.reservation
+        : broker
+          ? tc.common.kinds.broker_appointment
+          : lease
+            ? tc.common.kinds.lease
+            : renewal
+              ? renewalName
+              : null)) ||
+    agreementType?.nameTh ||
+    tc.common.kinds.lease;
   const standardFields = new Set([
     "startDate",
     "endDate",
@@ -2033,19 +2047,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         <Text style={[s.heading, title]}>
           {fillTemplate(
             editingDraft ? sc.editDraftTitle : renewing ? sc.renewTitle : sc.createTitle,
-            {
-              type:
-                (locale !== "th" &&
-                  (reservation
-                    ? tc.common.kinds.reservation
-                    : broker
-                      ? tc.common.kinds.broker_appointment
-                      : lease
-                        ? tc.common.kinds.lease
-                        : null)) ||
-                agreementType?.nameTh ||
-                tc.common.kinds.lease,
-            },
+            // Renewing reads "Renew Lease agreement", not "Renew Renewal".
+            { type: typeName(renewing ? tc.common.kinds.lease : tc.common.kinds.renewal) },
           )}
         </Text>
         <Text style={[s.body, muted]}>
@@ -2493,14 +2496,14 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         >
           <View style={s.saveConfirm}>
             <Text style={[s.subtitle, title]}>
-              บันทึก{agreementType?.nameTh || "สัญญา"}นี้?
+              {fillTemplate(sc.saveConfirmTitle, { type: typeName() })}
             </Text>
             <Text style={[s.body, muted]}>
               {editingDraft
-                ? "หลังบันทึก การแก้ไขจะแทนที่ฉบับร่างเดิม และคู่สัญญาที่มีบัญชีจะเห็นข้อมูลล่าสุด"
+                ? sc.saveConfirmEditHint
                 : reservation
-                  ? "บันทึกเป็นฉบับร่างและสร้างใบแจ้งหนี้ค่าจอง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที"
-                  : "บันทึกเป็นฉบับร่าง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที"}
+                  ? sc.saveConfirmReservationHint
+                  : sc.saveDraftHint}
             </Text>
             <View style={s.saveConfirmActions}>
               <MobileButton
@@ -2509,7 +2512,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 disabled={busy}
                 onPress={() => setConfirmingSave(false)}
               >
-                ยกเลิก
+                {t.common.cancel}
               </MobileButton>
               <MobileButton
                 style={s.saveConfirmButton}
@@ -2519,7 +2522,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                   void save(true);
                 }}
               >
-                บันทึกฉบับร่าง
+                {sc.saveDraft}
               </MobileButton>
             </View>
           </View>
