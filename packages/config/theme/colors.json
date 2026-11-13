@@ -67,6 +67,13 @@
     "admin": "#cbd5e1",
     "services": "#94a3b8"
   },
+  "lift": "#4a4545",
+  "liftHover": "#575151",
+  "textOnDark": {
+    "primary": "#ffffff",
+    "secondary": "#e2e8f0",
+    "muted": "#a8b4c6"
+  },
   "avatar": {
     "light": {
       "bg": "#e2e8f0",

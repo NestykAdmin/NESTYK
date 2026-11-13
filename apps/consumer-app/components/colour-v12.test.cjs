@@ -112,7 +112,7 @@ test('status pills, dark: one set for every key, readable on the page and on car
   for (const [k, v] of Object.entries(D)) {
     for (const under of ['#211E1E', '#2F2B2B']) assert.ok(contrast(v.fg, v.bg, under) >= 4.5, `${k} on ${under}`);
   }
-  assert.equal(D.purple.bg, '#F5F5F4');
+  assert.equal(D.purple.bg, '#F1F5F9');
   assert.equal(D.purple.dot, '#F8B615');
 });
 

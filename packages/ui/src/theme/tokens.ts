@@ -92,9 +92,19 @@ export const tokens = {
       services: '#94a3b8',   // slate 400
     },
 
-    // 🌗 v1.2 (12 Nov 2026, B-dark 2): lifted grey for selected / leading elements in dark mode
+    // 🌗 v1.2 (12 Nov 2026, dark = B+C): lifted grey for selected / leading elements in dark mode
     // (selected menu item, workspace box, own avatar). Same value as the web's --aw-lift.
     lift: '#4A4545',
+    /** Dark mode hover on lifted elements (selected menu item, workspace box). Same value as the web's --aw-lift-hover. */
+    liftHover: '#575151',
+
+    // 🌙 Text on dark surfaces (v1.2 B+C, Mos 12 Nov 2026): primary / body / muted. Each reads >= 4.5:1 on the dark
+    // page (#211E1E) and on cards (#2F2B2B). Same values as the web's --aw-text-1 / --aw-text-2 / --aw-text-3.
+    textOnDark: {
+      primary: '#FFFFFF',
+      secondary: '#E2E8F0',
+      muted: '#A8B4C6',
+    },
 
     // 👤 Initials avatar of other people (leads, tenants): one neutral tone for everyone, never the status,
     // role or brand colour (Mos, 12 Nov 2026, design B4). Yellow stays for the signed-in user's own avatar.

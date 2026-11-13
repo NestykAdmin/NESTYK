@@ -29,17 +29,17 @@ export const STATUS_PILL_TONES = {
 export type MobileStatusPillToneKey = keyof typeof STATUS_PILL_TONES;
 
 /**
- * Dark mode (v1.2, B-dark 2): a translucent fill of the status colour with its light text step, readable on the
- * page (#211E1E) and on cards (#2F2B2B). "In progress" turns light (#F5F5F4) so the ink pill does not vanish.
+ * Dark mode (v1.2, B+C): a 30% translucent fill of the status colour (red 34%) with its light text step, readable on
+ * the page (#211E1E) and on cards (#2F2B2B). "In progress" turns light (CI slate 100 #F1F5F9) so the ink pill does not vanish.
  */
 export const STATUS_PILL_DARK_TONES = {
-  yellow: { bg: 'rgba(245,158,11,0.18)', fg: '#FCD34D', dot: '#F59E0B' },
-  blue: { bg: 'rgba(96,165,250,0.18)', fg: '#93C5FD', dot: '#60A5FA' },
-  purple: { bg: '#F5F5F4', fg: '#211E1E', dot: '#F8B615' },
-  green: { bg: 'rgba(34,197,94,0.16)', fg: '#4ADE80', dot: '#22C55E' },
-  rose: { bg: 'rgba(248,182,21,0.16)', fg: '#FCDE96', dot: '#F8B615' },
-  red: { bg: 'rgba(220,38,38,0.2)', fg: '#FCA5A5', dot: '#F87171' },
-  slate: { bg: 'rgba(148,163,184,0.16)', fg: '#CBD5E1', dot: '#94A3B8' },
+  yellow: { bg: 'rgba(245,158,11,0.3)', fg: '#FCD34D', dot: '#F59E0B' },
+  blue: { bg: 'rgba(96,165,250,0.3)', fg: '#93C5FD', dot: '#60A5FA' },
+  purple: { bg: '#F1F5F9', fg: '#211E1E', dot: '#F8B615' },
+  green: { bg: 'rgba(34,197,94,0.3)', fg: '#4ADE80', dot: '#22C55E' },
+  rose: { bg: 'rgba(248,182,21,0.3)', fg: '#FCDE96', dot: '#F8B615' },
+  red: { bg: 'rgba(220,38,38,0.34)', fg: '#FCA5A5', dot: '#F87171' },
+  slate: { bg: 'rgba(148,163,184,0.3)', fg: '#E2E8F0', dot: '#94A3B8' },
 } as const satisfies Record<MobileStatusPillToneKey, MobileStatusPillTone>;
 
 const TONE_KEY_BY_BG: Record<string, MobileStatusPillToneKey> = Object.fromEntries(

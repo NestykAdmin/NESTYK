@@ -35,6 +35,12 @@
   --aw-black: #211e1e;
   /* v1.2: lifted ink surface for selected / leading elements in dark mode (B-dark 2). */
   --aw-lift: #4a4545;
+  /* v1.2 B+C: hover on lifted elements in dark mode */
+  --aw-lift-hover: #575151;
+  /* v1.2 B+C: text on dark surfaces (primary / body / muted); same values as tokens.colors.textOnDark */
+  --aw-text-1: #ffffff;
+  --aw-text-2: #e2e8f0;
+  --aw-text-3: #a8b4c6;
   /* text on the yellow brand fill: dark in both themes (the fill does not change) */
   --aw-on-brand: #211e1e;
   --aw-danger: #991b1b;
