@@ -604,8 +604,11 @@ export class TenantBillingService {
     const rows = await this.agentBills(agentId).andWhere('b.tenant_id = :tenantId', { tenantId })
       .orderBy('b.due_date', 'DESC').addOrderBy('b.id', 'DESC').getMany();
     const credits = await reservationCredits(this.db, rows.map(row => row.lease_contract));
+    // QA 16 Nov 2026 (Q1): the issued late fee rides with its bill, as on GET /bills/agent; without it the agent
+    // could issue a second one (409) and had no way to view, return or receipt the first.
+    const fees = await this.lateFees(rows.map(row => row.id));
     const bills = rows.map(row => {
-      const view = this.serialize(row, today, credits);
+      const view = this.serialize(row, today, credits, fees.get(row.id) ?? null);
       return { id: row.id, period: row.period, documentNo: row.document_no, issueDate: row.issue_date,
         dueDate: row.due_date, amount: view.amount, reservationCredit: view.reservationCredit,
         lateDays: view.lateDays, lateFeePerDay: view.lateFeePerDay, lateFee: view.lateFee,

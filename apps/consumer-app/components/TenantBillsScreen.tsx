@@ -108,9 +108,11 @@ export function TenantBillsScreen({
       const updated = await (lateFee ? uploadMyLateFeeSlip(bill.id, file) : uploadMyBillSlip(bill.id, file));
       setRows((current) => current.map((row) => (row.id === updated.id ? updated : row)));
       setSlipPreviews((current) => ({ ...current, [updated.id]: { uri: file.uri, mimeType: file.mimeType } }));
-      setNotice(tenantCopy.slipReady);
+      // QA 16 Nov 2026 (Q3): a late fee slip is sent on upload; only the rent slip waits for a confirmation.
+      setNotice(lateFee ? tenantCopy.lateFeeSlipSent : tenantCopy.slipReady);
     } catch (e) {
-      setError(localizedError(e, copy.loadFailed, locale));
+      // QA 16 Nov 2026 (Q5): the fallback says what failed, not "Could not load bills".
+      setError(localizedError(e, tenantCopy.slipUploadFailed, locale));
     } finally {
       setUploadingId(null);
     }
@@ -122,7 +124,7 @@ export function TenantBillsScreen({
       const { url } = await (mode === "owner" ? openReceivedLateFee(bill.id, kind) : openMyLateFee(bill.id, kind));
       setPreview({ url, title: bill.lateFee?.documentNo ?? bill.documentNo });
     } catch (e) {
-      setError(localizedError(e, copy.loadFailed, locale));
+      setError(localizedError(e, t.agent.contracts.notice.openDocumentFailed, locale));
     }
   }
 
@@ -136,7 +138,7 @@ export function TenantBillsScreen({
       setRows((current) => current.map((row) => (row.id === updated.id ? updated : row)));
       setNotice(tenantCopy.slipUploaded);
     } catch (e) {
-      setError(localizedError(e, copy.loadFailed, locale));
+      setError(localizedError(e, tenantCopy.slipSendFailed, locale));
     } finally {
       setSubmittingId(null);
     }
@@ -148,7 +150,7 @@ export function TenantBillsScreen({
       const { url } = await (mode === "owner" ? openReceivedBillSlip : openMyBillSlip)(bill.id);
       setPreview({ url, title: `${copy.viewSlip} · ${bill.documentNo}` });
     } catch (e) {
-      setError(localizedError(e, copy.loadFailed, locale));
+      setError(localizedError(e, t.agent.contracts.notice.openDocumentFailed, locale));
     }
   }
 

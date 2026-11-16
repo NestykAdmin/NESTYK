@@ -14,3 +14,10 @@ export function billFormatters(locale: SupportedLocale) {
     amount: (amount: number) => `${new Intl.NumberFormat(tag, { maximumFractionDigits: 2 }).format(amount)} ฿`,
   };
 }
+
+/** QA Aof 16 Nov 2026 (Q8): YYYY-MM-DD that is also a real calendar day (not 2026-13-45 or 2026-02-30). */
+export function isCalendarDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const day = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value;
+}

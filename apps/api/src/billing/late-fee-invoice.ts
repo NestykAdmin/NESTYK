@@ -7,6 +7,12 @@ import { bangkokToday } from "./rent-schedule";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TAX_ID = /^\d{13}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** QA 16 Nov 2026 (Q8): YYYY-MM-DD that is also a real calendar day (not 2026-13-45 or 2026-02-30). */
+function isCalendarDay(value: string) {
+  if (!DATE.test(value)) return false;
+  const day = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value;
+}
 const MONEY = /^\d+(\.\d{1,2})?$/;
 
 /** D12: LF-<bill no> and REC-LF-<bill no>. A bill number is 14 characters, so both fit the 40-character columns. */
@@ -57,7 +63,7 @@ export function lateFeeInput(input: unknown, today: string) {
   if (!MONEY.test(raw) || Number(raw) <= 0 || Number(raw) > 9_999_999_999.99)
     throw new BadRequestException("กรุณากรอกยอดค่าปรับ");
   const dueDate = typeof body.dueDate === "string" && body.dueDate.trim() ? body.dueDate.trim() : today;
-  if (!DATE.test(dueDate)) throw new BadRequestException("วันครบกำหนดไม่ถูกต้อง");
+  if (!isCalendarDay(dueDate)) throw new BadRequestException("วันครบกำหนดไม่ถูกต้อง");
   return { amount: Number(raw), dueDate };
 }
 

@@ -190,3 +190,51 @@ test('Q4: a late fee slip return without the slip time is a bad request (400), a
     (e) => e.getStatus() === 409 && e.getResponse().code === 'SLIP_CHANGED');
   assert.doesNotThrow(() => sameLateFeeSlip({ submittedAt: at.toISOString() }, at));
 });
+
+test('QA 16 Nov 2026 (Q1): the bills of a tenant opened by the agent carry the late fee issued for each bill', async () => {
+  const issued = world(bill({ status: 'paid', paid_at: new Date('2026-12-08T02:00:00.000Z'), grace_until: '2026-12-05' }));
+  await issued.service.createLateFee(7, 5, { amount: 300, dueDate: '2999-12-31' });
+  const fee = issued.saved[0];
+  const chain = (rows) => {
+    const qb = new Proxy({}, { get: (_t, key) => key === 'getMany' ? async () => rows
+      : key === 'getOne' ? async () => rows[0] ?? null : key === 'then' ? undefined : () => qb });
+    return qb;
+  };
+  const asked = [];
+  const db = { getRepository: () => ({
+    findOneBy: async () => ({ id: 3 }),
+    find: async (options) => { asked.push(options?.where); return options?.where?.invoice_kind === 'late_fee' ? [fee] : []; },
+    createQueryBuilder: () => chain([]),
+  }) };
+  const s = new TenantBillingService(db);
+  s.activeLeases = () => chain([]);
+  s.agentBills = () => chain([bill({ status: 'paid', paid_at: new Date('2026-12-08T02:00:00.000Z'), grace_until: '2026-12-05' })]);
+  const billing = await s.listForAgentTenant(7, 3);
+  assert.equal(billing.bills.length, 1);
+  assert.ok(billing.bills[0].lateFee, 'the issued late fee is returned with its bill');
+  assert.equal(billing.bills[0].lateFee.amount, 300);
+  assert.equal(billing.bills[0].lateFee.documentNo, fee.document_no);
+  assert.equal(billing.bills[0].lateFee.receiptIssued, false);
+});
+
+test('QA 16 Nov 2026 (Q1): a bill with no late fee still has none in the agent tenant billing', async () => {
+  const chain = (rows) => {
+    const qb = new Proxy({}, { get: (_t, key) => key === 'getMany' ? async () => rows
+      : key === 'getOne' ? async () => rows[0] ?? null : key === 'then' ? undefined : () => qb });
+    return qb;
+  };
+  const db = { getRepository: () => ({ findOneBy: async () => ({ id: 3 }), find: async () => [], createQueryBuilder: () => chain([]) }) };
+  const s = new TenantBillingService(db);
+  s.activeLeases = () => chain([]);
+  s.agentBills = () => chain([bill()]);
+  const billing = await s.listForAgentTenant(7, 3);
+  assert.equal(billing.bills[0].lateFee, null);
+});
+
+test('QA 16 Nov 2026 (Q8): a late fee due date that is not a real calendar day is a bad request (400)', () => {
+  for (const dueDate of ['2026-13-45', '2026-02-30', '2026-04-31', '2026-00-10', '2026-12-00', '2025-02-29'])
+    assert.throws(() => lateFeeInput({ amount: '300', dueDate }, '2026-12-08'),
+      (error) => error.getStatus() === 400 && /วันครบกำหนดไม่ถูกต้อง/.test(error.message), dueDate);
+  for (const dueDate of ['2026-12-31', '2028-02-29', '2027-01-01'])
+    assert.equal(lateFeeInput({ amount: '300', dueDate }, '2026-12-08').dueDate, dueDate, dueDate);
+});

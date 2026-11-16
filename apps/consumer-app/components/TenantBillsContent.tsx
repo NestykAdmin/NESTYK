@@ -24,6 +24,7 @@ import { billFormatters } from "../lib/bill-format";
 import { openMyBillSlip } from "../lib/tenant-bills-api";
 import { tenantWorkspaceCopy } from "../lib/tenant-workspace-copy";
 import { isPdfDocumentUrl } from "./ContractDocumentPreview";
+import { canAttachSlip, tenantBillBadge } from "../lib/tenant-bill-slip";
 
 export type SlipPreview = { uri: string; mimeType: string };
 
@@ -296,24 +297,19 @@ export function TenantBillsContent({
       : copy.slipReturnedReason.replace("{reason}", reason);
   }
   function badge(bill: TenantBill) {
+    const state = tenantBillBadge(bill);
     return (
       <MobileStatusPill
         label={
-          bill.status === "paid"
+          state === "paid"
             ? copy.status.paid
-            : bill.status === "overdue"
-              ? copy.status.overdue
-              : bill.slipSubmitted
-                ? labels.reviewing
+            : state === "reviewing"
+              ? labels.reviewing
+              : state === "overdue"
+                ? copy.status.overdue
                 : copy.status.pending
         }
-        tone={
-          bill.status === "paid"
-            ? "green"
-            : bill.status === "overdue"
-              ? "red"
-              : "yellow"
-        }
+        tone={state === "paid" ? "green" : state === "overdue" ? "red" : "yellow"}
       />
     );
   }
@@ -495,7 +491,7 @@ export function TenantBillsContent({
                 s.amount,
                 {
                   color:
-                    bill.status === "overdue"
+                    tenantBillBadge(bill) === "overdue"
                       ? tokens.colors.danger
                       : theme.textHeading,
                 },
@@ -732,20 +728,21 @@ export function TenantBillsContent({
                 {copy.viewSlip}
               </MobileButton>
             ) : null}
-            {selected?.payment && selectedBill.hasPaymentSlip ? (
+            {selected?.payment && !selected.lateFee && selectedBill.hasPaymentSlip ? (
               <SlipThumb
                 billId={selectedBill.id}
                 preview={slipPreviews[selectedBill.id]}
                 label={copy.viewSlip}
               />
             ) : null}
-            {selectedBill.status !== "paid" && selectedBill.slipSubmitted ? (
+            {/* The rent slip's state does not belong in the late fee sheet (the late fee box above shows its own). */}
+            {selected?.lateFee ? null : selectedBill.status !== "paid" && selectedBill.slipSubmitted ? (
               <Text style={[s.caption, muted]}>{copy.slipUploaded}</Text>
             ) : selectedBill.status !== "paid" && selectedBill.hasPaymentSlip ? (
               <Text style={[s.caption, muted]}>{copy.slipReady}</Text>
             ) : null}
-            {selectedBill.status !== "paid" &&
-              !selectedBill.slipSubmitted &&
+            {/* QA Aof 16 Nov 2026 (Q2): a late fee slip follows the late fee, not the rent bill. */}
+            {canAttachSlip(selectedBill, selected?.lateFee === true) &&
               (selected?.payment ? (
                 <>
                   <MobileButton

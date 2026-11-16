@@ -13,7 +13,7 @@ import {
   type MobileStatusPillToneKey,
 } from "@nestyk/ui/native";
 import type { AgentTenantBill, AgentTenantBillStatus, AgentTenantBilling } from "@nestyk/types";
-import { billFormatters } from "../lib/bill-format";
+import { billFormatters, isCalendarDay } from "../lib/bill-format";
 import { billingTotals } from "../lib/tenant-detail";
 import { DemoNotice, DetailCard, ps } from "./TenantDetailParts";
 
@@ -108,7 +108,7 @@ export function TenantBillsBody({
       setFormError(d.lateFeeInvalidAmount);
       return;
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < bangkokToday()) {
+    if (!isCalendarDay(dueDate) || dueDate < bangkokToday()) {
       setFormError(d.lateFeeInvalidDate);
       return;
     }

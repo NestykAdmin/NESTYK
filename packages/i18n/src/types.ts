@@ -434,6 +434,9 @@ export interface TranslationSchema {
       fromFiles: string;
       slipUploaded: string;
       slipReady: string;
+      lateFeeSlipSent: string;
+      slipUploadFailed: string;
+      slipSendFailed: string;
       slipConfirmTitle: string;
       slipConfirmBody: string;
       slipReturned: string;
@@ -718,6 +721,7 @@ export interface TranslationSchema {
         lateFeeIssued: string;
         lateFeeInvalidAmount: string;
         lateFeeInvalidDate: string;
+        lateFeeCreateFailed: string;
         notRenewing: string;
         notRenewingUndo: string;
         earlyEnd: string;

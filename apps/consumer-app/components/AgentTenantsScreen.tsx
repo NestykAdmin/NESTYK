@@ -506,7 +506,8 @@ export function AgentTenantsScreen({
         const { url } = await openAgentRentSlip(bill.id);
         setSlipPreview({ url, title: bill.documentNo });
       } catch (e) {
-        setError(localizedError(e, c.list.slipsLoadError, locale));
+        // QA 16 Nov 2026 (Q5): opening one slip failed, not loading the slips to review.
+        setError(localizedError(e, t.agent.contracts.notice.openDocumentFailed, locale));
       }
     };
     return (
@@ -645,7 +646,8 @@ export function AgentTenantsScreen({
                 await createAgentLateFee(bill.id, input);
                 setBillingReload((current) => current + 1);
               } catch (e) {
-                throw new Error(localizedError(e, d.lateFeeInvalidAmount, locale));
+                // QA 16 Nov 2026 (Q5): any failure, not only a wrong amount (the form checks the amount first).
+                throw new Error(localizedError(e, d.lateFeeCreateFailed, locale));
               }
             }}
             onReturnLateFee={async (bill, reason) => {
@@ -661,7 +663,7 @@ export function AgentTenantsScreen({
               setError("");
               void openAgentLateFee(bill.id, kind).then(
                 ({ url }) => setSlipPreview({ url, title: bill.lateFee?.documentNo ?? bill.documentNo }),
-                (e) => setError(localizedError(e, c.list.slipsLoadError, locale)),
+                (e) => setError(localizedError(e, t.agent.contracts.notice.openDocumentFailed, locale)),
               );
             }}
             onIssueReceipt={(bill) => {
