@@ -32,6 +32,7 @@ import {
   uploadAgreementAttachment,
 } from "../lib/agent-contracts-api";
 import { attachmentReviewText, canReviewAttachment, rejectedAttachments } from "../lib/attachment-review";
+import { localeTag } from "../lib/lead-format";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 
@@ -412,7 +413,7 @@ export function AgreementAttachments({
             <Text style={[s.docMeta, muted]}>
               {subjects[doc.subject]} ·{" "}
               {typeName(doc.documentTypeCode, state.documentTypes)} ·{" "}
-              {new Date(doc.createdAt).toLocaleDateString("th-TH")}
+              {new Date(doc.createdAt).toLocaleDateString(localeTag(locale))}
             </Text>
             {renderReviewLine(doc)}
 

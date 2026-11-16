@@ -35,6 +35,7 @@ function harness(lists) {
     '@nestyk/ui/native': { MobileBottomSheet: 'aside', MobileButton: 'button', MobileInput: 'input', tokens: { colors: { brand: { 500: '#ff0' }, roles: { agent: '#ff0' } }, typography: { native: {} } }, useMobileTheme: () => ({ theme: {} }) },
     '../lib/agent-contracts-api': { listAgreementAttachments: async id => { asked.push(id); return lists.shift(); } },
     '../lib/attachment-review': review,
+    '../lib/lead-format': { localeTag: locale => ({ th: 'th-TH', en: 'en-GB' })[locale] ?? locale },
     '@nestyk/i18n': i18nMock({ agent: thai.th.agent, common: thai.th.common }),
     './ContractDocumentPreview': { ContractDocumentPreview: 'preview' },
   };
