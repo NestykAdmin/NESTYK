@@ -224,6 +224,31 @@ export const FLOW_TH: { [K in keyof typeof FLOW_EN]: (typeof FLOW_EN)[K] extends
   tenantNextBill: 'รอบบิลถัดไป', // tenant.bills.next :417
   rentFor: 'ค่าห้อง {month}', // tenant.bills.rentFor :399
   landlordHomeTitle: 'หน้าหลักผู้ให้เช่า', // mobile.roleHome.landlordTitle :47
+  // การลงนามสัญญาของนายหน้า เคส CSG-001 ถึง CSG-008 (contracts/th.ts และ th.ts ที่ qa/e2e 49df02b)
+  csFolderRental: 'การเช่า', // contracts.screen.library.rental contracts/th.ts:887
+  csFolderBrokerage: 'งานนายหน้า', // contracts.screen.library.brokerage contracts/th.ts:891
+  csKindLease: 'สัญญาเช่า', // contracts.common.kinds.lease contracts/th.ts:58
+  csSignatories: 'การลงนามของคู่สัญญา', // agent.contracts.signatories th.ts:1451
+  csRowLessor: 'ผู้ให้เช่า', // agent.contracts.owner th.ts:1452
+  csRowTenant: 'ผู้เช่า', // agent.contracts.tenant th.ts:1453
+  csRowAgent: 'นายหน้า', // agent.contracts.agent th.ts:1454
+  csRowLandlord: 'ผู้ให้เช่า', // contracts.common.parties.owner contracts/th.ts:52
+  csRowBroker: 'นายหน้า', // contracts.common.parties.agent contracts/th.ts:54
+  csRowWitness: 'พยาน', // agent.contracts.witness th.ts:1458
+  csUnsigned: 'ยังไม่ลงนาม', // agent.contracts.unsigned th.ts:1455
+  csSign: 'ลงนาม', // agent.contracts.signFor th.ts:1466
+  csShare: 'แชร์', // agent.contracts.shareSign th.ts:1467
+  csShareSent: 'ส่งแล้ว', // agent.contracts.shareSignSent th.ts:1470
+  csViewSignature: 'ดูลายเซ็น', // agent.contracts.viewSignature th.ts:1536
+  csViewSignatureTitle: 'ลายเซ็น{name}', // agent.contracts.viewSignatureTitle th.ts:1537
+  csCancel: 'ยกเลิก', // common.cancel th.ts:13
+  // agent.contracts.signedVia th.ts:1456
+  csSignedVia: {
+    app: 'ลงนามในแอป',
+    link: 'ลงนามผ่านลิงก์',
+    on_site: 'นายหน้ากดลงนามแทน',
+    uploaded_file: 'แนบไฟล์ที่ลงนามแล้ว',
+  },
 };
 
 export const PARTY_COPY_TH: Record<keyof typeof PARTY_COPY_EN, string> = {

@@ -270,6 +270,32 @@ export const FLOW_EN = {
   tenantNextBill: 'Next bill', // tenant.bills.next :417 (หัวการ์ดบิลถัดไปเมื่อมีบิล: TenantNextBillCard.tsx:64)
   rentFor: 'Rent {month}', // tenant.bills.rentFor :399 (owner.bills.rentFor :462 ค่าเดียวกัน) ชื่อของแต่ละบิล
   landlordHomeTitle: 'Landlord home', // mobile.roleHome.landlordTitle :47
+  // การลงนามสัญญาของนายหน้า (รายละเอียดเอกสารในหัวข้อ Contracts) เคส CSG-001 ถึง CSG-008
+  //   copy = t.contracts (packages/i18n/src/locales/contracts/en.ts) และ t.agent.contracts กับ t.common (locales/en.ts) ที่ qa/e2e 49df02b
+  csFolderRental: 'Rental', // contracts.screen.library.rental contracts/en.ts:886 (ชื่อหมวดเอกสาร: AgentContractLibrary.tsx:126-143)
+  csFolderBrokerage: 'Brokerage', // contracts.screen.library.brokerage contracts/en.ts:890
+  csKindLease: 'Lease agreement', // contracts.common.kinds.lease contracts/en.ts:60 (ชื่อชนิดบนการ์ดเอกสาร: AgentContractLibrary.tsx:35-41, 75) ชนิดอื่นใช้ ccTypeBroker กับ ccTypeReservation
+  csSignatories: 'Counterparty signatures', // agent.contracts.signatories en.ts:1451 (หัวข้อของการ์ดลงนาม: ContractsScreen.tsx:3046)
+  csRowLessor: 'Lessor', // agent.contracts.owner en.ts:1452 (ป้ายแถวผู้ให้เช่าของหนังสือจองและสัญญาเช่า: ContractsScreen.tsx:959-994)
+  csRowTenant: 'Tenant', // agent.contracts.tenant en.ts:1453
+  csRowAgent: 'Agent', // agent.contracts.agent en.ts:1454 (ป้ายแถวนายหน้าของหนังสือจอง)
+  csRowLandlord: 'Landlord', // contracts.common.parties.owner contracts/en.ts:54 (ป้ายแถวผู้ให้เช่าของสัญญาแต่งตั้ง)
+  csRowBroker: 'Broker', // contracts.common.parties.agent contracts/en.ts:56 (ป้ายแถวนายหน้าของสัญญาแต่งตั้ง)
+  csRowWitness: 'Witness', // agent.contracts.witness en.ts:1458 (แถวพยานของสัญญาเช่า: ContractsScreen.tsx:3122-3125)
+  csUnsigned: 'Not signed', // agent.contracts.unsigned en.ts:1455
+  csSign: 'Sign', // agent.contracts.signFor en.ts:1466 (ปุ่มลงนามของแถวที่ยังไม่ลงนาม: ContractsScreen.tsx:3111-3117)
+  csShare: 'Share', // agent.contracts.shareSign en.ts:1467 (ปุ่มส่งให้คู่สัญญา: ContractsScreen.tsx:3094-3110)
+  csShareSent: 'Sent', // agent.contracts.shareSignSent en.ts:1470 (ชื่อของปุ่มเดียวกันเมื่อส่งแล้ว)
+  csViewSignature: 'View signature', // agent.contracts.viewSignature en.ts:1536 (ปุ่มของแถวที่ลงนามแล้วและมีรูปลายเซ็น: ContractsScreen.tsx:3076-3090)
+  csViewSignatureTitle: '{name} signature', // agent.contracts.viewSignatureTitle en.ts:1537 (หัวข้อและชื่อของรูปในแผ่นดูลายเซ็น: ContractsScreen.tsx:3346-3361)
+  csCancel: 'Cancel', // common.cancel en.ts:13 (ปุ่มปิดแผ่นดูลายเซ็น: ContractsScreen.tsx:3364-3374)
+  // ข้อความช่องทางลงนามใต้แถวที่ลงนามแล้ว (agent.contracts.signedVia en.ts:1456 ; lib/signature-log.ts:13-23) คีย์ = ค่า channel ของ API
+  csSignedVia: {
+    app: 'Signed in the app',
+    link: 'Signed through a sign link',
+    on_site: 'Signed by the agent on their behalf',
+    uploaded_file: 'Signed file attached',
+  },
 } as const;
 
 export const FLOW: typeof FLOW_TH = UI_LOCALE === 'th' ? FLOW_TH : FLOW_EN;

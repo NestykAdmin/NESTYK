@@ -82,6 +82,34 @@ export function reservationStepLabel(step: ReservationStep): string {
   return STEP_LABELS[step - 1];
 }
 
+/** ชนิดเอกสารที่เคสการลงนาม (CSG) เปิดจากรายการ ค่าเท่ากับ formKind ของ API */
+export type SignedKind = 'broker_appointment' | 'reservation' | 'lease';
+
+/** ชื่อชนิดบนการ์ดเอกสาร (contracts.common.kinds: AgentContractLibrary.tsx:35-41) */
+const SIGNED_KIND_LABEL: Record<SignedKind, string> = {
+  broker_appointment: FLOW.ccTypeBroker,
+  reservation: FLOW.ccTypeReservation,
+  lease: FLOW.csKindLease,
+};
+
+/** แถวหนึ่งของการ์ดลงนามตามที่อ่านได้บนจอ (ดู AgentContractsPage.signRows) */
+export interface SignRow {
+  /** ป้ายของฝ่าย เช่น "Landlord" */
+  label: string;
+  /** "✓ {วันเวลา}" เมื่อลงนามแล้ว ไม่อย่างนั้นเป็นข้อความ "Not signed" */
+  status: string;
+  /** บรรทัดใต้สถานะ แทนด้วยข้อความช่องทางที่บรรทัดนั้นขึ้นต้น หรือ SIGN_ROW_OTHER */
+  extra: string[];
+  /** ชื่อของปุ่มในแถว */
+  buttons: string[];
+}
+
+/** ค่าที่ signRows ใช้แทนข้อความที่ไม่ใช่ป้ายฝ่าย สถานะ หรือข้อความช่องทาง (ไม่คืนข้อความจริง เพราะอาจมีชื่อคน) */
+export const SIGN_ROW_OTHER = '(บรรทัดอื่น)';
+
+/** เครื่องหมายหน้าวันเวลาของแถวที่ลงนามแล้ว (ContractsScreen.tsx:3061, 3128) */
+export const SIGNED_MARK = '✓ ';
+
 /**
  * ตัวช่วยอ่านและตั้งค่าของช่องกรอกแบบไม่ให้ค่าในช่องไปอยู่ในรายงาน: ทำงานผ่าน evaluateAll และคืนแค่สถานะ
  * (เหตุผล: ดู AgentContractsPage.field) ใช้ได้ทั้ง input และ textarea
@@ -410,5 +438,97 @@ export class AgentContractsPage {
   /** ปุ่ม "บันทึกฉบับร่าง" ของกล่อง (:2514-2523) ห้ามกด: ส่ง POST /agent/contracts */
   get confirmSave(): Locator {
     return this.confirm.getByRole('button', { name: CONTRACT_SAVE_CONFIRM.save, exact: true });
+  }
+
+  // ---- หมวดเอกสารและการ์ดเอกสาร (AgentContractLibrary.tsx) เคส CSG-001 ถึง CSG-008 ----
+  // กฎ SG1-SG33: เอกสารโปรเจกต์ claude/nestyk-topic-contracts-sign-web-ui.md, ...-part2.md, ...-part3.md โค้ดที่ qa/e2e 49df02b
+  // วิธีหาชิ้นส่วนในส่วนนี้เขียนจากการอ่านโค้ด ยังไม่ได้พิสูจน์กับหน้าเว็บจริงจนกว่าจะรันรอบแรก
+
+  /**
+   * แถวของหมวดเอกสารในหน้ารายการ (AgentContractLibrary.tsx:126-143) เป็นปุ่มที่มีชื่อ "{ชื่อหมวด}, {คำอธิบาย}, {จำนวนเอกสาร}"
+   * (apps/consumer-app/components/TenantDetailParts.tsx DetailMenuRow: accessibilityLabel = [title, summary, pill.label] ต่อด้วย ", ")
+   */
+  folder(folder: 'rental' | 'brokerage'): Locator {
+    const title = folder === 'rental' ? FLOW.csFolderRental : FLOW.csFolderBrokerage;
+    return this.root.getByRole('button', { name: new RegExp(`^${escapeRegExp(title)}, `) });
+  }
+
+  /** การ์ดเอกสารในหมวด เป็นปุ่มที่มีชื่อ "{ชื่อชนิด} {เลขที่เอกสาร}" (AgentContractLibrary.tsx:75-76) กดแล้วหน้าขอ GET /agent/contracts/:id (ContractsScreen.tsx:3683-3689) */
+  documentCard(kind: SignedKind, contractNo: string): Locator {
+    return this.root.getByRole('button', { name: `${SIGNED_KIND_LABEL[kind]} ${contractNo}`, exact: true });
+  }
+
+  // ---- การ์ดลงนามในรายละเอียดเอกสาร (ContractsScreen.tsx:3045-3157) ----
+
+  /** หัวข้อ "Counterparty signatures" (:3046) */
+  get signCardTitle(): Locator {
+    return this.root.getByText(FLOW.csSignatories, { exact: true });
+  }
+
+  /** การ์ดลงนาม = พ่อของหัวข้อ (:3045 View ที่มีหัวข้อ ข้อความแจ้ง และแถวของแต่ละฝ่ายเป็นลูกโดยตรง) */
+  private get signCard(): Locator {
+    return this.signCardTitle.locator('xpath=..');
+  }
+
+  /**
+   * แถวในการ์ดลงนาม เรียงตามที่แสดง (แถวของแต่ละฝ่าย :3055-3120 และแถวพยานของสัญญาเช่า :3122-3155)
+   * โครงของแถว: View แถว > View ข้อความ > [ป้ายฝ่าย, สถานะ, บรรทัดเพิ่ม...] และปุ่มของแถวอยู่ถัดจาก View ข้อความ
+   *   ลูกของการ์ดที่เป็นข้อความล้วน (หัวข้อ ข้อความแจ้ง) ไม่มีลูกที่เป็นชิ้นส่วน จึงไม่ถูกนับเป็นแถว
+   * คืนเฉพาะสิ่งที่ไม่ใช่ข้อมูลของคน: ป้ายฝ่าย, สถานะ ("✓ {วันเวลา}" หรือ "Not signed") และชื่อปุ่ม
+   *   ลูกของการ์ดที่มีโครงแบบแถวแต่บรรทัดที่ 2 ไม่ใช่สถานะ (เช่นข้อความแจ้งเอกสารแนบถูกตีกลับ :3052-3054) คืนป้ายกับสถานะเป็น SIGN_ROW_OTHER
+   *   บรรทัดเพิ่มใต้สถานะอาจเป็นบรรทัดช่องทางซึ่งลงท้ายด้วยชื่อผู้กดลงนาม (lib/signature-log.ts:22) จึงไม่คืนข้อความ
+   *   คืนเป็นข้อความช่องทางที่บรรทัดนั้นขึ้นต้น (ค่าใน FLOW.csSignedVia) หรือ SIGN_ROW_OTHER ถ้าไม่ขึ้นต้นด้วยช่องทางไหน
+   * คืน null ถ้าไม่พบการ์ด หรือพบมากกว่า 1 ใบ
+   */
+  signRows(): Promise<SignRow[] | null> {
+    return this.signCard.evaluateAll(
+      (cards, { channels, other, signedMark, unsigned }) => {
+        if (cards.length !== 1) return null;
+        const rows: { label: string; status: string; extra: string[]; buttons: string[] }[] = [];
+        for (const row of Array.from(cards[0].children)) {
+          const copy = row.firstElementChild;
+          if (!copy || copy.children.length < 2) continue;
+          const lines = Array.from(copy.children).map((line) => line.textContent ?? '');
+          // แถวของฝ่ายมีบรรทัดที่ 2 เป็น "✓ ..." หรือข้อความ "Not signed" เท่านั้น (:3059-3062, 3127-3130) ลูกแบบอื่นของการ์ดไม่คืนข้อความ
+          const partyRow = lines[1].startsWith(signedMark) || lines[1] === unsigned;
+          rows.push({
+            label: partyRow ? lines[0] : other,
+            status: partyRow ? lines[1] : other,
+            extra: lines.slice(2).map((text) => channels.find((channel) => text.startsWith(channel)) ?? other),
+            buttons: Array.from(row.querySelectorAll('button, [role="button"]')).map((button) => (button.textContent ?? '').trim()),
+          });
+        }
+        return rows;
+      },
+      { channels: Object.values(FLOW.csSignedVia) as string[], other: SIGN_ROW_OTHER, signedMark: SIGNED_MARK, unsigned: FLOW.csUnsigned },
+    );
+  }
+
+  /** ข้อความ "Not signed" ในการ์ดลงนาม (:3062, 3129) */
+  get signCardUnsigned(): Locator {
+    return this.signCard.getByText(FLOW.csUnsigned, { exact: true });
+  }
+
+  /** ปุ่มในการ์ดลงนามตามชื่อ: "Sign" (:3111-3117), "Share" หรือ "Sent" (:3094-3110), "View signature" (:3076-3090) */
+  signCardButton(name: string): Locator {
+    return this.signCard.getByRole('button', { name, exact: true });
+  }
+
+  // ---- แผ่นดูลายเซ็น (ContractsScreen.tsx:3340-3375 ใน MobileBottomSheet) ----
+  // แผ่นอยู่นอก tenant.detail และมีปุ่มพื้นหลังชื่อ "Close" แบบเดียวกับกล่องยืนยัน จึงหาผ่าน this.confirm (แผ่นที่เปิดอยู่มีได้ทีละแผ่น)
+
+  /** หัวข้อของแผ่น = "{ป้ายของแถว} signature" (:3346-3350) */
+  signatureSheetTitle(rowLabel: string): Locator {
+    return this.confirm.getByText(fill(FLOW.csViewSignatureTitle, { name: rowLabel }), { exact: true });
+  }
+
+  /** รูปลายเซ็นในแผ่น มีชื่อเดียวกับหัวข้อ (:3353-3361 expo-image ใส่ accessibilityLabel เป็น alt ของ img: node_modules/expo-image/src/web/ImageWrapper.tsx:71) */
+  signatureSheetImage(rowLabel: string): Locator {
+    return this.confirm.getByRole('img', { name: fill(FLOW.csViewSignatureTitle, { name: rowLabel }), exact: true });
+  }
+
+  /** ปุ่ม "Cancel" ของแผ่น (:3364-3374) กดแล้วปิดแผ่นอย่างเดียว */
+  get signatureSheetCancel(): Locator {
+    return this.confirm.getByRole('button', { name: FLOW.csCancel, exact: true });
   }
 }
