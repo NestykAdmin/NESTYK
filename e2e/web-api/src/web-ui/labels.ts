@@ -296,6 +296,52 @@ export const FLOW_EN = {
     on_site: 'Signed by the agent on their behalf',
     uploaded_file: 'Signed file attached',
   },
+  // บิลบนเว็บ เคส BIL-001 ถึง BIL-013 (กฎ BL1-BL27: เอกสารโปรเจกต์ claude/nestyk-topic-bills-web-ui.md) ที่ qa/e2e 5142425
+  //   นายหน้า หัวข้อ Bills กับ Payments ของผู้เช่า = t.agent.tenants.detail (packages/i18n/src/locales/en.ts)
+  blNoLease: 'Bills start once the lease is active', // billsNoLease en.ts:693 (TenantBillsBody.tsx:76-84)
+  // ป้ายสถานะของบิลฝั่งนายหน้า คีย์ = ค่า status ของ API (en.ts:750-753 ; TenantBillsBody.tsx:86-91)
+  blStatus: { pending: 'Unpaid', awaiting_review: 'Slip to review', overdue: 'Overdue', paid: 'Paid' },
+  // ปุ่มตัวกรองของหัวข้อ Bills ชื่อปุ่มบนจอคือ "<ป้าย> <จำนวน>" (en.ts:704-707 ; packages/ui/src/components/MobileFilterChip.tsx:59)
+  blFilter: { all: 'All', outstanding: 'Outstanding', awaiting: 'To review', paid: 'Paid' },
+  // ป้ายของช่องสรุป 3 ช่อง (en.ts:700-702 ; TenantBillsBody.tsx:141-160)
+  blSummary: { outstanding: 'Outstanding', awaiting: 'Slip to review', paid: 'Paid' },
+  blPeriods: '{count} periods', // periodsCount en.ts:703
+  blBillRent: '{month} rent', // billRent en.ts:710 (หัวของการ์ดบิล และชื่อแถวค่าเช่าในประวัติการรับเงิน)
+  blBillDue: 'Due {date}', // billDue en.ts:747
+  blReservationDeduction: 'Rent {rent} less reservation {credit}', // billReservationDeduction en.ts:711
+  blPaidAt: 'Confirmed {date}', // billPaidAt en.ts:749
+  blLateDays: '{days} days past the grace date', // lateFeeDays en.ts:714
+  blLateRate: 'Contract late fee {amount} per day', // lateFeeRate en.ts:715
+  blLateCreate: 'Issue a late fee invoice', // lateFeeCreate en.ts:712 (ห้ามกดแล้วส่งฟอร์ม: POST /bills/agent/:id/late-fee)
+  blEmptyFilter: 'No bills match this filter', // billsEmpty en.ts:756
+  blReceivedTotal: 'Total received', // receivedTotal en.ts:757
+  blAwaitingTotal: 'To review', // awaitingTotal en.ts:759
+  blReceivedCount: '{count} payments', // receivedCount en.ts:758
+  blHistory: 'Payment history', // history en.ts:774
+  blReservationFee: 'Reservation fee', // reservationFee en.ts:775
+  blHasSlip: 'Slip attached', // hasSlip en.ts:776
+  blReceiptIssued: 'Receipt issued', // receiptIssued en.ts:777
+  blConfirmPayment: 'Confirm payment', // confirmPayment en.ts:763 (ปุ่มของการ์ดสลิปรอตรวจ ห้ามกด) ; tenant.bills.confirmPayment en.ts:444 เป็นคำเดียวกันในภาษาอังกฤษ
+  //   ผู้เช่า /tenant/bills = t.tenant.bills (en.ts:403-453) และ apps/consumer-app/lib/tenant-workspace-copy.ts (TWC)
+  blCurrentBill: 'Current bill', // TWC:103 (TenantBillsContent.tsx:471-473)
+  blBillNo: 'Bill no.', // TWC:104
+  // ป้ายสถานะของบิลค้างชำระในหน้าผู้เช่า (tenant.bills.status en.ts:423 ; TenantBillsContent.tsx:298-309) ไม่รวมบิลที่ส่งสลิปแล้ว
+  blTenantStatus: { pending: 'Unpaid', overdue: 'Overdue' },
+  blIssued: 'Issued', // tenant.bills.issuedOn en.ts:426
+  blDueDate: 'Due date', // tenant.bills.dueDate en.ts:419 (owner.bills.dueDate en.ts:480 ค่าเดียวกัน)
+  blPayBy: 'Pay by', // tenant.bills.graceUntil en.ts:420
+  blPay: 'Report payment / attach slip', // TWC:108 (ห้ามกดแล้วเลือกไฟล์: POST /bills/mine/:id/payment-slip)
+  blTenantConfirm: 'Confirm payment', // tenant.bills.confirmPayment en.ts:444 (ห้ามกด)
+  blChipUnpaid: 'Unpaid', // TWC:107 (ปุ่มตัวกรองของหน้าผู้เช่า: TenantBillsContent.tsx:455-465)
+  blChipPaid: 'Paid', // TWC:101
+  blPaidRow: 'Paid', // tenant.bills.status.paid en.ts:423 ท้ายชื่อของแถวบิลที่ชำระแล้ว (TBC:611)
+  blNoPaid: 'No paid bills yet', // TWC:115
+  blNoUnpaid: 'No unpaid bills', // TWC:116
+  blNextRentBill: 'Next rent bill', // TWC:156 (การ์ดงวดถัดไปในหน้าบิลของผู้เช่า: TenantBillsContent.tsx:577-583)
+  //   เจ้าของ /landlord/income = t.owner.bills (en.ts:466-492 ; TenantBillsScreen.tsx:209-250)
+  blOwnerCurrent: 'Awaiting payment', // owner.bills.current en.ts:467
+  blOwnerStatus: { pending: 'Unpaid', overdue: 'Overdue' }, // owner.bills.status en.ts:483
+  blOwnerPayable: 'Payable until', // owner.bills.graceUntil en.ts:481
 } as const;
 
 export const FLOW: typeof FLOW_TH = UI_LOCALE === 'th' ? FLOW_TH : FLOW_EN;

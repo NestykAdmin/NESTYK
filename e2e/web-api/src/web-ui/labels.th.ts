@@ -249,6 +249,45 @@ export const FLOW_TH: { [K in keyof typeof FLOW_EN]: (typeof FLOW_EN)[K] extends
     on_site: 'นายหน้ากดลงนามแทน',
     uploaded_file: 'แนบไฟล์ที่ลงนามแล้ว',
   },
+  // บิลบนเว็บ เคส BIL-001 ถึง BIL-013 (th.ts และ tenant-workspace-copy.ts ที่ qa/e2e 5142425 เลขบรรทัดของ th.ts เท่ากับ en.ts)
+  blNoLease: 'เริ่มออกบิลเมื่อสัญญาเช่ามีผล', // th.ts:693
+  blStatus: { pending: 'รอชำระ', awaiting_review: 'รอตรวจสลิป', overdue: 'เลยกำหนด', paid: 'ชำระแล้ว' }, // th.ts:750-753
+  blFilter: { all: 'ทั้งหมด', outstanding: 'ค้างชำระ', awaiting: 'รอตรวจ', paid: 'ชำระแล้ว' }, // th.ts:704-707
+  blSummary: { outstanding: 'ค้างชำระ', awaiting: 'รอตรวจสลิป', paid: 'ชำระแล้ว' }, // th.ts:700-702
+  blPeriods: '{count} งวด', // th.ts:703
+  blBillRent: 'ค่าเช่า {month}', // th.ts:710
+  blBillDue: 'ครบกำหนด {date}', // th.ts:747
+  blReservationDeduction: 'ค่าเช่า {rent} หักเงินจอง {credit}', // th.ts:711
+  blPaidAt: 'ยืนยันเมื่อ {date}', // th.ts:749
+  blLateDays: 'เลยวันผ่อนผัน {days} วัน', // th.ts:714
+  blLateRate: 'ค่าปรับตามสัญญาวันละ {amount}', // th.ts:715
+  blLateCreate: 'สร้างใบแจ้งหนี้ค่าปรับ', // th.ts:712
+  blEmptyFilter: 'ไม่มีบิลในตัวกรองนี้', // th.ts:756
+  blReceivedTotal: 'รับแล้วทั้งหมด', // th.ts:757
+  blAwaitingTotal: 'รอตรวจ', // th.ts:759
+  blReceivedCount: '{count} รายการ', // th.ts:758
+  blHistory: 'ประวัติการรับเงิน', // th.ts:774
+  blReservationFee: 'ค่าจอง', // th.ts:775
+  blHasSlip: 'มีสลิป', // th.ts:776
+  blReceiptIssued: 'ออกใบเสร็จแล้ว', // th.ts:777
+  blConfirmPayment: 'ยืนยันรับเงิน', // th.ts:763
+  blCurrentBill: 'บิลปัจจุบัน', // tenant-workspace-copy.ts:8
+  blBillNo: 'เลขที่บิล', // tenant-workspace-copy.ts:9
+  blTenantStatus: { pending: 'รอชำระ', overdue: 'เลยกำหนด' }, // th.ts:423
+  blIssued: 'ออกบิลเมื่อ', // th.ts:426
+  blDueDate: 'ครบกำหนด', // th.ts:419 (th.ts:480 ค่าเดียวกัน)
+  blPayBy: 'ชำระได้ถึง', // th.ts:420
+  blPay: 'แจ้งชำระเงิน / แนบสลิป', // tenant-workspace-copy.ts:13
+  blTenantConfirm: 'ยืนยันการชำระ', // th.ts:444
+  blChipUnpaid: 'ยังไม่ชำระ', // tenant-workspace-copy.ts:12
+  blChipPaid: 'ชำระแล้ว', // tenant-workspace-copy.ts:6
+  blPaidRow: 'ชำระแล้ว', // th.ts:423
+  blNoPaid: 'ยังไม่มีบิลที่ชำระแล้ว', // tenant-workspace-copy.ts:20
+  blNoUnpaid: 'ยังไม่มีบิลที่ยังไม่ชำระ', // tenant-workspace-copy.ts:21
+  blNextRentBill: 'บิลค่าห้องรอบถัดไป', // tenant-workspace-copy.ts:61
+  blOwnerCurrent: 'รอรับชำระ', // th.ts:467
+  blOwnerStatus: { pending: 'รอรับ', overdue: 'เลยกำหนด' }, // th.ts:483
+  blOwnerPayable: 'ชำระได้ถึง', // th.ts:481
 };
 
 export const PARTY_COPY_TH: Record<keyof typeof PARTY_COPY_EN, string> = {
