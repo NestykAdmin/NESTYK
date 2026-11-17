@@ -110,7 +110,7 @@ export function SavedRoomsList({ locale }: { locale: string }) {
   }
 
   return (
-    <section className="nk-room-grid" aria-label={copy.saved.subtitle} data-testid="saved.list">
+    <section className="nk-room-grid nk-search-list nk-search-list--card" aria-label={copy.saved.subtitle} data-testid="saved.list">
       {list.cards.map((card) => (
         <RoomCard key={card.id} card={card} copy={copy} locale={locale} today={list.today} />
       ))}

@@ -88,7 +88,8 @@ test('review R6: problems are announced as alerts, removing has its own failure 
   assert.match(saved, /returnFocus/);
 });
 
-test('review R12: the saved list is a labelled section', () => {
+test('review R12: the saved list is a labelled section; on phones it stacks like search results (Mos 17 Nov 2026)', () => {
   const list = read(path.join(guest, 'SavedRoomsList.tsx'));
-  assert.match(list, /<section className="nk-room-grid" aria-label=/);
+  // nk-room-grid alone scrolls sideways at 960px and below (home rails); nk-search-list stacks it.
+  assert.match(list, /<section className="nk-room-grid nk-search-list nk-search-list--card" aria-label=/);
 });
