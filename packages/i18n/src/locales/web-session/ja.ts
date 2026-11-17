@@ -18,4 +18,9 @@ export const webSessionJa: WebSessionCopy = {
   noAccessHome: 'ホームへ戻る',
   otherSite: '別サイト',
   noAccessOpenRole: '{role}へ移動',
+  /** Sign-in redesign (Mos 17 Nov 2026): the note under the sign-in button and its label while Turnstile checks. */
+  captchaNote: 'Cloudflare Turnstile でボットから保護されています',
+  captchaChecking: '確認中…',
+  /** The hidden check gave no token (blocked, error or too slow). */
+  captchaFailed: 'ボットでないことを確認できませんでした。もう一度お試しください。',
 };

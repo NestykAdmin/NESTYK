@@ -17,6 +17,11 @@ export const webSessionTh = {
   noAccessHome: 'กลับหน้าแรก',
   otherSite: 'เว็บอื่น',
   noAccessOpenRole: 'ไปที่หน้า{role}',
+  /** Sign-in redesign (Mos 17 Nov 2026): the note under the sign-in button and its label while Turnstile checks. */
+  captchaNote: 'ป้องกันบอตด้วย Cloudflare Turnstile',
+  captchaChecking: 'กำลังตรวจสอบ…',
+  /** The hidden check gave no token (blocked, error or too slow). */
+  captchaFailed: 'ยืนยันว่าไม่ใช่บอตไม่สำเร็จ กรุณาลองอีกครั้ง',
 };
 
 export type WebSessionCopy = typeof webSessionTh;

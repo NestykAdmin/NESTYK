@@ -2,20 +2,15 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
   TextInput,
-  useWindowDimensions,
+  Keyboard,
 } from "react-native";
-import { Image } from "expo-image";
-import { StatusBar } from "expo-status-bar";
 import Svg, { Path } from "react-native-svg";
 import { Eye, EyeSlash, LockKey, ArrowRight } from "phosphor-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { localizedError, useLocale } from "@nestyk/i18n";
 import {
   MobileIcon,
@@ -29,8 +24,10 @@ import {
 } from "@nestyk/ui/native";
 import { useAuth } from "../lib/auth/AuthContext";
 import { captchaSiteKey } from "../lib/auth/captcha-site-key";
+import { CAPTCHA_WAIT_MS, captchaSubmitStep } from "../lib/auth/auth-layout-rules";
 import { signInErrorKind, type SignInErrorKind } from "../lib/auth/auth-error";
 import { CaptchaField } from "../components/CaptchaField";
+import { AuthLayout } from "../components/auth/AuthLayout";
 import { AuthLegalFooter } from "../components/legal/AuthLegalFooter";
 import { DEV_AUTH_CONFIG } from "../lib/auth/dev-auth";
 import { socialLoginProvider } from "../lib/auth/google-oauth";
@@ -65,14 +62,12 @@ function GoogleMark() {
 export default function LoginScreen() {
   const { t, locale } = useLocale();
   const copy = t.mobile.auth;
-  const { height } = useWindowDimensions();
   const passwordRef = React.useRef<TextInput>(null);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [focused, setFocused] = useState<"email" | "password" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { theme, isDark } = useMobileTheme();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signIn, signInWithGoogle, signInWithFacebook, isAuthenticated, session, sessionExpired, dismissSessionExpired } = useAuth();
   const { next } = useLocalSearchParams<{ next?: string }>();
@@ -87,11 +82,14 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
+  // Turnstile runs hidden ("interaction-only"): a press before its token arrives waits, then signs in by itself.
+  const [waitingForCaptcha, setWaitingForCaptcha] = useState(false);
+  const [captchaFailed, setCaptchaFailed] = useState(false);
   const captchaRequired = captchaSiteKey().length > 0;
 
   // A typed or sign-in error replaces the "session expired" notice.
   const shownError = error ?? (sessionExpired ? t.mobile.auth.sessionExpired : null);
-  const compact = height < 780;
+  const headingFont = locale === "en" ? "Baloo2_700Bold" : tokens.typography.native.headingTh;
 
   React.useEffect(() => {
     setError(null);
@@ -108,14 +106,23 @@ export default function LoginScreen() {
 
   const onSubmit = async () => {
     if (loading) return;
+    // Every press (or the token ending a wait) starts here; the "wait" step below sets it again (review R2).
+    setWaitingForCaptcha(false);
     setError(null);
     setNotice(null);
+    // Close the keyboard so the result (error line, or Cloudflare's box) is on screen, not under it (review R3).
+    Keyboard.dismiss();
     if (!email.trim() || !password) {
       setError(copy.requiredFields);
       return;
     }
-    if (captchaRequired && !captchaToken) {
-      setError(copy.captchaRequired);
+    if (captchaSubmitStep(captchaRequired, captchaToken) === "wait") {
+      if (captchaFailed) {
+        // The last check failed: start a new one for this press.
+        setCaptchaFailed(false);
+        setCaptchaKey((key) => key + 1);
+      }
+      setWaitingForCaptcha(true);
       return;
     }
     setLoading(true);
@@ -140,353 +147,190 @@ export default function LoginScreen() {
     }
   };
 
+  // The token arrived while a press was waiting: go on with that press. onSubmit reads this render's token.
+  React.useEffect(() => {
+    if (waitingForCaptcha && captchaToken) void onSubmit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingForCaptcha, captchaToken]);
+
+  const onCaptchaFailed = () => {
+    setCaptchaFailed(true);
+    if (waitingForCaptcha) {
+      setWaitingForCaptcha(false);
+      setError(t.webSession.captchaFailed);
+    }
+  };
+
+  const onCaptchaToken = (token: string | null) => {
+    setCaptchaToken(token);
+    // Turnstile refreshed by itself after an expiry or error: the next press needs no restart (review R5).
+    if (token) setCaptchaFailed(false);
+  };
+
+  // A blocked script never answers at all: stop waiting after a while (review R1).
+  React.useEffect(() => {
+    if (!waitingForCaptcha) return;
+    const timer = setTimeout(onCaptchaFailed, CAPTCHA_WAIT_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingForCaptcha]);
+
+  const socialProviders = (["Google", "Facebook", "Apple"] as const).map((provider) => ({
+    provider,
+    // Mos 9 Nov 2026: not ready = faded; a tap still explains it (e2e login-form.spec.ts).
+    ready: socialLoginProvider(provider, process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN) !== null,
+  }));
+  const anySocialSoon = socialProviders.some(({ ready }) => !ready);
+
   return (
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
-      <StatusBar style="light" />
-      <Image
-        source={require("../assets/login-apartment.jpg")}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-      />
-      <View pointerEvents="none" style={styles.photoShade} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <ScrollView
-          style={styles.flex}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.screen,
-            {
-              paddingTop: insets.top + (compact ? 8 : 12),
-              paddingBottom: Math.max(insets.bottom, compact ? 8 : 12),
-            },
-          ]}
-        >
-          <View style={styles.content}>
-            <View style={styles.topBar}>
-              <MobileNestykLogo variant="wordmarkOnDark" height={compact ? 34 : 40} />
-              <TouchableOpacity
-                style={[styles.languageButton, compact && styles.languageButtonCompact]}
-                onPress={() => setLanguageOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={t.mobile.settings.language}
-                activeOpacity={0.7}
-              >
-                <MobileIcon name="globe" size={16} color="#FFFFFF" />
-                <Text style={styles.languageText}>
-                  {t.mobile.settings.languageNames[locale]}
+    <>
+      <AuthLayout
+        photo={require("../assets/login-apartment.jpg")}
+        topBar={
+          <>
+            <MobileNestykLogo variant="wordmarkOnDark" height={34} />
+            <TouchableOpacity
+              style={styles.languageButton}
+              onPress={() => setLanguageOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t.mobile.settings.language}
+              activeOpacity={0.7}
+            >
+              <MobileIcon name="globe" size={16} color="#FFFFFF" />
+              <Text style={styles.languageText}>
+                {t.mobile.settings.languageNames[locale]}
+              </Text>
+              <MobileIcon name="chevron-down" size={14} color="#FFFFFF" />
+            </TouchableOpacity>
+          </>
+        }
+        hero={
+          <Text style={[styles.heroTitle, { fontFamily: headingFont }]} numberOfLines={2}>
+            {copy.heroHeadline}
+          </Text>
+        }
+        action={
+          <View style={styles.action}>
+            <MobileButton
+              onPress={onSubmit}
+              isLoading={loading}
+              disabled={loading || waitingForCaptcha}
+              style={styles.submitButton}
+            >
+              <View style={styles.submitContent}>
+                <Text style={styles.submitText} accessibilityLiveRegion="polite">
+                  {waitingForCaptcha ? t.webSession.captchaChecking : copy.loginButton}
                 </Text>
-                <MobileIcon name="chevron-down" size={14} color="#FFFFFF" />
-              </TouchableOpacity>
+                {waitingForCaptcha ? null : <ArrowRight size={20} color={tokens.colors.primary} />}
+              </View>
+            </MobileButton>
+            {captchaRequired ? (
+              <View style={styles.captchaNote}>
+                <MobileIcon name="shield" size={14} color={theme.textSecondary} />
+                <Text style={[styles.captchaNoteText, { color: theme.textSecondary }]}>
+                  {t.webSession.captchaNote}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        }
+        after={
+          <>
+            <View style={styles.dividerRow}>
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+              <Text style={[styles.socialCaption, { color: theme.textSecondary }]}>
+                {copy.socialDivider}
+              </Text>
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
             </View>
 
-            <View style={styles.hero}>
+            <View style={styles.socialRow}>
+              {socialProviders.map(({ provider, ready }) => (
+                <TouchableOpacity
+                  key={provider}
+                  style={[
+                    styles.socialButton,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: isDark ? "#F8FAFC" : theme.card,
+                    },
+                    !ready && styles.socialSoon,
+                  ]}
+                  disabled={loading}
+                  onPress={() => {
+                    // R2: off until EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true (providers set up in Supabase).
+                    const oauth = socialLoginProvider(provider, process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN);
+                    const start = oauth === "google" ? signInWithGoogle : oauth === "facebook" ? signInWithFacebook : null;
+                    if (!start) {
+                      setNotice(copy.unavailable);
+                      return;
+                    }
+                    if (loading) return;
+                    setError(null);
+                    setNotice(null);
+                    setLoading(true);
+                    void start()
+                      .catch((e) => setError(localizedError(e, t.common.errorGeneric, locale)))
+                      .finally(() => setLoading(false));
+                  }}
+                  activeOpacity={0.65}
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.socialLogin.replace(
+                    "{provider}",
+                    provider,
+                  )}
+                  accessibilityHint={ready ? undefined : copy.socialComingSoon}
+                >
+                  {provider === "Google" ? (
+                    <GoogleMark />
+                  ) : (
+                    <MobileIcon
+                      name={provider === "Facebook" ? "facebook" : "apple"}
+                      size={22}
+                      color={provider === "Facebook" ? "#1877F2" : "#211E1E"}
+                      weight="fill"
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* Sign-in redesign (Mos 17 Nov 2026): one "coming soon" line under the row instead of one per button. */}
+            {anySocialSoon ? (
+              <Text style={[styles.socialSoonText, { color: theme.textSecondary }]}>
+                {copy.socialComingSoon}
+              </Text>
+            ) : null}
+
+            {notice ? (
               <Text
+                accessibilityLiveRegion="polite"
                 style={[
-                  styles.heroTitle,
-                  compact && styles.heroTitleCompact,
+                  styles.notice,
                   {
-                    fontFamily:
-                      locale === "en"
-                        ? "Baloo2_700Bold"
-                        : tokens.typography.native.headingTh,
+                    color: theme.textSecondary,
+                    backgroundColor: theme.background,
                   },
                 ]}
                 numberOfLines={2}
               >
-                {copy.heroHeadline}
+                {notice}
               </Text>
-            </View>
+            ) : null}
 
-            <View
-              style={[
-                styles.card,
-                compact && styles.cardCompact,
-                { backgroundColor: theme.card },
-              ]}
+            <TouchableOpacity
+              style={[styles.signUpButton, { borderTopColor: theme.border }]}
+              onPress={() => router.push(withNextParam('/register', next) as never)}
+              accessibilityRole="button"
+              accessibilityLabel={copy.signUp}
+              activeOpacity={0.7}
             >
-              <Text
-                accessibilityRole="header"
-                style={[
-                  styles.cardTitle,
-                  compact && styles.cardTitleCompact,
-                  {
-                    color: theme.textHeading,
-                    fontFamily:
-                      locale === "en"
-                        ? "Baloo2_700Bold"
-                        : tokens.typography.native.headingTh,
-                  },
-                ]}
-              >
-                {copy.loginTitle}
+              <Text style={[styles.linkText, { color: theme.textSecondary }]}>
+                {copy.newHere}{" "}
+                <Text style={[styles.bold, { color: theme.textHeading }]}>
+                  {copy.signUp}
+                </Text>
               </Text>
-              <Text
-                style={[
-                  styles.subtitle,
-                  compact && styles.subtitleCompact,
-                  { color: theme.textSecondary },
-                ]}
-                numberOfLines={1}
-              >
-                {copy.loginSubtitle}
-              </Text>
-
-              <Text style={[styles.label, { color: theme.textHeading }]}>
-                {copy.email}
-              </Text>
-              <View style={styles.field}>
-                <MobileInput
-                  accessibilityLabel={copy.email}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                  textContentType="username"
-                  placeholder="you@example.com"
-                  returnKeyType="next"
-                  onSubmitEditing={() => passwordRef.current?.focus()}
-                  onFocus={() => setFocused("email")}
-                  onBlur={() => setFocused(null)}
-                  style={[
-                    styles.input,
-                    compact && styles.inputCompact,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.textHeading,
-                      borderColor:
-                        focused === "email"
-                          ? tokens.colors.brand[500]
-                          : theme.border,
-                    },
-                  ]}
-                  editable={!loading}
-                />
-                <View
-                  pointerEvents="none"
-                  style={[styles.leadingIcon, compact && styles.leadingIconCompact]}
-                >
-                  <MobileIcon
-                    name="envelope"
-                    size={18}
-                    color={theme.textSecondary}
-                  />
-                </View>
-              </View>
-
-              <Text
-                style={[
-                  styles.label,
-                  styles.passwordLabel,
-                  compact && styles.passwordLabelCompact,
-                  { color: theme.textHeading },
-                ]}
-              >
-                {copy.password}
-              </Text>
-              <View style={styles.field}>
-                <MobileInput
-                  ref={passwordRef}
-                  accessibilityLabel={copy.password}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!passwordVisible}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="current-password"
-                  textContentType="password"
-                  placeholder={copy.passwordPlaceholder}
-                  returnKeyType="go"
-                  onSubmitEditing={onSubmit}
-                  onFocus={() => setFocused("password")}
-                  onBlur={() => setFocused(null)}
-                  style={[
-                    styles.input,
-                    styles.passwordInput,
-                    compact && styles.inputCompact,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.textHeading,
-                      borderColor:
-                        focused === "password"
-                          ? tokens.colors.brand[500]
-                          : theme.border,
-                    },
-                  ]}
-                  editable={!loading}
-                />
-                <View
-                  pointerEvents="none"
-                  style={[styles.leadingIcon, compact && styles.leadingIconCompact]}
-                >
-                  <LockKey size={18} color={theme.textSecondary} />
-                </View>
-                <TouchableOpacity
-                  style={[styles.eyeButton, compact && styles.eyeButtonCompact]}
-                  onPress={() => setPasswordVisible(!passwordVisible)}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    passwordVisible ? copy.hidePassword : copy.showPassword
-                  }
-                  accessibilityState={{ selected: passwordVisible }}
-                  activeOpacity={0.7}
-                >
-                  {passwordVisible ? (
-                    <EyeSlash size={20} color={theme.textHeading} />
-                  ) : (
-                    <Eye size={20} color={theme.textHeading} />
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.forgotButton, compact && styles.forgotButtonCompact]}
-                onPress={() => router.push("/reset-password")}
-                accessibilityRole="button"
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.linkText, { color: theme.textSecondary }]}>
-                  {copy.forgotPassword}
-                </Text>
-              </TouchableOpacity>
-
-              {captchaRequired ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
-
-              {shownError ? (
-                <Text
-                  accessibilityRole="alert"
-                  accessibilityLiveRegion="polite"
-                  style={styles.errorText}
-                  numberOfLines={2}
-                >
-                  {shownError}
-                </Text>
-              ) : null}
-
-              <MobileButton
-                onPress={onSubmit}
-                isLoading={loading}
-                disabled={loading}
-                style={[styles.submitButton, compact && styles.submitButtonCompact]}
-              >
-                <View style={styles.submitContent}>
-                  <Text style={styles.submitText}>{copy.loginButton}</Text>
-                  <ArrowRight size={20} color={tokens.colors.primary} />
-                </View>
-              </MobileButton>
-
-              <View style={[styles.dividerRow, compact && styles.dividerRowCompact]}>
-                <View
-                  style={[styles.divider, { backgroundColor: theme.border }]}
-                />
-                <Text
-                  style={[styles.socialCaption, { color: theme.textSecondary }]}
-                >
-                  {copy.socialDivider}
-                </Text>
-                <View
-                  style={[styles.divider, { backgroundColor: theme.border }]}
-                />
-              </View>
-
-              <View style={styles.socialRow}>
-                {(["Google", "Facebook", "Apple"] as const).map((provider) => {
-                  // Mos 9 Nov 2026: not ready = faded + "coming soon"; a tap still explains it (e2e login-form.spec.ts).
-                  const ready = socialLoginProvider(provider, process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN) !== null;
-                  return (
-                  <View key={provider} style={styles.socialItem}>
-                  <TouchableOpacity
-                    style={[
-                      styles.socialButton,
-                      compact && styles.socialButtonCompact,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor: isDark ? "#F8FAFC" : theme.card,
-                      },
-                      !ready && styles.socialSoon,
-                    ]}
-                    disabled={loading}
-                    onPress={() => {
-                      // R2: off until EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN=true (providers set up in Supabase).
-                      const oauth = socialLoginProvider(provider, process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN);
-                      const start = oauth === "google" ? signInWithGoogle : oauth === "facebook" ? signInWithFacebook : null;
-                      if (!start) {
-                        setNotice(copy.unavailable);
-                        return;
-                      }
-                      if (loading) return;
-                      setError(null);
-                      setNotice(null);
-                      setLoading(true);
-                      void start()
-                        .catch((e) => setError(localizedError(e, t.common.errorGeneric, locale)))
-                        .finally(() => setLoading(false));
-                    }}
-                    activeOpacity={0.65}
-                    accessibilityRole="button"
-                    accessibilityLabel={copy.socialLogin.replace(
-                      "{provider}",
-                      provider,
-                    )}
-                    accessibilityHint={ready ? undefined : copy.socialComingSoon}
-                  >
-                    {provider === "Google" ? (
-                      <GoogleMark />
-                    ) : (
-                      <MobileIcon
-                        name={provider === "Facebook" ? "facebook" : "apple"}
-                        size={22}
-                        color={provider === "Facebook" ? "#1877F2" : "#211E1E"}
-                        weight="fill"
-                      />
-                    )}
-                  </TouchableOpacity>
-                  {!ready ? (
-                    <Text style={[styles.socialSoonText, { color: theme.textSecondary }]}>
-                      {copy.socialComingSoon}
-                    </Text>
-                  ) : null}
-                  </View>
-                  );
-                })}
-              </View>
-
-              {notice ? (
-                <Text
-                  accessibilityLiveRegion="polite"
-                  style={[
-                    styles.notice,
-                    {
-                      color: theme.textSecondary,
-                      backgroundColor: theme.background,
-                    },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {notice}
-                </Text>
-              ) : null}
-
-              <TouchableOpacity
-                style={[styles.signUpButton, compact && styles.signUpButtonCompact, { borderTopColor: theme.border }]}
-                onPress={() => router.push(withNextParam('/register', next) as never)}
-                accessibilityRole="button"
-                accessibilityLabel={copy.signUp}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.linkText, { color: theme.textSecondary }]}>
-                  {copy.newHere}{" "}
-                  <Text style={[styles.bold, { color: theme.textHeading }]}>
-                    {copy.signUp}
-                  </Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
 
             {APP_CONFIG.defaultRole === "guest" ? (
               <TouchableOpacity
@@ -495,7 +339,7 @@ export default function LoginScreen() {
                   requestGuestBrowse();
                   goToGuestHome(router);
                 }}
-                style={[styles.guestLink, compact && styles.guestLinkCompact]}
+                style={styles.guestLink}
                 accessibilityRole="button"
                 activeOpacity={0.7}
               >
@@ -507,10 +351,145 @@ export default function LoginScreen() {
                 />
               </TouchableOpacity>
             ) : null}
-            <AuthLegalFooter testID="login.footer" />
+          </>
+        }
+        footer={<AuthLegalFooter testID="login.footer" />}
+      >
+        <Text
+          accessibilityRole="header"
+          style={[styles.cardTitle, { color: theme.textHeading, fontFamily: headingFont }]}
+        >
+          {copy.loginTitle}
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={2}>
+          {copy.loginSubtitle}
+        </Text>
+
+        <Text style={[styles.label, { color: theme.textHeading }]}>
+          {copy.email}
+        </Text>
+        <View style={styles.field}>
+          <MobileInput
+            accessibilityLabel={copy.email}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="username"
+            placeholder="you@example.com"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            onFocus={() => setFocused("email")}
+            onBlur={() => setFocused(null)}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.card,
+                color: theme.textHeading,
+                borderColor:
+                  focused === "email"
+                    ? tokens.colors.brand[500]
+                    : theme.border,
+              },
+            ]}
+            editable={!loading}
+          />
+          <View pointerEvents="none" style={styles.leadingIcon}>
+            <MobileIcon
+              name="envelope"
+              size={18}
+              color={theme.textSecondary}
+            />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+
+        <Text style={[styles.label, styles.passwordLabel, { color: theme.textHeading }]}>
+          {copy.password}
+        </Text>
+        <View style={styles.field}>
+          <MobileInput
+            ref={passwordRef}
+            accessibilityLabel={copy.password}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!passwordVisible}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="current-password"
+            textContentType="password"
+            placeholder={copy.passwordPlaceholder}
+            returnKeyType="go"
+            onSubmitEditing={onSubmit}
+            onFocus={() => setFocused("password")}
+            onBlur={() => setFocused(null)}
+            style={[
+              styles.input,
+              styles.passwordInput,
+              {
+                backgroundColor: theme.card,
+                color: theme.textHeading,
+                borderColor:
+                  focused === "password"
+                    ? tokens.colors.brand[500]
+                    : theme.border,
+              },
+            ]}
+            editable={!loading}
+          />
+          <View pointerEvents="none" style={styles.leadingIcon}>
+            <LockKey size={18} color={theme.textSecondary} />
+          </View>
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setPasswordVisible(!passwordVisible)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              passwordVisible ? copy.hidePassword : copy.showPassword
+            }
+            accessibilityState={{ selected: passwordVisible }}
+            activeOpacity={0.7}
+          >
+            {passwordVisible ? (
+              <EyeSlash size={20} color={theme.textHeading} />
+            ) : (
+              <Eye size={20} color={theme.textHeading} />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.forgotButton}
+          onPress={() => router.push("/reset-password")}
+          accessibilityRole="button"
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.linkText, { color: theme.textSecondary }]}>
+            {copy.forgotPassword}
+          </Text>
+        </TouchableOpacity>
+
+        {captchaRequired ? (
+          <CaptchaField
+            resetKey={captchaKey}
+            onToken={onCaptchaToken}
+            appearance="interaction-only"
+            onFailed={onCaptchaFailed}
+          />
+        ) : null}
+
+        {shownError ? (
+          <Text
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            style={styles.errorText}
+            numberOfLines={2}
+          >
+            {shownError}
+          </Text>
+        ) : null}
+      </AuthLayout>
       <MobileBottomSheet
         visible={languageOpen}
         onClose={() => setLanguageOpen(false)}
@@ -520,47 +499,19 @@ export default function LoginScreen() {
           onSelect={() => setLanguageOpen(false)}
         />
       </MobileBottomSheet>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  flex: { flex: 1 },
-  photoShade: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(33,30,30,0.12)",
-  },
-  screen: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
-  content: {
-    flexShrink: 0,
-    width: "100%",
-    maxWidth: 460,
-    alignSelf: "center",
-  },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexShrink: 0,
-  },
   languageButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
-    minHeight: 40,
+    minHeight: 44,
     borderRadius: 24,
     backgroundColor: "rgba(20,20,20,0.45)",
-  },
-  languageButtonCompact: {
-    minHeight: 36,
-    paddingHorizontal: 10,
   },
   languageText: {
     fontFamily: tokens.typography.native.body,
@@ -568,50 +519,20 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: "#FFFFFF",
   },
-  hero: {
-    flexShrink: 0,
-    justifyContent: "flex-end",
-    paddingBottom: 14,
-    paddingTop: 8,
-    minHeight: 56,
-  },
   heroTitle: {
-    fontSize: 28,
-    lineHeight: 40,
+    fontSize: 24,
+    lineHeight: 34,
     color: "#FFFFFF",
     textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
-  heroTitleCompact: {
-    fontSize: 24,
-    lineHeight: 34,
-  },
-  card: {
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 12,
-    flexShrink: 0,
-  },
-  cardCompact: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
-    borderRadius: 20,
-  },
   cardTitle: { fontSize: 26, lineHeight: 36 },
-  cardTitleCompact: { fontSize: 22, lineHeight: 30 },
   subtitle: {
     fontFamily: tokens.typography.native.body,
     fontSize: 13,
     lineHeight: 19,
-    marginBottom: 12,
-  },
-  subtitleCompact: {
-    marginBottom: 8,
-    fontSize: 12,
-    lineHeight: 18,
+    marginBottom: 16,
   },
   label: {
     fontFamily: tokens.typography.native.body,
@@ -620,42 +541,37 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   field: { position: "relative" },
-  input: { height: 46, borderRadius: 12, paddingLeft: 40, fontSize: 14 },
-  inputCompact: { height: 42 },
+  input: { height: 48, borderRadius: 12, paddingLeft: 40, fontSize: 16 },
   passwordInput: { paddingRight: 44 },
   leadingIcon: {
     position: "absolute",
     left: 12,
     top: 0,
-    height: 46,
+    height: 48,
     justifyContent: "center",
   },
-  leadingIconCompact: { height: 42 },
-  passwordLabel: { marginTop: 10 },
-  passwordLabelCompact: { marginTop: 8 },
+  passwordLabel: { marginTop: 12 },
   eyeButton: {
     position: "absolute",
     right: 0,
     top: 0,
     width: 44,
-    height: 46,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
-  eyeButtonCompact: { height: 42 },
   forgotButton: {
-    minHeight: 36,
+    minHeight: 44,
     justifyContent: "center",
     alignSelf: "flex-end",
   },
-  forgotButtonCompact: { minHeight: 32 },
   linkText: {
     fontFamily: tokens.typography.native.body,
     fontSize: 13,
     lineHeight: 19,
   },
-  submitButton: { minHeight: 48, borderRadius: 14, marginTop: 16 },
-  submitButtonCompact: { minHeight: 44 },
+  action: { marginTop: 8 },
+  submitButton: { minHeight: 48, borderRadius: 14 },
   submitContent: { flexDirection: "row", gap: 8, alignItems: "center" },
   submitText: {
     fontFamily: tokens.typography.native.headingTh,
@@ -663,13 +579,26 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: tokens.colors.primary,
   },
+  captchaNote: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  captchaNoteText: {
+    fontFamily: tokens.typography.native.body,
+    fontSize: 11,
+    lineHeight: 16,
+  },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginVertical: 12,
+    marginTop: 16,
+    marginBottom: 12,
   },
-  dividerRowCompact: { marginVertical: 8 },
   divider: { height: StyleSheet.hairlineWidth, flex: 1 },
   socialCaption: {
     fontFamily: tokens.typography.native.body,
@@ -685,26 +614,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  socialItem: { alignItems: "center", gap: 4 },
   socialSoon: { opacity: 0.45 },
-  socialSoonText: { fontSize: 11, lineHeight: 16 },
-  socialButtonCompact: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  socialSoonText: {
+    fontFamily: tokens.typography.native.body,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: "center",
+    marginTop: 6,
   },
   signUpButton: {
-    marginTop: 12,
+    marginTop: 14,
     paddingTop: 10,
-    minHeight: 40,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  signUpButtonCompact: {
-    marginTop: 8,
-    paddingTop: 8,
-    minHeight: 36,
   },
   bold: { fontFamily: tokens.typography.native.bodyBold },
   errorText: {
@@ -712,6 +636,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: tokens.colors.danger,
+    marginTop: 4,
     marginBottom: 6,
   },
   notice: {
@@ -729,15 +654,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignSelf: "center",
     paddingHorizontal: 14,
-    minHeight: 40,
-    marginTop: 10,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.86)",
-    flexShrink: 0,
-  },
-  guestLinkCompact: {
-    minHeight: 36,
-    marginTop: 8,
+    minHeight: 44,
   },
   guestLinkText: {
     fontFamily: tokens.typography.native.body,

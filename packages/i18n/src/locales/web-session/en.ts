@@ -18,4 +18,9 @@ export const webSessionEn: WebSessionCopy = {
   noAccessHome: 'Go to home',
   otherSite: 'Other site',
   noAccessOpenRole: 'Go to {role}',
+  /** Sign-in redesign (Mos 17 Nov 2026): the note under the sign-in button and its label while Turnstile checks. */
+  captchaNote: 'Protected from bots by Cloudflare Turnstile',
+  captchaChecking: 'Checking…',
+  /** The hidden check gave no token (blocked, error or too slow). */
+  captchaFailed: "Couldn't check that you're not a bot. Please try again.",
 };

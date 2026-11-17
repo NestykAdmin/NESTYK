@@ -29,6 +29,15 @@
   outline-offset: 2px;
   border-radius: 4px;
 }
+.lg-auth-footer--plain {
+  margin: 20px auto 4px;
+  padding: 0;
+  background: transparent;
+  color: #6b6461; /* fallback; the component sets the theme colour inline */
+}
+.lg-auth-footer--plain a {
+  color: inherit;
+}
 .lg-item {
   white-space: nowrap;
 }
