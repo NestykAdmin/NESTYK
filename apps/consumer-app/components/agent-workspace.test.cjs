@@ -94,8 +94,13 @@ test('the group of the current page opens with its sub-pages and the create link
   tree = render(input);
   assert.deepEqual(byClass(tree, 'aw-nav-subitem').map(node => node.props.children), ['Room Listings', 'Add listing', 'All tenants', 'Create tenant']);
   state = [];
-  tree = render(props({ activeTab: 'clients', creating: 'tenant', onCreate() {} }));
+  const creatingTenant = props({ activeTab: 'clients', creating: 'tenant', onCreate() {} });
+  tree = render(creatingTenant);
   assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Create tenant');
+  // W4 layout ก (Mos 17 Nov 2026): the menu folds to icons on the create-tenant page; the toggle opens it again.
+  assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
+  byClass(tree, 'aw-collapse')[0].props.onClick();
+  tree = render(creatingTenant);
   assert.equal(byClass(tree, 'aw-nav-subitem').find(node => node.props['aria-current'] === 'page').props.children, 'Create tenant');
 });
 

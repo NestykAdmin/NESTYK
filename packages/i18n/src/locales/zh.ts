@@ -620,6 +620,23 @@ export const zh: TranslationSchema = {
       makeReservation: '制作预订书',
       addEmail: '添加租客邮箱',
       addIdentity: '添加租客证件号码',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: '创建租客的步骤',
+        stepOf: '第 {step} 步，共 {total} 步',
+        change: '更改',
+        leadSub: '同意租房的客户',
+        roomSub: '要预订的房间',
+        confirmSub: '报价 · 邮箱 · 证件',
+        pickLeadHint: '点击潜在客户以选择房间',
+        pickRoomHint: '点击房间以确认预订',
+        docTitle: '预订书所需信息',
+        docHint: '预订时可不填，但制作预订书前必须填写',
+        customerTitle: '客户信息',
+        customerHint: '取自潜在客户，如有不符可编辑',
+        editCustomer: '编辑',
+        hideCustomer: '收起',
+      },
       detail: {
         title: '租客',
         subtitle: '{name} · {room} 号房',

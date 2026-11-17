@@ -621,6 +621,23 @@ export const th: TranslationSchema = {
       makeReservation: 'ทำหนังสือจอง',
       addEmail: 'เพิ่มอีเมลผู้เช่า',
       addIdentity: 'เพิ่มเลขบัตรผู้เช่า',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: 'ขั้นตอนการสร้างผู้เช่า',
+        stepOf: 'ขั้น {step} จาก {total}',
+        change: 'เปลี่ยน',
+        leadSub: 'ลูกค้าที่ตกลงเช่า',
+        roomSub: 'ห้องที่จะจอง',
+        confirmSub: 'ข้อเสนอ · อีเมล · เลขบัตร',
+        pickLeadHint: 'กดที่ Lead เพื่อไปเลือกห้อง',
+        pickRoomHint: 'กดที่ห้องเพื่อไปยืนยันการจอง',
+        docTitle: 'ข้อมูลสำหรับหนังสือจอง',
+        docHint: 'ไม่บังคับตอนจอง แต่ต้องมีครบก่อนทำหนังสือจอง',
+        customerTitle: 'ข้อมูลลูกค้า',
+        customerHint: 'ดึงมาจาก Lead แก้ได้ถ้าข้อมูลไม่ตรง',
+        editCustomer: 'แก้ไข',
+        hideCustomer: 'ซ่อน',
+      },
       detail: {
         title: 'ผู้เช่า',
         subtitle: '{name} · ห้อง {room}',

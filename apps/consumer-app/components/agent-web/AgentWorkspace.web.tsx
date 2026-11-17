@@ -96,6 +96,14 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t, locale, setLocale } = useLocale();
   const { theme, isDark, setThemeMode } = useMobileTheme();
   const [collapsed, setCollapsed] = React.useState(false);
+  // W4 layout ก (Mos 17 Nov 2026): the create-tenant page folds the menu to icons so the steps rail and the form
+  // have room; the user can still open it there, and leaving the page brings back their own setting.
+  const formCompact = props.creating === "tenant";
+  const [formMenuOpen, setFormMenuOpen] = React.useState(false);
+  useEffect(() => {
+    if (!formCompact) setFormMenuOpen(false);
+  }, [formCompact]);
+  const isCollapsed = formCompact ? !formMenuOpen : collapsed;
   const [themePref, setThemePref] = React.useState<WebThemePref>(readThemePref);
   /** Sidebar groups the user opened/closed; unset = open while it holds the current page. */
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
@@ -335,10 +343,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const currentMenu = [...AGENT_WEB_PRIMARY, ...AGENT_WEB_MORE].find(
     (item) => item.tab === props.activeTab,
   );
-  // v1.2 (12 Nov 2026, design B): the selected item is ink (lifted grey in dark mode) with a yellow icon;
+  // Selected item (design ก, Mos 17 Nov 2026): slate fill + yellow bar in light, lifted grey + yellow bar in dark.
+  // Its icon is dark gold on the light fill (CI yellow is too faint there) and CI yellow in dark mode;
   // other icons are slate 700 / the dark body step #E2E8F0 (v1.2 B+C) so they no longer look faded.
   const itemColor = (active: boolean) =>
-    active ? "#F8B615" : isDark ? "#E2E8F0" : "#334155";
+    active ? (isDark ? "#F8B615" : "#795719") : isDark ? "#E2E8F0" : "#334155";
   const customItem = (item: WorkspaceNavItem) => (
     <button
       key={item.id}
@@ -395,7 +404,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const listingOpen = expanded.listing ?? parent === "listingRoom";
   const tenantsOpen = expanded.tenants ?? parent === "clients";
   const toggleGroup = (id: "listing" | "tenants", open: boolean, first: () => void) => {
-    if (collapsed) {
+    if (isCollapsed) {
       first();
       return;
     }
@@ -428,7 +437,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       <button
         type="button"
         className={`aw-nav-item ${parent === tab ? "is-active" : ""}`}
-        aria-expanded={collapsed ? undefined : open}
+        aria-expanded={isCollapsed ? undefined : open}
         disabled={props.navigationDisabled}
         title={label}
         onClick={() => toggleGroup(id, open, () => navigate(tab))}
@@ -436,10 +445,10 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         <MobileIcon name={icon} size={20} color={itemColor(parent === tab)} />
         <span className="aw-nav-label">{label}</span>
         <span className="aw-nav-chev" aria-hidden="true">
-          <MobileIcon name="chevron-right" size={14} color={parent === tab ? "#CBD5E1" : theme.textSecondary} />
+          <MobileIcon name="chevron-right" size={14} color={parent === tab && isDark ? "#CBD5E1" : theme.textSecondary} />
         </span>
       </button>
-      {open && !collapsed ? <div className="aw-nav-sub">{subs}</div> : null}
+      {open && !isCollapsed ? <div className="aw-nav-sub">{subs}</div> : null}
     </React.Fragment>
   );
   const soonItem = (key: string, icon: AppIconName, label: string) => (
@@ -464,6 +473,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         return t.agent.dashboard.addListing;
       case "listingLead":
         return t.mobile.drawerMenu.listingLead;
+      case "createLead":
+        return props.editingLead ? t.agent.leads.editLead : t.mobile.tabs.createLead;
       case "clients":
         return creatingTenant ? t.agent.tenants.create : t.mobile.drawerMenu.clients;
       default:
@@ -480,7 +491,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
 
   return (
       <div
-        className={`aw-shell${collapsed ? " aw-collapsed" : ""}`}
+        className={`aw-shell${isCollapsed ? " aw-collapsed" : ""}`}
         data-theme={theme.mode}
         lang={locale}
         style={
@@ -518,12 +529,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               type="button"
               className="aw-collapse"
               data-testid="shell.sidebarToggle"
-              onClick={() => setCollapsed(!collapsed)}
-              aria-label={collapsed ? copy.expand : copy.collapse}
-              aria-expanded={!collapsed}
-              title={collapsed ? copy.expand : copy.collapse}
+              onClick={() => (formCompact ? setFormMenuOpen(!formMenuOpen) : setCollapsed(!collapsed))}
+              aria-label={isCollapsed ? copy.expand : copy.collapse}
+              aria-expanded={!isCollapsed}
+              title={isCollapsed ? copy.expand : copy.collapse}
             >
-              <PanelIcon collapsed={collapsed} />
+              <PanelIcon collapsed={isCollapsed} />
             </button>
             <h1 className="aw-title">{pageTitle}</h1>
             <div className="aw-topbar-actions">

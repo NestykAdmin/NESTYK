@@ -38,6 +38,8 @@ export interface AgentWorkspaceProps {
   onCreate?: (kind: AgentWebCreateKind) => void;
   /** A create flow open inside the current tab (today only "tenant" inside Tenants), so the sidebar marks it. */
   creating?: AgentWebCreateKind | null;
+  /** The add-lead page is editing an existing lead: the top bar says "Edit lead" (F3). */
+  editingLead?: boolean;
   onRoleChange: (role: UserRole) => void;
   /** Roles the signed-in account holds; the role switcher lists only these (plus the active role). Omitted = every role. */
   allowedRoles?: readonly string[];

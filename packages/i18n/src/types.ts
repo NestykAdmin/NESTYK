@@ -617,6 +617,22 @@ export interface TranslationSchema {
       makeReservation: string;
       addEmail: string;
       addIdentity: string;
+      webCreate: {
+        stepsLabel: string;
+        stepOf: string;
+        change: string;
+        leadSub: string;
+        roomSub: string;
+        confirmSub: string;
+        pickLeadHint: string;
+        pickRoomHint: string;
+        docTitle: string;
+        docHint: string;
+        customerTitle: string;
+        customerHint: string;
+        editCustomer: string;
+        hideCustomer: string;
+      };
       detail: {
         title: string;
         subtitle: string;

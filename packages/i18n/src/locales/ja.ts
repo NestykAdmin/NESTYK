@@ -621,6 +621,23 @@ export const ja: TranslationSchema = {
       makeReservation: '予約書を作成',
       addEmail: '入居者のメールを追加',
       addIdentity: '入居者の身分証番号を追加',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: '入居者作成の手順',
+        stepOf: 'ステップ {step} / {total}',
+        change: '変更',
+        leadSub: '入居を決めたお客様',
+        roomSub: '予約する部屋',
+        confirmSub: 'オファー · メール · 身分証',
+        pickLeadHint: 'リードをクリックして部屋を選択',
+        pickRoomHint: '部屋をクリックして予約を確認',
+        docTitle: '予約書に必要な情報',
+        docHint: '予約時は任意ですが、予約書の作成前に必要です',
+        customerTitle: 'お客様情報',
+        customerHint: 'リードから取得しています。違う場合は編集できます',
+        editCustomer: '編集',
+        hideCustomer: '閉じる',
+      },
       detail: {
         title: '入居者',
         subtitle: '{name} · {room}号室',

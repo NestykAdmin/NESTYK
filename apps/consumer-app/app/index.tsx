@@ -1781,6 +1781,7 @@ export function AppHomeScreen() {
         onNavigate={handleTabPress}
         onCreate={isAgentWeb ? openWebCreate : undefined}
         creating={creatingTenant ? 'tenant' : null}
+        editingLead={activeTab === 'createLead' && !!leadEdit}
         onRoleChange={handleRoleChange}
         allowedRoles={isAuthenticated ? portalSwitcherRoles(session?.roles) : undefined}
         otherSiteRoles={isAuthenticated ? otherSiteRoles(session?.roles) : undefined}

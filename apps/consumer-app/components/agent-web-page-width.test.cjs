@@ -13,11 +13,12 @@ const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => ({}), mod, mod.exports);
 const { agentWebPageWidth } = mod.exports;
 
-test('add room, add lead and create tenant are form pages', () => {
+test('add room and add lead are form pages; create tenant lays out its own wizard', () => {
   assert.equal(agentWebPageWidth('createListing'), 'form');
   // W17 (Mos 6 Nov 2026): add lead also has the readiness panel beside the form.
   assert.equal(agentWebPageWidth('createLead'), 'form-aside');
-  assert.equal(agentWebPageWidth('clients', 'tenant'), 'form');
+  // W4 (17 Nov 2026): create tenant is a wizard page with its own steps rail.
+  assert.equal(agentWebPageWidth('clients', 'tenant'), 'wide');
 });
 
 test('lists, Dashboard, calendar and detail pages keep the full width', () => {

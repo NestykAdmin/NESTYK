@@ -44,6 +44,7 @@ import { TenantDirectoryBody, type TenantDirectoryFilter } from "./TenantDirecto
 import { TenantWorkTable } from "./agent-web/TenantWorkTable";
 import { TenantDirectoryTable } from "./agent-web/TenantDirectoryTable";
 import { TenantDetailFrame } from "./agent-web/TenantDetailFrame";
+import { AgentTenantCreatePage } from "./agent-web/AgentTenantCreatePage";
 import { DetailCard, DetailField } from "./TenantDetailParts";
 import { FinancialDocumentForm } from "./FinancialDocumentForm";
 
@@ -421,25 +422,46 @@ export function AgentTenantsScreen({
       />
     );
   }
-  if (creating)
-    return (
+  if (creating) {
+    const addCreated = (tenant: AgentTenant) => {
+      setItems((current) => [
+        tenant,
+        ...current.filter((t) => t.id !== tenant.id),
+      ]);
+      onTenantCreated?.(tenant);
+    };
+    const finishCreate = (tenant: AgentTenant, open: boolean) => {
+      setCreating(false);
+      setSelected(open ? tenant : null);
+      setSection(null);
+      setError("");
+      setNotice(c.createdNotice);
+    };
+    // W4 (17 Nov 2026): wide web has its own wizard page; phones and native keep the app form.
+    return webTables ? (
+      <AgentTenantCreatePage
+        onBusy={onCreateBusy}
+        backRef={createBackRef}
+        onCreated={addCreated}
+        onDone={(tenant, next) => {
+          finishCreate(tenant, next !== "list");
+          if (next === "reservation") {
+            setSection("contracts");
+            setContractStart("reservation");
+          }
+        }}
+      />
+    ) : (
       <TenantForm
         onBusy={onCreateBusy}
         backRef={createBackRef}
         onCreated={(tenant) => {
-          setItems((current) => [
-            tenant,
-            ...current.filter((t) => t.id !== tenant.id),
-          ]);
-          onTenantCreated?.(tenant);
-          setCreating(false);
-          setSelected(tenant);
-          setSection(null);
-          setError("");
-          setNotice(c.createdNotice);
+          addCreated(tenant);
+          finishCreate(tenant, true);
         }}
       />
     );
+  }
   if (selected) {
     const fmt = billFormatters(locale);
     const runAction = (action: TenantNextAction) => {

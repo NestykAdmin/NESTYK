@@ -621,6 +621,23 @@ export const en: TranslationSchema = {
       makeReservation: 'Make reservation letter',
       addEmail: 'Add tenant email',
       addIdentity: 'Add tenant ID number',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: 'Steps to create a tenant',
+        stepOf: 'Step {step} of {total}',
+        change: 'Change',
+        leadSub: 'The customer who agreed to rent',
+        roomSub: 'The room to book',
+        confirmSub: 'Offer · email · ID',
+        pickLeadHint: 'Click a lead to choose a room',
+        pickRoomHint: 'Click a room to confirm the booking',
+        docTitle: 'For the reservation letter',
+        docHint: 'Optional when booking, needed before the reservation letter',
+        customerTitle: 'Customer details',
+        customerHint: 'Taken from the lead; edit if anything is wrong',
+        editCustomer: 'Edit',
+        hideCustomer: 'Hide',
+      },
       detail: {
         title: 'Tenant',
         subtitle: '{name} · Room {room}',
