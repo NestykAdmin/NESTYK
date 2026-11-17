@@ -251,3 +251,8 @@ test('one yellow button per page: tenant work rows use the outline button, the d
   assert.equal((overview.match(/aw-button aw-button-primary/g) || []).length, 1);
   assert.doesNotMatch(overview, /awu-btn awu-btn-primary/);
 });
+
+test('one yellow button per view: profile and password forms never open together (account actions hide while either is open)', () => {
+  const shell = read(path.join(web, 'AgentWorkspace.web.tsx'));
+  assert.match(shell, /\{hasAccountActions && !profileOpen && !passwordOpen && !deleteOpen \? \(/);
+});
