@@ -145,12 +145,15 @@ Body:
 
 เลือก **อย่างใดอย่างหนึ่ง** และต้องตรงกับฝั่งแอป (ข้อ 3)
 
-| แบบ | Supabase | แอป (`EXPO_PUBLIC_HCAPTCHA_SITE_KEY`) |
+| แบบ | Supabase | แอป (`EXPO_PUBLIC_TURNSTILE_SITE_KEY`) |
 |---|---|---|
 | ปิด captcha | ปิด | **เว้นว่าง** |
-| เปิด captcha | เปิด เลือก hCaptcha ใส่ Secret key | ใส่ **Site key** ของ hCaptcha ชุดเดียวกัน |
+| เปิด captcha | เปิด เลือก **Turnstile** ใส่ Secret key | ใส่ **Site key** ของ Turnstile widget เดียวกัน |
+| Dev / e2e | เปิด เลือก Turnstile ใส่ secret ทดสอบ `1x0000000000000000000000000000000AA` | ใส่ site key ทดสอบ `1x00000000000000000000AA` (ห้ามใช้กับ production) |
 
 **ถ้าเปิดฝั่งเดียว:** สมัคร, login, ลืมรหัส, เปลี่ยนรหัส และยืนยันรหัสก่อนลบบัญชี **พังทั้งหมด** ("captcha verification process failed")
+
+**เปลี่ยนจาก hCaptcha (12 พ.ย. 2026):** แอปรุ่นก่อน `feature/cloudflare` ส่ง token ของ hCaptcha ถ้าเปิด Turnstile ใน Supabase ก่อนผู้ใช้อัปเดตแอป ผู้ใช้แอปรุ่นเก่าจะเข้าระบบไม่ได้
 
 ### 1.6 Authentication → Rate Limits
 
@@ -199,7 +202,7 @@ Body:
 | `EXPO_PUBLIC_API_URL` | URL ของ API SIT ลงท้าย `/api/v1` | แอปเรียก API ผิดที่ |
 | `EXPO_PUBLIC_SUPABASE_URL` | URL ของ project **SIT** (ต้องเป็น project เดียวกับข้อ 2) | login ได้แต่ API ตอบ 401 |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | anon key ของ project SIT | เหมือนบรรทัดบน |
-| `EXPO_PUBLIC_HCAPTCHA_SITE_KEY` | ตามข้อ 1.5 | ข้อ 1.5 |
+| `EXPO_PUBLIC_TURNSTILE_SITE_KEY` | ตามข้อ 1.5 | ข้อ 1.5 |
 | `EXPO_PUBLIC_USE_DEV_AUTH` | `false` | – |
 | `EXPO_PUBLIC_ALLOW_DEV_ROLE_GRANT` | `false` | แอปพยายามขอสิทธิ์ admin ทุกครั้งที่ login |
 

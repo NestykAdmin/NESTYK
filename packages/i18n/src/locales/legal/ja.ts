@@ -87,7 +87,7 @@ export const legalJa: LegalCopy = {
       roomsView: { purpose: '部屋一覧の表示方法を記録します', kept: '「環境設定」をオフにするか、サイトのデータを消去するまで' },
     },
     services: {
-      hcaptcha: { purpose: 'ログイン、登録、パスワード再設定時のボット対策', data: 'IPアドレス、ブラウザ情報、ページの操作内容' },
+      turnstile: { purpose: 'ログイン、登録、パスワード再設定時のボット対策', data: 'IPアドレス、ブラウザ情報、ページの操作内容' },
       googleMaps: { purpose: '場所の指定や部屋の表示で地図を表示します。地図のCookieを許可した場合のみ読み込みます', data: 'IPアドレスと表示した地図の範囲' },
     },
   },

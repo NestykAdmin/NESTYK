@@ -87,7 +87,7 @@ export const legalEn: LegalCopy = {
       roomsView: { purpose: 'Remembers how you view the room list', kept: 'You turn off "Preferences" or clear the site data' },
     },
     services: {
-      hcaptcha: { purpose: 'Stops bots at sign-in, sign-up and password reset', data: 'IP address, browser details and how you use the page' },
+      turnstile: { purpose: 'Stops bots at sign-in, sign-up and password reset', data: 'IP address, browser details and how you use the page' },
       googleMaps: { purpose: 'Shows maps when you pin a place or view a room. Loads only if you allow map cookies', data: 'IP and the map area you view' },
     },
   },

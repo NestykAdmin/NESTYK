@@ -87,7 +87,7 @@ export const legalZh: LegalCopy = {
       roomsView: { purpose: '记住房源列表的显示方式', kept: '您关闭“偏好设置”或清除网站数据' },
     },
     services: {
-      hcaptcha: { purpose: '在登录、注册和重置密码时阻止机器人', data: 'IP 地址、浏览器信息及页面操作方式' },
+      turnstile: { purpose: '在登录、注册和重置密码时阻止机器人', data: 'IP 地址、浏览器信息及页面操作方式' },
       googleMaps: { purpose: '在标记地点或查看房源时显示地图。仅在您允许地图 Cookie 后加载', data: 'IP 和您查看的地图区域' },
     },
   },

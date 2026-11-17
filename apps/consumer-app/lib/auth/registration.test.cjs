@@ -86,8 +86,8 @@ test('an email that already has an account still looks like a code was sent', as
 
 test('signup sends the captcha token with the Supabase request', async () => {
   const { auth, credentials, calls } = setup({ confirmation: true });
-  await auth.signUp(credentials.email, credentials.password, credentials.firstName, credentials.lastName, '', false, 'hcaptcha-token');
-  assert.equal(calls.signup[0].options.captchaToken, 'hcaptcha-token');
+  await auth.signUp(credentials.email, credentials.password, credentials.firstName, credentials.lastName, '', false, 'captcha-token');
+  assert.equal(calls.signup[0].options.captchaToken, 'captcha-token');
 });
 
 test('email confirmation required: no API profile or application session is created yet', async () => {

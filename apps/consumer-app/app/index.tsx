@@ -89,8 +89,8 @@ import { MobileServiceCatalogBody } from '@nestyk/feature-services';
 import { createAgentScoutRoom, fetchAgentContacts, fetchAgentPropertyTypes, fetchAgentContractTypes, fetchAgentRoomTypes, fetchAgentFacilities, generateListingPromo } from '../lib/agent-listings-api';
 import { clearProfileAvatar, updateMyProfile, uploadProfileAvatar } from '../lib/profile-api';
 import { changePassword as changeAccountPassword, confirmCurrentPassword } from '../lib/auth/change-password';
-import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
-import { HcaptchaField } from '../components/HcaptchaField';
+import { captchaSiteKey } from '../lib/auth/captcha-site-key';
+import { CaptchaField } from '../components/CaptchaField';
 import { apiDelete, apiGet, apiPost } from '../lib/api';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/auth/supabase';
 import { pickRoomPhotos, uploadRoomPhoto, enhanceRoomPhoto } from '../lib/room-photos';
@@ -222,7 +222,7 @@ export function AppHomeScreen() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [passwordCaptchaToken, setPasswordCaptchaToken] = useState<string | null>(null);
   const [passwordCaptchaKey, setPasswordCaptchaKey] = useState(0);
-  const passwordCaptchaRequired = hcaptchaSiteKey().length > 0;
+  const passwordCaptchaRequired = captchaSiteKey().length > 0;
   const [partyInbox, setPartyInbox] = useState(() => !!initialRoute?.partyInbox);
   const [selectedPartyRoom, setSelectedPartyRoom] = useState<PartyContractRoom | null>(null);
   const [contractHistory, setContractHistory] = useState(() => initialRoute?.partyInbox === 'tenants');
@@ -2018,7 +2018,7 @@ export function AppHomeScreen() {
         onDeleteAccount={accountDeletionMenu ? deleteAccount : undefined}
         onScheduleAccountDeletion={accountDeletionMenu ? scheduleAccountDeletion : undefined}
         onCancelAccountDeletion={accountDeletionMenu ? cancelAccountDeletion : undefined}
-        captcha={passwordCaptchaRequired ? <HcaptchaField resetKey={passwordCaptchaKey} onToken={setPasswordCaptchaToken} /> : undefined}
+        captcha={passwordCaptchaRequired ? <CaptchaField resetKey={passwordCaptchaKey} onToken={setPasswordCaptchaToken} /> : undefined}
         captchaRequired={passwordCaptchaRequired}
         captchaToken={passwordCaptchaToken}
         onCaptchaReset={() => { setPasswordCaptchaToken(null); setPasswordCaptchaKey((key) => key + 1); }}

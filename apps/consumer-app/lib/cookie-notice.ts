@@ -38,10 +38,11 @@ export const BROWSER_STORAGE_ITEMS: readonly { id: StorageItemId; name: string; 
   { id: 'roomsView', name: 'nestyk.agentRooms.view', type: 'preference' },
 ];
 
-export type ServiceId = 'hcaptcha' | 'googleMaps';
+export type ServiceId = 'turnstile' | 'googleMaps';
 
 export const THIRD_PARTY_SERVICES: readonly { id: ServiceId; name: string; policyUrl: string }[] = [
-  { id: 'hcaptcha', name: 'hCaptcha', policyUrl: 'https://www.hcaptcha.com/privacy' },
+  // hCaptcha → Turnstile (Jom, 12 Nov 2026). Policy link pending legal review (plan D5).
+  { id: 'turnstile', name: 'Cloudflare Turnstile', policyUrl: 'https://www.cloudflare.com/privacypolicy/' },
   { id: 'googleMaps', name: 'Google Maps', policyUrl: 'https://policies.google.com/privacy' },
 ];
 
