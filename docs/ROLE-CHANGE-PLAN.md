@@ -13,7 +13,7 @@
 | `guest` | ผู้ใช้ทั่วไป | ทุกคนได้ตอนล็อกอินครั้งแรก | เหมือนเดิม |
 | `tenant` | ผู้เช่า | ผู้เช่า | เหมือนเดิม |
 | **`landlord`** | ผู้ให้เช่า | เจ้าของห้องที่ **นายหน้าดูแลให้** ดูและเซ็นเอกสารที่นายหน้าส่งมา ดูบิลค่าเช่าที่ได้รับ | คือ `owner` เดิม เปลี่ยนแค่ชื่อ |
-| **`self_owner`** | Owner / เจ้าของ | เจ้าของห้องที่ **ปล่อยห้องเอง** สร้างห้องได้ รับแจ้งเตือนการจ่ายค่าเช่า และเซ็นเอกสารที่ admin ของ NESTYK ดำเนินการให้ | ยังไม่มี |
+| **`self_owner`** | Owner / เจ้าของ | เจ้าของห้องที่ **ปล่อยห้องเอง** สร้างห้องได้ รับแจ้งเตือนการจ่ายค่าเช่า และเซ็นเอกสารที่ admin ของ NESTYK ดำเนินการให้ | รอบ 2 (18 พ.ย. 2026): มี role แล้ว (id 6, เว็บ `/self-owner`) เมนูยังเป็นตัวอย่าง ไม่มี `@Roles` ใน API |
 | `agent` | นายหน้า | นายหน้า | เหมือนเดิม |
 | `admin` | ผู้ดูแลระบบ | ผู้ดูแลระบบ | เหมือนเดิม |
 
@@ -238,7 +238,7 @@ UPDATE public.master_roles
 | `qa-guest@nestyk.test` | guest | guest |
 | `qa-tenant@nestyk.test` | guest, tenant | guest, tenant |
 | `qa-landlord@nestyk.test` | guest, owner (แถว id 2 ซึ่งตอนนี้แปลว่าผู้ให้เช่า) | guest, landlord (แถวเดิม id 2) |
-| `qa-self-owner@nestyk.test` | ยังไม่สร้าง (รอ role `self_owner` รอบ 2) | guest, self_owner |
+| `qa-self-owner@nestyk.test` | ยังไม่สร้าง (รอ role `self_owner` รอบ 2) | guest, self_owner (หลัง migration `20261118051846_self_owner_role` แล้วรัน `db:test-users`) |
 | `qa-agent@nestyk.test` | guest, agent | guest, agent |
 | `qa-admin@nestyk.test` | guest, admin | guest, admin |
 | `qa-agent2@nestyk.test` | guest, agent | guest, agent (นายหน้าคนที่ 2 เพิ่ม 2 พ.ย. 2026) |

@@ -14,8 +14,11 @@ require.extensions['.ts'] = (module, filename) => {
 const { roleCatalogProblems, RoleCatalogCheck } = require('../src/database/role-catalog.check.ts');
 const { MASTER_ROLE_NAMES, RETIRED_ROLE_NAMES } = require('../src/entities/master-role.entity.ts');
 
-// Rows after supabase/seed/masters.sql (id 2 renamed to landlord) — written out, not derived from the code under test.
-const CURRENT = ['guest', 'landlord', 'tenant', 'agent', 'admin'];
+// Rows after supabase/seed/masters.sql (id 2 renamed to landlord) and the round 2 migration that adds self_owner
+// (id 6, 20261118051846_self_owner_role) — written out, not derived from the code under test.
+const CURRENT = ['guest', 'landlord', 'tenant', 'agent', 'admin', 'self_owner'];
+// Rows after round 1 only (landlord rename, no self_owner yet).
+const ROUND1 = ['guest', 'landlord', 'tenant', 'agent', 'admin'];
 // Rows before migration 20261016100000_rename_owner_role_to_landlord (seed of baseline 20261014100838).
 const LEGACY = ['guest', 'owner', 'tenant', 'agent', 'admin'];
 
@@ -60,23 +63,30 @@ test('current catalog has no problems', () => {
 });
 
 test('legacy catalog (before the landlord migration) is missing landlord and still has owner', () => {
-  assert.deepEqual(roleCatalogProblems(LEGACY), { missing: ['landlord'], retired: ['owner'], unknown: [] });
+  assert.deepEqual(roleCatalogProblems(LEGACY), { missing: ['landlord', 'self_owner'], retired: ['owner'], unknown: [] });
 });
 
 test('a role added by a newer release is only unknown, not an error', () => {
-  assert.deepEqual(roleCatalogProblems([...CURRENT, 'self_owner']), { missing: [], retired: [], unknown: ['self_owner'] });
+  assert.deepEqual(roleCatalogProblems([...CURRENT, 'team_member']), { missing: [], retired: [], unknown: ['team_member'] });
+});
+
+test('round 2: the code needs self_owner, so a round 1 database stops the API until the migration runs', async (t) => {
+  withSchema(t, undefined);
+  assert.ok(MASTER_ROLE_NAMES.includes('self_owner'));
+  assert.deepEqual(roleCatalogProblems(ROUND1), { missing: ['self_owner'], retired: [], unknown: [] });
+  await rejectsWith(check(ROUND1).run(), [/ขาด: self_owner →/]);
 });
 
 test('startup check rejects a database that only lacks roles (no owner involved)', async (t) => {
   withSchema(t, undefined);
-  await rejectsWith(check(['guest', 'tenant', 'landlord']).run(), [/ขาด: agent, admin →/]);
+  await rejectsWith(check(['guest', 'tenant', 'landlord']).run(), [/ขาด: agent, admin, self_owner →/]);
   const out = check(['guest', 'tenant', 'landlord']).run();
   await assert.rejects(out, (e) => !/เลิกใช้แล้ว/.test(e.message));
 });
 
 test('startup check rejects the legacy database with both reasons listed', async (t) => {
   withSchema(t, undefined);
-  await rejectsWith(check(LEGACY).run(), [/ขาด: landlord →/, /เลิกใช้แล้ว: owner →/]);
+  await rejectsWith(check(LEGACY).run(), [/ขาด: landlord, self_owner →/, /เลิกใช้แล้ว: owner →/]);
 });
 
 test('startup check rejects a database that re-added owner next to landlord', async (t) => {
@@ -94,10 +104,10 @@ test('startup check passes the current catalog without warnings', async (t) => {
 
 test('startup check only warns about a role from a newer release', async (t) => {
   withSchema(t, undefined);
-  const c = check([...CURRENT, 'self_owner']);
+  const c = check([...CURRENT, 'team_member']);
   await c.run();
   assert.equal(c.warnings.length, 1);
-  assert.match(c.warnings[0], /self_owner/);
+  assert.match(c.warnings[0], /team_member/);
 });
 
 test('startup check reads the schema from DB_SCHEMA and says the migrations only cover public', async (t) => {
