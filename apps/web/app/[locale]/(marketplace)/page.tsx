@@ -236,7 +236,7 @@ export default async function HomePage({ params }: Props) {
       <section className="nk-closing" data-testid="guestHome.closing">
         <div className="nk-closing__inner">
           <h2 className="nk-closing__title">{copy.home.ctaTitle}</h2>
-          <SearchLink href={searchHref} className="nk-btn nk-btn--dark" soon={soon}>
+          <SearchLink href={searchHref} className="nk-btn nk-btn--primary" soon={soon}>
             {copy.home.ctaButton}
           </SearchLink>
         </div>

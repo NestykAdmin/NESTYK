@@ -1252,11 +1252,17 @@ a.nk-types__item:hover {
   width: 48px;
   height: 48px;
   border-radius: var(--nk-radius-md);
-  background: var(--nk-color-brand-soft);
-  color: var(--nk-color-ink);
+  /* CI pair (Mos 18 Nov 2026): ink chip with a yellow icon, like the agent web KPI chips; pale yellow fills read
+     washed out next to the ink hero and footer. */
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.nk-types__item--soon .nk-types__icon {
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-text-disabled);
 }
 .nk-types__text {
   display: flex;
@@ -1369,8 +1375,8 @@ a.nk-types__item:hover {
   width: 44px;
   height: 44px;
   border-radius: var(--nk-radius-md);
-  background: var(--nk-color-brand-soft);
-  color: var(--nk-color-ink);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1386,9 +1392,10 @@ a.nk-types__item:hover {
   color: var(--nk-color-text-secondary);
 }
 
-/* Closing call to action */
+/* Closing call to action (Mos 18 Nov 2026): a dark band with the page's yellow button. One step lighter than the
+   ink footer under it (dark-raised), so the two do not merge into one block. */
 .nk-closing {
-  background: var(--nk-color-brand-soft);
+  background: var(--nk-color-dark-raised);
 }
 .nk-closing__inner {
   max-width: var(--nk-content-width);
@@ -1405,7 +1412,7 @@ a.nk-types__item:hover {
   font-family: var(--nk-font-heading);
   font-weight: 500;
   font-size: var(--nk-text-2xl);
-  color: var(--nk-color-ink);
+  color: var(--nk-color-surface);
 }
 
 /* States */
@@ -1985,14 +1992,15 @@ a.nk-types__item:hover {
   align-items: center;
   gap: var(--nk-space-2);
   border-radius: var(--nk-radius-pill);
-  background: var(--nk-color-brand-soft);
-  color: var(--nk-color-ink);
+  /* Applied filter: ink fill like the selected "rent" tab (Mos 18 Nov 2026), not a pale yellow. */
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
   font-size: var(--nk-text-sm);
   font-weight: 600;
   text-decoration: none;
 }
 .nk-filter-chip:hover {
-  background: var(--nk-color-brand);
+  background: var(--nk-color-dark-line);
 }
 
 .nk-search-results {
