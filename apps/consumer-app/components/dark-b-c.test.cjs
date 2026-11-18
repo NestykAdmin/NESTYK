@@ -252,7 +252,12 @@ test('one yellow button per page: tenant work rows use the outline button, the d
   assert.doesNotMatch(overview, /awu-btn awu-btn-primary/);
 });
 
-test('one yellow button per view: profile and password forms never open together (account actions hide while either is open)', () => {
+test('one yellow button per view: each settings section has one save button; delete now is red, not yellow', () => {
   const shell = read(path.join(web, 'AgentWorkspace.web.tsx'));
-  assert.match(shell, /\{hasAccountActions && !profileOpen && !passwordOpen && !deleteOpen \? \(/);
+  // Settings page sections (18 Nov 2026): one section shows at a time; profile and password each have one save button.
+  const security = shell.slice(shell.indexOf('const securitySection'), shell.indexOf('const displaySection'));
+  assert.equal((security.match(/aw-button aw-button-primary/g) || []).length, 1);
+  assert.match(security, /className="aw-button aw-button-danger".*\{account\.deleteAccountNow\}/);
+  const profile = shell.slice(shell.indexOf('const profileSection'), shell.indexOf('const securitySection'));
+  assert.equal((profile.match(/aw-button aw-button-primary/g) || []).length, 1);
 });

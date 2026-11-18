@@ -105,7 +105,8 @@ import {
   setPendingRole,
 } from '../lib/auth/role-gate';
 import { ACCOUNT_DELETION_ENABLED, showAccountDeletion } from '../lib/account-deletion-flag';
-import { type AppRouteState, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
+import { type AppRouteState, type SettingsSection, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
+import { type RoleWebMenuCopy, adminWebNavSections, selfOwnerWebNavSections } from '../components/agent-web/role-web-menus';
 import {
   afterSignOutHref,
   holdShellMove,
@@ -265,6 +266,8 @@ export function AppHomeScreen() {
   const [leadsReloadToken, setLeadsReloadToken] = useState(0);
   const [roomsReloadToken, setRoomsReloadToken] = useState(0);
   const [creatingTenant, setCreatingTenant] = useState(() => !!initialRoute?.creatingTenant);
+  /** Web settings page ("/<role>/settings[/section]", Mos 18 Nov 2026); null = closed. Any menu choice closes it. */
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() => initialRoute?.settings ?? null);
   const [createTenantBusy, setCreateTenantBusy] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<AgentTenant | null>(null);
   const createTenantBackRef = useRef<(() => boolean) | null>(null);
@@ -359,6 +362,7 @@ export function AppHomeScreen() {
     setLeadEdit(null);
     setMatchRoomId(null);
     setMatchRoomPreview(null);
+    setSettingsSection(null);
     setActiveTab(tab);
   };
 
@@ -645,6 +649,8 @@ export function AppHomeScreen() {
     setPartyInbox(false);
     setSelectedPartyRoom(null);
     setOpenedPartyContract(null);
+    // Review R1 (18 Nov 2026): a new role opens on its home, not on the settings page of the old role.
+    setSettingsSection(null);
     setActiveRole(role);
     setActiveTab(getDefaultTabForRole(role));
   };
@@ -723,6 +729,7 @@ export function AppHomeScreen() {
     setMatchRoomId(null);
     setMatchRoomPreview(null);
     setCreatingTenant(!!route.creatingTenant);
+    setSettingsSection(route.settings ?? null);
     if (route.tab === 'calendar') {
       const date = route.calendarDate ?? calendarDateKey(new Date());
       setCalendarSelectedDate(date);
@@ -740,6 +747,8 @@ export function AppHomeScreen() {
     !!selectedPartyRoom ||
     !!openedPartyContract ||
     (activeRole === 'tenant' && partyInbox && contractHistory);
+  // Review R2: the settings page lives only in the wide web shell; a narrow window shows the role home and its URL.
+  const shownSettings = Platform.OS === 'web' && windowWidth >= WEB_SHELL_MIN_WIDTH ? settingsSection : null;
   const routeHref =
     Platform.OS === 'web'
       ? stateToRoute({
@@ -749,7 +758,8 @@ export function AppHomeScreen() {
           partyInbox: partyInbox ? (activeRole === 'landlord' && contractHistory ? 'tenants' : 'contracts') : null,
           calendarDate: calendarSelectedDate,
           billHistory,
-          detailOpen: routeDetailOpen,
+          settings: shownSettings,
+          detailOpen: routeDetailOpen && !shownSettings,
         })
       : null;
   useAppRouteSync(routeHref, activeRole, applyRoute);
@@ -773,7 +783,10 @@ export function AppHomeScreen() {
   const isAgentWeb = isWideWeb && activeRole === 'agent';
   const isLandlordWeb = isWideWeb && activeRole === 'landlord';
   const isTenantWeb = isWideWeb && activeRole === 'tenant';
-  const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb;
+  // Admin and self owner web shells (Mos 18 Nov 2026): the same workspace shell with their own sidebars.
+  const isAdminWeb = isWideWeb && activeRole === 'admin';
+  const isSelfOwnerWeb = isWideWeb && activeRole === 'self_owner';
+  const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb || isAdminWeb || isSelfOwnerWeb;
   // Widening the browser past WEB_SHELL_MIN_WIDTH swaps in the desktop shell; close the app drawer so it does not
   // pop back open when the window is narrowed again.
   useEffect(() => {
@@ -1158,6 +1171,7 @@ export function AppHomeScreen() {
       landlord: { title: home.landlordTitle, desc: '', badge: t.roles.landlord },
       agent: { title: home.agentTitle, desc: '', badge: t.roles.agent },
       admin: { title: home.adminTitle, desc: home.comingSoon, badge: t.roles.admin },
+      self_owner: { title: t.selfOwnerWeb.homeTitle, desc: t.selfOwnerWeb.homeBody, badge: t.roles.self_owner },
     };
     const summary = summaries[activeRole];
     return (
@@ -1765,15 +1779,46 @@ export function AppHomeScreen() {
       };
     }),
   }));
+  const roleMenuCopy: RoleWebMenuCopy = {
+    comingSoon: t.agent.dashboard.comingSoon,
+    dashboard: t.mobile.tabs.dashboard,
+    services: t.mobile.tabs.services,
+    drawer: t.mobile.drawerMenu,
+    admin: t.adminWeb,
+    selfOwner: t.selfOwnerWeb,
+  };
+  const workspaceNav = isLandlordWeb
+    ? landlordNavSections
+    : isTenantWeb
+      ? tenantNavSections
+      : isAdminWeb
+        ? adminWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
+        : isSelfOwnerWeb
+          ? selfOwnerWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
+          : undefined;
+  const workspaceRole: UserRole = isDesktopWeb && !isAgentWeb ? activeRole : 'agent';
+  const workspaceCopy = isLandlordWeb
+    ? t.owner.webWorkspace
+    : isTenantWeb
+      ? t.tenant.webWorkspace
+      : isAdminWeb
+        ? t.adminWeb
+        : isSelfOwnerWeb
+          ? t.selfOwnerWeb
+          : undefined;
+  // Review R1 (Mos 18 Nov 2026): an account that has the admin role is closed by another admin, never by itself,
+  // whichever role is open (web workspace and phone drawer alike).
+  const isAdminAccount = (session?.roles ?? []).includes('admin');
+  const selfDeletion = accountDeletionMenu && !isAdminAccount;
 
   return (
     <>
       <AgentWorkspace
         enabled={isDesktopWeb}
-        activeRole={isLandlordWeb ? 'landlord' : isTenantWeb ? 'tenant' : 'agent'}
-        brandTag={isLandlordWeb ? t.owner.webWorkspace.brandTag : isTenantWeb ? t.tenant.webWorkspace.brandTag : undefined}
-        workspaceLabel={isLandlordWeb ? t.owner.webWorkspace.workspaceLabel : isTenantWeb ? t.tenant.webWorkspace.workspaceLabel : undefined}
-        navSections={isLandlordWeb ? landlordNavSections : isTenantWeb ? tenantNavSections : undefined}
+        activeRole={workspaceRole}
+        brandTag={workspaceCopy?.brandTag}
+        workspaceLabel={workspaceCopy?.workspaceLabel}
+        navSections={workspaceNav}
         navigationDisabled={createLeadBusy || createTenantBusy || tenantDetail.saving}
         activeTab={activeTab}
         onRefresh={onPageRefresh}
@@ -1788,6 +1833,9 @@ export function AppHomeScreen() {
         notificationsEmptyLabel={t.agent.dashboard.comingSoon}
         onSignOut={handleAuthAction}
         onSignOutEverywhere={isAuthenticated ? handleSignOutEverywhere : undefined}
+        settingsSection={shownSettings}
+        onOpenSettings={(section) => setSettingsSection(section)}
+        onCloseSettings={() => setSettingsSection(null)}
         userName={profileName}
         userEmail={profileEmail}
         userPhone={profilePhone}
@@ -1796,10 +1844,11 @@ export function AppHomeScreen() {
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
         onChangePassword={isAuthenticated ? changePassword : undefined}
-        onLoadAccountDeletion={accountDeletionMenu ? loadAccountDeletion : undefined}
-        onDeleteAccount={accountDeletionMenu ? deleteAccount : undefined}
-        onScheduleAccountDeletion={accountDeletionMenu ? scheduleAccountDeletion : undefined}
-        onCancelAccountDeletion={accountDeletionMenu ? cancelAccountDeletion : undefined}
+        onLoadAccountDeletion={selfDeletion ? loadAccountDeletion : undefined}
+        onDeleteAccount={selfDeletion ? deleteAccount : undefined}
+        onScheduleAccountDeletion={selfDeletion ? scheduleAccountDeletion : undefined}
+        onCancelAccountDeletion={selfDeletion ? cancelAccountDeletion : undefined}
+        adminAccount={isAdminAccount}
         initials={profileInitials}
         notificationCount={unreadCount}
         notificationsOpen={notificationsOpen}
@@ -2015,10 +2064,10 @@ export function AppHomeScreen() {
         onUploadAvatar={uploadAvatar}
         onRemoveAvatar={removeAvatar}
         onChangePassword={isAuthenticated ? changePassword : undefined}
-        onLoadAccountDeletion={accountDeletionMenu ? loadAccountDeletion : undefined}
-        onDeleteAccount={accountDeletionMenu ? deleteAccount : undefined}
-        onScheduleAccountDeletion={accountDeletionMenu ? scheduleAccountDeletion : undefined}
-        onCancelAccountDeletion={accountDeletionMenu ? cancelAccountDeletion : undefined}
+        onLoadAccountDeletion={selfDeletion ? loadAccountDeletion : undefined}
+        onDeleteAccount={selfDeletion ? deleteAccount : undefined}
+        onScheduleAccountDeletion={selfDeletion ? scheduleAccountDeletion : undefined}
+        onCancelAccountDeletion={selfDeletion ? cancelAccountDeletion : undefined}
         captcha={passwordCaptchaRequired ? <CaptchaField resetKey={passwordCaptchaKey} onToken={setPasswordCaptchaToken} /> : undefined}
         captchaRequired={passwordCaptchaRequired}
         captchaToken={passwordCaptchaToken}

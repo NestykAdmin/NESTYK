@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { webDevApiUrl } from './web-api-proxy';
 import type { UserRole } from '@nestyk/types';
 
-const ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+const ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin', 'self_owner'];
 /** Old role codes still found in .env files; mapped once with a warning (docs/ROLE-CHANGE-PLAN.md, guard 6). */
 const LEGACY_ROLE_ALIASES: Record<string, UserRole> = { owner: 'landlord' };
 

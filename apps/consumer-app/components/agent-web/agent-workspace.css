@@ -170,12 +170,14 @@
   background: #f1f5f9;
 }
 .aw-nav-item.is-active:hover {
-  background: #3f3a3a;
+  background: #e2e8f0;
 }
 .aw-nav-item.is-active {
-  /* v1.2: the selected item is the ink fill with white text and a yellow icon (icon colour set in AgentWorkspace.web.tsx). */
-  background: var(--aw-black);
-  color: #ffffff;
+  /* Design ก (Mos 17 Nov 2026): light mirrors dark: CI slate fill, ink text and a yellow bar on the left, instead of
+     the v1.2 ink pill. The icon is dark gold here and CI yellow in dark mode (set in AgentWorkspace.web.tsx). */
+  background: #f1f5f9;
+  color: var(--aw-ink);
+  box-shadow: inset 3px 0 0 var(--aw-brand);
   font-family: "NotoSansThai_600SemiBold", sans-serif;
 }
 .aw-active-dot {
@@ -334,7 +336,7 @@
   height: 36px;
   width: 36px;
   border-radius: 50%;
-  /* v1.2: the signed-in user's own avatar is ink with yellow initials (lifted grey in dark mode). */
+  /* v1.2 fallback: ink with yellow initials. The shell sets the role colours inline (option ก, 18 Nov 2026). */
   background: var(--aw-black);
   color: var(--aw-brand);
   font-size: var(--aw-t-caption);
@@ -364,50 +366,6 @@
   font-size: var(--aw-t-small);
   line-height: 20px;
 }
-.aw-photo {
-  display: flex;
-  align-items: center;
-  gap: var(--aw-s4);
-  padding: var(--aw-s1) 0 var(--aw-s2);
-}
-.aw-photo-hit {
-  position: relative;
-  width: 76px;
-  height: 76px;
-  flex: none;
-  cursor: pointer;
-  border-radius: 50%;
-}
-.aw-photo-hit:focus-within {
-  outline: 2px solid var(--aw-brand);
-  outline-offset: 3px;
-}
-.aw-photo-face {
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: grid;
-  place-items: center;
-  background: var(--aw-brand-soft);
-  color: var(--aw-black);
-  border: 2px solid var(--aw-brand);
-  font-family: "NotoSansThai_600SemiBold", sans-serif;
-  font-size: var(--aw-t-page);
-  line-height: 30px;
-}
-.aw-photo-badge {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--aw-brand);
-  border: 2px solid var(--aw-surface);
-  display: grid;
-  place-items: center;
-}
 .aw-photo-file {
   position: absolute;
   width: 1px;
@@ -417,18 +375,6 @@
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
-}
-.aw-photo-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.aw-photo-title {
-  color: var(--aw-ink);
-  font-size: var(--aw-t-body);
-  line-height: 21px;
-  font-weight: 600;
 }
 .aw-photo-hint {
   color: var(--aw-muted);
@@ -495,9 +441,6 @@
   max-height: calc(100dvh - 100px);
   overflow-y: auto;
 }
-.aw-account-popover-password {
-  width: 360px;
-}
 .aw-account-info {
   display: flex;
   flex-direction: column;
@@ -509,7 +452,8 @@
   font-size: var(--aw-t-caption);
   color: var(--aw-muted);
 }
-.aw-account-popover label {
+.aw-account-popover label,
+.aw-settings .aw-profile-form label {
   display: flex;
   flex-direction: column;
   gap: var(--aw-s2);
@@ -1047,26 +991,27 @@
   width: 100%;
 }
 .aw-switcher {
-  /* v1.2: the workspace (mode) box is ink in light mode and lifted grey in dark mode, with a yellow icon. */
+  /* Design จ2 (18 Nov 2026): the role box is CI slate in light mode (same as the selected menu item) and lifted grey
+     in dark mode; the role shows only in its tile (roleTileColors, set inline in AgentWorkspace.web.tsx). */
   display: flex;
   align-items: center;
   gap: var(--aw-s3);
   width: 100%;
   padding: var(--aw-s2);
-  border: 1px solid var(--aw-black);
+  border: 1px solid #f1f5f9;
   border-radius: var(--aw-r-md);
-  background: var(--aw-black);
-  color: #ffffff;
+  background: #f1f5f9;
+  color: var(--aw-ink);
   text-align: left;
 }
 .aw-switcher:hover {
-  background: #3f3a3a;
+  background: #e2e8f0;
 }
 .aw-switcher .aw-switch-copy strong {
-  color: #ffffff;
+  color: var(--aw-ink);
 }
 .aw-switcher .aw-switch-copy small {
-  color: #cbd5e1;
+  color: var(--aw-muted);
 }
 .aw-switch-tile {
   position: relative;
@@ -1076,28 +1021,15 @@
   height: 36px;
   flex-shrink: 0;
   border-radius: var(--aw-r-md);
-  background: #f8b61529;
 }
-.aw-switch-dot {
-  /* Role colour as a thin ring around the tile, not a filled dot: a red dot reads as an alert (design audit #4). */
-  position: absolute;
-  inset: -3px;
-  border-radius: var(--aw-r-md);
-  border: 2px solid var(--aw-role, currentColor);
-  background: transparent !important;
-  opacity: 0.55;
-  pointer-events: none;
-}
-.aw-switch-copy,
-.aw-account-text {
+.aw-switch-copy {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
   line-height: 1.3;
 }
-.aw-switch-copy strong,
-.aw-account-text strong {
+.aw-switch-copy strong {
   font-family: "NotoSansThai_600SemiBold", sans-serif;
   font-weight: normal;
   font-size: var(--aw-t-body);
@@ -1105,18 +1037,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.aw-switch-copy small,
-.aw-account-text small {
+.aw-switch-copy small {
   font-size: var(--aw-t-caption);
   color: var(--aw-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.aw-switch-chev,
-.aw-account-chev {
-  display: flex;
-  flex-shrink: 0;
 }
 .aw-switch .awu-menu-list {
   left: 0;
@@ -1133,10 +1059,7 @@
   padding: var(--aw-s1);
   border-color: transparent;
 }
-.aw-collapsed .aw-switch-copy,
-.aw-collapsed .aw-switch-chev,
-.aw-collapsed .aw-account-text,
-.aw-collapsed .aw-account-chev {
+.aw-collapsed .aw-switch-copy {
   display: none;
 }
 .aw-collapsed .aw-switch .awu-menu-list {
@@ -1198,8 +1121,8 @@
   color: var(--aw-ink) !important;
 }
 .aw-nav-subitem.is-active {
-  /* v1.2: the selected sub-page under an ink parent: CI slate neutral fill, ink text and a yellow bar. */
-  background: #f1f5f9;
+  /* The selected sub-page: a lighter slate than its parent (#F1F5F9), ink text and a yellow bar, as in dark mode. */
+  background: #f8fafc;
   color: var(--aw-ink) !important;
   box-shadow: inset 2px 0 0 var(--aw-brand);
   font-family: "NotoSansThai_600SemiBold", sans-serif;
@@ -1209,33 +1132,6 @@
   display: none;
 }
 
-/* Account card at the bottom of the sidebar (menu opens upwards) */
-.aw-sidebar > .aw-account {
-  padding: var(--aw-s3) var(--aw-s3);
-  border-top: 1px solid var(--aw-border);
-}
-.aw-sidebar > .aw-account summary {
-  padding: var(--aw-s2);
-  border-radius: var(--aw-r-md);
-}
-.aw-sidebar > .aw-account summary:hover {
-  background: var(--aw-bg);
-}
-.aw-sidebar > .aw-account .aw-account-popover {
-  top: auto;
-  bottom: calc(100% + 6px);
-  left: 12px;
-  right: auto;
-  max-height: calc(100dvh - 120px);
-}
-.aw-collapsed .aw-sidebar > .aw-account {
-  display: flex;
-  justify-content: center;
-  padding: var(--aw-s3) 0;
-}
-.aw-collapsed .aw-sidebar > .aw-account .aw-account-popover {
-  left: 8px;
-}
 
 .aw-shell[data-theme="dark"] .aw-switcher {
   background: var(--aw-lift);
@@ -1243,9 +1139,6 @@
 }
 .aw-shell[data-theme="dark"] .aw-switcher:hover {
   background: var(--aw-lift-hover);
-}
-.aw-shell[data-theme="dark"] .aw-switch-tile {
-  background: #f8b61529;
 }
 .aw-shell[data-theme="dark"] .aw-nav-subitem:hover:not(:disabled):not(.is-active) {
   background: #ffffff0f;
@@ -1267,3 +1160,682 @@
   }
 }
 /* Below 768px web shows the mobile app screens instead of this shell (app/index.tsx WEB_SHELL_MIN_WIDTH). */
+
+/* ===== Design จ2 (Mos 17-18 Nov 2026, canvas "admin profile"): the sidebar runs the full height with the logo on top;
+   the top bar has no fill: a breadcrumb on the left and one pill of actions on the right
+   ([+ Create] · language · theme · notifications · account). ===== */
+.aw-shell {
+  grid-template-rows: 72px minmax(0, 1fr);
+  grid-template-areas: "side top" "side main";
+}
+.aw-logo-cell.aw-side-brand {
+  width: auto;
+  height: 72px;
+  justify-content: space-between;
+  gap: var(--aw-s2);
+  padding: 0 var(--aw-s3) 0 var(--aw-s6);
+}
+/* Mos 18 Nov 2026: the menu toggle sits beside the logo; the folded rail keeps only the toggle. */
+.aw-collapsed .aw-logo-cell.aw-side-brand {
+  justify-content: center;
+  padding: 0;
+}
+.aw-collapsed .aw-side-brand .aw-brand {
+  display: none;
+}
+/* The role box only shows the role (switching is in the account menu). */
+.aw-switcher.aw-switcher-static,
+.aw-switcher.aw-switcher-static:hover {
+  background: #f1f5f9;
+  cursor: default;
+}
+.aw-shell[data-theme="dark"] .aw-switcher.aw-switcher-static,
+.aw-shell[data-theme="dark"] .aw-switcher.aw-switcher-static:hover {
+  background: var(--aw-lift);
+}
+.aw-shell .aw-topbar {
+  height: 72px;
+  padding: 0 32px;
+  background: transparent;
+  border-bottom: 0;
+}
+.aw-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  min-width: 0;
+}
+.aw-crumb-link {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--aw-s1);
+  border: 0;
+  border-radius: var(--aw-r-sm);
+  background: transparent;
+  color: var(--aw-muted) !important;
+  font-size: 15px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.aw-crumb-link:hover:not(:disabled) {
+  color: var(--aw-ink) !important;
+  background: var(--aw-surface);
+}
+.aw-crumb-sep {
+  color: var(--aw-muted);
+}
+/* The page name is the last breadcrumb item, the same size as the others (design จ2), not a large heading. */
+.aw-shell .aw-topbar-main {
+  padding-left: 0;
+}
+.aw-crumbs .aw-title {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: 15px;
+  font-weight: normal;
+  color: var(--aw-ink);
+}
+.aw-shell .aw-topbar-actions.aw-pillbar {
+  gap: 2px;
+  height: 52px;
+  padding: 0 6px;
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-pill);
+  background: var(--aw-surface);
+  box-sizing: border-box;
+}
+.aw-shell .aw-pillbar .aw-create {
+  height: 38px;
+}
+.aw-pill-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: var(--aw-border);
+}
+.aw-shell .aw-pillbar .aw-icon-button,
+.aw-shell .aw-pillbar .aw-lang {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 50%;
+  background: transparent;
+}
+.aw-shell .aw-pillbar .aw-icon-button:hover,
+.aw-shell .aw-pillbar .aw-icon-button[aria-expanded="true"] {
+  background: var(--aw-bg);
+}
+.aw-account-top {
+  margin-left: var(--aw-s1);
+}
+.aw-account-top summary {
+  padding: 0;
+  border-radius: 50%;
+}
+.aw-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+}
+.aw-avatar-role {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid;
+  border-radius: 5px;
+  box-shadow: 0 0 0 2px var(--aw-surface);
+}
+.aw-account-top .aw-account-popover {
+  width: 312px;
+}
+/* Account menu: the role row, and the role list that replaces the menu while it is open */
+.aw-role-row,
+.aw-role-option {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--aw-s2);
+  border: 0;
+  border-radius: var(--aw-r-md);
+  background: transparent;
+  color: var(--aw-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.aw-role-row:hover:not(:disabled),
+.aw-role-option:hover:not(:disabled) {
+  background: var(--aw-bg);
+}
+.aw-role-row:disabled {
+  cursor: default;
+}
+.aw-role-option.is-current {
+  background: #f1f5f9;
+}
+.aw-shell[data-theme="dark"] .aw-role-option.is-current {
+  background: var(--aw-lift);
+}
+.aw-role-tile {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+.aw-role-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+.aw-role-text strong {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-weight: normal;
+  font-size: var(--aw-t-body);
+}
+.aw-role-text small,
+.aw-role-badge,
+.aw-role-hint {
+  font-size: var(--aw-t-caption);
+  color: var(--aw-muted);
+}
+.aw-role-change {
+  font-size: var(--aw-t-small);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  color: var(--aw-muted);
+}
+.aw-role-badge {
+  white-space: nowrap;
+}
+.aw-role-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.aw-role-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  align-self: flex-start;
+  height: 40px;
+  padding: 0 var(--aw-s2);
+  border: 0;
+  border-radius: var(--aw-r-sm);
+  background: transparent;
+  color: var(--aw-ink);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  cursor: pointer;
+}
+.aw-role-hint {
+  margin: 0 var(--aw-s2) var(--aw-s2);
+}
+
+/* Account menu (short, Mos 18 Nov 2026): name and email · role · account settings · sign out */
+.aw-menu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--aw-s2);
+  border: 0;
+  border-radius: var(--aw-r-md);
+  background: transparent;
+  color: var(--aw-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.aw-menu-row > span {
+  flex: 1;
+}
+.aw-menu-row:hover {
+  background: var(--aw-bg);
+}
+
+/* Settings page "/<role>/settings[/security|display|help]" (Mos 18 Nov 2026, canvas page "setting"): a header card
+   with the photo, name and role, the 4 section tabs under it, then the section's cards at full width. */
+.aw-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s5);
+  padding-bottom: var(--aw-s8, 32px);
+}
+.aw-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s5);
+  min-width: 0;
+}
+.aw-settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s2);
+  padding: var(--aw-s6) var(--aw-s7, 28px);
+  border: 1px solid var(--aw-border);
+  border-radius: 16px;
+  background: var(--aw-surface);
+}
+.aw-settings-hero {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.aw-settings-hero-body {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s6);
+  padding: var(--aw-s7, 28px) var(--aw-s8, 32px);
+}
+.aw-settings-avatar {
+  position: relative;
+  flex: none;
+}
+.aw-avatar.aw-avatar-xl {
+  width: 96px;
+  height: 96px;
+  font-size: 28px;
+}
+.aw-settings-camera {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--aw-surface);
+  border-radius: 50%;
+  background: var(--aw-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.aw-settings-camera:focus-within {
+  outline: 2px solid var(--aw-ink);
+  outline-offset: 2px;
+}
+.aw-settings-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s2);
+  min-width: 0;
+  flex: 1;
+}
+.aw-settings-name {
+  margin: 0;
+  font-family: "Mitr_500Medium", sans-serif;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.aw-settings-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--aw-s2) var(--aw-s5);
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.aw-settings-metaitem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  overflow-wrap: anywhere;
+}
+.aw-settings-rolechip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  height: 30px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: var(--aw-t-small);
+}
+.aw-settings-edit {
+  align-self: flex-start;
+  gap: var(--aw-s2);
+}
+.aw-settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--aw-s1);
+  padding: 0 var(--aw-s5);
+  border-top: 1px solid var(--aw-border);
+}
+.aw-settings-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  height: 54px;
+  padding: 0 var(--aw-s4);
+  border: 0;
+  background: transparent;
+  color: var(--aw-muted) !important;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: inset 0 -3px 0 transparent;
+}
+.aw-settings-tab:hover {
+  color: var(--aw-ink) !important;
+}
+.aw-settings-tab.is-current {
+  color: var(--aw-ink) !important;
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  box-shadow: inset 0 -3px 0 var(--aw-brand);
+}
+.aw-settings-title {
+  margin: 0;
+  font-family: "Mitr_500Medium", sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+}
+.aw-settings-subtitle {
+  margin-top: var(--aw-s5);
+}
+.aw-settings-desc {
+  margin: 0 0 var(--aw-s3);
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.aw-settings .aw-profile-form {
+  max-width: 420px;
+  padding-top: var(--aw-s2);
+}
+.aw-settings .aw-settings-form {
+  max-width: none;
+  padding-top: 0;
+}
+.aw-settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aw-s4) var(--aw-s5);
+}
+.aw-settings .aw-profile-form input.is-readonly {
+  color: var(--aw-muted);
+  cursor: not-allowed;
+}
+.aw-settings-photo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+}
+.aw-settings-savebar {
+  display: flex;
+  justify-content: flex-start;
+  gap: var(--aw-s3);
+  margin-top: var(--aw-s2);
+  padding-top: var(--aw-s4);
+  border-top: 1px solid var(--aw-border);
+}
+.aw-settings-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--aw-s5);
+  margin: 0;
+}
+.aw-settings-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s1);
+  padding: var(--aw-s3) 0;
+  border-bottom: 1px solid var(--aw-border);
+}
+.aw-settings-fact dt {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-caption);
+}
+.aw-settings-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.aw-settings-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--aw-s2);
+  margin: var(--aw-s3) 0 0;
+  padding: var(--aw-s3) var(--aw-s4);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-bg);
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.aw-settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.aw-settings-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aw-s3);
+}
+.aw-settings-tiles > .aw-settings-row {
+  min-height: 64px;
+  border: 1px solid var(--aw-border);
+  border-radius: 14px;
+}
+.aw-settings-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--aw-r-md);
+  background: var(--aw-bg);
+}
+.aw-settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--aw-s3);
+  border: 0;
+  border-radius: var(--aw-r-md);
+  background: transparent;
+  color: var(--aw-ink) !important;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.aw-settings-row > span:not(.aw-soon):not(.aw-settings-value):not(.aw-settings-ok):not(.aw-role-tile):not(.aw-role-badge):not(.aw-settings-ico) {
+  flex: 1;
+}
+.aw-settings-row:hover:not(.is-soon):not(.is-static):not(.is-current) {
+  background: var(--aw-bg);
+}
+.aw-settings-row.is-soon,
+.aw-settings-row.is-static,
+.aw-settings-row.is-current {
+  cursor: default;
+}
+.aw-settings-row.is-soon {
+  color: var(--aw-muted) !important;
+}
+.aw-settings-role-row {
+  min-height: 60px;
+  padding: var(--aw-s2) var(--aw-s3);
+}
+.aw-settings-role-row.is-current {
+  background: var(--aw-bg);
+}
+.aw-settings-value {
+  color: var(--aw-muted);
+}
+.aw-settings-ok {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: var(--aw-t-caption);
+  white-space: nowrap;
+}
+.aw-shell[data-theme="dark"] .aw-settings-ok {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+.aw-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--aw-s3);
+}
+.aw-settings-danger {
+  border-color: #fecaca;
+}
+.aw-shell[data-theme="dark"] .aw-settings-danger {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+.aw-settings-danger .aw-settings-title {
+  color: var(--aw-danger);
+}
+.aw-settings-danger-row {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s4);
+}
+.aw-settings-danger-row > .aw-role-text {
+  flex: 1;
+}
+.aw-settings-danger-button {
+  gap: var(--aw-s2);
+  border-color: #fecaca;
+  background: transparent;
+  color: var(--aw-danger) !important;
+  white-space: nowrap;
+}
+.aw-settings-danger-button:hover {
+  background: #fef2f2;
+}
+.aw-shell[data-theme="dark"] .aw-settings-danger-button:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+.aw-settings-choices {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--aw-s3);
+}
+.aw-settings-themes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.aw-settings-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+  min-height: 52px;
+  padding: var(--aw-s3) var(--aw-s4);
+  border: 1px solid var(--aw-border);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--aw-ink) !important;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.aw-settings-themes .aw-settings-choice {
+  flex-direction: column;
+  align-items: stretch;
+}
+.aw-settings-choice > span:not(.aw-settings-radio):not(.aw-theme-preview),
+.aw-settings-choice-line > span:not(.aw-settings-radio) {
+  flex: 1;
+}
+.aw-settings-choice-line {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+}
+.aw-settings-choice:hover {
+  background: var(--aw-bg);
+}
+.aw-settings-choice.is-current {
+  border-color: var(--aw-brand);
+  box-shadow: 0 0 0 1px var(--aw-brand);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+}
+.aw-settings-radio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.aw-settings-choice.is-current .aw-settings-radio {
+  border-color: var(--aw-brand);
+  background: var(--aw-brand);
+}
+.aw-theme-preview {
+  display: block;
+  height: 84px;
+  border: 1px solid var(--aw-border);
+  border-radius: 10px;
+}
+.aw-theme-preview.is-light {
+  background: linear-gradient(90deg, #ffffff 28%, #f3f5f8 28%);
+}
+.aw-theme-preview.is-dark {
+  background: linear-gradient(90deg, #2f2b2b 28%, #211e1e 28%);
+}
+.aw-theme-preview.is-system {
+  background: linear-gradient(90deg, #ffffff 25%, #f3f5f8 25% 50%, #2f2b2b 50% 75%, #211e1e 75%);
+}
+.aw-settings-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aw-s5);
+  align-items: start;
+}
+.aw-settings-info {
+  border-radius: var(--aw-r-md);
+}
+.aw-settings-info summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--aw-s3);
+  border-radius: var(--aw-r-md);
+  cursor: pointer;
+}
+.aw-settings-info summary:hover {
+  background: var(--aw-bg);
+}
+.aw-settings-info p {
+  margin: 0;
+  padding: 0 var(--aw-s3) var(--aw-s3);
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+  white-space: pre-line;
+}
+@media (max-width: 1100px) {
+  .aw-settings-fields,
+  .aw-settings-tiles,
+  .aw-settings-facts,
+  .aw-settings-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .aw-settings-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aw-settings-fields > span[aria-hidden="true"] {
+    display: none;
+  }
+}

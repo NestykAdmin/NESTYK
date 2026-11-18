@@ -29,7 +29,8 @@ test('lists, Dashboard, calendar and detail pages keep the full width', () => {
 
 test('the shell marks <main> and the CSS narrows every content box through the shared width variable', () => {
   const shell = fs.readFileSync(path.join(dir, 'AgentWorkspace.web.tsx'), 'utf8');
-  assert.match(shell, /data-page-width=\{agentWebPageWidth\(props\.activeTab, props\.creating\)\}/);
+  // The settings page always uses the full width (review R3, 18 Nov 2026).
+  assert.match(shell, /data-page-width=\{settingsOpen \? "wide" : agentWebPageWidth\(props\.activeTab, props\.creating\)\}/);
   const css = fs.readFileSync(path.join(dir, 'agent-workspace.css'), 'utf8');
   assert.match(css, /\.aw-main\[data-page-width="form"\] \{\s*--nestyk-web-content-max-width:/);
 });

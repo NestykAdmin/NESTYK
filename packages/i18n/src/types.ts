@@ -32,12 +32,14 @@ export interface TranslationSchema {
     landlord: string;
     agent: string;
     admin: string;
+    self_owner: string;
     services: string;
     guestSubtitle: string;
     tenantSubtitle: string;
     landlordSubtitle: string;
     agentSubtitle: string;
     adminSubtitle: string;
+    self_ownerSubtitle: string;
     servicesSubtitle: string;
   };
   mobile: {
@@ -151,7 +153,7 @@ export interface TranslationSchema {
       rolePickerSubtitle: string;
       currentRole: string;
       viewProfile: string;
-      roleDescriptions: Record<'guest' | 'tenant' | 'landlord' | 'agent' | 'admin', string>;
+      roleDescriptions: Record<'guest' | 'tenant' | 'landlord' | 'agent' | 'admin' | 'self_owner', string>;
       navigation: string;
       settings: string;
       myRental: string;
@@ -488,6 +490,27 @@ export interface TranslationSchema {
       confirmedTitle: string;
       confirmedEmpty: string;
     };
+  };
+  adminWeb: {
+    brandTag: string;
+    workspaceLabel: string;
+    main: string;
+  };
+  /** Self owner copy (round 2). Also used by the phone home card, not only by the web shell. */
+  selfOwnerWeb: {
+    brandTag: string;
+    workspaceLabel: string;
+    main: string;
+    money: string;
+    listings: string;
+    interested: string;
+    viewings: string;
+    tenants: string;
+    contracts: string;
+    billsIncome: string;
+    repairs: string;
+    homeTitle: string;
+    homeBody: string;
   };
   agent: {
     calendar: {
@@ -2150,6 +2173,33 @@ export interface TranslationSchema {
         addWorkspace: string;
         manageWorkspace: string;
         brandTag: string;
+        /** Breadcrumb first item (goes to the dashboard). */
+        home: string;
+        /** Account menu: role row action and the role picker inside the menu (design จ2, 18 Nov 2026). */
+        changeRole: string;
+        chooseRole: string;
+        roleHint: string;
+        /** Sidebar group caption: contracts archive and commission. */
+        docsFinance: string;
+        settings: string;
+        settingsProfile: string;
+        settingsProfileHint: string;
+        settingsSecurity: string;
+        settingsSecurityHint: string;
+        settingsDisplay: string;
+        settingsDisplayHint: string;
+        settingsHelp: string;
+        settingsHelpHint: string;
+        profileReadOnly: string;
+        accountRoles: string;
+        devices: string;
+        devicesBody: string;
+        emailPassword: string;
+        dangerZone: string;
+        twoFactor: string;
+        twoFactorBody: string;
+        adminDeleteNote: string;
+        adminSettingsNote: string;
       };
       webOverview: {
         property: string;

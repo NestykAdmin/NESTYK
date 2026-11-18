@@ -20,7 +20,7 @@
 
 | | nestyk.com | เว็บบทบาท (agent / tenant / landlord / admin) |
 |---|---|---|
-| `EXPO_PUBLIC_WEB_PORTAL` | `all` | ชื่อบทบาท |
+| `EXPO_PUBLIC_WEB_PORTAL` | `all` | ชื่อบทบาท (`agent`, `tenant`, `landlord`, `admin`, `self_owner` ใช้ขีดล่าง ถ้าพิมพ์ `self-owner` ระบบจะใช้ `all` แทนโดยไม่แจ้ง) |
 | `EXPO_PUBLIC_WEB_PORTAL_URLS` | ว่าง | `all=https://nestyk.com` (บัญชีหลายบทบาทกดสลับแล้วไปเปิดที่ nestyk.com) |
 | `EXPO_PUBLIC_WEB_SIGN_OUT_TO` | ไม่ตั้ง → ออกแล้วไปหน้าแรก | `login` → ออกแล้วไปหน้าเข้าสู่ระบบ |
 

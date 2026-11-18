@@ -36,7 +36,11 @@ test('wiring: both account menus (web workspace + phone drawer) get the delete c
   for (const name of ['onLoadAccountDeletion', 'onDeleteAccount', 'onScheduleAccountDeletion', 'onCancelAccountDeletion']) {
     const uses = index.match(new RegExp(`${name}=\\{([^}]*)\\}`, 'g')) || [];
     assert.equal(uses.length, 2, name);
-    for (const use of uses) assert.match(use, /=\{accountDeletionMenu \? /, use);
+    // Both menus: selfDeletion = the flag minus accounts that have the admin role (review R1, Mos 18 Nov 2026).
+    for (const use of uses) assert.match(use, /=\{selfDeletion \? /, use);
   }
+  assert.match(index, /const isAdminAccount = \(session\?\.roles \?\? \[\]\)\.includes\('admin'\);/);
+  assert.match(index, /const selfDeletion = accountDeletionMenu && !isAdminAccount;/);
+  assert.match(index, /adminAccount=\{isAdminAccount\}/);
   assert.match(fs.readFileSync(path.join(__dirname, 'account-deletion-flag.ts'), 'utf8'), /process\.env\.EXPO_PUBLIC_ENABLE_ACCOUNT_DELETION/, 'literal name, so Expo inlines it');
 });

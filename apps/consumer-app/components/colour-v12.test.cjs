@@ -52,27 +52,33 @@ test('tokens: lifted grey for dark mode is shared by the app and the web', () =>
   assert.match(css, /:root \{[\s\S]*--aw-brand-hover: #e5a50a;[\s\S]*\}\s*\[data-theme="dark"\] \{\s*--aw-brand-hover: #fbc740;/);
 });
 
-test('web shell: selected item ink / lifted grey with a yellow icon, warm hover, ink workspace box, ink own avatar', () => {
+test('web shell: selected item slate (light) / lifted grey (dark) with a yellow bar, warm hover, slate role box with a role tile, ink own avatar', () => {
   const css = read(path.join(web, 'agent-workspace.css'));
   // Hover never paints over the selected item (white text on a light hover was unreadable, Mos 12 Nov 15:23);
   // hover is the CI slate neutral #F1F5F9 (warm stone #F5F5F4 was off-CI, Mos 12 Nov 16:13).
   assert.match(css, /\.aw-nav-item:hover:not\(:disabled\):not\(\.is-active\) \{[^}]*background: #f1f5f9;/);
-  assert.match(css, /\.aw-nav-item\.is-active:hover \{[^}]*background: #3f3a3a;/);
+  // Design ก (Mos 17 Nov 2026): light mirrors dark: slate fill, ink text and a yellow bar instead of the ink pill.
+  assert.match(css, /\.aw-nav-item\.is-active:hover \{[^}]*background: #e2e8f0;/);
   assert.match(css, /\[data-theme="dark"\] \.aw-nav-item:hover:not\(:disabled\):not\(\.is-active\) \{/);
   assert.match(css, /\[data-theme="dark"\] \.aw-nav-item\.is-active:hover \{[^}]*background: var\(--aw-lift-hover\);/);
   assert.doesNotMatch(css, /\.aw-nav-item:hover:not\(:disabled\) \{/);
   assert.match(css, /\.aw-nav-subitem:hover:not\(:disabled\):not\(\.is-active\) \{[^}]*background: #f1f5f9;/);
-  assert.match(css, /\.aw-nav-subitem\.is-active \{[^}]*background: #f1f5f9;[^}]*box-shadow: inset 2px 0 0 var\(--aw-brand\);/);
-  assert.match(css, /\.aw-nav-item\.is-active \{[^}]*background: var\(--aw-black\);[^}]*color: #ffffff;/);
+  assert.match(css, /\.aw-nav-subitem\.is-active \{[^}]*background: #f8fafc;[^}]*box-shadow: inset 2px 0 0 var\(--aw-brand\);/);
+  assert.match(css, /\.aw-nav-item\.is-active \{[^}]*background: #f1f5f9;[^}]*color: var\(--aw-ink\);[^}]*box-shadow: inset 3px 0 0 var\(--aw-brand\);/);
+  assert.doesNotMatch(css, /\.aw-nav-item\.is-active \{[^}]*background: var\(--aw-black\);/);
   assert.match(css, /\[data-theme="dark"\] \.aw-nav-item\.is-active \{[^}]*background: var\(--aw-lift\);[^}]*box-shadow: inset 3px 0 0 var\(--aw-brand\);/);
-  assert.match(css, /\.aw-switcher \{[^}]*background: var\(--aw-black\);/);
-  assert.match(css, /\.aw-switcher \.aw-switch-copy strong \{\s*color: #ffffff;/);
+  // Design จ2 (Mos 18 Nov 2026): the role box is CI slate in light mode; the role shows only in its tile.
+  assert.match(css, /\.aw-switcher \{[^}]*border: 1px solid #f1f5f9;[^}]*background: #f1f5f9;[^}]*color: var\(--aw-ink\);/);
+  assert.match(css, /\.aw-switcher \.aw-switch-copy strong \{\s*color: var\(--aw-ink\);/);
+  assert.match(read(path.join(web, 'AgentWorkspace.web.tsx')), /className="aw-switch-tile"[\s\S]{0,80}style=\{\{ background: roleTile\.bg, boxShadow: `0 0 0 1\.5px \$\{roleTile\.ring\}` \}\}/);
   assert.match(css, /\[data-theme="dark"\] \.aw-switcher \{[^}]*background: var\(--aw-lift\);/);
   assert.match(css, /\.aw-avatar \{[^}]*background: var\(--aw-black\);[^}]*color: var\(--aw-brand\);/);
   const shell = read(path.join(web, 'AgentWorkspace.web.tsx'));
-  assert.match(shell, /active \? "#F8B615" : isDark \? "#E2E8F0" : "#334155"/);
-  // The group chevron on a selected (ink) parent must stay visible.
-  assert.match(shell, /name="chevron-right" size=\{14\} color=\{parent === tab \? "#CBD5E1" : theme\.textSecondary\}/);
+  // Selected icon: CI yellow on the dark lift, dark gold on the light slate fill (CI yellow is too faint there).
+  assert.match(shell, /active \? \(isDark \? "#F8B615" : "#795719"\) : isDark \? "#E2E8F0" : "#334155"/);
+  assert.ok(contrast('#795719', '#F1F5F9') >= 4.5);
+  // The group chevron on a selected parent: light grey on the dark lift only.
+  assert.match(shell, /name="chevron-right" size=\{14\} color=\{parent === tab && isDark \? "#CBD5E1" : theme\.textSecondary\}/);
   const overview = read(path.join(web, 'AgentOverview.web.tsx'));
   assert.match(overview, /<span className="aov-kpi-icon" aria-hidden="true">\s*<MobileIcon name=\{item\.icon\} size=\{18\} color="#F8B615" \/>/);
   assert.match(read(path.join(web, 'agent-overview.css')), /\.aov-kpi-icon \{[^}]*background: #211e1e;[\s\S]*\[data-theme="dark"\] \.aov-kpi-icon \{\s*background: #f8b61533;/);

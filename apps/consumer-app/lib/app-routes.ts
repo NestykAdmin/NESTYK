@@ -12,6 +12,8 @@ export const ROLE_PATH: Record<Exclude<UserRole, 'guest'>, string> = {
   tenant: '/tenant',
   landlord: '/landlord',
   admin: '/admin',
+  // Round 2 (Mos 18 Nov 2026): "/owner" stays the old landlord link, so the self owner lives at "/self-owner".
+  self_owner: '/self-owner',
 };
 
 /** Screens that are their own route files (expo-router renders them, the app shell stays out). */
@@ -28,7 +30,7 @@ export type LegalPath = (typeof LEGAL_PATHS)[number];
 const GUEST_SEGMENTS = new Set(['search', 'services']);
 
 /** Order used when a signed-in user lands without a remembered role (Q5). Admin is never picked automatically. */
-const LANDING_ORDER: UserRole[] = ['agent', 'landlord', 'tenant'];
+const LANDING_ORDER: UserRole[] = ['agent', 'landlord', 'tenant', 'self_owner'];
 
 export type ParsedAppPath =
   | { kind: 'app'; role: UserRole; rest: string[] }
@@ -105,7 +107,7 @@ export function canOpenRole(role: UserRole, roles: readonly string[] | null | un
   return role === 'guest' || (roles ?? []).includes(role);
 }
 
-/** Q5: the remembered role if the account still has it, else agent → landlord → tenant → guest. */
+/** Q5: the remembered role if the account still has it, else agent → landlord → tenant → self_owner → guest. */
 export function pickLandingRole(roles: readonly string[] | null | undefined, lastRole?: string | null): UserRole {
   const have = new Set(roles ?? []);
   if (lastRole && lastRole !== 'guest' && lastRole !== 'admin' && have.has(lastRole)) return lastRole as UserRole;
@@ -260,7 +262,13 @@ export interface AppRouteState {
   calendarDate?: string;
   /** Tenant bills: payment history. */
   billHistory?: boolean;
+  /** Web settings page (Mos 18 Nov 2026): "/<role>/settings[/security|display|help]" for every role but guest. */
+  settings?: SettingsSection;
 }
+
+/** Sections of the web settings page; "profile" is "/<role>/settings". */
+export type SettingsSection = 'profile' | 'security' | 'display' | 'help';
+export const SETTINGS_SECTIONS: SettingsSection[] = ['profile', 'security', 'display', 'help'];
 
 /** What the shell passes in to get its URL. `detailOpen` = an R3 page is showing (no path yet). */
 export interface AppRouteSnapshot {
@@ -270,6 +278,7 @@ export interface AppRouteSnapshot {
   partyInbox?: 'contracts' | 'tenants' | null;
   calendarDate?: string | null;
   billHistory?: boolean;
+  settings?: SettingsSection | null;
   detailOpen?: boolean;
 }
 
@@ -297,6 +306,10 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['calendar'], state: { tab: 'calendar' } },
     { path: ['contacts'], state: { tab: 'contact' } },
     { path: ['services'], state: { tab: 'services' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
   ],
   tenant: [
     { path: [], state: { tab: 'dashboard' } },
@@ -304,6 +317,10 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['contracts'], state: { tab: 'dashboard', partyInbox: 'contracts' } },
     { path: ['bills'], state: { tab: 'bills' } },
     { path: ['services'], state: { tab: 'services' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
   ],
   landlord: [
     { path: [], state: { tab: 'dashboard' } },
@@ -311,9 +328,27 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['tenants'], state: { tab: 'dashboard', partyInbox: 'tenants' } },
     { path: ['income'], state: { tab: 'income' } },
     { path: ['services'], state: { tab: 'services' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
   ],
-  // Admin pages are samples for now (plan 3.5): only its home has a path.
-  admin: [{ path: [], state: { tab: 'dashboard' } }],
+  // Admin pages are samples for now (plan 3.5): its home and the settings page (web shell, Mos 18 Nov 2026).
+  admin: [
+    { path: [], state: { tab: 'dashboard' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
+  ],
+  // Self owner (round 2): sample home plus the settings page.
+  self_owner: [
+    { path: [], state: { tab: 'dashboard' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
+  ],
 };
 
 /** Old or mobile-only paths that open another page. "/agent/more" is the mobile More tab; the web sidebar has it all. */
@@ -383,13 +418,18 @@ export function stateToRoute(snapshot: AppRouteSnapshot): string | null {
   if (snapshot.detailOpen) return null;
   const pages = ROUTE_PAGES[snapshot.role] ?? [];
   const inbox = snapshot.partyInbox ?? undefined;
-  const page = pages.find((p) =>
-    inbox
-      ? p.state.partyInbox === inbox
-      : !p.state.partyInbox &&
-        p.state.tab === snapshot.tab &&
-        (snapshot.tab !== 'clients' || !!p.state.creatingTenant === !!snapshot.creatingTenant),
-  );
+  // A role without a settings page (guest) ignores the settings flag and gets its normal page (review R1).
+  const settingsPage = snapshot.settings ? pages.find((p) => p.state.settings === snapshot.settings) : undefined;
+  const page = settingsPage
+    ? settingsPage
+    : pages.find((p) =>
+        !p.state.settings &&
+        (inbox
+          ? p.state.partyInbox === inbox
+          : !p.state.partyInbox &&
+            p.state.tab === snapshot.tab &&
+            (snapshot.tab !== 'clients' || !!p.state.creatingTenant === !!snapshot.creatingTenant)),
+      );
   if (!page) return null;
   const base = snapshot.role === 'guest' ? '' : roleHomePath(snapshot.role);
   const path = [base, ...page.path].join('/') || '/';

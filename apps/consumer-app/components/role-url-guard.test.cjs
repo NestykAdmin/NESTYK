@@ -50,7 +50,7 @@ function setup({ roles, os = 'web', activeRole = 'guest' }) {
   };
   for (const name of ['setDrawerOpen', 'setPartyInbox', 'setContractHistory', 'setSelectedPartyRoom', 'setOpenedPartyContract',
     'setBillHistory', 'setSelectedBillRoom', 'setLeadsWorkFilter', 'setClientsWorkFilter', 'setSecondaryReturnTab', 'setLeadEdit',
-    'setMatchRoomId', 'setMatchRoomPreview', 'setCreatingTenant', 'setCalendarSelectedDate', 'setCalendarMonth', 'setActiveRole', 'setActiveTab']) {
+    'setMatchRoomId', 'setMatchRoomPreview', 'setCreatingTenant', 'setSettingsSection', 'setCalendarSelectedDate', 'setCalendarMonth', 'setActiveRole', 'setActiveTab']) {
     deps[name] = set(name);
   }
   const make = (code) => new Function(...Object.keys(deps), `return (${js(code)});`)(...Object.values(deps));
@@ -100,4 +100,19 @@ test('the effect does nothing for an allowed role or a signed-out visitor', () =
   const visitor = setup({ roles: null, activeRole: 'agent' });
   visitor.guard();
   assert.deepEqual(visitor.calls, []);
+});
+
+test('review R1 (18 Nov 2026): changing role closes the settings page, so the new role opens on its home', () => {
+  const start = source.indexOf('const handleRoleChange = (role: UserRole) => {');
+  assert.ok(start > 0, 'index.tsx has handleRoleChange');
+  const body = source.slice(start, source.indexOf('\n  };', start));
+  const reset = body.indexOf('setSettingsSection(null)');
+  assert.ok(reset > 0, 'handleRoleChange clears the settings section');
+  assert.ok(reset < body.indexOf('setActiveRole(role)'), 'before the role changes');
+});
+
+test('review R2: the URL shows the settings page only in the wide web shell', () => {
+  assert.match(source, /const shownSettings = Platform\.OS === 'web' && windowWidth >= WEB_SHELL_MIN_WIDTH \? settingsSection : null;/);
+  assert.match(source, /settings: shownSettings,/);
+  assert.match(source, /settingsSection=\{shownSettings\}/);
 });

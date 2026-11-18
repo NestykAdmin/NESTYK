@@ -61,7 +61,8 @@ test('booked dialog: next step follows email + ID like the app; reservation open
 
 test('shell: the create-tenant page folds the main menu to icons; the user can still open it', () => {
   const shell = read('agent-web/AgentWorkspace.web.tsx');
-  assert.match(shell, /const formCompact = props\.creating === "tenant";/);
+  // Settings page (18 Nov 2026): opening settings from this page gives the menu back.
+  assert.match(shell, /const formCompact = props\.creating === "tenant" && !props\.settingsSection;/);
   assert.match(shell, /const isCollapsed = formCompact \? !formMenuOpen : collapsed;/);
   assert.match(shell, /onClick=\{\(\) => \(formCompact \? setFormMenuOpen\(!formMenuOpen\) : setCollapsed\(!collapsed\)\)\}/);
   const nav = read('agent-web/navigation.ts');

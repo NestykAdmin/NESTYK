@@ -84,10 +84,11 @@ const ROLE_OPTIONS: { key: UserRole; icon: AppIconName }[] = [
   { key: 'tenant', icon: 'home' },
   { key: 'landlord', icon: 'key' },
   { key: 'agent', icon: 'handshake' },
+  { key: 'self_owner', icon: 'house-plus' },
   { key: 'admin', icon: 'shield' },
 ];
 
-const DEFAULT_ALLOWED_ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+const DEFAULT_ALLOWED_ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'self_owner', 'admin'];
 
 const BRAND_YELLOW = tokens.colors.brand[500];
 

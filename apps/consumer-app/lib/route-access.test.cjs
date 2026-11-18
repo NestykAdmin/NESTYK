@@ -24,7 +24,7 @@ const ctx = (portal, signedIn, accountRoles, lastRole) => ({ portal, signedIn, a
 const AGENT = ['guest', 'agent'];
 const TENANT = ['guest', 'tenant'];
 const BOTH = ['guest', 'agent', 'tenant'];
-const SUPER = ['guest', 'agent', 'tenant', 'landlord', 'admin'];
+const SUPER = ['guest', 'agent', 'tenant', 'landlord', 'admin', 'self_owner'];
 
 test('guest pages are public for everyone on every portal (Mos: "guest เข้าได้ทุกคน")', () => {
   for (const portal of Object.keys(PORTAL_ROLES)) {
@@ -93,7 +93,7 @@ test('portal from env: unknown or missing is all; homes', () => {
 });
 
 test('every role has a rule, and every portal role is a real role path', () => {
-  for (const role of ['guest', 'agent', 'tenant', 'landlord', 'admin']) assert.ok(ROLE_ACCESS[role], role);
+  for (const role of ['guest', 'agent', 'tenant', 'landlord', 'admin', 'self_owner']) assert.ok(ROLE_ACCESS[role], role);
   for (const roles of Object.values(PORTAL_ROLES)) for (const r of roles) assert.ok(routes.ROLE_PATH[r], r);
   assert.deepEqual(decideRoleAccess('guest', '/', ctx('agent', false, null)), { kind: 'allow' });
 });
@@ -151,6 +151,48 @@ test('wiring: switching to a role of another portal opens its site (web), mobile
   assert.match(index, /allowedRoles=\{isAuthenticated && session \? portalSwitcherRoles\(session\.roles\) : undefined\}/, 'narrow web drawer too');
   assert.match(read('web-routes.web.ts'), /portalUrlsFrom\(process\.env\.EXPO_PUBLIC_WEB_PORTAL_URLS\)/);
   assert.match(read('web-routes.ts'), /export function openRoleElsewhere\(_role: UserRole\): boolean \{\n\s*return false;/);
-  assert.match(read('../components/agent-web/AgentWorkspace.web.tsx'), /badge: props\.otherSiteRoles\?\.includes\(role\) \? t\.webSession\.otherSite : undefined/);
+  // Design จ2 (18 Nov 2026): roles are switched in the account menu; another portal's role says "Other site".
+  assert.match(read('../components/agent-web/AgentWorkspace.web.tsx'), /props\.otherSiteRoles\?\.includes\(role\) \? \(\s*<span className="aw-role-badge">\{t\.webSession\.otherSite\}<\/span>/);
   assert.match(read('../components/web-access/NoAccessScreen.web.tsx'), /otherSiteRoles\(session\?\.roles\)/);
+});
+
+// Round 2 (Mos 18 Nov 2026, review R3): self_owner is a real account role with its own pages under /self-owner.
+const OWNER = ['guest', 'self_owner'];
+
+test('self owner: only an account with the role opens /self-owner; others are sent away or asked to sign in', () => {
+  for (const p of ['/self-owner', '/self-owner/settings', '/self-owner/settings/security']) {
+    assert.deepEqual(decideAccess(p, '', ctx('all', true, OWNER)), { kind: 'allow' }, p);
+    assert.deepEqual(decideAccess(p, '', ctx('all', true, SUPER)), { kind: 'allow' }, p);
+    const tenant = decideAccess(p, '', ctx('all', true, TENANT));
+    assert.notEqual(tenant.kind, 'allow', `tenant must not open ${p}`);
+    assert.equal(decideAccess(p, '', ctx('all', false, null)).kind, 'login', p);
+  }
+  // An admin-only account does not get the self owner pages either.
+  assert.notEqual(decideAccess('/self-owner', '', ctx('all', true, ['guest', 'admin'])).kind, 'allow');
+});
+
+test('self owner landing: after agent, landlord and tenant; never picked for an account without it', () => {
+  assert.equal(landingFor('all', OWNER), 'self_owner');
+  assert.equal(landingFor('all', ['guest', 'tenant', 'self_owner']), 'tenant');
+  assert.equal(landingFor('all', ['guest', 'tenant', 'self_owner'], 'self_owner'), 'self_owner', 'remembered role wins');
+  assert.equal(landingFor('all', TENANT), 'tenant');
+  assert.equal(landingFor('self_owner', OWNER), 'self_owner');
+  assert.equal(landingFor('self_owner', TENANT), null, 'the self owner portal has nothing for a tenant');
+  assert.equal(portalHome('self_owner'), '/self-owner');
+  assert.equal(portalFrom('self_owner'), 'self_owner');
+  assert.equal(portalFrom('self-owner'), 'all', 'the env value uses the role code, not the path');
+});
+
+test('self owner in the role switcher: only when the account has it; its own portal shows only it', () => {
+  assert.deepEqual(switcherRoles('all', OWNER), ['guest', 'self_owner']);
+  assert.ok(!switcherRoles('all', TENANT).includes('self_owner'));
+  assert.deepEqual(switcherRoles('self_owner', SUPER), ['self_owner']);
+  assert.deepEqual(switcherRoles('agent', SUPER), ['agent']);
+});
+
+test('self owner on another site: listed after tenant and before admin, opened at /self-owner', () => {
+  const urls = { all: 'https://app.nestyk.com' };
+  assert.deepEqual(access.elsewhereRoles('agent', SUPER, urls), ['landlord', 'tenant', 'self_owner', 'admin']);
+  assert.equal(access.roleElsewhere('agent', 'self_owner', urls), 'https://app.nestyk.com/self-owner');
+  assert.equal(access.roleElsewhere('all', 'self_owner', urls), null, 'the full site shows it');
 });
