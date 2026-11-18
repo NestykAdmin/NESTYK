@@ -24,6 +24,7 @@ export interface TranslationSchema {
     errorGeneric: string;
     fileTooLarge: string;
     photoPermission: string;
+    nameTooLong: string;
   };
   roles: {
     guest: string;

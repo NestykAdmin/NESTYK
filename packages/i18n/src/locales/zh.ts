@@ -23,6 +23,7 @@ export const zh: TranslationSchema = {
     errorGeneric: '出现错误，请重试。',
     fileTooLarge: '文件不能超过 {size} MB',
     photoPermission: '请允许访问照片',
+    nameTooLong: '名字和姓氏合计不能超过255个字符',
   },
   roles: {
     guest: '访客',

@@ -23,6 +23,7 @@ export const en: TranslationSchema = {
     errorGeneric: 'Something went wrong. Please try again.',
     fileTooLarge: 'File must be {size} MB or smaller',
     photoPermission: 'Please allow access to your photos',
+    nameTooLong: 'First and last name together must be up to 255 characters',
   },
   roles: {
     guest: 'Guest',

@@ -16,6 +16,7 @@ import type { AgentContract, AgentTenant, AgentTenantBill, AgentTenantBilling, T
 import { localizedError, useLocale } from "@nestyk/i18n";
 import { getAgentTenant, listAgentTenants, updateAgentTenant } from "../lib/agent-tenants-api";
 import { nextIdentityNumberDraft } from "../lib/identity-number";
+import { fullNameTooLong } from "../lib/tenant-profile";
 import { billFormatters } from "../lib/bill-format";
 import { formatPhoneDisplay } from "../lib/phone";
 import { confirmEarlyEndSlip, openAgentEarlyEndFile, recordEarlyEndMoney, returnEarlyEndSlip, setEarlyEnd, setNotRenewing, uploadEarlyEndProof } from "../lib/agent-contracts-api";
@@ -307,6 +308,11 @@ export function AgentTenantsScreen({
     if (!selected || savingEdit) return;
     if (!editForm.firstName.trim() || !editForm.phone.trim()) {
       setError(d.requiredNamePhone);
+      return;
+    }
+    // tenants.name is varchar(255): check the joined name before the request, same rule as the API.
+    if (fullNameTooLong(editForm.firstName, editForm.lastName)) {
+      setError(t.common.nameTooLong);
       return;
     }
     setSavingEdit(true);

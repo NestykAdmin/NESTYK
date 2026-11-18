@@ -15,7 +15,15 @@ export type TenantProfileForm = {
 export type TenantProfileField = keyof TenantProfileForm;
 
 /** Why a field was refused; the screen turns it into a message. */
-export type TenantProfileIssue = "required" | "phone" | "email" | "identity" | "thai_id";
+export type TenantProfileIssue = "required" | "phone" | "email" | "identity" | "thai_id" | "name_length";
+
+/** tenants.name / leads.name are varchar(255): first + " " + last must fit, same rule as the API (e26843e). */
+export const FULL_NAME_MAX = 255;
+
+/** True when the joined name the request sends would be longer than the API accepts. */
+export function fullNameTooLong(firstName: string, lastName: string): boolean {
+  return [firstName.trim(), lastName.trim()].filter(Boolean).join(" ").length > FULL_NAME_MAX;
+}
 
 /** Longest value the API accepts per field. */
 export const TENANT_PROFILE_MAX: Record<TenantProfileField, number> = {
@@ -56,6 +64,7 @@ export function tenantProfileIssues(
 ): Partial<Record<TenantProfileField, TenantProfileIssue>> {
   const issues: Partial<Record<TenantProfileField, TenantProfileIssue>> = {};
   if (!form.firstName.trim()) issues.firstName = "required";
+  else if (fullNameTooLong(form.firstName, form.lastName)) issues.firstName = "name_length";
   const phone = form.phone.trim();
   const digits = phone.replace(/\D/g, "");
   if (!phone) issues.phone = "required";

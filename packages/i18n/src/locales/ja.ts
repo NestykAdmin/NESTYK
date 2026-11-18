@@ -23,6 +23,7 @@ export const ja: TranslationSchema = {
     errorGeneric: 'エラーが発生しました。もう一度お試しください。',
     fileTooLarge: 'ファイルは {size} MB 以下にしてください',
     photoPermission: '写真へのアクセスを許可してください',
+    nameTooLong: '姓名の合計は255文字以内にしてください',
   },
   roles: {
     guest: 'ゲスト',

@@ -46,6 +46,7 @@ import {
   presetCodeFor,
 } from '../lib/lead-profile-options';
 import type { LeadFormDraft } from '../lib/lead-form-readiness';
+import { fullNameTooLong } from '../lib/tenant-profile';
 
 type TextKey =
   | 'firstName'
@@ -477,6 +478,8 @@ export function CreateLeadForm({
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
     if (!firstName) next.firstName = c.required;
+    // leads.name is varchar(255): check the joined name before the request, same rule as the API.
+    else if (fullNameTooLong(firstName, lastName)) next.firstName = t.common.nameTooLong;
     // Unedited legacy numbers (free text before the picker) save as-is so other edits aren't blocked.
     const phoneValue = savablePhone(phone, initialPhone, initialLead?.phone);
     if (!phone.digits) next.phone = c.required;

@@ -175,6 +175,7 @@ export function ReserveRoomSheet({
     email: c.errorEmail,
     identity: c.errorIdentity,
     thai_id: c.errorThaiId,
+    name_length: t.common.nameTooLong,
   };
   const fieldError = (key: TenantProfileField) => {
     const issue = issues[key];

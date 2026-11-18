@@ -23,6 +23,7 @@ export const th: TranslationSchema = {
     errorGeneric: 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง',
     fileTooLarge: 'ไฟล์ต้องไม่เกิน {size} MB',
     photoPermission: 'กรุณาอนุญาตให้เข้าถึงรูปภาพ',
+    nameTooLong: 'ชื่อและนามสกุลรวมกันต้องไม่เกิน 255 ตัวอักษร',
   },
   roles: {
     guest: 'Guest',

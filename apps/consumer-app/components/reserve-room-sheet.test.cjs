@@ -114,6 +114,27 @@ test('profile rules: name and phone required, email and ID number checked only w
   for (const identityNumber of ['A1234', '1-2345-67890-12-1', 'AB 1234567']) assert.deepEqual(profile.tenantProfileIssues(form({ identityNumber, nationality: '' })), {}, identityNumber);
 });
 
+// tenants.name is varchar(255): first + " " + last must fit, same rule as the API (e26843e, QA 11 Nov 2026).
+test('full name: first and last name together must fit 255 characters, flagged on the first name', () => {
+  assert.equal(profile.FULL_NAME_MAX, 255);
+  // 127 + space + 127 = 255: accepted.
+  assert.deepEqual(profile.tenantProfileIssues(form({ firstName: 'ก'.repeat(127), lastName: 'ข'.repeat(127) })), {});
+  assert.equal(profile.fullNameTooLong('ก'.repeat(127), 'ข'.repeat(127)), false);
+  // 127 + space + 128 = 256: refused before the request.
+  assert.deepEqual(profile.tenantProfileIssues(form({ firstName: 'ก'.repeat(127), lastName: 'ข'.repeat(128) })), { firstName: 'name_length' });
+  assert.equal(profile.fullNameTooLong('ก'.repeat(127), 'ข'.repeat(128)), true);
+  // Each field may still be 255 on its own; only the joined name is limited.
+  assert.deepEqual(profile.tenantProfileIssues(form({ firstName: 'ก'.repeat(255), lastName: '' })), {});
+  assert.deepEqual(profile.tenantProfileIssues(form({ firstName: 'ก'.repeat(255), lastName: 'ข' })), { firstName: 'name_length' });
+  // Measured on trimmed values, like the request body.
+  assert.equal(profile.fullNameTooLong(`  ${'ก'.repeat(127)}  `, ` ${'ข'.repeat(127)} `), false);
+  // An empty first name is "required", not "name_length".
+  assert.deepEqual(profile.tenantProfileIssues(form({ firstName: ' ', lastName: 'ข'.repeat(255) })), { firstName: 'required' });
+  // The message the screens show is the shared one.
+  assert.equal(typeof th.common.nameTooLong, 'string');
+  assert.match(th.common.nameTooLong, /255/);
+});
+
 // C3 (Aof, 22 Oct 2026): the tenant is matched by this number, so a Thai ID has to be right. Same rule as the API.
 test('C3: a Thai national needs a valid Thai ID; with no nationality 13 digits are checked; other nationalities are not', () => {
   const issues = (identityNumber, nationality) => profile.tenantProfileIssues(form({ identityNumber, nationality }));
