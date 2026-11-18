@@ -10,7 +10,7 @@
 const ACCOUNT_PAGE_PATHS = ['/login', '/register', '/reset-password', '/no-access', '/privacy', '/terms'];
 
 /** Role sites (consumer-app ROLE_PATH) with everything below them, and old /owner links (it sends them to /landlord). */
-const ACCOUNT_ROLE_PATHS = ['/agent', '/tenant', '/landlord', '/admin', '/owner'];
+const ACCOUNT_ROLE_PATHS = ['/agent', '/tenant', '/landlord', '/admin', '/self-owner', '/owner'];
 
 /** Files of the Expo web build (scripts, styles, fonts, images). */
 const ACCOUNT_ASSET_PATHS = ['/_expo', '/assets'];

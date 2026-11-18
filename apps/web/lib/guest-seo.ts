@@ -134,7 +134,7 @@ export function sitemapEntries(origin: string, indexable: boolean, paths: readon
  * lib/account-routes.js; a test keeps the two in step). Privacy and terms stay crawlable.
  */
 const ROBOTS_PAGES = ['/login', '/register', '/reset-password', '/no-access'];
-const ROBOTS_TREES = ['/agent', '/tenant', '/landlord', '/admin', '/owner'];
+const ROBOTS_TREES = ['/agent', '/tenant', '/landlord', '/admin', '/self-owner', '/owner'];
 /** Exact pages ("$" = end, "?" = with a query) and whole trees, so a guest page starting the same way stays open. */
 export const ROBOTS_DISALLOW = [
   '/api/',
