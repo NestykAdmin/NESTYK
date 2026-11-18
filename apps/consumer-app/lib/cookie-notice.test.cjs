@@ -1,5 +1,5 @@
 // PDPA / cookie plan (project-docs/nestyk-cookie-consent-plan-20261109.md, Mos + QA 9 Nov 2026; consent bar Mos 17:08):
-// cookie consent bar (necessary always on; "Remember my settings" and Google Maps only when allowed), FE2 storage list on
+// cookie consent bar (necessary always on; "Preferences" and Google Maps only when allowed), FE2 storage list on
 // /privacy, FE3 "Cookie settings" links, FE4 no dev identity in production, FE5 register text, L3 versions, 3.3a proof.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -240,19 +240,54 @@ test('consent: Google Maps (script or embed) loads only behind MapConsentGate', 
   assert.doesNotMatch(gate, /saveCookieConsent/, 'the map never saves the whole cookie choice');
 });
 
-test('consent bar: equal choice, necessary locked, settings reachable from footers and /privacy', () => {
+test('consent bar: one shared panel for both webs (design B, Mos 11-12 Nov 2026)', () => {
   assert.match(read('app/_layout.tsx'), /<CookieNotice \/>/);
   assert.match(read('components/legal/CookieNotice.tsx'), /return null;/);
-  const bar = read('components/legal/CookieNotice.web.tsx');
+  const host = read('components/legal/CookieNotice.web.tsx');
+  assert.match(host, /from '@nestyk\/ui\/cookie-consent-panel'/);
+  assert.match(host, /import '@nestyk\/ui\/cookie-consent\.css';/);
+  assert.match(host, /<CookieConsentPanel[\s\S]*site="agent"/);
+  assert.match(host, /theme=\{isDark \? 'dark' : 'light'\}/);
+  assert.match(host, /learnMoreHref=\{COOKIES_HREF\}/);
+  const pkg = readRepo('packages/ui/package.json');
+  assert.match(pkg, /"\.\/cookie-consent": \{/);
+  assert.match(pkg, /"\.\/cookie-consent-panel": \{/);
+  assert.match(pkg, /"\.\/cookie-consent\.css": "\.\/src\/consent\/cookie-consent\.css"/);
+});
+
+test('consent panel: equal choice, necessary locked, asks until answered, settings in an accessible dialog', () => {
+  const bar = readRepo('packages/ui/src/consent/CookieConsentPanel.tsx');
   assert.match(bar, /className="ck-btn" onClick=\{\(\) => choose\(ALL\)\} data-testid="cookieNotice\.acceptAll"/);
   assert.match(bar, /className="ck-btn" onClick=\{\(\) => choose\(NONE\)\} data-testid="cookieNotice\.necessaryOnly"/);
   assert.match(bar, /\{ id: 'necessary' as const, on: true, locked: true \}/);
   assert.match(bar, /disabled=\{category\.locked\}/);
+  assert.match(bar, /role="switch"/);
   assert.match(bar, /if \(!readCookieConsent\(\)\?\.complete\) setOpen\(true\);/, 'asks until the bar is answered');
-  assert.match(bar, /if \(readCookieConsent\(\)\?\.complete && viewRef\.current === 'choice'\) setOpen\(false\);/);
+  assert.match(bar, /if \(answered && viewRef\.current === 'choice'\) setOpen\(false\);/, 'an answer in another tab closes the first-visit bar');
   assert.match(bar, /closest\?\.\(`a\[href="\$\{COOKIE_SETTINGS_HREF\}"\]`\)/);
   assert.match(bar, /const NONE: CookieChoice = \{ preferences: false, maps: false \};/, 'settings start unticked');
-  assert.doesNotMatch(read('components/legal/cookie-notice.css'), /\.ck-notice::before|backdrop|inset: 0/, 'the bar does not block the page');
+  assert.match(bar, /role="dialog"/);
+  assert.match(bar, /aria-modal="true"/);
+  assert.match(bar, /'Escape'/);
+  assert.match(bar, /copy\.settingsIntro/);
+  for (const id of ['cookieNotice', 'cookieNotice.acceptAll', 'cookieNotice.necessaryOnly', 'cookieNotice.settings', 'cookieNotice.save',
+    'cookieNotice.close', 'cookieNotice.learnMore']) {
+    assert.ok(bar.includes(`data-testid="${id}"`), `QA test id ${id} kept`);
+  }
+  assert.match(bar, /data-testid=\{`cookieNotice\.\$\{category\.id\}`\}/);
+  assert.match(bar, /--ck-reserve/, 'docked bar reserves space at the bottom of the page');
+  assert.match(bar, /root\.classList\.toggle\('ck-reserving', reserve > 0\)/, 'the page rule applies only while space is reserved');
+  assert.match(bar, /tabIndex=\{-1\}/, 'the dialog itself can hold focus');
+  assert.match(bar, /!dialog\?\.contains\(document\.activeElement\)/, 'Tab never leaves the dialog for the page behind');
+  assert.match(bar, /if \(answered\) setChosen\(true\);/, 'an answer in another tab unlocks close and Esc');
+  const css = readRepo('packages/ui/src/consent/cookie-consent.css');
+  const firstView = css.split('/* settings dialog */')[0].replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(firstView, /backdrop|inset: 0/, 'the first-visit bar does not block the page');
+  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b/, 'colours come from the --ck-* variables each web sets');
+  assert.match(read('components/legal/cookie-notice.css'), /html\.ck-reserving #root \{\s*height: calc\(100% - var\(--ck-reserve, 0px\)\)/, 'the agent web keeps the page clear of the docked bar');
+});
+
+test('consent settings stay reachable from footers and /privacy', () => {
   assert.equal(notice.COOKIES_HREF, '/privacy#cookies');
   const page = read('components/legal/LegalPage.web.tsx');
   assert.match(page, /<section id="cookies"/);
@@ -260,17 +295,16 @@ test('consent bar: equal choice, necessary locked, settings reachable from foote
   assert.match(page, /<a href=\{COOKIE_SETTINGS_HREF\} className="lg-cookie-settings" data-testid="legal\.cookies\.settings">/);
   assert.match(read('components/legal/AuthLegalFooter.web.tsx'), /<a href=\{COOKIE_SETTINGS_HREF\} data-testid=/);
   assert.match(read('components/agent-web/AgentWorkspaceFooter.web.tsx'), /<a href=\{COOKIE_SETTINGS_HREF\} data-testid="shell\.footer\.cookies">/);
-  for (const host of ['components/legal/LegalPage.web.tsx', 'components/legal/GuestPublicFooter.web.tsx']) {
-    assert.match(read(host), /cookies: COOKIE_SETTINGS_HREF,/, host);
+  for (const h of ['components/legal/LegalPage.web.tsx', 'components/legal/GuestPublicFooter.web.tsx']) {
+    assert.match(read(h), /cookies: COOKIE_SETTINGS_HREF,/, h);
   }
   assert.match(readRepo('packages/ui/src/shells/PublicFooter.tsx'), /links\.cookies \?/);
-  assert.match(readRepo('packages/ui/package.json'), /"\.\/cookie-consent": \{/);
 });
 
 test('copy: cookie bar, settings, map gate and cookie tables in all 4 languages', () => {
   for (const [locale, copy] of Object.entries(copies)) {
     const bar = copy.cookieNotice;
-    for (const key of ['label', 'text', 'learnMore', 'acceptAll', 'necessaryOnly', 'settings', 'settingsTitle', 'save', 'close', 'alwaysOn', 'mapOff', 'mapShow']) {
+    for (const key of ['label', 'text', 'learnMore', 'acceptAll', 'necessaryOnly', 'settings', 'settingsTitle', 'settingsIntro', 'save', 'close', 'alwaysOn', 'mapOff', 'mapShow']) {
       assert.ok(bar[key], `${locale} bar ${key}`);
     }
     for (const id of ['necessary', 'preferences', 'maps']) {

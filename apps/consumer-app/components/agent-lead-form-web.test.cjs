@@ -190,3 +190,13 @@ test('index: desktop agent web frames both add and edit; phone and phone-width w
   assert.match(branch, /setActiveTab\(leadEdit\.returnTab\);/);
   assert.match(branch, /Alert\.alert\(t\.agent\.leads\.saved\);\s*setSecondaryReturnTab\(null\);\s*setActiveTab\('listingLead'\);/);
 });
+
+// F3 (QA 9 Nov 2026, ClickUp z8rcteuz1y): the web top bar said "Add lead" while a lead was being edited.
+test('web top bar: editing a lead shows "Edit lead", adding shows "Add lead"', () => {
+  const types = read('agent-web/AgentWorkspace.types.ts');
+  assert.match(types, /editingLead\?: boolean;/);
+  const shell = read('agent-web/AgentWorkspace.web.tsx');
+  assert.match(shell, /case "createLead":\s*return props\.editingLead \? t\.agent\.leads\.editLead : t\.mobile\.tabs\.createLead;/);
+  const app = read('../app/index.tsx');
+  assert.match(app, /editingLead=\{activeTab === 'createLead' && !!leadEdit\}/);
+});

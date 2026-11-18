@@ -198,5 +198,5 @@ const s = StyleSheet.create({
   body: { fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 23 },
   small: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 20 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  error: { color: "#C74747" },
+  error: { color: "#991B1B" },
 });

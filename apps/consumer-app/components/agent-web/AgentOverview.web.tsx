@@ -79,7 +79,7 @@ export function AgentOverview({
     const timer = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(timer);
   }, []);
-  const localeTag = { th: "th-TH", en: "en-GB", zh: "zh-CN", ja: "ja-JP" }[
+  const localeTag = { th: "th-TH-u-ca-gregory", en: "en-GB", zh: "zh-CN", ja: "ja-JP" }[
     locale
   ];
   const money = (amount: number, currency = snapshot.business.currency) =>
@@ -288,7 +288,7 @@ export function AgentOverview({
         "--aw-ink": theme.screenTitle,
         "--aw-muted": theme.textSecondary,
         "--aw-border": theme.border,
-        "--aw-brand": "#f4bd42",
+        "--aw-brand": "#f8b615",
       } as React.CSSProperties}
     >
       <WebContentContainer>
@@ -311,18 +311,18 @@ export function AgentOverview({
               className="aw-button aw-button-primary"
               onClick={() => onNavigate({ type: "action", id: "addListing" })}
             >
-              <MobileIcon name="plus" size={18} color="#382b12" />
+              <MobileIcon name="plus" size={16} color="#211e1e" />
               {copy.addListing}
             </button>
             <button
               type="button"
-              className="aw-button aw-button-secondary"
+              className="aw-button aw-button-ink"
               onClick={() => onNavigate({ type: "action", id: "newLead" })}
             >
               <MobileIcon
                 name="user-plus"
-                size={18}
-                color={theme.screenTitle}
+                size={16}
+                color={theme.mode === "dark" ? "#211E1E" : "#FFFFFF"}
               />
               {copy.newLead}
             </button>
@@ -443,11 +443,9 @@ export function AgentOverview({
               <>
                 <div className="aov-kpi-top">
                   <span>{item.label}</span>
-                  <MobileIcon
-                    name={item.icon}
-                    size={21}
-                    color={theme.textSecondary}
-                  />
+                  <span className="aov-kpi-icon" aria-hidden="true">
+                    <MobileIcon name={item.icon} size={18} color="#F8B615" />
+                  </span>
                 </div>
                 {isReady(item.status) ? (
                   <>
@@ -630,7 +628,7 @@ export function AgentOverview({
                     action={
                       <button
                         type="button"
-                        className="awu-btn awu-btn-primary"
+                        className="awu-btn"
                         onClick={() => onNavigate({ type: "action", id: "addListing" })}
                       >
                         {copy.addListing}

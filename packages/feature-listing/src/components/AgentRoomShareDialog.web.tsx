@@ -80,7 +80,7 @@ export function AgentRoomShareDialog({ visible, room, api, onClose, onPreview }:
     return () => { cancelled = true; };
   }, [visible, room.id, api.list, locale, rd.publicShare.loadFailed]);
 
-  const formatDate = (value: string) => new Date(value).toLocaleString(locale === 'th' ? 'th-TH' : locale, {
+  const formatDate = (value: string) => new Date(value).toLocaleString(locale === 'th' ? 'th-TH-u-ca-gregory' : locale, {
     dateStyle: 'medium', timeStyle: 'short',
   });
   const shareSections = (): RoomShareVisibility => ({ ...visibility, contact: false });

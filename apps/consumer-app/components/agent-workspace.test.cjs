@@ -10,7 +10,7 @@ const cache = new Map();
 let locale = 'en';
 let state = [];
 let cursor = 0;
-const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#1A2B48', textSecondary: '#64748B', border: '#E5E7EB' };
+const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#211E1E', textSecondary: '#64748B', border: '#E5E7EB' };
 function load(filename) {
   filename = path.resolve(filename);
   if (cache.has(filename)) return cache.get(filename).exports;
@@ -24,7 +24,7 @@ function load(filename) {
       return [state[index], value => { state[index] = value; }];
     } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale], setLocale() {} }) };
-    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader', isAgentComingSoonTab: load(`${root}/packages/ui/src/config/agentComingSoon.ts`).isAgentComingSoonTab };
+    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme, isDark: false, setThemeMode() {} }), roleOnDark: (c) => c, roleTileColors: load(`${root}/packages/ui/src/theme/tokens.ts`).roleTileColors, MobileIcon: () => null, MobileNestykLogo: () => null, MobileModePage: 'NativePage', MobileSectionHeader: 'NativeHeader', isAgentComingSoonTab: load(`${root}/packages/ui/src/config/agentComingSoon.ts`).isAgentComingSoonTab };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
     if (name === '@nestyk/ui/cookie-consent') return load(`${root}/packages/ui/src/consent/cookieConsent.ts`);
     if (name === 'react-native') return { View: () => null, StyleSheet: { create: (styles) => styles } };
@@ -62,7 +62,7 @@ function openAccountMenu(input) {
   return render(input);
 }
 
-test('sidebar groups: Menu (Listing and Tenants open sub-pages), More, Finance and Workspace; coming-soon items stay disabled', () => {
+test('sidebar groups (design จ2): Menu with Calendar, Documents and finance, one coming-soon row; coming-soon items stay disabled', () => {
   state = [];
   const calls = [];
   const tree = render(props({ onNavigate: tab => calls.push(tab), activeTab: 'createLead' }));
@@ -71,9 +71,9 @@ test('sidebar groups: Menu (Listing and Tenants open sub-pages), More, Finance a
   // Listing and Tenants toggle their sub-pages instead of navigating while the sidebar is open
   assert.deepEqual(calls, ['dashboard', 'listingLead', 'calendar']);
   const soon = items.filter(node => node.props.disabled).map(node => node.props.title);
-  assert.deepEqual(soon, ['Contacts · Coming soon', 'Services · Coming soon', 'Contracts archive · Coming soon', 'Commission · Coming soon', 'Team · Coming soon']);
+  assert.deepEqual(soon, ['Contracts archive · Coming soon', 'Commission · Coming soon', 'Contacts · Services · Team · Coming soon']);
   assert.equal(items.find(node => node.props['aria-current'] === 'page').props.title, 'Leads');
-  assert.equal(tree.filter(node => node?.type === 'nav').length, 4);
+  assert.deepEqual(byClass(tree, 'aw-nav').map(node => node.props['aria-label']), ['Menu', 'Documents and finance']);
   assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
   assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Create Lead');
 });
@@ -94,8 +94,13 @@ test('the group of the current page opens with its sub-pages and the create link
   tree = render(input);
   assert.deepEqual(byClass(tree, 'aw-nav-subitem').map(node => node.props.children), ['Room Listings', 'Add listing', 'All tenants', 'Create tenant']);
   state = [];
-  tree = render(props({ activeTab: 'clients', creating: 'tenant', onCreate() {} }));
+  const creatingTenant = props({ activeTab: 'clients', creating: 'tenant', onCreate() {} });
+  tree = render(creatingTenant);
   assert.equal(tree.find(node => node?.type === 'h1').props.children, 'Create tenant');
+  // W4 layout ก (Mos 17 Nov 2026): the menu folds to icons on the create-tenant page; the toggle opens it again.
+  assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
+  byClass(tree, 'aw-collapse')[0].props.onClick();
+  tree = render(creatingTenant);
   assert.equal(byClass(tree, 'aw-nav-subitem').find(node => node.props['aria-current'] === 'page').props.children, 'Create tenant');
 });
 
@@ -177,91 +182,181 @@ test('workspace labels exist in all four central locales', () => {
   locale = 'en';
 });
 
-test('the agent account menu saves a profile and other roles do not get that editor', async () => {
+/** A settings row or menu row: a button whose content (icon + label) holds the label. */
+const row = (tree, label) => tree.find((node) => node?.type === 'button' && nodes(node.props.children).includes(label));
+
+test('settings profile: the agent edits inline with a save bar; other roles see it read-only (Mos 18 Nov 2026)', async () => {
+  locale = 'en';
   state = [];
   const saved = [];
   const editor = {
+    settingsSection: 'profile',
     userName: 'Ann Agent',
+    userEmail: 'ann@example.com',
     userPhone: '0800000000',
     onSaveProfile: async (input) => { saved.push(input); },
     onUploadAvatar: async () => 'https://cdn.example/a.jpg',
     onRemoveAvatar: async () => {},
   };
-  const open = openAccountMenu(props(editor));
-  const edit = button(open, 'Edit Profile');
-  assert.ok(edit);
-  edit.props.onClick();
-  const formTree = render(props(editor));
-  formTree.find((node) => node?.type === 'input' && node.props.autoComplete === 'given-name').props.onChange({ target: { value: 'Anne' } });
-  const submitted = render(props(editor));
-  await submitted.find((node) => node?.type === 'form').props.onSubmit({ preventDefault() {} });
+  const page = render(props(editor));
+  assert.ok(page.some((node) => node?.props?.['data-testid'] === 'settings.page'));
+  assert.ok(page.some((node) => node?.props?.['data-testid'] === 'settings.section.profile'));
+  assert.equal(page.includes('Body'), false, 'the settings page replaces the page body');
+  // The form is open straight away with the saved values; nothing to save yet.
+  const first = page.find((node) => node?.type === 'input' && node.props.autoComplete === 'given-name');
+  assert.equal(first.props.value, 'Ann');
+  const email = page.find((node) => node?.type === 'input' && node.props.value === 'ann@example.com');
+  assert.equal(email.props.readOnly, true, 'email is read-only');
+  const submit = (tree) => tree.find((node) => node?.type === 'button' && node.props.type === 'submit');
+  assert.equal(submit(page).props.disabled, true, 'save waits for a change');
+  first.props.onChange({ target: { value: 'Anne' } });
+  const edited = render(props(editor));
+  assert.equal(submit(edited).props.disabled, false);
+  await edited.find((node) => node?.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.deepEqual(saved, [{ firstName: 'Anne', lastName: 'Agent', phone: '0800000000' }]);
-
+  // Cancel brings back the saved value.
   state = [];
-  const landlord = render(props({ activeRole: 'landlord', onSaveProfile: async () => {} }));
-  assert.equal(landlord.some((node) => node?.props?.children === 'Edit Profile'), false);
+  render(props(editor)).find((node) => node?.type === 'input' && node.props.autoComplete === 'given-name').props.onChange({ target: { value: 'X' } });
+  const dirty = render(props(editor));
+  dirty.find((node) => node?.type === 'button' && node.props.children === 'Cancel').props.onClick();
+  assert.equal(render(props(editor)).find((node) => node?.type === 'input' && node.props.autoComplete === 'given-name').props.value, 'Ann');
+
+  for (const role of ['tenant', 'landlord']) {
+    state = [];
+    const view = render(props({ activeRole: role, settingsSection: 'profile', userName: 'Lee', onSaveProfile: async () => {} }));
+    assert.equal(view.some((node) => node?.type === 'form'), false, role);
+    assert.ok(view.some((node) => node?.props?.['data-testid'] === 'settings.profile.readOnly'), role);
+    assert.ok(view.some((node) => node?.type === 'dd' && node.props.children === 'Lee'), role);
+  }
 });
 
-test('desktop account menu changes the password on every role', async () => {
+test('settings profile lists the roles of this account; picking another role switches to it', () => {
+  locale = 'en';
+  state = [];
+  const changed = [];
+  const tree = render(props({ settingsSection: 'profile', allowedRoles: ['agent', 'tenant'], otherSiteRoles: ['tenant'], onRoleChange: (role) => changed.push(role) }));
+  const roles = tree.filter((node) => node?.props?.['data-testid']?.startsWith('settings.role.'));
+  assert.deepEqual(roles.map((node) => node.props['data-testid']), ['settings.role.tenant', 'settings.role.agent']);
+  assert.equal(roles.find((node) => node.props['aria-current'] === 'true').props['data-testid'], 'settings.role.agent');
+  roles.find((node) => node.props['data-testid'] === 'settings.role.agent').props.onClick();
+  roles.find((node) => node.props['data-testid'] === 'settings.role.tenant').props.onClick();
+  assert.deepEqual(changed, ['tenant']);
+});
+
+test('settings security: password form shown directly on every role, linked accounts, devices, danger zone last', async () => {
+  locale = 'en';
   state = [];
   const saved = [];
   const opened = [];
-  const menu = openAccountMenu(props({
+  const input = props({
     activeRole: 'landlord',
+    userEmail: 'lee@example.com',
+    settingsSection: 'security',
     onNavigate: (tab) => opened.push(tab),
-    onChangePassword: async (input) => { saved.push(input); },
-  }));
-  const open = button(menu, 'Change Password');
-  assert.ok(open);
-  open.props.onClick();
-  const formTree = render(props({
-    activeRole: 'landlord',
-    onNavigate: (tab) => opened.push(tab),
-    onChangePassword: async (input) => { saved.push(input); },
-  }));
-  const fields = formTree.filter((node) => node?.type === 'input' && node.props.type === 'password');
+    onChangePassword: async (value) => { saved.push(value); },
+    onSignOutEverywhere: async () => {},
+    onLoadAccountDeletion: async () => ({ blocked: false, reasons: [], scheduledFor: null }),
+    onDeleteAccount: async () => {},
+  });
+  const tree = render(input);
+  assert.ok(tree.some((node) => node?.props?.['data-testid'] === 'settings.password.form'));
+  const fields = tree.filter((node) => node?.type === 'input' && node.props.type === 'password');
+  assert.equal(fields.length, 3);
   fields[0].props.onChange({ target: { value: 'old-secret' } });
   fields[1].props.onChange({ target: { value: 'Newsecret1' } });
   fields[2].props.onChange({ target: { value: 'Newsecret1' } });
-  const submitted = render(props({
-    activeRole: 'landlord',
-    onNavigate: (tab) => opened.push(tab),
-    onChangePassword: async (input) => { saved.push(input); },
-  }));
-  await submitted.find((node) => node?.type === 'form').props.onSubmit({ preventDefault() {} });
+  await render(input).find((node) => node?.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.deepEqual(saved, [{ currentPassword: 'old-secret', newPassword: 'Newsecret1' }]);
-  const done = render(props({
-    activeRole: 'landlord',
-    onNavigate: (tab) => opened.push(tab),
-    onChangePassword: async (input) => { saved.push(input); },
-  }));
+  const done = render(input);
   assert.ok(done.includes('Your password has been updated.'));
   done.find((node) => node?.type === 'button' && node.props.children === 'OK').props.onClick();
-  assert.deepEqual(opened, ['dashboard']);
+  assert.deepEqual(opened, [], 'the user stays on the settings page');
+
+  state = [];
+  const page = render(input);
+  assert.ok(page.includes('Linked Accounts'));
+  assert.ok(page.includes('Connected'), 'email is connected');
+  for (const provider of ['Google', 'Facebook', 'Apple']) assert.ok(page.includes(provider), provider);
+  assert.equal(byClass(page, 'aw-settings-row').filter((node) => node.props.className.includes('is-soon')).length, 3, 'Google, Facebook, Apple are coming soon');
+  assert.ok(page.some((node) => node?.props?.['data-testid'] === 'account.signOutAll'));
+  assert.equal(byClass(page, 'aw-signout').length, 3, 'account menu sign out + devices card: sign out and sign out all devices');
+  const cards = byClass(page, 'aw-settings-card');
+  assert.equal(cards[cards.length - 1].props['data-testid'], 'settings.danger', 'the danger zone is the last card');
+  assert.ok(row(page, 'Delete account'));
+  // One yellow button per view.
+  assert.equal(page.filter((node) => node?.type === 'button' && node.props.className === 'aw-button aw-button-primary').length, 1);
+
+  state = [];
+  const tenant = render(props({ activeRole: 'tenant', settingsSection: 'security' }));
+  assert.equal(tenant.some((node) => node?.props?.['data-testid'] === 'settings.danger'), false, 'no delete without the delete flow');
 });
 
-test('Manage account groups edit profile, change password and delete account behind one button', () => {
+test('settings display: language and theme lists', () => {
+  locale = 'en';
   state = [];
+  const tree = render(props({ settingsSection: 'display' }));
+  const languages = tree.filter((node) => node?.props?.['data-testid']?.startsWith('settings.language.'));
+  assert.deepEqual(languages.map((node) => node.props['data-testid']), ['settings.language.th', 'settings.language.en', 'settings.language.zh', 'settings.language.ja']);
+  assert.equal(languages.find((node) => node.props['aria-checked']).props['data-testid'], 'settings.language.en');
+  const themes = tree.filter((node) => node?.props?.['data-testid']?.startsWith('settings.theme.'));
+  assert.deepEqual(themes.map((node) => node.props['data-testid']), ['settings.theme.light', 'settings.theme.dark', 'settings.theme.system']);
+  themes[1].props.onClick();
+  const after = render(props({ settingsSection: 'display' }));
+  assert.equal(after.find((node) => node?.props?.['data-testid'] === 'settings.theme.dark').props['aria-checked'], true);
+});
+
+test('settings help: FAQ, contact, about, terms, privacy, cookie settings and version', () => {
+  locale = 'en';
+  state = [];
+  const page = render(props({ settingsSection: 'help' }));
+  for (const label of ['FAQ', 'Contact NESTYK', 'About NESTYK', '0.1.0']) assert.ok(page.includes(label), label);
+  for (const href of ['/terms', '/privacy', '#cookie-settings']) assert.ok(page.some((node) => node?.type === 'a' && node.props.href === href), href);
+});
+
+test('the account menu is short: role, settings, help, sign out; settings and help open their sections', () => {
+  locale = 'en';
+  state = [];
+  const calls = [];
   const input = props({
     onSaveProfile: async () => {},
     onChangePassword: async () => {},
     onLoadAccountDeletion: async () => ({ blocked: false, reasons: [], scheduledFor: null }),
     onDeleteAccount: async () => {},
+    onOpenSettings: (section) => calls.push(section),
   });
-  const closed = render(input);
-  assert.ok(button(closed, 'Manage account'));
-  for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.equal(button(closed, label), undefined);
-  assert.equal(closed.some((node) => node?.type === 'select'), false);
+  const menu = render(input);
+  for (const label of ['Edit Profile', 'Change Password', 'Delete account', 'Manage account']) assert.equal(row(menu, label), undefined, label);
+  assert.equal(byClass(menu, 'aw-signout').length, 1);
+  assert.deepEqual(byClass(menu, 'aw-menu-row').map((node) => node.props['data-testid']), ['account.settings', 'account.help']);
+  assert.ok(row(menu, 'Settings'));
+  menu.find((node) => node?.props?.['data-testid'] === 'account.settings').props.onClick();
+  menu.find((node) => node?.props?.['data-testid'] === 'account.help').props.onClick();
+  assert.deepEqual(calls, ['profile', 'help']);
+});
 
-  const opened = openAccountMenu(input);
-  assert.equal(button(opened, 'Manage account'), undefined);
-  for (const label of ['Edit Profile', 'Change Password', 'Delete account']) assert.ok(button(opened, label));
-
-  button(opened, 'Cancel').props.onClick();
-  assert.ok(button(render(input), 'Manage account'));
-
+test('settings page: section menu marks the open section, breadcrumb Home / Settings / section, any sidebar choice closes it', () => {
+  locale = 'en';
   state = [];
-  assert.equal(button(render(props()), 'Manage account'), undefined);
+  const calls = [];
+  const input = props({ settingsSection: 'security', onOpenSettings: (section) => calls.push(`open:${section}`), onCloseSettings: () => calls.push('close'), onNavigate: (tab) => calls.push(tab) });
+  const tree = render(input);
+  assert.equal(tree.find((node) => node?.type === 'h1').props.children, 'Security');
+  const nav = tree.filter((node) => node?.props?.['data-testid']?.startsWith('settings.nav.'));
+  assert.deepEqual(nav.map((node) => node.props['data-testid']), ['settings.nav.profile', 'settings.nav.security', 'settings.nav.display', 'settings.nav.help']);
+  assert.equal(nav.find((node) => node.props['aria-current'] === 'page').props['data-testid'], 'settings.nav.security');
+  nav[2].props.onClick();
+  tree.find((node) => node?.props?.['data-testid'] === 'settings.crumb').props.onClick();
+  assert.equal(byClass(tree, 'aw-nav-item').some((node) => node.props['aria-current'] === 'page'), false);
+  const home = byClass(tree, 'aw-crumb-link')[0];
+  assert.equal(home.props['aria-label'], 'Home');
+  home.props.onClick();
+  assert.deepEqual(calls, ['open:display', 'open:profile', 'close', 'dashboard']);
+
+  locale = 'th';
+  state = [];
+  const thai = render(props({ settingsSection: 'profile' }));
+  assert.ok(thai.some((node) => node?.props?.['data-testid'] === 'settings.crumb' && node.props.children === 'การตั้งค่า'));
+  locale = 'en';
 });
 
 test('a custom sidebar replaces the agent menu and ignores disabled items', () => {
@@ -293,7 +388,8 @@ test('a custom sidebar replaces the agent menu and ignores disabled items', () =
   assert.ok(tree.includes('Landlord'));
   assert.ok(tree.includes('Landlord workspace'));
   assert.ok(tree.includes('Soon'));
-  assert.equal(tree.filter(node => node?.type === 'nav').length, 2);
+  assert.equal(byClass(tree, 'aw-nav').length, 2);
+  assert.equal(byClass(tree, 'aw-crumb-link').length, 0, 'custom sidebars get no breadcrumb links');
   assert.equal(byClass(tree, 'aw-nav-item').find(node => node.props['aria-current'] === 'page').props.title, 'Overview');
   byClass(tree, 'aw-nav-item').forEach(node => node.props.onClick());
   assert.deepEqual(calls, ['dashboard', 'contracts']);
@@ -301,10 +397,10 @@ test('a custom sidebar replaces the agent menu and ignores disabled items', () =
   assert.ok(!tree.includes('Commission'));
 });
 
-test('desktop shell is used for the Agent, Landlord and Tenant roles on wide web; phone-width web uses the app screens', () => {
+test('desktop shell is used for the Agent, Landlord, Tenant, Admin and Self owner roles on wide web; phone-width web uses the app screens', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const names = ['isWideWeb', 'isAgentWeb', 'isLandlordWeb', 'isTenantWeb', 'isDesktopWeb', 'Page', 'AgentHeader'];
+  const names = ['isWideWeb', 'isAgentWeb', 'isLandlordWeb', 'isTenantWeb', 'isAdminWeb', 'isSelfOwnerWeb', 'isDesktopWeb', 'Page', 'AgentHeader'];
   const expressions = new Map();
   function visit(node) {
     if (ts.isVariableDeclaration(node) && names.includes(node.name.getText(ast))) expressions.set(node.name.getText(ast), node.initializer.getText(ast));
@@ -317,15 +413,17 @@ test('desktop shell is used for the Agent, Landlord and Tenant roles on wide web
   const select = new Function('Platform', 'activeRole', 'windowWidth', 'WEB_SHELL_MIN_WIDTH', 'AgentWorkspacePage', 'MobileModePage', 'AgentSectionHeader', 'MobileSectionHeader', `${[...expressions].map(([name, expression]) => `const ${name} = ${expression};`).join('\n')} return [${names.join(', ')}];`);
   for (const platform of ['web', 'ios', 'android']) {
     for (const width of [375, 767, 768, 1440]) {
-      for (const role of ['guest', 'tenant', 'landlord', 'agent', 'admin']) {
+      for (const role of ['guest', 'tenant', 'landlord', 'agent', 'admin', 'self_owner']) {
         const wide = platform === 'web' && width >= 768;
         const agent = wide && role === 'agent';
         const landlord = wide && role === 'landlord';
         const tenant = wide && role === 'tenant';
-        const desktop = agent || landlord || tenant;
+        const admin = wide && role === 'admin';
+        const selfOwner = wide && role === 'self_owner';
+        const desktop = agent || landlord || tenant || admin || selfOwner;
         assert.deepEqual(
           select({ OS: platform }, role, width, minWidth, 'WebPage', 'NativePage', 'WebHeader', 'NativeHeader'),
-          [wide, agent, landlord, tenant, desktop, desktop ? 'WebPage' : 'NativePage', agent ? 'WebHeader' : 'NativeHeader'],
+          [wide, agent, landlord, tenant, admin, selfOwner, desktop, desktop ? 'WebPage' : 'NativePage', agent ? 'WebHeader' : 'NativeHeader'],
         );
       }
     }
@@ -334,40 +432,38 @@ test('desktop shell is used for the Agent, Landlord and Tenant roles on wide web
   assert.match(source, /if \(isAgentWeb\) \{\s*return \(\s*<AgentOverview/);
   assert.match(source, /if \(isDesktopWeb\) setDrawerOpen\(false\);/, 'the app drawer closes when the desktop shell takes over');
   assert.match(source, /enabled=\{isDesktopWeb\}/);
-  assert.match(source, /navSections=\{isLandlordWeb \? landlordNavSections : isTenantWeb \? tenantNavSections : undefined\}/);
+  assert.match(source, /navSections=\{workspaceNav\}/);
+  assert.match(source, /const workspaceNav = isLandlordWeb\s*\? landlordNavSections\s*: isTenantWeb\s*\? tenantNavSections\s*: isAdminWeb\s*\? adminWebNavSections\(/);
   assert.match(source, /visible=\{!isDesktopWeb && drawerOpen\}/);
   assert.match(source, /visible=\{!isDesktopWeb && notificationsOpen\}/);
   assert.match(source, /isDesktopWeb \|\| \['createListing'/);
 });
 
-test('the workspace switcher lists only the roles the account holds, plus the active role', () => {
-  const ROLE_VALUES = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+test('the role list in the account menu shows only the roles the account holds, plus the active role', () => {
+  const ROLE_VALUES = ['guest', 'tenant', 'landlord', 'agent', 'self_owner', 'admin'];
   const listed = (input) => {
     state = [];
-    render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Switch workspace').props.onClick();
-    return render(input).filter(node => node?.props?.role === 'menuitemradio').map(node => node.props['data-testid'].split('.').pop()).filter(role => ROLE_VALUES.includes(role));
+    const row = render(input).find(node => node?.props?.['data-testid'] === 'account.role');
+    if (row.props.disabled) return ['(single)'];
+    row.props.onClick();
+    return render(input).map(node => node?.props?.['data-testid']).filter(id => typeof id === 'string' && id.startsWith('account.role.')).map(id => id.split('.').pop()).filter(role => ROLE_VALUES.includes(role));
   };
   assert.deepEqual(listed(props({ allowedRoles: ['guest', 'agent'] })), ['guest', 'agent']);
   assert.deepEqual(listed(props({ activeRole: 'landlord', allowedRoles: ['agent'] })), ['landlord', 'agent']);
-  assert.deepEqual(listed(props()), ['guest', 'tenant', 'landlord', 'agent', 'admin']);
+  assert.deepEqual(listed(props()), ['guest', 'tenant', 'landlord', 'agent', 'self_owner', 'admin']);
+  assert.deepEqual(listed(props({ activeRole: 'self_owner', allowedRoles: ['guest', 'self_owner'] })), ['guest', 'self_owner']);
 });
 
-test('choosing another workspace changes role; add and manage workspace are coming soon', () => {
-  const roles = [];
-  const input = props({ allowedRoles: ['agent', 'tenant'], onRoleChange: role => roles.push(role) });
+test('the sidebar role box only shows the current role: it is not a button or a menu (Mos 18 Nov 2026)', () => {
   state = [];
-  render(input).find(node => node?.type === 'button' && node.props['aria-label'] === 'Switch workspace').props.onClick();
-  const tree = render(input);
-  const items = tree.filter(node => node?.props?.className === 'awu-menu-item');
-  const byId = id => items.find(node => node.props['data-testid'] === `shell.workspace.${id}`);
-  assert.equal(byId('agent').props['aria-checked'], true);
-  byId('agent').props.onClick();
-  byId('tenant').props.onClick();
-  assert.deepEqual(roles, ['tenant']);
-  assert.equal(items.filter(node => node.props.disabled).length, 2);
-  assert.ok(tree.includes('Coming soon'));
+  const tree = render(props({ activeRole: 'agent', allowedRoles: ['agent', 'tenant'] }));
+  const box = tree.find(node => node?.props?.['data-testid'] === 'shell.workspace');
+  assert.equal(box.type, 'div');
+  assert.equal(box.props.onClick, undefined);
+  assert.equal(tree.some(node => node?.props?.['aria-label'] === 'Switch workspace'), false);
+  assert.equal(tree.some(node => typeof node?.props?.['data-testid'] === 'string' && node.props['data-testid'].startsWith('shell.workspace.')), false);
+  assert.ok(tree.includes('Agent workspace'));
 });
-
 
 test('top-level pages show their title only in the top bar; deep pages keep it beside the back button', () => {
   const { AgentSectionHeader } = load(path.join(__dirname, 'agent-web/AgentSectionHeader.web.tsx'));
@@ -424,4 +520,171 @@ test('the shell keeps one sidebar toggle (collapse/expand); phone widths use the
   assert.equal(byClass(render(input), 'aw-collapsed').length, 1);
   const css = fs.readFileSync(path.resolve(__dirname, 'agent-web/agent-workspace.css'), 'utf8');
   assert.doesNotMatch(css, /aw-mnav|max-width: 760px/);
+});
+
+test('breadcrumb (design จ2): home and the parent page link back; the dashboard shows only its title', () => {
+  locale = 'en';
+  state = [];
+  const calls = [];
+  const deep = render(props({ activeTab: 'createLead', onNavigate: tab => calls.push(tab) }));
+  const links = byClass(deep, 'aw-crumb-link');
+  assert.deepEqual(links.map(node => node.props['aria-label'] ?? node.props.children), ['Home', 'Leads']);
+  links.forEach(node => node.props.onClick());
+  assert.deepEqual(calls, ['dashboard', 'listingLead']);
+  assert.equal(deep.find(node => node?.type === 'h1').props.children, 'Create Lead');
+  state = [];
+  const rooms = render(props({ activeTab: 'listingRoom' }));
+  assert.deepEqual(byClass(rooms, 'aw-crumb-link').map(node => node.props['aria-label'] ?? node.props.children), ['Home', 'Listing']);
+  state = [];
+  assert.equal(byClass(render(props({ activeTab: 'dashboard' })), 'aw-crumb-link').length, 0);
+});
+
+test('account menu (design จ2): the role row opens the role list in the same menu; only another role changes role', () => {
+  locale = 'en';
+  state = [];
+  const changes = [];
+  const input = props({ activeRole: 'agent', allowedRoles: ['agent', 'tenant'], otherSiteRoles: ['tenant'], onRoleChange: role => changes.push(role) });
+  const row = render(input).find(node => node?.props?.['data-testid'] === 'account.role');
+  assert.equal(row.props.disabled, false);
+  row.props.onClick();
+  const picker = render(input);
+  assert.equal(picker.some(node => node?.props?.['data-testid'] === 'account.role'), false, 'the row is replaced by the list');
+  assert.equal(button(picker, 'Sign out'), undefined, 'the rest of the menu hides while the list is open');
+  const agent = picker.find(node => node?.props?.['data-testid'] === 'account.role.agent');
+  const tenant = picker.find(node => node?.props?.['data-testid'] === 'account.role.tenant');
+  assert.equal(agent.props['aria-current'], 'true');
+  assert.ok(picker.includes('Other site'));
+  agent.props.onClick();
+  tenant.props.onClick();
+  assert.deepEqual(changes, ['tenant']);
+});
+
+test('account menu: an account with one role sees its role without a change action', () => {
+  locale = 'en';
+  state = [];
+  const tree = render(props({ activeRole: 'agent', allowedRoles: ['agent'] }));
+  const row = tree.find(node => node?.props?.['data-testid'] === 'account.role');
+  assert.equal(row.props.disabled, true);
+  assert.equal(tree.includes('Change'), false);
+});
+
+test('role identity colours: soft tile with a deep icon in light, deep tile with a light icon in dark; admin is ink and gold in both', () => {
+  const { roleTileColors, tokens } = load(`${root}/packages/ui/src/theme/tokens.ts`);
+  const agent = tokens.colors.roleIdentity.agent;
+  assert.deepEqual(roleTileColors('agent', false), { bg: agent.soft, fg: agent.deep, ring: agent.deep });
+  assert.deepEqual(roleTileColors('agent', true), { bg: agent.deep, fg: agent.light, ring: agent.light });
+  assert.deepEqual(roleTileColors('admin', false), { bg: '#211E1E', fg: '#F8B615', ring: '#F8B615' });
+  assert.deepEqual(roleTileColors('admin', true), { bg: '#211E1E', fg: '#F8B615', ring: '#F8B615' });
+  assert.deepEqual(roleTileColors('unknown', false), roleTileColors('services', false));
+  // The role colours of the screens (accents, spinners) are not changed by the identity set.
+  assert.equal(tokens.colors.roles.agent, '#211e1e');
+});
+
+test('settings header card (canvas page "setting"): photo, name, role chip, contact; camera and edit button only for the agent', () => {
+  locale = 'en';
+  state = [];
+  const opened = [];
+  const agent = props({ settingsSection: 'profile', userName: 'Ann Agent', userEmail: 'ann@example.com', userPhone: '0800000000', onSaveProfile: async () => {}, onOpenSettings: (s) => opened.push(s) });
+  const profile = render(agent);
+  assert.ok(profile.some((node) => node?.type === 'h2' && node.props.children === 'Ann Agent'));
+  assert.ok(profile.some((node) => node?.props?.['data-testid'] === 'settings.photo'), 'camera on the profile tab');
+  assert.equal(profile.some((node) => node?.props?.['data-testid'] === 'settings.editProfile'), false, 'no edit button on the profile tab itself');
+  assert.equal(byClass(profile, 'aw-settings-tab').length, 4);
+
+  state = [];
+  const security = render({ ...agent, settingsSection: 'security' });
+  assert.equal(security.some((node) => node?.props?.['data-testid'] === 'settings.photo'), false, 'camera only on the profile tab');
+  security.find((node) => node?.props?.['data-testid'] === 'settings.editProfile').props.onClick();
+  assert.deepEqual(opened, ['profile']);
+
+  state = [];
+  const tenant = render(props({ activeRole: 'tenant', settingsSection: 'security', onSaveProfile: async () => {} }));
+  assert.equal(tenant.some((node) => ['settings.photo', 'settings.editProfile'].includes(node?.props?.['data-testid'])), false);
+});
+
+test('review R3: settings opened from a form page marks no sidebar item and uses the full width', () => {
+  locale = 'en';
+  state = [];
+  const tree = render(props({ activeTab: 'createListing', settingsSection: 'profile' }));
+  assert.equal(tree.some((node) => node?.props?.['aria-current'] === 'page' && !String(node.props['data-testid'] ?? '').startsWith('settings.nav.')), false);
+  assert.equal(byClass(tree, 'aw-active-dot').length, 0);
+  assert.equal(tree.find((node) => node?.type === 'main').props['data-page-width'], 'wide');
+});
+
+test('review R10: picking a photo clears the file input so the same file can be picked again', () => {
+  locale = 'en';
+  state = [];
+  const input = props({ settingsSection: 'profile', onSaveProfile: async () => {} });
+  const picker = render(input).find((node) => node?.props?.['data-testid'] === 'settings.photo');
+  const target = { files: [], value: 'C:\\fakepath\\me.jpg' };
+  picker.props.onChange({ target });
+  assert.equal(target.value, '');
+});
+
+test('option ก (Mos 18 Nov 2026): the initials avatar uses the role colours, so ink and gold mean admin only', () => {
+  locale = 'en';
+  const { roleTileColors } = load(`${root}/packages/ui/src/theme/tokens.ts`);
+  for (const role of ['agent', 'tenant', 'landlord']) {
+    state = [];
+    const tree = render(props({ activeRole: role, settingsSection: 'profile', avatarUrl: null }));
+    const tile = roleTileColors(role, false);
+    const avatars = byClass(tree, 'aw-avatar');
+    assert.equal(avatars.length, 2, `${role}: header avatar and settings header`);
+    for (const avatar of avatars) assert.deepEqual(avatar.props.style, { background: tile.bg, color: tile.fg }, role);
+  }
+  assert.deepEqual(roleTileColors('admin', false), { bg: '#211E1E', fg: '#F8B615', ring: '#F8B615' });
+});
+
+test('admin settings (Mos 18 Nov 2026): edits the profile, 2FA coming soon, no danger zone, a note that another admin closes the account', () => {
+  locale = 'en';
+  state = [];
+  const admin = { activeRole: 'admin', onSaveProfile: async () => {}, onChangePassword: async () => {} };
+  const profile = render(props({ ...admin, settingsSection: 'profile' }));
+  assert.ok(profile.some((node) => node?.props?.['data-testid'] === 'settings.profile.form'), 'admin edits the profile on the web');
+  assert.ok(profile.some((node) => node?.props?.['data-testid'] === 'settings.admin.note'));
+  state = [];
+  const security = render(props({ ...admin, settingsSection: 'security' }));
+  assert.ok(security.some((node) => node?.props?.['data-testid'] === 'settings.twoFactor'));
+  assert.equal(security.some((node) => node?.props?.['data-testid'] === 'settings.danger'), false);
+  assert.ok(security.some((node) => node?.props?.['data-testid'] === 'settings.admin.deleteNote'));
+  // Other roles get neither.
+  state = [];
+  const agent = render(props({ settingsSection: 'security', onChangePassword: async () => {} }));
+  assert.equal(agent.some((node) => ['settings.twoFactor', 'settings.admin.deleteNote'].includes(node?.props?.['data-testid'])), false);
+});
+
+test('self owner (round 2) edits the profile on the web and shows its own role colours', () => {
+  locale = 'en';
+  state = [];
+  const { roleTileColors } = load(`${root}/packages/ui/src/theme/tokens.ts`);
+  const tree = render(props({ activeRole: 'self_owner', settingsSection: 'profile', onSaveProfile: async () => {} }));
+  assert.ok(tree.some((node) => node?.props?.['data-testid'] === 'settings.profile.form'));
+  const tile = roleTileColors('self_owner', false);
+  assert.deepEqual(byClass(tree, 'aw-avatar')[0].props.style, { background: tile.bg, color: tile.fg });
+  assert.ok(tree.includes('Owner'), 'role chip says Owner');
+});
+
+test('review R1: an account with the admin role sees the "another admin closes it" note on any role, never the danger zone', () => {
+  locale = 'en';
+  state = [];
+  const tree = render(props({ activeRole: 'agent', adminAccount: true, settingsSection: 'security', onChangePassword: async () => {} }));
+  assert.ok(tree.some((node) => node?.props?.['data-testid'] === 'settings.admin.deleteNote'));
+  assert.equal(tree.some((node) => node?.props?.['data-testid'] === 'settings.danger'), false);
+});
+
+test('review R2: the password Turnstile is always visible and is not drawn while the delete dialog asks for the password', () => {
+  const shell = fs.readFileSync(path.join(__dirname, 'agent-web/AgentWorkspace.web.tsx'), 'utf8');
+  const security = shell.slice(shell.indexOf('const securitySection'), shell.indexOf('const displaySection'));
+  assert.match(security, /\{captchaRequired && !deletePending \? <CaptchaField resetKey=\{captchaKey\} onToken=\{setCaptchaToken\} \/> : null\}/);
+  assert.doesNotMatch(security, /interaction-only/);
+});
+
+test('overview quick actions (Mos 18 Nov 2026): CI pair, yellow add room + ink new lead, one yellow button; ink turns light in dark mode', () => {
+  const overview = fs.readFileSync(path.join(__dirname, 'agent-web/AgentOverview.web.tsx'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, 'agent-web/agent-overview.css'), 'utf8');
+  const quick = overview.slice(overview.indexOf('className="aov-quick-actions"'), overview.indexOf('</header>', overview.indexOf('className="aov-quick-actions"')));
+  assert.equal((quick.match(/aw-button aw-button-primary/g) || []).length, 1);
+  assert.match(quick, /className="aw-button aw-button-ink"/);
+  assert.match(css, /\.aov-scroll \.aw-button-ink \{\s*background: #211e1e;\s*color: #ffffff !important;/);
+  assert.match(css, /\.aov-scroll\[data-theme="dark"\] \.aw-button-ink \{\s*background: #f1f5f9;\s*color: #211e1e !important;/);
 });

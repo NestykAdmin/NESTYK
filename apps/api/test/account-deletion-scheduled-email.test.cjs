@@ -18,7 +18,7 @@ test('the message gives the Bangkok day in Thai and English, how to cancel, and 
   const at = new Date('2026-12-02T17:00:00.000Z'); // 00:00 Bangkok, 3 Dec 2026
   const { subject, text } = scheduledEmail.accountDeletionScheduledMessage(at);
   assert.match(subject, /NESTYK/);
-  assert.match(text, /3 ธันวาคม 2569/);
+  assert.match(text, /3 ธันวาคม 2026/);
   assert.match(text, /3 December 2026/);
   assert.doesNotMatch(text, /2 ธันวาคม|2 December/);
   assert.match(text, /ยกเลิกการลบ/);

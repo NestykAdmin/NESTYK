@@ -34,15 +34,15 @@
   border-radius: 999px;
   font-size: 13px;
   font-weight: 700;
+  /* One neutral tone for every lead (Mos, 12 Nov 2026, design B4); the status pill carries the status colour. */
+  background: #e2e8f0;
+  color: #334155;
 }
-/* Same tones as the app's status pills (MobileStatusPill STATUS_PILL_TONES). */
-.awl-tone-yellow { background: #fef3c7; color: #b45309; }
-.awl-tone-blue { background: #dbeafe; color: #1d4ed8; }
-.awl-tone-purple { background: #ede9fe; color: #6d28d9; }
-.awl-tone-green { background: #dcfce7; color: #15803d; }
-.awl-tone-rose { background: #fce7f3; color: #be185d; }
-.awl-tone-red { background: #fee2e2; color: #b91c1c; }
-.awl-tone-slate { background: #f1f5f9; color: #475569; }
+.aw-shell[data-theme="dark"] .awl-avatar {
+  background: #4a4545;
+  color: #e7e5e4;
+  box-shadow: none;
+}
 .awl-status {
   display: flex;
   flex-direction: column;
@@ -75,7 +75,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #b45309;
+  color: #92400e;
   font-size: var(--aw-t-small, 12px);
 }
 .awl-error-detail {

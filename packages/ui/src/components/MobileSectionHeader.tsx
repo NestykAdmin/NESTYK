@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { MobileIcon } from '../icons/MobileIcon';
 import type { AppIconName } from '../icons/types';
-import { tokens } from '../theme/tokens';
+import { roleOnDark, tokens } from '../theme/tokens';
 import { useMobileTheme } from '../theme/ThemeContext';
 
 export interface MobileSectionHeaderProps {
@@ -70,7 +70,7 @@ export const MobileSectionHeader: React.FC<MobileSectionHeaderProps> = ({
   searchActive = false,
   searchAccessibilityLabel = 'Search',
 }) => {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const ink = theme.screenTitle || tokens.colors.primary;
   const isBack = leading === 'back';
   const showAction = Boolean(onActionPress && actionLabel);
@@ -104,7 +104,7 @@ export const MobileSectionHeader: React.FC<MobileSectionHeaderProps> = ({
         </View>
         {workspaceLabel ? (
           <View style={styles.workspaceRow}>
-            <View style={[styles.rule, { backgroundColor: accentColor }]} />
+            <View style={[styles.rule, { backgroundColor: roleOnDark(accentColor, isDark) }]} />
             <Text
               style={[styles.workspaceLabel, { color: ink }]}
               numberOfLines={1}

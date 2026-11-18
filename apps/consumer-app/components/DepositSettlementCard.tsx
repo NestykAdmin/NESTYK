@@ -73,7 +73,7 @@ export function DepositSettlementCard({ contractId, mode }: { contractId: number
     }
   }
 
-  if (loading && !view) return <ActivityIndicator color={tokens.colors.brand[500]} />;
+  if (loading && !view) return <ActivityIndicator color={theme.spinner} />;
   if (!view) return error ? <Text style={{ ...text, color: tokens.colors.danger }}>{error}</Text> : null;
   if (view.blockedReason === "not_leaving") return null;
   const left = view.depositReceived && view.deductionTotal

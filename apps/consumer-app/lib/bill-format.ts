@@ -1,6 +1,6 @@
 import type { SupportedLocale } from "@nestyk/i18n";
 
-const LOCALE_TAG: Record<SupportedLocale, string> = { th: "th-TH", en: "en-GB", zh: "zh-CN", ja: "ja-JP" };
+const LOCALE_TAG: Record<SupportedLocale, string> = { th: "th-TH-u-ca-gregory", en: "en-GB", zh: "zh-CN", ja: "ja-JP" };
 
 export function billFormatters(locale: SupportedLocale) {
   const tag = LOCALE_TAG[locale];

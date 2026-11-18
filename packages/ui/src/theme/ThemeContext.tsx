@@ -16,6 +16,8 @@ export interface MobileThemeColors {
   screenTitle: string;
   statusBarStyle: StatusBarStyle;
   overlay: string;
+  /** Loading spinners (v1.2): ink in light mode, brand yellow in dark mode. */
+  spinner: string;
 }
 
 const LIGHT_THEME: Omit<MobileThemeColors, 'mode'> = {
@@ -26,22 +28,26 @@ const LIGHT_THEME: Omit<MobileThemeColors, 'mode'> = {
   textHeading: tokens.colors.textHeading,
   textSecondary: tokens.colors.textSecondary,
   border: tokens.colors.border,
-  screenTitle: '#1A2B48',
+  screenTitle: '#211E1E',
   statusBarStyle: 'dark-content',
   overlay: 'rgba(0,0,0,0.28)',
+  spinner: tokens.colors.primary,
 };
 
 const DARK_THEME: Omit<MobileThemeColors, 'mode'> = {
-  background: '#0F172A',
-  surface: '#1E293B',
-  card: '#1E293B',
-  header: '#1E293B',
-  textHeading: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  border: '#334155',
-  screenTitle: '#F8FAFC',
+  // Colour system v1.1 (CI, 12 Nov 2026): brand ink family instead of navy.
+  background: '#211E1E',
+  surface: '#2F2B2B',
+  card: '#2F2B2B',
+  header: '#2F2B2B',
+  // v1.2 dark = B+C (12 Nov 2026): white headings, muted #A8B4C6 (body #E2E8F0 is tokens.colors.textOnDark.secondary).
+  textHeading: tokens.colors.textOnDark.primary,
+  textSecondary: tokens.colors.textOnDark.muted,
+  border: '#3F3A3A',
+  screenTitle: tokens.colors.textOnDark.primary,
   statusBarStyle: 'light-content',
   overlay: 'rgba(0,0,0,0.55)',
+  spinner: tokens.colors.brand[500],
 };
 
 export interface MobileThemeContextValue {
@@ -76,6 +82,11 @@ export const MobileThemeProvider: React.FC<MobileThemeProviderProps> = ({
 
   return <MobileThemeContext.Provider value={value}>{children}</MobileThemeContext.Provider>;
 };
+
+/** Theme when a provider is mounted, otherwise null (for shared pieces that may render outside the app shell). */
+export function useMobileThemeOptional(): MobileThemeContextValue | null {
+  return useContext(MobileThemeContext);
+}
 
 export function useMobileTheme(): MobileThemeContextValue {
   const ctx = useContext(MobileThemeContext);

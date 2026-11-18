@@ -16,11 +16,12 @@ import {
   SelectionCheck,
   STATUS_PILL_TONES,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from '@nestyk/ui/native';
 import { listAgentLeads } from '../lib/agent-leads-api';
 import { leadMatchReady } from '../lib/lead-match-preview';
-import { LeadNewBadge, LeadStatusBadge, leadAvatarInitials, leadDisplayStatus, leadStatusTone } from './AgentLeadDetailBody';
+import { LEAD_AVATAR_TONE, LeadNewBadge, LeadStatusBadge, leadAvatarInitials, leadDisplayStatus, leadStatusTone } from './AgentLeadDetailBody';
 import { ViewingDateTile } from './ViewingDateTile';
 
 type LocationDraft = {
@@ -66,7 +67,7 @@ export function AgentLeadsScreen({
   const { t, locale } = useLocale();
   const c = t.agent.leads;
   const dash = t.agent.dashboard;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const agentColor = tokens.colors.roles.agent;
   const memory = listMemory;
   const [activeWorkFilter, setActiveWorkFilter] = useState(workFilter);
@@ -241,7 +242,7 @@ export function AgentLeadsScreen({
       ) : (
         <>
           {activeWorkFilter === 'lead_follow_up' ? (
-            <View style={[styles.filterChip, { backgroundColor: theme.surface, borderColor: agentColor }]}>
+            <View style={[styles.filterChip, { backgroundColor: theme.surface, borderColor: roleOnDark(agentColor, isDark) }]}>
               <Text style={{ flex: 1, color: theme.textHeading, fontSize: 13, lineHeight: 19 }}>
                 {dash.filterActive.replace('{label}', dash.leadsFollowUp)}
               </Text>
@@ -367,7 +368,6 @@ export function AgentLeadsScreen({
             <View style={styles.list}>
               {items.map((lead) => {
                 const status = leadDisplayStatus(lead);
-                const tone = STATUS_PILL_TONES[leadStatusTone(status)];
                 const match = lead.lastMatch ?? null;
                 const needsInfo = !leadMatchReady(lead);
                 const noRooms = match?.resultCount === 0;
@@ -388,7 +388,7 @@ export function AgentLeadsScreen({
                   <MobileCompactListRow
                     key={lead.id}
                     avatarLabel={leadAvatarInitials(lead.name)}
-                    avatarTone={tone}
+                    avatarTone={LEAD_AVATAR_TONE[isDark ? 'dark' : 'light']}
                     title={lead.name}
                     subtitle={locationLine(lead)}
                     meta={budget(lead)}

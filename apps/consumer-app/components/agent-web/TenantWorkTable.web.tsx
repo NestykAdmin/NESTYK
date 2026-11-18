@@ -132,7 +132,7 @@ export function TenantWorkTable({ items, kind, onKindChange, query, onQueryChang
       cell: (item) => (
         <button
           type="button"
-          className={`awu-btn${item.kind === "slip" ? " awu-btn-primary" : ""} awt-cta`}
+          className="awu-btn awt-cta"
           disabled={busy}
           onClick={(event) => {
             event.stopPropagation();

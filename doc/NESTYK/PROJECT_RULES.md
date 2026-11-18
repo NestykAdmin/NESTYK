@@ -169,13 +169,23 @@
 
 ### 3.6 Multi-App Role Palettes (โทนสีประจำแอปและบทบาท)
 * UI มาตรฐานให้ใช้ **gluestack-ui** หรือ Wrapper กลาง (`AppButton`, `AppInput`, `AppSelect`, `AppDateField`, `AppListRow`, `AppChipTabs`)
-* คุมโทนสีประจำ Role & Services อย่างเคร่งครัด:
-  * **🟡 Marketplace / Guest:** Warm Yellow (`#F8B615` — สีแบรนด์หลักเดิม)
-  * **🟢 Tenant (ผู้เช่า):** Neo Mint (`#00C68D`) / Gradient `#00C68D` ➔ `#0055DA`
-  * **🔵 Owner (เจ้าของห้อง):** Electric Blue (`#0055DA`) / Gradient `#0055DA` ➔ `#00C68D`
-  * **🔴 Agent (นายหน้า):** Neon Rose (`#FF0052`) / Gradient `#FF0052` ➔ `#F8B615`
-  * **⚫ Assistant & Admin:** Deep Slate (`#0F172A`) / Gradient `#0F172A` ➔ `#1E293B`
-  * **🔷 Services Hub (บริการส่วนกลาง):** Sky Blue (`#0284C7`) / Gradient `#00C68D` ➔ `#0055DA`
+* คุมโทนสีประจำ Role & Services อย่างเคร่งครัด (Colour system v1.1 ตาม CI, 12 พ.ย. 2026 · ที่มาของค่า: `tokens.colors.roles` / `tokens.colors.rolesOnDark` ใน `packages/ui/src/theme/tokens.ts` และ `packages/config/theme/colors.json` · ไม่ใช้ gradient):
+  | Role | สีหลัก (พื้นทึบ / light mode) | สีตัวอักษร-ไอคอนใน dark mode |
+  |---|---|---|
+  | 🟡 Guest / Marketplace | Brand Yellow `#F8B615` (ตัวอักษรบนพื้นนี้ใช้ ink `#211E1E`) | `#F8B615` |
+  | ⚫ Agent (นายหน้า) | Brand Ink `#211E1E` คู่กับเหลือง `#F8B615` | `#F8B615` |
+  | 🟢 Tenant (ผู้เช่า) | Success 800 `#166534` | `#4ADE80` |
+  | 🔵 Landlord (เจ้าของห้อง) | Info 800 `#1E3A8A` | `#93C5FD` |
+  | 🟤 Self Owner | Warning 800 `#92400E` | `#FDBA74` |
+  | ⚫ Admin | Slate 700 `#334155` | `#CBD5E1` |
+  | ⚫ Services Hub | Slate 600 `#475569` | `#94A3B8` |
+  * พื้นทึบสี role (hero card, badge solid) ใช้สีหลักกับตัวอักษรขาว (guest ใช้ตัวอักษร ink) ทั้ง light และ dark mode
+  * ตัวอักษร ไอคอน spinner และเส้นขอบที่แสดงสถานะเลือก ในสี role ต้องผ่าน `roleOnDark(color, isDark)` เสมอ ห้ามใช้ `tokens.colors.roles.*` ตรง ๆ (เทสกันไว้ใน `apps/consumer-app/components/role-colors-dark.test.cjs`)
+  * สวิตช์เปิด/ปิด: ink `#211E1E` เมื่อเปิด (dark mode ใช้เหลือง `#F8B615`) ไม่ใช้สีของ role
+  * ไม่มี role `owner` แล้ว ใช้ `landlord` หรือ `self_owner`
+  * รูปโปรไฟล์ตัวย่อของคนอื่น (lead, ผู้เช่า, เจ้าของ) ใช้สีเดียวกันทุกคน `tokens.colors.avatar` (สว่าง `#E2E8F0` / `#334155` · มืด `#4A4545` / `#E7E5E4`) ห้ามใช้สีตาม status, role หรือแบรนด์ · รูปของผู้ใช้ที่ login อยู่ใช้ดำ ตัวเหลือง (มืด `#4A4545`) (เทส `apps/consumer-app/components/lead-avatar-tone.test.cjs`)
+  * ป้าย "Coming soon" ในแอปใช้ `MobileComingSoonTag` (พื้นจางตามโหมด ตัวปกติ 11px) ไม่ใช้ `MobileStatusPill`
+  * v1.2 (12 พ.ย. 2026): ป้ายสถานะพื้นขั้น 100 ไม่มีขอบ โหมดมืดผ่าน `pillToneFor` · เมนูที่เลือก กล่องโหมด กรอบไอคอนการ์ด และรูปของผู้ใช้เป็นดำกับเหลือง (มืด `#4A4545`) · โหมดมืด B+C (13 พ.ย. 2026): ตัวอักษร `#FFFFFF` / `#E2E8F0` / `#A8B4C6` (`tokens.colors.textOnDark`) ป้ายสถานะโปร่ง 30% (แดง 34%) · รายละเอียดใน `.cursorrules` §3.2.1
 
 ---
 

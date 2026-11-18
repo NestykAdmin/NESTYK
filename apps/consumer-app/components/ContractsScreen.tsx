@@ -60,6 +60,7 @@ import {
   MobileInput,
   ModePageScrollContext,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
@@ -145,10 +146,10 @@ import { ContractCloseCard, closeResultNotice } from "./ContractCloseCard";
 
 const color = (status: AgentContractStatus) =>
   status === "active"
-    ? "#278268"
+    ? "#166534"
     : status.startsWith("awaiting")
-      ? "#BB7914"
-      : "#788193";
+      ? "#211E1E"
+      : "#64748B";
 
 const bangkokToday = bangkokDateKey;
 
@@ -261,7 +262,7 @@ export function appointmentBlocked(candidate: ContractCandidate | undefined): bo
 }
 
 function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = null, onStartCreateHandled, backRef }: ContractsScreenProps) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const docs = t.agent.contracts;
   const cn = docs.notice;
@@ -383,6 +384,20 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   const broker = agreementType?.formKind === "broker_appointment";
   const lease = agreementType?.formKind === "lease";
   const renewal = agreementType?.formKind === "renewal";
+  // WEB-024 (Aof 13 Nov 2026): the agreement type's name in the reader's language; the API only has the Thai name.
+  const typeName = (renewalName: string = tc.common.kinds.renewal) =>
+    (locale !== "th" &&
+      (reservation
+        ? tc.common.kinds.reservation
+        : broker
+          ? tc.common.kinds.broker_appointment
+          : lease
+            ? tc.common.kinds.lease
+            : renewal
+              ? renewalName
+              : null)) ||
+    agreementType?.nameTh ||
+    tc.common.kinds.lease;
   const standardFields = new Set([
     "startDate",
     "endDate",
@@ -632,6 +647,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
     creating && steppedCreation
       ? tokens.colors.brand[500]
       : tokens.colors.roles.agent;
+  // Text, icons, spinners and selection borders in the accent: light step in dark mode (v1.1).
+  const accentText = roleOnDark(accent, isDark);
   const card = { backgroundColor: theme.surface, borderColor: theme.border };
   const title = { color: theme.textHeading };
   const muted = { color: theme.textSecondary };
@@ -674,7 +691,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   );
   const errorView = error ? (
     // selectable: the agent can copy an error to report it.
-    <Text accessibilityRole="alert" selectable style={[s.body, { color: "#C74747" }]}>
+    <Text accessibilityRole="alert" selectable style={[s.body, { color: "#991B1B" }]}>
       {error}
     </Text>
   ) : null;
@@ -2033,19 +2050,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         <Text style={[s.heading, title]}>
           {fillTemplate(
             editingDraft ? sc.editDraftTitle : renewing ? sc.renewTitle : sc.createTitle,
-            {
-              type:
-                (locale !== "th" &&
-                  (reservation
-                    ? tc.common.kinds.reservation
-                    : broker
-                      ? tc.common.kinds.broker_appointment
-                      : lease
-                        ? tc.common.kinds.lease
-                        : null)) ||
-                agreementType?.nameTh ||
-                tc.common.kinds.lease,
-            },
+            // Renewing reads "Renew Lease agreement", not "Renew Renewal".
+            { type: typeName(renewing ? tc.common.kinds.lease : tc.common.kinds.renewal) },
           )}
         </Text>
         <Text style={[s.body, muted]}>
@@ -2143,7 +2149,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           </>
         )}
         {errorView}
-        {busy && <ActivityIndicator color={accent} />}
+        {busy && <ActivityIndicator color={accentText} />}
         {renewing && (
           <Text style={[s.body, muted]}>
             {fillTemplate(sc.renewFrom, { no: renewing.contractNo })}
@@ -2214,7 +2220,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                   s.facts,
                   {
                     borderWidth: 1,
-                    borderColor: leadId === c.leadId ? accent : theme.border,
+                    borderColor: leadId === c.leadId ? accentText : theme.border,
                   },
                 ]}
               >
@@ -2493,14 +2499,14 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         >
           <View style={s.saveConfirm}>
             <Text style={[s.subtitle, title]}>
-              บันทึก{agreementType?.nameTh || "สัญญา"}นี้?
+              {fillTemplate(sc.saveConfirmTitle, { type: typeName() })}
             </Text>
             <Text style={[s.body, muted]}>
               {editingDraft
-                ? "หลังบันทึก การแก้ไขจะแทนที่ฉบับร่างเดิม และคู่สัญญาที่มีบัญชีจะเห็นข้อมูลล่าสุด"
+                ? sc.saveConfirmEditHint
                 : reservation
-                  ? "บันทึกเป็นฉบับร่างและสร้างใบแจ้งหนี้ค่าจอง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที"
-                  : "บันทึกเป็นฉบับร่าง คู่สัญญาที่มีบัญชีจะเห็นสัญญานี้ทันที"}
+                  ? sc.saveConfirmReservationHint
+                  : sc.saveDraftHint}
             </Text>
             <View style={s.saveConfirmActions}>
               <MobileButton
@@ -2509,7 +2515,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 disabled={busy}
                 onPress={() => setConfirmingSave(false)}
               >
-                ยกเลิก
+                {t.common.cancel}
               </MobileButton>
               <MobileButton
                 style={s.saveConfirmButton}
@@ -2519,7 +2525,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                   void save(true);
                 }}
               >
-                บันทึกฉบับร่าง
+                {sc.saveDraft}
               </MobileButton>
             </View>
           </View>
@@ -2570,12 +2576,12 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
         {button(sc.backToContracts, back)}
         {errorView}
         {!!notice && (
-          <Text accessibilityRole="alert" style={[s.body, { color: accent }]}>
+          <Text accessibilityRole="alert" style={[s.body, { color: accentText }]}>
             {notice}
           </Text>
         )}
         <View style={[s.card, card]}>
-          <Text style={[s.eyebrow, { color: accent }]}>E-CONTRACT</Text>
+          <Text style={[s.eyebrow, { color: accentText }]}>E-CONTRACT</Text>
           <Text style={[s.heading, title]}>{selected.property}</Text>
           <Text style={[s.body, muted]}>
             {fillTemplate(tc.common.contractNo, { no: selected.contractNo })}
@@ -2743,8 +2749,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 return (
                   <View key={slot.kind} style={[s.documentItem, { borderColor: theme.border }]}>
                     <View style={s.documentHead}>
-                      <View style={[s.documentStatus, { borderColor: generated ? "#198460" : theme.textSecondary, backgroundColor: generated ? "#19846018" : theme.background }]}>
-                        <Text style={[s.body, { color: generated ? "#198460" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
+                      <View style={[s.documentStatus, { borderColor: generated ? "#166534" : theme.textSecondary, backgroundColor: generated ? "#16653418" : theme.background }]}>
+                        <Text style={[s.body, { color: generated ? "#166534" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
                       </View>
                       <Text style={[s.documentTitle, title]}>{slot.name}</Text>
                     </View>
@@ -2775,8 +2781,8 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 return (
                   <View key={slot.kind} style={[s.documentItem, { borderColor: theme.border }]}>
                     <View style={s.documentHead}>
-                      <View style={[s.documentStatus, { borderColor: generated ? "#198460" : theme.textSecondary, backgroundColor: generated ? "#19846018" : theme.background }]}>
-                        <Text style={[s.body, { color: generated ? "#198460" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
+                      <View style={[s.documentStatus, { borderColor: generated ? "#166534" : theme.textSecondary, backgroundColor: generated ? "#16653418" : theme.background }]}>
+                        <Text style={[s.body, { color: generated ? "#166534" : theme.textSecondary }]}>{generated ? "✓" : "○"}</Text>
                       </View>
                       <Text style={[s.documentTitle, title]}>{slot.name}</Text>
                     </View>
@@ -2824,10 +2830,10 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                             s.documentStatus,
                             {
                               borderColor: generated
-                                ? "#198460"
+                                ? "#166534"
                                 : theme.textSecondary,
                               backgroundColor: generated
-                                ? "#19846018"
+                                ? "#16653418"
                                 : theme.background,
                             },
                           ]}
@@ -2837,7 +2843,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                               s.body,
                               {
                                 color: generated
-                                  ? "#198460"
+                                  ? "#166534"
                                   : theme.textSecondary,
                               },
                             ]}
@@ -2882,7 +2888,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
               const fileName = typeof originalName === "string" && originalName.trim()
                 ? originalName
                 : `${slot.name}${extension}`;
-              const statusColor = hasFile ? "#198460" : theme.textSecondary;
+              const statusColor = hasFile ? "#166534" : theme.textSecondary;
               return (
                 <View key={slot.kind} style={[s.documentItem, { borderColor: theme.border }]}>
                   <View style={s.documentHead}>
@@ -3413,7 +3419,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
                 <MobileIcon
                   name={option.icon}
                   size={22}
-                  color={accent}
+                  color={accentText}
                   weight="bold"
                 />
               </View>
@@ -3462,7 +3468,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           {!!error && (signParties || witnessSign) ? (
             <Text
               accessibilityRole="alert"
-              style={[s.body, { color: "#C74747", marginBottom: 8 }]}
+              style={[s.body, { color: "#991B1B", marginBottom: 8 }]}
             >
               {error}
             </Text>
@@ -3539,7 +3545,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
           <Text
             style={[
               s.body,
-              { color: viewingInvoice.receiptDocumentNo ? "#198460" : "#B45309" },
+              { color: viewingInvoice.receiptDocumentNo ? "#166534" : "#92400E" },
             ]}
           >
             {viewingInvoice.receiptDocumentNo
@@ -3698,7 +3704,7 @@ function ContractsWorkspace({ tenant, initialContract, onChanged, startCreate = 
   return (
     <View style={s.root}>
       {errorView}
-      {(loadingList || busy) && <ActivityIndicator color={tokens.colors.brand[500]} />}
+      {(loadingList || busy) && <ActivityIndicator color={theme.spinner} />}
       {!!listError && <View style={[s.card, card]}>
         <Text accessibilityRole="alert" style={[s.body, muted]}>{listError}</Text>
         {button(tc.common.retry, () => setRetry(value => value + 1))}

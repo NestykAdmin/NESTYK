@@ -16,6 +16,7 @@ import {
   MobileListSearchRow,
   MobileStatusPill,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import type {
@@ -51,7 +52,7 @@ export function TenantContractList({
   onSelectRoom: (room: PartyContractRoom) => void;
   onOpen: (contract: PartyContract) => void;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const copy = tenantWorkspaceCopy(locale);
   const [roomQuery, setRoomQuery] = useState("");
@@ -155,7 +156,7 @@ export function TenantContractList({
           <MobileIcon
             name="home"
             size={22}
-            color={current ? roleAccent : tokens.colors.textSecondary}
+            color={current ? roleOnDark(roleAccent, isDark) : tokens.colors.textSecondary}
           />
         </View>
         <View style={s.flex}>
@@ -229,7 +230,7 @@ export function TenantContractList({
     );
   }
   if (!group && mode === "owner" && !history && !selectedRoom) {
-    const chipTone = { bg: "#E8F0FE", fg: tokens.colors.roles.landlord, dot: tokens.colors.roles.landlord };
+    const chipTone = { bg: "#EFF6FF", fg: tokens.colors.roles.landlord, dot: tokens.colors.roles.landlord };
     const actionLabel: Record<OwnerRoomAction, string> = {
       renewal: copy.renewalAction,
       reservation: copy.reservation,
@@ -285,7 +286,7 @@ export function TenantContractList({
         {cards.length ? (
           cards.map(({ room, contracts, summary }) => {
             const currentName = occupant(contracts);
-            const actionInk = summary.action ? "#B45309" : theme.textSecondary;
+            const actionInk = summary.action ? "#92400E" : theme.textSecondary;
             return (
               <Pressable
                 key={room.key}
@@ -296,7 +297,7 @@ export function TenantContractList({
               >
                 <View style={s.hubTop}>
                   <View style={[s.hubIcon, { backgroundColor: roleTint }]}>
-                    <MobileIcon name="home" size={20} color={roleAccent} />
+                    <MobileIcon name="home" size={20} color={roleOnDark(roleAccent, isDark)} />
                   </View>
                   <View style={s.flex}>
                     <Text style={[s.roomTitle, ink]} numberOfLines={1}>
@@ -378,7 +379,7 @@ export function TenantContractList({
                   <MobileIcon
                     name="user"
                     size={22}
-                    color={current ? roleAccent : tokens.colors.textSecondary}
+                    color={current ? roleOnDark(roleAccent, isDark) : tokens.colors.textSecondary}
                   />
                 </View>
                 <View style={s.flex}>
@@ -445,7 +446,7 @@ export function TenantContractList({
                   <MobileIcon
                     name="user"
                     size={22}
-                    color={current ? roleAccent : tokens.colors.textSecondary}
+                    color={current ? roleOnDark(roleAccent, isDark) : tokens.colors.textSecondary}
                   />
                 </View>
                 <View style={s.flex}>
@@ -862,7 +863,7 @@ export function TenantContractAttachments({
       <Text style={[s.sectionTitle, { color: theme.textHeading }]}>
         {copy.attachments}
       </Text>
-      {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+      {loading ? <ActivityIndicator color={theme.spinner} /> : null}
       {!loading && attachments && !documents.length ? (
         <Text style={[s.caption, { color: theme.textSecondary }]}>
           {copy.noAttachments}

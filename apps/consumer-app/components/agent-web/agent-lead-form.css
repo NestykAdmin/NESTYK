@@ -11,12 +11,12 @@
 }
 .awlf-form {
   grid-area: form; min-width: 0; display: flex; flex-direction: column;
-  border-radius: var(--aw-r-lg); background: var(--aw-surface, #fff); box-shadow: 0 1px 3px #0f172a14; overflow: hidden;
+  border-radius: var(--aw-r-lg); background: var(--aw-surface, #fff); box-shadow: 0 1px 3px #211e1e14; overflow: hidden;
 }
 .awlf-panel {
   grid-area: panel; position: sticky; top: var(--aw-s4);
   display: flex; flex-direction: column; border-radius: var(--aw-r-lg);
-  background: var(--aw-surface, #fff); color: var(--aw-ink); box-shadow: 0 1px 3px #0f172a14;
+  background: var(--aw-surface, #fff); color: var(--aw-ink); box-shadow: 0 1px 3px #211e1e14;
 }
 .awlf-panel-head { display: flex; align-items: center; gap: var(--aw-s3); padding: var(--aw-s4); }
 .awlf-panel-icon {

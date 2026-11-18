@@ -28,7 +28,7 @@ export function AgentCalendarScreen({ viewings, status: loadStatus, onRetry, onS
   const events = useMemo(() => loadStatus === 'available'
     ? viewings.filter(viewing => viewing.status !== 'cancelled').map(viewingToCalendarEvent)
     : [], [viewings, loadStatus]);
-  const localeTag = { th: 'th-TH', en: 'en-GB', zh: 'zh-CN', ja: 'ja-JP' }[locale];
+  const localeTag = { th: 'th-TH-u-ca-gregory', en: 'en-GB', zh: 'zh-CN', ja: 'ja-JP' }[locale];
   const daily = events.filter(event => event.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time));
   const markedDates = useMemo(() => {
     const marks: Record<string, { marked?: boolean; selected?: boolean }> = {};
@@ -142,7 +142,7 @@ export function AgentCalendarScreen({ viewings, status: loadStatus, onRetry, onS
       </View>
       {loadStatus === 'loading' ? (
         <View style={[styles.empty, surface]}>
-          <ActivityIndicator color={theme.textSecondary} />
+          <ActivityIndicator color={theme.spinner} />
           <Text accessibilityLiveRegion="polite" style={[styles.caption, secondary]}>{t.common.loading}</Text>
         </View>
       ) : loadStatus === 'error' ? (

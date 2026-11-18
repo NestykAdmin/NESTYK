@@ -1,6 +1,7 @@
 import type React from "react";
 import type { AppIconName, MobileAppTab, MobileNotificationItem } from "@nestyk/ui/native";
 import type { UserRole } from "@nestyk/types";
+import type { SettingsSection } from "../../lib/app-routes";
 
 export type AgentWebCreateKind = "room" | "lead" | "tenant";
 
@@ -38,6 +39,8 @@ export interface AgentWorkspaceProps {
   onCreate?: (kind: AgentWebCreateKind) => void;
   /** A create flow open inside the current tab (today only "tenant" inside Tenants), so the sidebar marks it. */
   creating?: AgentWebCreateKind | null;
+  /** The add-lead page is editing an existing lead: the top bar says "Edit lead" (F3). */
+  editingLead?: boolean;
   onRoleChange: (role: UserRole) => void;
   /** Roles the signed-in account holds; the role switcher lists only these (plus the active role). Omitted = every role. */
   allowedRoles?: readonly string[];
@@ -46,6 +49,12 @@ export interface AgentWorkspaceProps {
   onSignOut: () => void;
   /** "Sign out of all devices" (web account menu). Rejects when it could not reach Supabase; the menu shows the error. */
   onSignOutEverywhere?: () => Promise<void>;
+  /** Settings page section (Mos 18 Nov 2026), shown in place of the page while set; any menu choice closes it. */
+  settingsSection?: SettingsSection | null;
+  onOpenSettings?: (section: SettingsSection) => void;
+  /** The signed-in account has the admin role: it cannot delete itself (settings A2, review R1). */
+  adminAccount?: boolean;
+  onCloseSettings?: () => void;
   userName: string;
   userEmail: string;
   userPhone?: string;

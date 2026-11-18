@@ -60,9 +60,9 @@ const CONTRACT_ICON: Record<PartyContract["formKind"], AppIconName> = {
 type SignerKey = "owner" | "tenant" | "agent";
 
 function statusColor(status: PartyContract["status"]) {
-  if (status === "active") return "#278268";
-  if (status.startsWith("awaiting")) return "#BB7914";
-  return "#788193";
+  if (status === "active") return "#166534";
+  if (status.startsWith("awaiting")) return "#211E1E";
+  return "#64748B";
 }
 
 function signerKeys(row: PartyContract): SignerKey[] {
@@ -505,7 +505,7 @@ export function PartyContractDetail({
 
       <View style={[styles.card, card]}>
         <Text style={[styles.contractNo, title]}>{tc.party.myDocuments}</Text>
-        {loading ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+        {loading ? <ActivityIndicator color={theme.spinner} /> : null}
         {!loading && !ownRequirements.length ? (
           <Text style={[styles.copy, body]}>{tc.party.noMyDocuments}</Text>
         ) : null}
@@ -716,7 +716,7 @@ const styles = StyleSheet.create({
     fontFamily: tokens.typography.native.body,
     fontSize: 14,
     lineHeight: 22,
-    color: "#C74747",
+    color: "#991B1B",
   },
   card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 8 },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8 },

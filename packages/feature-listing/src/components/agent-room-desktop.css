@@ -63,9 +63,9 @@
   padding: 5px 10px;
 }
 .ard-badge.ard-available {
-  color: #32815b;
-  background: #eaf6ef;
-  border-color: #d2e8db;
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 .ard-gallery {
   display: grid;
@@ -336,7 +336,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #a27b2f;
+  color: #211e1e;
   font-size: 11px;
   white-space: nowrap;
 }
@@ -366,9 +366,9 @@
   font-size: 11px;
 }
 .ard-nearby-filters > button[aria-pressed="true"] {
-  color: #97712e;
-  background: #fbf1da;
-  border-color: #e7ce96;
+  color: #211e1e;
+  background: #fff9e8;
+  border-color: #fcde96;
 }
 .ard-nearby-list > div {
   display: flex;
@@ -495,8 +495,8 @@
   white-space: nowrap;
 }
 .ard-contracts button[aria-pressed="true"] {
-  border-color: #d6af52;
-  background: #fdf8eb;
+  border-color: #f8b615;
+  background: #fff9e8;
 }
 .ard-contract-check {
   display: grid;
@@ -508,9 +508,9 @@
   border-radius: 50%;
 }
 .ard-contracts button[aria-pressed="true"] .ard-contract-check {
-  background: #c69a3f;
+  background: #f8b615;
   color: #fff;
-  border-color: #c69a3f;
+  border-color: #f8b615;
 }
 .ard-costs {
   border-top: 1px solid var(--aw-border);
@@ -579,17 +579,17 @@
   background: var(--aw-border);
 }
 .ard-share-readiness progress::-webkit-progress-value {
-  background: #d6ac4e;
+  background: #f8b615;
 }
 .ard-share-readiness progress::-moz-progress-bar {
-  background: #d6ac4e;
+  background: #f8b615;
 }
 .ard-share-readiness button {
   text-align: left;
   border: 0;
   background: transparent;
   padding: 0;
-  color: #a27b2f;
+  color: #211e1e;
   font: inherit;
   font-size: 12px;
   text-decoration: underline;
@@ -601,7 +601,7 @@
   max-height: none;
   border: 1px solid #ffffff22;
   border-radius: 12px;
-  background: #111923;
+  background: #211E1E;
   color: #fff;
   padding: 0;
   overflow: hidden;
@@ -662,11 +662,11 @@
   .ard-nearby-filters
   > button[aria-pressed="true"] {
   background: #d6ac4e15;
-  color: #e6c88b;
+  color: #fcde96;
 }
 .ard-dialog[data-theme="dark"] .ard-available {
   background: #32815b22;
-  color: #a2d7b9;
+  color: #bbf7d0;
   border-color: #32815b55;
 }
 @media (max-width: 1100px) {

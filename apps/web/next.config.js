@@ -5,6 +5,18 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const API_URL = process.env.API_URL || 'http://localhost:4000';
 
+// Account web (consumer-app) on this same site: /login, /register, legal pages, role sites.
+// Unset ACCOUNT_WEB_UPSTREAM = no hand-over (links go to NEXT_PUBLIC_ACCOUNT_WEB_ORIGIN as before).
+const { accountWebUpstream, accountRewrites, accountDevFallback } = require('./lib/account-routes');
+const ACCOUNT_WEB_UPSTREAM = accountWebUpstream(process.env.ACCOUNT_WEB_UPSTREAM);
+
+// Content-Security-Policy of the guest pages (AUTH-2.6): own scripts only, connections to this site and Supabase.
+const { guestCsp, GUEST_CSP_SOURCE } = require('./lib/guest-csp');
+const GUEST_CSP = guestCsp({
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL,
+  dev: process.env.NODE_ENV === 'development',
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Also expose root `.env` / `.env.*` via Next env loading
@@ -15,6 +27,11 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
       process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
       '',
+    // Supabase public URL and anon key: the same pair as the consumer-app (EXPO_PUBLIC_*), so both read one sign-in.
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+    // Account links stay on this site when it hands the account pages across (lib/guest-site.ts accountOrigin).
+    NEXT_PUBLIC_ACCOUNT_SAME_SITE: ACCOUNT_WEB_UPSTREAM ? '1' : '',
   },
   transpilePackages: [
     '@nestyk/ui',
@@ -25,14 +42,33 @@ const nextConfig = {
     '@nestyk/feature-services',
     '@nestyk/feature-listing',
   ],
-  async rewrites() {
+  async headers() {
+    const headers = [{ key: 'Content-Security-Policy', value: GUEST_CSP }];
     return [
-      // ⚡ Unified Backend API (/api/* -> localhost:4000/api/v1/*)
-      {
-        source: '/api/:path*',
-        destination: `${API_URL}/api/v1/:path*`,
-      },
+      { source: '/', headers },
+      { source: GUEST_CSP_SOURCE, headers },
     ];
+  },
+  async rewrites() {
+    return {
+      // Before the guest pages, so /login never reaches the [locale] route.
+      beforeFiles: accountRewrites(ACCOUNT_WEB_UPSTREAM),
+      afterFiles: [
+        // The consumer-app on this site (account pages) calls "/api/v1/..." in local dev (its dev API proxy path,
+        // lib/web-api-proxy.ts). Send it to the API as it is; the rule below would make it /api/v1/v1/...
+        {
+          source: '/api/v1/:path*',
+          destination: `${API_URL}/api/v1/:path*`,
+        },
+        // ⚡ Unified Backend API (/api/* -> localhost:4000/api/v1/*)
+        {
+          source: '/api/:path*',
+          destination: `${API_URL}/api/v1/:path*`,
+        },
+      ],
+      // Local dev with the Expo dev server as upstream: its bundle paths too (off on a deploy).
+      fallback: accountDevFallback(ACCOUNT_WEB_UPSTREAM, process.env.NODE_ENV),
+    };
   },
 };
 

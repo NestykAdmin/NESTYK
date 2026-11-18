@@ -5,9 +5,9 @@
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
-  background: #f5f6f8;
+  background: #f1f5f9;
   font-family: "NotoSansThai_400Regular", "Noto Sans Thai", sans-serif;
-  color: #1a2b48;
+  color: #211e1e;
 }
 .na-card {
   width: 100%;
@@ -15,7 +15,7 @@
   padding: 32px 28px;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 32px rgba(33, 30, 30, 0.08);
 }
 .na-card h1 {
   margin: 24px 0 8px;
@@ -66,10 +66,10 @@
 .na-secondary {
   border: 1px solid #e2e8f0;
   background: #ffffff;
-  color: #1a2b48;
+  color: #211e1e;
 }
 .na-actions > *:focus-visible {
-  outline: 2px solid #1a2b48;
+  outline: 2px solid #211e1e;
   outline-offset: 2px;
 }
 .na-support {
@@ -79,7 +79,7 @@
   font-size: 13px;
 }
 .na-support:focus-visible {
-  outline: 2px solid #1a2b48;
+  outline: 2px solid #211e1e;
   outline-offset: 2px;
   border-radius: 4px;
 }

@@ -235,7 +235,7 @@
 }
 button.awr-card:hover {
   border-color: var(--aw-brand-line);
-  box-shadow: 0 3px 12px #1a2b480f;
+  box-shadow: 0 3px 12px #211e1e0f;
 }
 .awr-card-body {
   display: flex;

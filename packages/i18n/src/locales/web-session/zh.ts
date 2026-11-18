@@ -18,4 +18,9 @@ export const webSessionZh: WebSessionCopy = {
   noAccessHome: '返回首页',
   otherSite: '其他网站',
   noAccessOpenRole: '前往{role}',
+  /** Sign-in redesign (Mos 17 Nov 2026): the note under the sign-in button and its label while Turnstile checks. */
+  captchaNote: '由 Cloudflare Turnstile 防护机器人',
+  captchaChecking: '正在验证…',
+  /** The hidden check gave no token (blocked, error or too slow). */
+  captchaFailed: '无法确认您不是机器人，请重试。',
 };

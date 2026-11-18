@@ -5,20 +5,22 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { MobileButton, MobileIcon, MobileInput, MobileNestykLogo, SelectionCheck, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useAuth } from '../lib/auth/AuthContext';
 import { socialLoginProvider } from '../lib/auth/google-oauth';
 import { passwordIsStrong } from '../lib/auth/password-rules';
-import { hcaptchaSiteKey } from '../lib/auth/hcaptcha-site-key';
+import { captchaSiteKey } from '../lib/auth/captcha-site-key';
 import { authErrorText, isInvalidOtp } from '../lib/auth/auth-error';
-import { HcaptchaField } from '../components/HcaptchaField';
+import { CaptchaField } from '../components/CaptchaField';
 import { AuthLegalFooter } from '../components/legal/AuthLegalFooter';
 import { ConsentLabel } from '../components/legal/ConsentLabel';
 import { PhoneField } from '../components/PhoneField';
 import { phoneDraftToE164, type PhoneDraft } from '../lib/phone';
+import { withNextParam } from '../lib/app-routes';
+import { goAfterSignIn } from '../lib/web-routes';
 
 function GoogleMark() {
   return (
@@ -35,7 +37,9 @@ export default function RegisterScreen() {
   const { t, locale } = useLocale();
   const copy = t.mobile.auth;
   const { theme } = useMobileTheme();
-  const { signUp, verifySignupCode, resendSignupCode, signInWithGoogle, signInWithFacebook, isAuthenticated } = useAuth();
+  const { signUp, verifySignupCode, resendSignupCode, signInWithGoogle, signInWithFacebook, isAuthenticated, session } = useAuth();
+  // Sign-up started from a guest web page comes back to it (guest session plan A6); mobile goes to "/" as before.
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [firstName, setFirstName] = useState('');
@@ -56,7 +60,7 @@ export default function RegisterScreen() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
   const [resendCaptcha, setResendCaptcha] = useState(false);
-  const captchaRequired = hcaptchaSiteKey().length > 0;
+  const captchaRequired = captchaSiteKey().length > 0;
   const resetCaptcha = () => {
     setCaptchaToken(null);
     setCaptchaKey(captchaKey + 1);
@@ -69,8 +73,8 @@ export default function RegisterScreen() {
   const confirmationRef = useRef<TextInput>(null);
 
   React.useEffect(() => {
-    if (isAuthenticated) router.replace('/');
-  }, [isAuthenticated, router]);
+    if (isAuthenticated) goAfterSignIn(router, next, session?.roles);
+  }, [isAuthenticated, router, next, session?.roles]);
 
   useEffect(() => {
     if (!needsEmailConfirmation || resendIn <= 0) return;
@@ -118,7 +122,8 @@ export default function RegisterScreen() {
         setResendIn(60);
         setNeedsEmailConfirmation(true);
       } else {
-        router.replace('/');
+        // Mobile: home as before. Web: the signed-in effect above moves on with the new account's roles (review R1).
+        if (Platform.OS !== 'web') router.replace('/');
       }
     } catch (e) {
       resetCaptcha();
@@ -148,7 +153,8 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await verifySignupCode(email, code.trim(), { firstName, lastName, phone: phoneNumber });
-      router.replace('/');
+      // Web: the signed-in effect above moves on with the account's roles (review R1). Mobile: home as before.
+      if (Platform.OS !== 'web') router.replace('/');
     } catch (e) {
       setError(isInvalidOtp(e) ? copy.otpInvalid : authErrorText(e, { network: t.mobile.auth.networkError, rateLimited: t.mobile.auth.tooManyAttempts, fallback: t.common.errorGeneric }));
     } finally {
@@ -252,7 +258,7 @@ export default function RegisterScreen() {
                       <Text style={[styles.body, styles.testRegistrationLabel, { color: theme.textHeading }]}>{copy.testRegistration}</Text>
                     </TouchableOpacity>
                   ) : null}
-                  {captchaRequired && !forTesting ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                  {captchaRequired && !forTesting ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                   {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
                   <MobileButton onPress={onSubmit} isLoading={loading} disabled={loading}>{copy.registerButton}</MobileButton>
                   {/* PDPA plan FE5: the privacy policy is shown here as a notice (no checkbox); the checkbox above is the terms only. */}
@@ -316,7 +322,7 @@ export default function RegisterScreen() {
                     <MobileInput accessibilityLabel={copy.otpCode} value={code} onChangeText={setCode}
                       keyboardType="number-pad" maxLength={6} editable={!loading} style={fieldStyle} />
                   </View>
-                  {captchaRequired && resendCaptcha ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+                  {captchaRequired && resendCaptcha ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
                   {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
                   <MobileButton onPress={() => { void verifyCode(); }} isLoading={loading} disabled={loading}>{copy.otpCode}</MobileButton>
                   <MobileButton variant="outline" disabled={loading || resendIn > 0} onPress={() => { void sendCodeAgain(); }}>
@@ -327,7 +333,7 @@ export default function RegisterScreen() {
                   </TouchableOpacity>
                 </>
               )}
-              <MobileButton variant="outline" disabled={loading} onPress={() => router.replace('/login')}>
+              <MobileButton variant="outline" disabled={loading} onPress={() => router.replace(withNextParam('/login', next) as never)}>
                 {copy.backToLogin}
               </MobileButton>
             </View>
@@ -341,7 +347,7 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  shade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(25,18,10,0.22)' },
+  shade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(33,30,30,0.22)' },
   content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20 },
   column: { width: '100%', maxWidth: 460, alignSelf: 'center', gap: 24 },
   card: { borderRadius: 24, padding: 24, gap: 14 },

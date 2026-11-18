@@ -431,7 +431,7 @@ export function DealOfferSection({
       )}
       {notice ? <Text style={{ ...text, color: theme.textHeading }}>{notice}</Text> : null}
       {error ? <Text accessibilityRole="alert" style={{ ...text, color: tokens.colors.danger }}>{error}</Text> : null}
-      {loading && offer ? <ActivityIndicator color={tokens.colors.brand[500]} /> : null}
+      {loading && offer ? <ActivityIndicator color={theme.spinner} /> : null}
     </View>
   );
 }

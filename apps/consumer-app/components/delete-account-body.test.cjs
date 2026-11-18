@@ -28,7 +28,7 @@ const deps = {
   '../components/MobileInput': { MobileInput: 'input' },
   '../theme/tokens': { tokens: { colors: { danger: '#c00' }, typography: { native: {} } } },
   '../theme/ThemeContext': { useMobileTheme: () => ({ theme: {} }) },
-  '../components/AccountDeletionNotice': { formatAccountDeletionDate: (iso, locale) => new Date(iso).toLocaleDateString(locale === 'th' ? 'th-TH' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }) },
+  '../components/AccountDeletionNotice': { formatAccountDeletionDate: (iso, locale) => new Date(iso).toLocaleDateString(locale === 'th' ? 'th-TH-u-ca-gregory' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }) },
 };
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', ts.transpileModule(
@@ -124,8 +124,8 @@ test('A10: the delete page shows the scheduled day in Bangkok time, the same day
   const s = screen(props);
   state[0] = { blocked: false, reasons: [], scheduledFor: '2026-12-02T17:00:00.000Z' }; // 00:00 BKK 3 Dec
   const shown = s.texts().join(' ');
-  assert.match(shown, /3 ธันวาคม 2569/);
-  assert.doesNotMatch(shown, /2 ธันวาคม 2569/);
+  assert.match(shown, /3 ธันวาคม 2026/);
+  assert.doesNotMatch(shown, /2 ธันวาคม 2026/);
   const web = fs.readFileSync(path.join(__dirname, 'agent-web/AgentWorkspace.web.tsx'), 'utf8');
   assert.match(web, /deleteAccountScheduled\.replace\("\{date\}", new Date\(deleteScheduled\)\.toLocaleDateString\([^,]+, \{[^}]*timeZone: "Asia\/Bangkok"/);
 });

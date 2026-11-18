@@ -20,7 +20,8 @@ const roots = ['apps/consumer-app/app', 'apps/consumer-app/components', 'apps/co
 const sources = [];
 const walk = dir => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    // dist = build output (gitignored): checked from source only, or a local build makes the test fail.
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full);
     else if (/\.tsx?$/.test(entry.name)) sources.push(full);

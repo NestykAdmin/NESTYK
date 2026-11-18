@@ -78,17 +78,17 @@ test('other devices failing to sign out still leaves the new password saved', as
 
 test('checking the current password includes the captcha token', async () => {
   const auth = client();
-  await changePassword(auth, 'jom@nestyk.com', 'old-secret', 'Newsecret1', 'hcaptcha-token');
-  assert.deepEqual(auth.calls[0], ['sign-in', { email: 'jom@nestyk.com', password: 'old-secret', options: { captchaToken: 'hcaptcha-token' } }]);
+  await changePassword(auth, 'jom@nestyk.com', 'old-secret', 'Newsecret1', 'captcha-token');
+  assert.deepEqual(auth.calls[0], ['sign-in', { email: 'jom@nestyk.com', password: 'old-secret', options: { captchaToken: 'captcha-token' } }]);
 });
 
 test('confirming the current password rejects a wrong password', async () => {
   const auth = client({ signInError: { message: 'Invalid login credentials', code: 'invalid_credentials' } });
   await assert.rejects(
-    () => confirmCurrentPassword(auth, 'Jom@Nestyk.com', 'old-secret', 'hcaptcha-token'),
+    () => confirmCurrentPassword(auth, 'Jom@Nestyk.com', 'old-secret', 'captcha-token'),
     (error) => error.code === WRONG_PASSWORD,
   );
-  assert.deepEqual(auth.calls, [['sign-in', { email: 'jom@nestyk.com', password: 'old-secret', options: { captchaToken: 'hcaptcha-token' } }]]);
+  assert.deepEqual(auth.calls, [['sign-in', { email: 'jom@nestyk.com', password: 'old-secret', options: { captchaToken: 'captcha-token' } }]]);
 });
 
 test('a weak new password is rejected before the current password is checked', async () => {

@@ -3,6 +3,7 @@ import { TranslationSchema } from '../types';
 import { contractsTh } from './contracts/th';
 import { legalTh } from './legal/th';
 import { webSessionTh } from './web-session/th';
+import { guestTh } from './guest/th';
 
 export const th: TranslationSchema = {
   common: {
@@ -31,12 +32,14 @@ export const th: TranslationSchema = {
     landlord: 'ผู้ให้เช่า',
     agent: 'นายหน้า',
     admin: 'Admin Nestyk',
+    self_owner: 'เจ้าของ',
     services: 'ศูนย์บริการ',
     guestSubtitle: 'Guest',
     tenantSubtitle: 'ผู้เช่า · ห้อง 1804',
     landlordSubtitle: 'ผู้ให้เช่า · ห้องที่นายหน้าดูแล',
     agentSubtitle: 'นายหน้า · Co-Broke',
     adminSubtitle: 'Admin Nestyk · Operations',
+    self_ownerSubtitle: 'เจ้าของ · ปล่อยห้องเอง',
     servicesSubtitle: 'ศูนย์บริการส่วนกลาง',
   },
   mobile: {
@@ -157,6 +160,7 @@ export const th: TranslationSchema = {
         landlord: 'ดูและเซ็นเอกสารที่นายหน้าส่งมา',
         agent: 'เชื่อมลูกค้ากับบ้าน',
         admin: 'ดูแลแพลตฟอร์ม',
+        self_owner: 'ลงประกาศห้องและหาผู้เช่าเอง',
       },
       navigation: 'เมนูนำทาง',
       settings: 'ตั้งค่า',
@@ -495,6 +499,26 @@ export const th: TranslationSchema = {
       confirmedEmpty: 'เมื่อเอเจนต์ยืนยันสลิป ค่าห้องจะแสดงที่นี่',
     },
   },
+  adminWeb: {
+    brandTag: 'ADMIN WORKSPACE',
+    workspaceLabel: 'พื้นที่ดูแลแพลตฟอร์ม',
+    main: 'ดูแลแพลตฟอร์ม',
+  },
+  selfOwnerWeb: {
+    brandTag: 'OWNER WORKSPACE',
+    workspaceLabel: 'พื้นที่เจ้าของ',
+    main: 'ห้องของฉัน',
+    money: 'ผู้เช่าและการเงิน',
+    listings: 'ห้องและประกาศ',
+    interested: 'ผู้สนใจ',
+    viewings: 'นัดดูห้อง',
+    tenants: 'ผู้เช่า',
+    contracts: 'สัญญา',
+    billsIncome: 'บิลและรายรับ',
+    repairs: 'แจ้งซ่อม',
+    homeTitle: 'พื้นที่ของเจ้าของ',
+    homeBody: 'เมนูของเจ้าของที่ปล่อยห้องเองจะเปิดใช้ในเฟสถัดไป',
+  },
   agent: {
     calendar: {
       liveNotice: 'นัดดูห้องจากลีดของคุณ',
@@ -624,6 +648,23 @@ export const th: TranslationSchema = {
       makeReservation: 'ทำหนังสือจอง',
       addEmail: 'เพิ่มอีเมลผู้เช่า',
       addIdentity: 'เพิ่มเลขบัตรผู้เช่า',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: 'ขั้นตอนการสร้างผู้เช่า',
+        stepOf: 'ขั้น {step} จาก {total}',
+        change: 'เปลี่ยน',
+        leadSub: 'ลูกค้าที่ตกลงเช่า',
+        roomSub: 'ห้องที่จะจอง',
+        confirmSub: 'ข้อเสนอ · อีเมล · เลขบัตร',
+        pickLeadHint: 'กดที่ Lead เพื่อไปเลือกห้อง',
+        pickRoomHint: 'กดที่ห้องเพื่อไปยืนยันการจอง',
+        docTitle: 'ข้อมูลสำหรับหนังสือจอง',
+        docHint: 'ไม่บังคับตอนจอง แต่ต้องมีครบก่อนทำหนังสือจอง',
+        customerTitle: 'ข้อมูลลูกค้า',
+        customerHint: 'ดึงมาจาก Lead แก้ได้ถ้าข้อมูลไม่ตรง',
+        editCustomer: 'แก้ไข',
+        hideCustomer: 'ซ่อน',
+      },
       detail: {
         title: 'ผู้เช่า',
         subtitle: '{name} · ห้อง {room}',
@@ -2137,6 +2178,30 @@ export const th: TranslationSchema = {
         themeDark: 'มืด',
         themeSystem: 'ตามเครื่อง',
         brandTag: 'พื้นที่ทำงานนายหน้า',
+        home: 'หน้าแรก',
+        changeRole: 'เปลี่ยน',
+        chooseRole: 'เลือกบทบาท',
+        roleHint: 'บทบาทที่มีป้าย เว็บอื่น จะเปิดในเว็บของบทบาทนั้น ใช้บัญชีเดียวกัน',
+        docsFinance: 'เอกสารและการเงิน',
+        settings: 'การตั้งค่า',
+        settingsProfile: 'โปรไฟล์',
+        settingsProfileHint: 'ข้อมูลส่วนตัวที่แสดงในบัญชีนี้',
+        settingsSecurity: 'ความปลอดภัย',
+        settingsSecurityHint: 'รหัสผ่าน บัญชีที่เชื่อมต่อ และอุปกรณ์',
+        settingsDisplay: 'การแสดงผล',
+        settingsDisplayHint: 'ภาษาและธีมของเว็บนี้',
+        settingsHelp: 'ช่วยเหลือและเกี่ยวกับ',
+        settingsHelpHint: 'คำถามที่พบบ่อย ติดต่อ และข้อกำหนด',
+        profileReadOnly: 'การแก้ไขข้อมูลบนเว็บจะเปิดเร็ว ๆ นี้ ตอนนี้แก้ได้ในแอป NESTYK',
+        accountRoles: 'บทบาทของบัญชีนี้',
+        devices: 'อุปกรณ์ที่เข้าสู่ระบบ',
+        devicesBody: 'ออกจากระบบทุกอุปกรณ์ที่ใช้บัญชีนี้อยู่',
+        emailPassword: 'อีเมลและรหัสผ่าน',
+        dangerZone: 'โซนอันตราย',
+        twoFactor: 'ยืนยันตัวตน 2 ขั้น (2FA)',
+        twoFactorBody: 'แนะนำให้เปิดสำหรับบัญชีแอดมินทุกบัญชี เพราะเข้าถึงข้อมูลผู้ใช้ทั้งระบบได้',
+        adminDeleteNote: 'บัญชีแอดมินลบเองไม่ได้ ให้แอดมินคนอื่นปิดบัญชีจากเมนู ผู้ใช้',
+        adminSettingsNote: 'หน้านี้เป็นของบัญชีตัวเองเท่านั้น ตั้งค่าของทั้งระบบอยู่ที่ ระบบ › ตั้งค่าปฏิบัติการ',
       },
       webOverview: {
         property: 'โครงการ / ห้อง',
@@ -2280,6 +2345,7 @@ export const th: TranslationSchema = {
   contracts: contractsTh,
   legal: legalTh,
   webSession: webSessionTh,
+  guest: guestTh,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.th,
     facilities: { ...AMENITIES_FACILITY_LABELS.th, air_conditioner: 'แอร์', wifi: 'ไวไฟ', parking: 'ที่จอดรถ', swimming_pool: 'สระว่ายน้ำ', elevator: 'ลิฟต์', security: 'รปภ.' },

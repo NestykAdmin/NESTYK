@@ -101,7 +101,7 @@ export const MobileNotificationsBody: React.FC<MobileNotificationsBodyProps> = (
             style={[
               styles.row,
               { borderBottomColor: theme.border },
-              item.unread && { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' },
+              item.unread && { backgroundColor: isDark ? '#211E1E' : '#F8FAFC' },
             ]}
           >
             <View style={[styles.iconCircle, { backgroundColor: `${item.iconColor}18` }]}>

@@ -140,7 +140,7 @@ export function WebNotifier() {
   const toasts = notices.filter((n): n is ToastNotice => n.kind === 'toast');
   const dialog = notices.find((n): n is DialogNotice => n.kind === 'dialog');
   const closeLabel = t.agent.dashboard.webWorkspace.close;
-  const iconColor = (tone: NotifyTone) => (tone === 'error' ? '#B42318' : tone === 'success' ? '#1F6B43' : '#211E1E');
+  const iconColor = (tone: NotifyTone) => (tone === 'error' ? '#991B1B' : tone === 'success' ? '#166534' : '#211E1E');
   return (
     <div
       className="wn-root"

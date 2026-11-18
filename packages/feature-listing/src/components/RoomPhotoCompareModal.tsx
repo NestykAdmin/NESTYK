@@ -121,7 +121,7 @@ export function RoomPhotoCompareModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: 'rgba(33, 30, 30, 0.55)',
     justifyContent: 'center',
     paddingHorizontal: 16,
   },

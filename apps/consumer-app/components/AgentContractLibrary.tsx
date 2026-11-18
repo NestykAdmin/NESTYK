@@ -79,7 +79,7 @@ export function AgentContractLibrary({ contracts, invoices, commissions, view, o
       <View style={s.row}>
         <Text style={[s.small, s.muted, s.flex]}>{label(entry.type)}</Text>
         <View style={[s.badge, entry.state === 'attention' ? s.waitBadge : entry.state === 'closed' ? s.closedBadge : s.readyBadge]}>
-          <Text style={[s.badgeText, { color: entry.state === 'attention' ? '#92400E' : entry.state === 'closed' ? '#64748B' : '#16734B' }]}>{status}</Text>
+          <Text style={[s.badgeText, { color: entry.state === 'attention' ? '#92400E' : entry.state === 'closed' ? '#64748B' : '#166534' }]}>{status}</Text>
         </View>
       </View>
       <Text style={s.documentNo}>{number}</Text>
@@ -174,18 +174,18 @@ const s = StyleSheet.create({
   menu: { padding: 0, gap: 0 },
   stack: { gap: 12 }, flex: { flex: 1, minWidth: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  sectionTitle: { fontFamily: tokens.typography.native.headingTh, fontSize: 18, lineHeight: 28, color: '#263343' },
+  sectionTitle: { fontFamily: tokens.typography.native.headingTh, fontSize: 18, lineHeight: 28, color: '#211E1E' },
   body: { fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 23, color: '#334155' },
   small: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 20, color: '#334155' },
   muted: { color: '#64748B' },
-  count: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 20, color: '#A66B00', flexShrink: 0 },
+  count: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 20, color: '#211E1E', flexShrink: 0 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
-  chipSelected: { backgroundColor: '#FFF6DC', borderColor: '#F8B615' }, selectedText: { color: '#805300' },
+  chipSelected: { backgroundColor: '#FFF9E8', borderColor: '#F8B615' }, selectedText: { color: '#211E1E' },
   document: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 16, padding: 16, gap: 6, backgroundColor: '#FFFFFF' },
-  documentNo: { fontFamily: tokens.typography.native.headingTh, fontSize: 17, lineHeight: 27, color: '#263343' },
-  amount: { fontFamily: tokens.typography.native.headingTh, fontSize: 14, lineHeight: 21, color: '#263343' },
-  badge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 }, waitBadge: { backgroundColor: '#FFF6DC' }, readyBadge: { backgroundColor: '#EAF6EF' }, closedBadge: { backgroundColor: '#F1F5F9' },
+  documentNo: { fontFamily: tokens.typography.native.headingTh, fontSize: 17, lineHeight: 27, color: '#211E1E' },
+  amount: { fontFamily: tokens.typography.native.headingTh, fontSize: 14, lineHeight: 21, color: '#211E1E' },
+  badge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 }, waitBadge: { backgroundColor: '#FFF9E8' }, readyBadge: { backgroundColor: '#F0FDF4' }, closedBadge: { backgroundColor: '#F1F5F9' },
   badgeText: { fontFamily: tokens.typography.native.body, fontSize: 11, lineHeight: 18 },
   hint: { padding: 14, borderRadius: 12, gap: 6, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }, empty: { textAlign: 'center', paddingVertical: 28 },
 });

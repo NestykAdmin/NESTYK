@@ -50,6 +50,12 @@ const TAB_MATRIX: Record<ExtendedTabRole, MobileTabConfig[]> = {
     { key: 'tickets', icon: 'ticket' },
     MENU_TAB,
   ],
+  // Owner who lists rooms without an agent (round 2, docs/ROLE-CHANGE-PLAN.md 5.1): sample menus only for now.
+  self_owner: [
+    { key: 'dashboard', icon: 'grid' },
+    SERVICES_TAB,
+    MENU_TAB,
+  ],
 };
 
 const DEFAULT_TAB: Record<ExtendedTabRole, MobileAppTab> = {
@@ -58,6 +64,7 @@ const DEFAULT_TAB: Record<ExtendedTabRole, MobileAppTab> = {
   landlord: 'dashboard',
   agent: 'dashboard',
   admin: 'dashboard',
+  self_owner: 'dashboard',
 };
 
 export function getTabsForRole(role: ExtendedTabRole): MobileTabConfig[] {

@@ -79,8 +79,8 @@ test('a used or expired reset link is rejected and sets no password', async () =
 
 test('a reset request includes the captcha token when one was solved', async () => {
   const auth = client();
-  await requestPasswordReset(auth, 'jom@nestyk.com', 'hcaptcha-token');
-  assert.deepEqual(auth.calls, [['request', 'jom@nestyk.com', { captchaToken: 'hcaptcha-token' }]]);
+  await requestPasswordReset(auth, 'jom@nestyk.com', 'captcha-token');
+  assert.deepEqual(auth.calls, [['request', 'jom@nestyk.com', { captchaToken: 'captcha-token' }]]);
 });
 
 test('the 6-digit recovery code path is gone (the email link replaced it, Mos 4 Nov 2026)', () => {

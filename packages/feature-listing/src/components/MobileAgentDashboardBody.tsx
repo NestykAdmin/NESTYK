@@ -110,7 +110,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
 
   const localeTag =
-    locale === 'th' ? 'th-TH' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : 'en-GB';
+    locale === 'th' ? 'th-TH-u-ca-gregory' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : 'en-GB';
 
   const periodLabel = useMemo(() => {
     const d = new Date(snapshot.rent.periodYear, snapshot.rent.periodMonth - 1, 1);

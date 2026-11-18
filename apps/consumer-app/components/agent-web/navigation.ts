@@ -39,7 +39,8 @@ export const AGENT_WEB_MORE: ReadonlyArray<AgentWebMenuItem> = [
 export type AgentWebPageWidth = "wide" | "form" | "form-aside";
 
 export function agentWebPageWidth(tab: MobileAppTab, creating?: "room" | "lead" | "tenant" | null): AgentWebPageWidth {
-  if (creating === "tenant") return "form";
+  // W4 (17 Nov 2026): the create-tenant page lays out its own steps rail and content widths.
+  if (creating === "tenant") return "wide";
   // W17 (Mos 6 Nov 2026): add/edit lead = form 720 + readiness panel 320 (AgentLeadFormPage).
   if (tab === "createLead") return "form-aside";
   return tab === "createListing" ? "form" : "wide";

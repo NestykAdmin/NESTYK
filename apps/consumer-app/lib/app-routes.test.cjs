@@ -208,3 +208,32 @@ test('QA 4 Nov 2026 item 9: auth and legal screens typed with capitals map to th
   assert.equal(ownScreenPath('/TERMS'), '/terms');
   for (const other of ['/AGENT/rooms', '/', '/search', '/foo', '/login/extra']) assert.equal(ownScreenPath(other), null, other);
 });
+
+test('settings has one page per section for agent, tenant, landlord, admin and self owner: /<role>/settings[/section] (Mos 18 Nov 2026)', () => {
+  const paths = { profile: '', security: '/security', display: '/display', help: '/help' };
+  for (const role of ['agent', 'tenant', 'landlord', 'admin', 'self_owner']) {
+    for (const [section, suffix] of Object.entries(paths)) {
+      const href = `${roleHomePath(role)}/settings${suffix}`;
+      assert.equal(stateToRoute({ role, tab: 'dashboard', settings: section }), href);
+      const back = routeToState(href);
+      assert.equal(back.state.settings, section, href);
+      assert.equal(back.href, href);
+    }
+  }
+  // Without a section the same tab is the role home, not the settings page.
+  assert.equal(stateToRoute({ role: 'agent', tab: 'dashboard' }), '/agent');
+  assert.equal(stateToRoute({ role: 'agent', tab: 'dashboard', settings: null }), '/agent');
+  // Review R1: a role without a settings page (guest) ignores a leftover settings flag and gets its own page.
+  assert.equal(stateToRoute({ role: 'guest', tab: 'home', settings: 'profile' }), '/');
+  // An unknown section is not a settings page.
+  assert.notEqual(routeToState('/agent/settings/billing').state.settings, 'billing');
+});
+
+test('self owner (round 2, Mos 18 Nov 2026) lives at /self-owner; the old /owner links still open the landlord', () => {
+  assert.equal(roleHomePath('self_owner'), '/self-owner');
+  const home = routeToState('/self-owner');
+  assert.equal(home.state.role, 'self_owner');
+  assert.equal(home.href, '/self-owner');
+  assert.equal(stateToRoute({ role: 'self_owner', tab: 'dashboard' }), '/self-owner');
+  assert.deepEqual(parseAppPath('/owner/contracts'), { kind: 'redirect', to: '/landlord/contracts' });
+});

@@ -16,23 +16,25 @@ export type AccessRule =
   | { kind: 'role'; role: AccountRole };
 // Later: | { kind: 'permission'; key: string } once the API sends permissions (team, admin rights).
 
-/** What each role's pages need. Add a row for a new role (e.g. self_owner) when its pages exist. */
+/** What each role's pages need. */
 export const ROLE_ACCESS: Record<UserRole, AccessRule> = {
   guest: { kind: 'public' },
   agent: { kind: 'role', role: 'agent' },
   tenant: { kind: 'role', role: 'tenant' },
   landlord: { kind: 'role', role: 'landlord' },
   admin: { kind: 'role', role: 'admin' },
+  self_owner: { kind: 'role', role: 'self_owner' },
 };
 
 /** A deploy shows the guest pages plus the roles of its portal. `all` = dev, QA, localhost, app.<domain>. */
 export type Portal = 'all' | AccountRole;
 export const PORTAL_ROLES: Record<Portal, readonly AccountRole[]> = {
-  all: ['agent', 'landlord', 'tenant', 'admin'],
+  all: ['agent', 'landlord', 'tenant', 'self_owner', 'admin'],
   agent: ['agent'],
   tenant: ['tenant'],
   landlord: ['landlord'],
   admin: ['admin'],
+  self_owner: ['self_owner'],
 };
 
 /** EXPO_PUBLIC_WEB_PORTAL ("agent" on agent.nestyk.com). Missing or unknown = all, so nothing changes by default. */
@@ -47,7 +49,7 @@ export function portalHome(portal: Portal): string {
 }
 
 /** Order used when a signed-in account lands without a remembered role (Q5). Admin only on the admin portal. */
-const LANDING_ORDER: readonly AccountRole[] = ['agent', 'landlord', 'tenant'];
+const LANDING_ORDER: readonly AccountRole[] = ['agent', 'landlord', 'tenant', 'self_owner'];
 
 /**
  * The role a signed-in account lands on in this portal: the remembered role if allowed, else the Q5 order.

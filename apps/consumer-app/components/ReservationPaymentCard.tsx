@@ -31,9 +31,9 @@ export function ReservationPaymentCard({
   const payment = contract.reservationPayment;
   const paymentStatus = contract.receiptUrl ? "paid" : payment?.status ?? "unpaid";
   const status = {
-    unpaid: { label: pc.status.unpaid, color: "#B45309", background: "#FFFBEB" },
-    submitted: { label: pc.status.submitted, color: "#1D4ED8", background: "#EFF6FF" },
-    paid: { label: pc.status.paid, color: "#15803D", background: "#F0FDF4" },
+    unpaid: { label: pc.status.unpaid, color: "#92400E", background: "#FFFBEB" },
+    submitted: { label: pc.status.submitted, color: "#1E3A8A", background: "#EFF6FF" },
+    paid: { label: pc.status.paid, color: "#166534", background: "#F0FDF4" },
   }[paymentStatus];
   const closed = ["cancelled", "expired", "terminated"].includes(
     contract.status,
@@ -93,7 +93,7 @@ export function ReservationPaymentCard({
       )}
       {closed && <Text style={text}>{isFulfilledReservation(contract) ? pc.fulfilled : pc.closed}</Text>}
       {paymentStatus === "unpaid" && !closed && payment?.slipReturnReason && (
-        <Text style={{ ...text, color: "#B91C1C" }}>
+        <Text style={{ ...text, color: "#991B1B" }}>
           {fillTemplate(t.contracts.slipReturn.returned, { reason: payment.slipReturnReason })}
         </Text>
       )}

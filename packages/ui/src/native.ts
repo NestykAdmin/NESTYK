@@ -34,6 +34,7 @@ export * from './components/MobileSmileProgress';
 export * from './components/MobileBrandLoader';
 export * from './components/MobileNestykHatchLoader';
 export * from './components/MobileStatusPill';
+export * from './components/MobileComingSoonTag';
 export * from './components/MobileFilterChip';
 export * from './components/MobileSegmentedTabs';
 export * from './components/MobileListSearchRow';

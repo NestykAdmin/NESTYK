@@ -65,6 +65,7 @@ export function TenantDetailHub({
   const c = t.agent.tenants;
   const d = c.detail;
   const { theme, isDark } = useMobileTheme();
+  const avatarTone = tokens.colors.avatar[isDark ? 'dark' : 'light'];
   const [ending, setEnding] = useState(false);
   const [endDate, setEndDate] = useState("");
   const [endReason, setEndReason] = useState("");
@@ -158,8 +159,8 @@ export function TenantDetailHub({
     <View style={s.root}>
       <DetailCard>
         <View style={s.person}>
-          <View style={s.avatar}>
-            <Text style={s.avatarText}>{initials(tenant.name)}</Text>
+          <View style={[s.avatar, { backgroundColor: avatarTone.bg }]}>
+            <Text style={[s.avatarText, { color: avatarTone.fg }]}>{initials(tenant.name)}</Text>
           </View>
           <View style={[ps.grow, s.personCopy]}>
             <Text style={[s.name, { color: theme.textHeading }]} numberOfLines={2}>
@@ -408,7 +409,6 @@ const s = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: tokens.colors.brand[100],
     alignItems: "center",
     justifyContent: "center",
   },
@@ -416,7 +416,6 @@ const s = StyleSheet.create({
     fontFamily: tokens.typography.native.headingTh,
     fontSize: 22,
     lineHeight: 32,
-    color: tokens.colors.onBrand,
   },
   name: { fontFamily: tokens.typography.native.headingTh, fontSize: 20, lineHeight: 30 },
   pill: { alignSelf: "flex-start" },

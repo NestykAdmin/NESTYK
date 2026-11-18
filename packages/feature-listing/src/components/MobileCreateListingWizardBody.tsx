@@ -2457,7 +2457,7 @@ export const MobileCreateListingWizardBody: React.FC<
               disabled={!sourceDraft}
               style={[
                 styles.footerCta,
-                { backgroundColor: sourceDraft ? accent : '#E9EDF2', opacity: 1 },
+                { backgroundColor: sourceDraft ? accent : '#F1F5F9', opacity: 1 },
               ]}
               textStyle={{
                 fontSize: 16,
@@ -4308,7 +4308,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(33, 30, 30, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -4427,7 +4427,7 @@ const styles = StyleSheet.create({
     fontFamily: tokens.typography.native.body,
     fontSize: 14,
     lineHeight: 21,
-    color: '#52647A',
+    color: '#64748B',
   },
   sourceNoteRow: {
     flexDirection: 'row',
@@ -4881,7 +4881,7 @@ const styles = StyleSheet.create({
   },
   promoLocaleChipOn: {
     borderColor: tokens.colors.brand[500],
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFF9E8',
   },
   promoLocaleChipText: {
     fontFamily: tokens.typography.native.body,
@@ -4944,7 +4944,7 @@ const styles = StyleSheet.create({
   },
   promoModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(33, 30, 30, 0.45)',
     justifyContent: 'center',
     padding: 24,
   },
@@ -5048,7 +5048,7 @@ const styles = StyleSheet.create({
   promoSkeletonLine: {
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#EEF2F7',
+    backgroundColor: '#F1F5F9',
   },
   promoDraftWarn: {
     fontFamily: tokens.typography.native.body,
@@ -5091,7 +5091,7 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFF9E8',
     borderWidth: 1,
     borderColor: '#F59E0B',
   },
@@ -5221,7 +5221,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'rgba(15, 23, 42, 0.52)',
+    backgroundColor: 'rgba(33, 30, 30, 0.52)',
   },
   photoEnhanceLabel: {
     fontFamily: tokens.typography.native.body,

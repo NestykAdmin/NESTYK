@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const ts = require('typescript');
 const fs = require('node:fs');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, 'room-price-range.ts'), 'utf8');
-const exportsForTest = {};
-new Function('exports', ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(exportsForTest);
+// The scale now comes from @nestyk/feature-search (TypeScript), so the file is loaded with a .ts require hook.
+require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, filename);
+const exportsForTest = require(path.join(__dirname, 'room-price-range.ts'));
 const {
   movePrice,
   pricePosition,

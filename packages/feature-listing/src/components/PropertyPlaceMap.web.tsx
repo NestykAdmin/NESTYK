@@ -256,11 +256,11 @@ const styles = StyleSheet.create({
     borderColor: tokens.colors.border,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    boxShadow: '0 1px 4px rgba(15, 23, 42, 0.12)',
+    boxShadow: '0 1px 4px rgba(33, 30, 30, 0.12)',
   },
   adjustBtnActive: {
     backgroundColor: BRAND_PIN,
-    borderColor: '#EAB308',
+    borderColor: '#F8B615',
   },
   adjustBtnText: {
     fontFamily: tokens.typography.native.body,

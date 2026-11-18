@@ -11,7 +11,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { MobileButton } from '../components/MobileButton';
-import { MobileStatusPill } from '../components/MobileStatusPill';
+import { MobileComingSoonTag } from '../components/MobileComingSoonTag';
 import { MobileNestykLogo } from '../components/MobileNestykLogo';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
 import { MobileProfileEditBody, ProfilePhotoFile, ProfileSaveInput } from '../components/MobileProfileEditBody';
@@ -30,7 +30,7 @@ import { UserRole } from '@nestyk/types';
 import { MobileIcon } from '../icons/MobileIcon';
 import { SelectionCheck } from '../components/SelectionCheck';
 import { AppIconName } from '../icons/types';
-import { tokens } from '../theme/tokens';
+import { roleOnDark, tokens } from '../theme/tokens';
 import { getCardElevation } from '../theme/elevation';
 import { useMobileTheme } from '../theme/ThemeContext';
 import { MobileBottomSheet } from '../components/MobileBottomSheet';
@@ -84,10 +84,11 @@ const ROLE_OPTIONS: { key: UserRole; icon: AppIconName }[] = [
   { key: 'tenant', icon: 'home' },
   { key: 'landlord', icon: 'key' },
   { key: 'agent', icon: 'handshake' },
+  { key: 'self_owner', icon: 'house-plus' },
   { key: 'admin', icon: 'shield' },
 ];
 
-const DEFAULT_ALLOWED_ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'admin'];
+const DEFAULT_ALLOWED_ROLES: UserRole[] = ['guest', 'tenant', 'landlord', 'agent', 'self_owner', 'admin'];
 
 const BRAND_YELLOW = tokens.colors.brand[500];
 
@@ -151,8 +152,24 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   const slideDistance = panelWidth + PANEL_MARGIN;
 
   const roleColor = tokens.colors.roles[activeRole] || tokens.colors.brand[500];
+  // Icons in the role colour: light step in dark mode (colour system v1.1).
+  const roleIcon = roleOnDark(roleColor, isDark);
+  // v1.2 (design B): the current-role box is the solid role colour (ink for agent) with a yellow / white icon,
+  // lifted grey with the light role step in dark mode.
+  const roleBoxFill = isDark ? tokens.colors.lift : roleColor;
+  // D1 (v1.2 B+C): the agent hero is ink, which vanishes on the ink page in dark mode, so it lifts to grey there.
+  const heroFill = isDark && activeRole === 'agent' ? tokens.colors.lift : roleColor;
+  const roleBoxIcon = isDark
+    ? roleOnDark(roleColor, true)
+    : activeRole === 'guest'
+      ? tokens.colors.primary
+      : activeRole === 'agent'
+        ? tokens.colors.brand[500]
+        : '#FFFFFF';
   const mutedIcon = theme.textSecondary;
   const brandSoft = brandSoftFill(isDark);
+  // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
+  const switchOn = isDark ? tokens.colors.brand[500] : tokens.colors.primary;
   const decorOpacity = isDark ? 0.2 : 0.35;
   const decorRingColor = BRAND_YELLOW;
   const [mounted, setMounted] = useState(false);
@@ -356,13 +373,13 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
           <MobileIcon
             name={item.icon}
             size={opts?.nested ? 18 : 20}
-            color={opts?.nested || soon ? theme.textSecondary : roleColor}
+            color={opts?.nested || soon ? theme.textSecondary : roleIcon}
           />
           <Text style={[styles.navLabel, { color: soon ? theme.textSecondary : theme.textHeading }]}>
             {t.mobile.drawerMenu[item.labelKey]}
           </Text>
           {soon ? (
-            <MobileStatusPill label={t.agent.dashboard.comingSoon} tone="slate" />
+            <MobileComingSoonTag label={t.agent.dashboard.comingSoon} />
           ) : hasChildren ? (
             <MobileIcon
               name={isExpanded ? 'chevron-down' : 'chevron-right'}
@@ -423,7 +440,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                   showsVerticalScrollIndicator={false}
                   scrollEnabled={settingsView === 'main'}
                 >
-            <View style={[styles.heroCard, { backgroundColor: roleColor }]}>
+            <View style={[styles.heroCard, { backgroundColor: heroFill }]}>
               <TouchableOpacity
                 style={[styles.headerActionBtn, { backgroundColor: headerBtnBg }]}
                 onPress={onClose}
@@ -483,11 +500,11 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                 accessibilityLabel={`${t.mobile.profile.role}: ${t.roles[activeRole]}`}
                 accessibilityState={{ expanded: rolePickerOpen, disabled: visibleRoleOptions.length < 2 }}
               >
-                <View style={[styles.roleIconBox, { backgroundColor: roleIconTint(activeRole, isDark) }]}>
+                <View style={[styles.roleIconBox, { backgroundColor: roleBoxFill }]}>
                   <MobileIcon
                     name={ROLE_OPTIONS.find((role) => role.key === activeRole)!.icon}
                     size={20}
-                    color={activeRole === 'admin' ? theme.textHeading : roleColor}
+                    color={roleBoxIcon}
                   />
                 </View>
                 <View style={styles.profileText}>
@@ -526,8 +543,9 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                 <Switch
                   value={themeMode === 'dark'}
                   onValueChange={(value) => setThemeMode(value ? 'dark' : 'light')}
-                  trackColor={{ false: theme.border, true: tokens.colors.roles.tenant }}
+                  trackColor={{ false: theme.border, true: switchOn }}
                   thumbColor="#FFFFFF"
+                  {...({ activeThumbColor: '#FFFFFF' } as object)}
                 />
               </View>
               <TouchableOpacity
@@ -634,12 +652,12 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                           accessibilityLabel={child.comingSoon ? `${t.mobile.drawerMenu[child.labelKey]}, ${t.agent.dashboard.comingSoon}` : t.mobile.drawerMenu[child.labelKey]}
                           accessibilityState={{ disabled: Boolean(child.comingSoon) }}
                         >
-                          <MobileIcon name={child.icon} size={20} color={child.comingSoon ? theme.textSecondary : roleColor} />
+                          <MobileIcon name={child.icon} size={20} color={child.comingSoon ? theme.textSecondary : roleIcon} />
                           <Text style={[styles.navLabel, { color: child.comingSoon ? theme.textSecondary : theme.textHeading }]}>
                             {t.mobile.drawerMenu[child.labelKey]}
                           </Text>
                           {child.comingSoon ? (
-                            <MobileStatusPill label={t.agent.dashboard.comingSoon} tone="slate" />
+                            <MobileComingSoonTag label={t.agent.dashboard.comingSoon} />
                           ) : (
                             <MobileIcon name="chevron-right" size={18} color={mutedIcon} />
                           )}
@@ -704,7 +722,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                       <MobileIcon
                         name={role.icon}
                         size={22}
-                        color={role.key === 'admin' ? theme.textHeading : optionColor}
+                        color={role.key === 'admin' ? theme.textHeading : roleOnDark(optionColor, isDark)}
                       />
                     </View>
                     <View style={styles.profileText}>

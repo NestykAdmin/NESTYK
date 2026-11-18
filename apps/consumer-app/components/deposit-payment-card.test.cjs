@@ -47,7 +47,7 @@ test('tenant sees the landlord\'s deposit invoice, the amount and the due date, 
   assert.match(markup, /การชำระเงินประกัน/);
   assert.match(markup, /ออกในนามผู้ให้เช่า · ผูกกับสัญญาเช่า LS202600011/);
   assert.match(markup, /ยอดเงินประกัน ฿40,000\.00/);
-  assert.match(markup, /ครบกำหนดชำระ 1 พ\.ย\. 2569</, 'the due date 2026-11-01 in Thai (Buddhist year)');
+  assert.match(markup, /ครบกำหนดชำระ 1 พ\.ย\. 2026</, 'the due date 2026-11-01 in Thai (Gregorian year, Mos 11 Nov 2026)');
   assert.doesNotMatch(markup, /Invalid Date/);
   assert.match(markup, /ดูใบแจ้งหนี้เงินประกัน DEP-LS202600011/);
   assert.match(markup, /อัปโหลดสลิปชำระเงินประกัน/);

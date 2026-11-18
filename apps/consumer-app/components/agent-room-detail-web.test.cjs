@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '../../..');
 let current;
 const cache = new Map();
 const api = { create() {}, list() {}, revoke() {} };
-const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#1A2B48', textSecondary: '#64748B', border: '#E5E7EB' };
+const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#211E1E', textSecondary: '#64748B', border: '#E5E7EB' };
 const hooks = { ...React,
   useId() { const h = current, i = h.cursor++; return h.slots[i] ??= `share-title-${i}`; },
   useState(initial) {

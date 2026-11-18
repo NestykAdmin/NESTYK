@@ -59,7 +59,7 @@ function card(listReceivedBills) {
       } },
     'react-native': { ActivityIndicator: 'ActivityIndicator', Text: 'Text', View: 'View', StyleSheet: { create: (x) => x } },
     '@nestyk/i18n': { useLocale: () => ({ t: en, locale: 'en' }), localizedError },
-    '@nestyk/ui/native': { MobileBottomSheet: 'Sheet', MobileButton: 'Button', useMobileTheme: () => ({ theme: {} }),
+    '@nestyk/ui/native': { MobileBottomSheet: 'Sheet', MobileButton: 'Button', useMobileTheme: () => ({ theme: {} }), roleOnDark: (c) => c,
       tokens: { typography: { native: {} }, colors: { danger: 'red', roles: { landlord: 'blue' } } } },
     '../lib/bill-format': { billFormatters: () => ({ date: String, month: String, amount: String }) },
     '../lib/tenant-bills-api': { listReceivedBills, openReceivedBillSlip: async () => ({}), openReceivedLateFee: async () => ({}) },

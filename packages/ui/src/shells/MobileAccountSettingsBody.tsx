@@ -94,7 +94,9 @@ export const MobileAccountSettingsBody = forwardRef<
   onCaptchaReset,
 }, ref) {
   const { t } = useLocale();
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
+  // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
+  const switchOn = isDark ? tokens.colors.brand[500] : tokens.colors.primary;
   const [settingsView, setSettingsView] = useState<SettingsView>('hub');
   const [paneWidth, setPaneWidth] = useState(0);
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -199,7 +201,7 @@ export const MobileAccountSettingsBody = forwardRef<
 
   const renderInfoBody = (body: string) => (
     <ScrollView
-      style={{ width: paneWidth }}
+      style={{ width: paneWidth, flexShrink: 0 }}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
@@ -213,7 +215,7 @@ export const MobileAccountSettingsBody = forwardRef<
     switch (settingsView) {
       case 'profile':
         return (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileProfileEditBody
               initials={profile.initials}
               name={profile.name}
@@ -228,13 +230,13 @@ export const MobileAccountSettingsBody = forwardRef<
         );
       case 'linkedAccounts':
         return (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileLinkedAccountsBody email={profile.email} phone={profile.phone} />
           </View>
         );
       case 'password':
         return (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileChangePasswordBody
               onChangePassword={onChangePassword}
               onFinished={closeNested}
@@ -246,7 +248,7 @@ export const MobileAccountSettingsBody = forwardRef<
         );
       case 'delete':
         return onLoadAccountDeletion && onDeleteAccount && onScheduleAccountDeletion && onCancelAccountDeletion ? (
-          <View style={{ width: paneWidth, flex: 1 }}>
+          <View style={{ width: paneWidth, flexShrink: 0 }}>
             <MobileDeleteAccountBody
               onLoad={onLoadAccountDeletion}
               onDeleteNow={onDeleteAccount}
@@ -280,7 +282,7 @@ export const MobileAccountSettingsBody = forwardRef<
         <View style={styles.slideClip}>
           <Animated.View style={[styles.slideRow, { width: paneWidth * 2 }, slideStyle]}>
             <ScrollView
-              style={{ width: paneWidth }}
+              style={{ width: paneWidth, flexShrink: 0 }}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               scrollEnabled={settingsView === 'hub'}
@@ -333,8 +335,9 @@ export const MobileAccountSettingsBody = forwardRef<
                   <Switch
                     value={pushEnabled}
                     onValueChange={setPushEnabled}
-                    trackColor={{ false: tokens.colors.divider, true: tokens.colors.roles.tenant }}
+                    trackColor={{ false: tokens.colors.divider, true: switchOn }}
                     thumbColor="#FFFFFF"
+                    {...({ activeThumbColor: '#FFFFFF' } as object)}
                   />
                 </View>
                 <View style={[styles.rowDivider, { borderTopColor: theme.border }]} />
@@ -346,8 +349,9 @@ export const MobileAccountSettingsBody = forwardRef<
                   <Switch
                     value={emailNotifEnabled}
                     onValueChange={setEmailNotifEnabled}
-                    trackColor={{ false: tokens.colors.divider, true: tokens.colors.roles.tenant }}
+                    trackColor={{ false: tokens.colors.divider, true: switchOn }}
                     thumbColor="#FFFFFF"
+                    {...({ activeThumbColor: '#FFFFFF' } as object)}
                   />
                 </View>
               </View>

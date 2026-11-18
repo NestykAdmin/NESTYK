@@ -28,7 +28,9 @@ function nodes(element) {
   if (element == null || typeof element === 'boolean') return [];
   if (Array.isArray(element)) return element.flatMap(nodes);
   if (!React.isValidElement(element)) return [element];
-  return [element, ...nodes(element.props.children)];
+  // AuthLayout takes parts of the page as props (sign-in redesign, 17 Nov 2026): walk those as well as children.
+  const { children, topBar, hero, action, after, footer } = element.props;
+  return [element, ...[children, topBar, hero, action, after, footer].flatMap(nodes)];
 }
 
 // The real ApiError and NETWORK_ERROR from lib/api.ts (its network and session modules stubbed).
@@ -51,7 +53,7 @@ function screen(error) {
       return [state[index], next => { state[index] = typeof next === 'function' ? next(state[index]) : next; }];
     } },
     'react-native': { View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', TouchableOpacity: 'TouchableOpacity', TextInput: 'TextInput',
-      Platform: { OS: 'web' }, useWindowDimensions: () => ({ width: 390, height: 844 }),
+      Platform: { OS: 'web' }, Keyboard: { dismiss() {} }, useWindowDimensions: () => ({ width: 390, height: 844 }),
       StyleSheet: { create: x => x, hairlineWidth: 1, absoluteFill: {}, absoluteFillObject: {} } },
     'react-native-svg': { __esModule: true, default: 'Svg', Path: 'Path' },
     'phosphor-react-native/src/icons/Eye': { Eye: 'Eye' },
@@ -68,9 +70,10 @@ function screen(error) {
     '../lib/auth/AuthContext': { useAuth: () => ({ isAuthenticated: false, session: null, sessionExpired: false, dismissSessionExpired() {},
       signInWithGoogle: async () => {}, signInWithFacebook: async () => {},
       signIn: async (...args) => { signIns.push(args); throw error; } }) },
-    '../lib/auth/hcaptcha-site-key': { hcaptchaSiteKey: () => '' },
-    '../components/HcaptchaField': { HcaptchaField: 'HcaptchaField' },
+    '../lib/auth/captcha-site-key': { captchaSiteKey: () => '' },
+    '../components/CaptchaField': { CaptchaField: 'CaptchaField' },
     '../components/legal/AuthLegalFooter': { AuthLegalFooter: 'AuthLegalFooter' },
+    '../components/auth/AuthLayout': { AuthLayout: 'AuthLayout' },
     '../lib/auth/dev-auth': { DEV_AUTH_CONFIG: { enabled: false, email: '', password: '' } },
     '../lib/auth/google-oauth': { socialLoginProvider: () => null },
     '../lib/auth/role-gate': { requestGuestBrowse() {} },

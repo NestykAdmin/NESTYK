@@ -33,6 +33,7 @@ import {
   SelectionChip,
   STATUS_PILL_TONES,
   tokens,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
   type MobileStatusPillToneKey,
@@ -68,6 +69,9 @@ import {
 import { formatPhoneDisplay, phoneDialString } from '../lib/phone';
 
 export { leadAvatarInitials };
+
+/** Person avatar tone (Mos, 12 Nov 2026, design B4): one neutral tone for every lead; the status pill carries the status colour. */
+export const LEAD_AVATAR_TONE = tokens.colors.avatar;
 
 const LEAD_STATUS_TONE: Record<string, MobileStatusPillToneKey> = {
   new: 'yellow',
@@ -162,7 +166,7 @@ export function AgentLeadDetailBody({
   const { width: windowWidth } = useWindowDimensions();
   const webColumns = Platform.OS === 'web' && windowWidth >= 768;
   const c = t.agent.leads;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const agentColor = tokens.colors.roles.agent;
 
   const [leadError, setLeadError] = useState<string | null>(null);
@@ -448,7 +452,7 @@ export function AgentLeadDetailBody({
         />
       );
     }
-    if (!matchResult) return <ActivityIndicator style={styles.loader} color={agentColor} />;
+    if (!matchResult) return <ActivityIndicator style={styles.loader} color={roleOnDark(agentColor, isDark)} />;
     if (!lastRun) {
       return (
         <MobileAiQuotaAction
@@ -600,7 +604,7 @@ export function AgentLeadDetailBody({
         <>
           <SheetHeader title={s.title} onClose={closeSheet} />
           {!value ? (
-            <ActivityIndicator style={styles.loader} color={agentColor} />
+            <ActivityIndicator style={styles.loader} color={roleOnDark(agentColor, isDark)} />
           ) : (
             <View style={styles.sheetBody}>
               <View style={styles.settingGroup}>
@@ -744,7 +748,7 @@ export function AgentLeadDetailBody({
                 {target === 'lost' ? c.markLost : c.markInProgress}
               </Text>
               {statusBusy && target === 'inprogress' ? (
-                <ActivityIndicator color={agentColor} />
+                <ActivityIndicator color={roleOnDark(agentColor, isDark)} />
               ) : (
                 <MobileIcon name="chevron-right" size={18} color={theme.textSecondary} />
               )}
@@ -770,8 +774,8 @@ export function AgentLeadDetailBody({
 
       <View style={[styles.card, cardShadow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.heroTop}>
-          <View style={[styles.avatar, { backgroundColor: STATUS_PILL_TONES.slate.bg }]}>
-            <Text style={[styles.avatarText, { color: theme.textHeading }]}>{leadAvatarInitials(lead.name)}</Text>
+          <View style={[styles.avatar, { backgroundColor: LEAD_AVATAR_TONE[isDark ? 'dark' : 'light'].bg }]}>
+            <Text style={[styles.avatarText, { color: LEAD_AVATAR_TONE[isDark ? 'dark' : 'light'].fg }]}>{leadAvatarInitials(lead.name)}</Text>
           </View>
           <View style={styles.heroMain}>
             <View style={styles.nameRow}>

@@ -11,10 +11,10 @@ export const nearbyCategories = [
 ] as const;
 export type NearbyCategory = (typeof nearbyCategories)[number];
 export const categoryColors: Record<NearbyCategory, string> = {
-  transit: '#2563EB',
-  education: '#7C3AED',
-  health: '#DC2626',
-  shopping: '#D97706',
+  transit: '#1D4ED8',
+  education: '#211E1E',
+  health: '#B91C1C',
+  shopping: '#B45309',
   recreation: '#15803D',
   other: '#64748B',
 };

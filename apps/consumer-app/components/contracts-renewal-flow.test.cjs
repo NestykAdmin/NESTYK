@@ -31,7 +31,7 @@ function harness(rows, options = {}) {
     react:hookedReact,
     'react-native':{View:'section',Text:'span',Pressable:'button',StyleSheet:{create:s=>s},ActivityIndicator:'progress',Modal:'aside',Linking:{},Alert:{alert:(...args)=>options.alerts?.push(args)},Share:{dismissedAction:'dismissedAction',share:async()=>assert.fail('Share is not used: there is no sign link to share')}},
     'react-native-safe-area-context':{SafeAreaProvider:'section',SafeAreaView:'section'},
-    '@nestyk/ui/native':{tokens:{colors:{brand:{500:'#ff0'},roles:{agent:'#ff0'},onBrand:'#000'},typography:{native:{}}},useMobileTheme:()=>({theme:{}}),MobileThemeProvider:'light-theme',MobileIcon:'i',MobileButton:'button',MobileInput:'input',MobileBottomSheet:'aside'},
+    '@nestyk/ui/native':{tokens:{colors:{brand:{500:'#ff0'},roles:{agent:'#ff0'},onBrand:'#000'},typography:{native:{}}},useMobileTheme:()=>({theme:{}}),roleOnDark:(c)=>c,MobileThemeProvider:'light-theme',MobileIcon:'i',MobileButton:'button',MobileInput:'input',MobileBottomSheet:'aside'},
     '@nestyk/i18n':i18nMock({agent:thai.th.agent,common:thai.th.common,mobile:thai.th.mobile}), '../lib/lead-format':leadFormat,
     '../lib/lease-term':term, '../lib/contract-renewal':renewalHelpers,
     '../lib/contract-signing':{bookingPaymentBlocksSigning:()=>false},

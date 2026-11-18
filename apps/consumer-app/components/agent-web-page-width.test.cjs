@@ -13,11 +13,12 @@ const mod = { exports: {} };
 new Function('require', 'module', 'exports', source)(() => ({}), mod, mod.exports);
 const { agentWebPageWidth } = mod.exports;
 
-test('add room, add lead and create tenant are form pages', () => {
+test('add room and add lead are form pages; create tenant lays out its own wizard', () => {
   assert.equal(agentWebPageWidth('createListing'), 'form');
   // W17 (Mos 6 Nov 2026): add lead also has the readiness panel beside the form.
   assert.equal(agentWebPageWidth('createLead'), 'form-aside');
-  assert.equal(agentWebPageWidth('clients', 'tenant'), 'form');
+  // W4 (17 Nov 2026): create tenant is a wizard page with its own steps rail.
+  assert.equal(agentWebPageWidth('clients', 'tenant'), 'wide');
 });
 
 test('lists, Dashboard, calendar and detail pages keep the full width', () => {
@@ -28,7 +29,8 @@ test('lists, Dashboard, calendar and detail pages keep the full width', () => {
 
 test('the shell marks <main> and the CSS narrows every content box through the shared width variable', () => {
   const shell = fs.readFileSync(path.join(dir, 'AgentWorkspace.web.tsx'), 'utf8');
-  assert.match(shell, /data-page-width=\{agentWebPageWidth\(props\.activeTab, props\.creating\)\}/);
+  // The settings page always uses the full width (review R3, 18 Nov 2026).
+  assert.match(shell, /data-page-width=\{settingsOpen \? "wide" : agentWebPageWidth\(props\.activeTab, props\.creating\)\}/);
   const css = fs.readFileSync(path.join(dir, 'agent-workspace.css'), 'utf8');
   assert.match(css, /\.aw-main\[data-page-width="form"\] \{\s*--nestyk-web-content-max-width:/);
 });

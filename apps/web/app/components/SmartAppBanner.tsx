@@ -67,7 +67,7 @@ export const SmartAppBanner: React.FC<SmartAppBannerProps> = ({
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#00C68D',
+              color: '#BBF7D0',
               borderRadius: '8px',
               padding: '6px 12px',
               fontSize: '12px',
@@ -78,7 +78,7 @@ export const SmartAppBanner: React.FC<SmartAppBannerProps> = ({
               gap: '6px',
             }}
           >
-            <AppIcon name="home" size={14} color="#00C68D" />
+            <AppIcon name="home" size={14} color="#BBF7D0" />
             โหมดผู้เช่า
           </button>
           <button
@@ -86,7 +86,7 @@ export const SmartAppBanner: React.FC<SmartAppBannerProps> = ({
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#60A5FA',
+              color: '#BFDBFE',
               borderRadius: '8px',
               padding: '6px 12px',
               fontSize: '12px',
@@ -97,7 +97,7 @@ export const SmartAppBanner: React.FC<SmartAppBannerProps> = ({
               gap: '6px',
             }}
           >
-            <AppIcon name="key" size={14} color="#60A5FA" />
+            <AppIcon name="key" size={14} color="#BFDBFE" />
             โหมดเจ้าของห้อง
           </button>
           <button
@@ -105,7 +105,7 @@ export const SmartAppBanner: React.FC<SmartAppBannerProps> = ({
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#F472B6',
+              color: '#F8B615',
               borderRadius: '8px',
               padding: '6px 12px',
               fontSize: '12px',
@@ -116,7 +116,7 @@ export const SmartAppBanner: React.FC<SmartAppBannerProps> = ({
               gap: '6px',
             }}
           >
-            <AppIcon name="handshake" size={14} color="#F472B6" />
+            <AppIcon name="handshake" size={14} color="#F8B615" />
             โหมดนายหน้า
           </button>
           <AppButton

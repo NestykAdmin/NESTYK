@@ -82,7 +82,7 @@ export function AgentSectionHeader(props: MobileSectionHeaderProps) {
             type="button"
             onClick={props.onAddPress}
           >
-            <MobileIcon name="plus" size={17} color="#382b12" />
+            <MobileIcon name="plus" size={17} color="#211e1e" />
             {props.addAccessibilityLabel || props.addLabel}
           </button>
         ) : null}

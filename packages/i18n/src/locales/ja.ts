@@ -3,6 +3,7 @@ import { TranslationSchema } from '../types';
 import { contractsJa } from './contracts/ja';
 import { legalJa } from './legal/ja';
 import { webSessionJa } from './web-session/ja';
+import { guestJa } from './guest/ja';
 
 export const ja: TranslationSchema = {
   common: {
@@ -31,12 +32,14 @@ export const ja: TranslationSchema = {
     landlord: '貸主',
     agent: 'エージェント',
     admin: 'Nestyk 管理者',
+    self_owner: 'オーナー',
     services: 'サービス',
     guestSubtitle: 'ゲスト',
     tenantSubtitle: '入居者 · 1804号室',
     landlordSubtitle: '貸主 · エージェント管理物件',
     agentSubtitle: 'エージェント · Co-Broke',
     adminSubtitle: 'Nestyk 管理者 · 運用',
+    self_ownerSubtitle: 'オーナー · 自分で掲載',
     servicesSubtitle: 'サービスハブ',
   },
   mobile: {
@@ -157,6 +160,7 @@ export const ja: TranslationSchema = {
         landlord: 'エージェントからの書類を確認・署名',
         agent: '顧客と住まいをつなぐ',
         admin: 'プラットフォーム運営',
+        self_owner: '自分で部屋を掲載し入居者を探す',
       },
       navigation: 'ナビゲーション',
       settings: '設定',
@@ -495,6 +499,26 @@ export const ja: TranslationSchema = {
       confirmedEmpty: 'エージェントが明細を確認すると、ここに表示されます。',
     },
   },
+  adminWeb: {
+    brandTag: 'ADMIN WORKSPACE',
+    workspaceLabel: 'プラットフォーム管理',
+    main: 'プラットフォーム',
+  },
+  selfOwnerWeb: {
+    brandTag: 'OWNER WORKSPACE',
+    workspaceLabel: 'オーナーワークスペース',
+    main: 'マイルーム',
+    money: '入居者とお金',
+    listings: '部屋と掲載',
+    interested: '問い合わせ',
+    viewings: '内見',
+    tenants: '入居者',
+    contracts: '契約',
+    billsIncome: '請求と収入',
+    repairs: '修理依頼',
+    homeTitle: 'オーナーワークスペース',
+    homeBody: '自分で部屋を掲載するオーナー向けメニューは次のフェーズで公開予定です。',
+  },
   agent: {
     calendar: {
       liveNotice: '見込み客から登録された内見予約',
@@ -624,6 +648,23 @@ export const ja: TranslationSchema = {
       makeReservation: '予約書を作成',
       addEmail: '入居者のメールを追加',
       addIdentity: '入居者の身分証番号を追加',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: '入居者作成の手順',
+        stepOf: 'ステップ {step} / {total}',
+        change: '変更',
+        leadSub: '入居を決めたお客様',
+        roomSub: '予約する部屋',
+        confirmSub: 'オファー · メール · 身分証',
+        pickLeadHint: 'リードをクリックして部屋を選択',
+        pickRoomHint: '部屋をクリックして予約を確認',
+        docTitle: '予約書に必要な情報',
+        docHint: '予約時は任意ですが、予約書の作成前に必要です',
+        customerTitle: 'お客様情報',
+        customerHint: 'リードから取得しています。違う場合は編集できます',
+        editCustomer: '編集',
+        hideCustomer: '閉じる',
+      },
       detail: {
         title: '入居者',
         subtitle: '{name} · {room}号室',
@@ -2136,6 +2177,30 @@ export const ja: TranslationSchema = {
         themeDark: 'ダーク',
         themeSystem: 'デバイスに合わせる',
         brandTag: 'エージェントワークスペース',
+        home: 'ホーム',
+        changeRole: '変更',
+        chooseRole: 'ロールを選択',
+        roleHint: '他のロールは同じアカウントで、それぞれのサイトで開きます。',
+        docsFinance: '書類と会計',
+        settings: '設定',
+        settingsProfile: 'プロフィール',
+        settingsProfileHint: 'このアカウントに表示される個人情報',
+        settingsSecurity: 'セキュリティ',
+        settingsSecurityHint: 'パスワード・連携アカウント・デバイス',
+        settingsDisplay: '表示',
+        settingsDisplayHint: 'このサイトの言語とテーマ',
+        settingsHelp: 'ヘルプと概要',
+        settingsHelpHint: 'よくある質問・お問い合わせ・規約',
+        profileReadOnly: 'Webでの編集は近日公開予定です。現在はNESTYKアプリで編集できます。',
+        accountRoles: 'このアカウントのロール',
+        devices: 'ログイン中のデバイス',
+        devicesBody: 'このアカウントを使用中のすべてのデバイスからログアウト',
+        emailPassword: 'メールとパスワード',
+        dangerZone: '危険な操作',
+        twoFactor: '2段階認証 (2FA)',
+        twoFactorBody: '全ユーザーのデータにアクセスできるため、すべての管理者アカウントで有効にすることをおすすめします。',
+        adminDeleteNote: '管理者アカウントは自分で削除できません。別の管理者が「ユーザー」から閉鎖します。',
+        adminSettingsNote: 'このページは自分のアカウント用です。プラットフォーム全体の設定は「システム › 運用設定」にあります。',
       },
       webOverview: {
         property: '物件 / 部屋',
@@ -2279,6 +2344,7 @@ export const ja: TranslationSchema = {
   contracts: contractsJa,
   legal: legalJa,
   webSession: webSessionJa,
+  guest: guestJa,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.ja,
     facilities: { ...AMENITIES_FACILITY_LABELS.ja, air_conditioner: 'エアコン', wifi: 'Wi‑Fi', parking: '駐車', swimming_pool: 'プール', elevator: 'エレベーター', security: '警備' },

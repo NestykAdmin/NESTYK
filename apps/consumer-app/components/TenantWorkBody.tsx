@@ -17,7 +17,7 @@ import { tenantLease } from "../lib/tenant-detail";
 import { TENANT_WORK_KINDS, workCounts, type TenantWorkItem, type TenantWorkKind } from "../lib/tenant-work";
 import { DetailCard, RIPPLE, ps } from "./TenantDetailParts";
 
-const SLIP_TONE: MobileStatusPillTone = { bg: "#FFEDD5", fg: "#C2410C", dot: "#F97316" };
+const SLIP_TONE: MobileStatusPillTone = { bg: "#FFFBEB", fg: "#92400E", dot: "#F97316" };
 export const WORK_TONE: Record<TenantWorkKind, MobileStatusPillTone> = {
   slip: SLIP_TONE,
   overdue: STATUS_PILL_TONES.red,

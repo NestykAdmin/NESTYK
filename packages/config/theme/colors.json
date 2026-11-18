@@ -3,6 +3,7 @@
   "brand": {
     "50": "#fff9e8",
     "100": "#fff0c4",
+    "200": "#fcde96",
     "500": "#f8b615",
     "600": "#f8b615",
     "700": "#d99a0d"
@@ -26,6 +27,19 @@
   "success": "#22c55e",
   "accent": "#2563eb",
   "info": "#2563eb",
+  "subtle": {
+    "successBg": "#f0fdf4",
+    "successFg": "#166534",
+    "warningBg": "#fffbeb",
+    "warningFg": "#92400e",
+    "dangerBg": "#fef2f2",
+    "dangerFg": "#991b1b",
+    "infoBg": "#eff6ff",
+    "infoFg": "#1e3a8a",
+    "brandBg": "#fff9e8",
+    "neutralBg": "#f1f5f9",
+    "track": "#e2e8f0"
+  },
   "white": "#ffffff",
   "onBrand": "#211e1e",
   "icon": {
@@ -37,10 +51,37 @@
   },
   "roles": {
     "guest": "#f8b615",
-    "tenant": "#00c68d",
-    "landlord": "#0055da",
-    "agent": "#ff0052",
-    "admin": "#0f172a",
-    "services": "#0284c7"
+    "tenant": "#166534",
+    "landlord": "#1e3a8a",
+    "agent": "#211e1e",
+    "self_owner": "#92400e",
+    "admin": "#334155",
+    "services": "#475569"
+  },
+  "rolesOnDark": {
+    "guest": "#f8b615",
+    "tenant": "#4ade80",
+    "landlord": "#93c5fd",
+    "agent": "#f8b615",
+    "self_owner": "#fdba74",
+    "admin": "#cbd5e1",
+    "services": "#94a3b8"
+  },
+  "lift": "#4a4545",
+  "liftHover": "#575151",
+  "textOnDark": {
+    "primary": "#ffffff",
+    "secondary": "#e2e8f0",
+    "muted": "#a8b4c6"
+  },
+  "avatar": {
+    "light": {
+      "bg": "#e2e8f0",
+      "fg": "#334155"
+    },
+    "dark": {
+      "bg": "#4a4545",
+      "fg": "#e7e5e4"
+    }
   }
 }

@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   box: {
     flex: 1,
     minHeight: 240,
-    backgroundColor: "#EEF2F5",
+    backgroundColor: "#F1F5F9",
     overflow: "hidden",
   },
   image: { width: "100%", height: "100%" },

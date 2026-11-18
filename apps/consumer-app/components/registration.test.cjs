@@ -29,7 +29,7 @@ function nodes(element) {
   if (!React.isValidElement(element)) return [element];
   return [element, ...nodes(element.props.children)];
 }
-function screen({ result = { needsEmailConfirmation: true }, error, development = true } = {}) {
+function screen({ result = { needsEmailConfirmation: true }, error, development = true, platform = 'web' } = {}) {
   const state = [], calls = [], routes = [], google = [], facebook = [];
   let cursor = 0;
   const t = load(`${root}/packages/i18n/src/locales/en.ts`).en;
@@ -39,11 +39,12 @@ function screen({ result = { needsEmailConfirmation: true }, error, development 
       if (!(index in state)) state[index] = initial;
       return [state[index], next => { state[index] = typeof next === 'function' ? next(state[index]) : next; }];
     } },
-    'react-native': { View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', TouchableOpacity: 'TouchableOpacity', Platform: { OS: 'web' }, StyleSheet: { create: x => x, hairlineWidth: 1, absoluteFill: {}, absoluteFillObject: {} } },
+    'react-native': { View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', TouchableOpacity: 'TouchableOpacity', Platform: { OS: platform }, StyleSheet: { create: x => x, hairlineWidth: 1, absoluteFill: {}, absoluteFillObject: {} } },
     'react-native-svg': { __esModule: true, default: 'Svg', Path: 'Path' },
     'expo-image': { Image: 'Image' },
     'expo-status-bar': { StatusBar: 'StatusBar' },
-    'expo-router': { useRouter: () => ({ replace: route => routes.push(route) }) },
+    // register.tsx reads `next` (guest session plan A6); none here, so sign-up still goes to "/" (lib/web-routes.ts).
+    'expo-router': { useRouter: () => ({ replace: route => routes.push(route) }), useLocalSearchParams: () => ({}) },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@nestyk/i18n': { useLocale: () => ({ t, locale: 'en' }), localizedError: (e, fallback) => e?.message ?? fallback },
     '@nestyk/ui/native': { MobileInput: 'Input', MobileButton: 'Button', MobileIcon: 'Icon', MobileNestykLogo: 'Logo', SelectionCheck: 'SelectionCheck',
@@ -168,10 +169,17 @@ test('registration requires both first and last name before contacting auth', as
 });
 
 test('successful registration enters the app; a signup rejection stays on the form with feedback', async () => {
-  const success = screen({ result: { needsEmailConfirmation: false } });
+  // Mobile goes home from the handler as before.
+  const success = screen({ result: { needsEmailConfirmation: false }, platform: 'ios' });
   fillValid(success);
   await success.submit();
   assert.deepEqual(success.routes, ['/']);
+  // Web leaves through the signed-in effect, which has the account's roles (review R1, 13 Nov 2026): the handler
+  // still holds the signed-out session, so on agent.nestyk.com it would have sent a new agent to /no-access.
+  const web = screen({ result: { needsEmailConfirmation: false } });
+  fillValid(web);
+  await web.submit();
+  assert.deepEqual(web.routes, []);
   const failed = screen({ error: new Error('Email already registered') });
   fillValid(failed);
   await failed.submit();
@@ -193,11 +201,10 @@ test('test registration is opt-in, can be toggled, and requests the no-email flo
   fillValid(form);
   await form.submit();
   assert.equal(form.calls[0][5], true);
-  assert.deepEqual(form.routes, ['/']);
 });
 
-test('registration asks for the captcha before signup when hCaptcha is configured', async () => {
-  process.env.EXPO_PUBLIC_HCAPTCHA_SITE_KEY = 'site-key';
+test('registration asks for the captcha before signup when Turnstile is configured', async () => {
+  process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY = 'site-key';
   try {
     const form = screen();
     fillValid(form);
@@ -205,7 +212,7 @@ test('registration asks for the captcha before signup when hCaptcha is configure
     assert.equal(form.calls.length, 0);
     assert.ok(form.render().includes(form.copy.captchaRequired));
   } finally {
-    delete process.env.EXPO_PUBLIC_HCAPTCHA_SITE_KEY;
+    delete process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY;
   }
 });
 

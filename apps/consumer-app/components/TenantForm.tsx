@@ -208,7 +208,7 @@ export function TenantForm({
           />
           <Text style={[s.small, muted]}>{c.leadListHint}</Text>
           {loading ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : (
             !failed && (
               <>
@@ -224,7 +224,7 @@ export function TenantForm({
                       s.row,
                       panel,
                       lead?.id === l.id && {
-                        borderColor: "#FFBF19",
+                        borderColor: "#F8B615",
                         borderWidth: 2,
                       },
                       pressed && Platform.OS === "ios" && s.rowPressed,
@@ -256,7 +256,7 @@ export function TenantForm({
           />
           <Text style={[s.small, muted]}>{c.roomListHint}</Text>
           {loading ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : (
             !failed &&
             rooms.map((r) => (
@@ -274,7 +274,7 @@ export function TenantForm({
                   s.room,
                   s.row,
                   panel,
-                  room?.id === r.id && { borderColor: "#FFBF19", borderWidth: 2 },
+                  room?.id === r.id && { borderColor: "#F8B615", borderWidth: 2 },
                   !!r.bookedBy && s.roomTaken,
                   pressed && Platform.OS === "ios" && s.rowPressed,
                 ]}

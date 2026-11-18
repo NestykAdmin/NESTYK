@@ -12,6 +12,7 @@ import { DataSource, In, Repository } from 'typeorm';
 import { UserEntity } from '../entities/user.entity';
 import { MasterRoleEntity, MasterRoleName } from '../entities/master-role.entity';
 import { UserRoleEntity } from '../entities/user-role.entity';
+import { SavedRoomEntity } from '../entities/saved-room.entity';
 import { AuthRequestUser } from './decorators/current-user.decorator';
 import { JwtIdentity } from './guards/auth.guard';
 import { devRegistrationEnabled } from './guards/dev-registration.guard';
@@ -371,6 +372,8 @@ export class AuthService {
         }
       }
       await manager.getRepository(UserRoleEntity).delete({ user_id: userId });
+      // AUTH-3: the users row stays (anonymized), so ON DELETE CASCADE never runs; the saved rooms go here.
+      await manager.getRepository(SavedRoomEntity).delete({ user_id: userId });
       await manager.getRepository(UserEntity).update(userId, {
         email: anonymizedAccountEmail(userId),
         supabase_user_id: null,

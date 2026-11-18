@@ -130,7 +130,7 @@ export function roomStatusText(
 ): string {
   const day = vacantFrom && /^\d{4}-\d{2}-\d{2}$/.test(vacantFrom) ? new Date(`${vacantFrom}T00:00:00Z`) : null;
   if (code === 'soon_vacant' && day && !Number.isNaN(day.getTime())) {
-    const date = new Intl.DateTimeFormat(locale === 'th' ? 'th-TH' : locale, {
+    const date = new Intl.DateTimeFormat(locale === 'th' ? 'th-TH-u-ca-gregory' : locale, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',

@@ -74,7 +74,7 @@ function SlipThumb({
       accessibilityLabel={label}
     />
   ) : failed ? null : (
-    <ActivityIndicator />
+    <ActivityIndicator color={theme.spinner} />
   );
   if (failed && !uri) return null;
   if (!onPress) return <View style={frame}>{body}</View>;

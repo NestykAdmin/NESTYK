@@ -249,3 +249,14 @@ test('desktop agent web renders the calendar page; phone and phone-width web kee
   assert.match(branch, /if \(isAgentWeb\) \{\s*return <AgentCalendarPage key=\{session\?\.userId \?\? 'guest'\} \{\.\.\.calendarProps\} onOpenLeads=\{\(\) => handleTabPress\('listingLead'\)\} \/>;\s*\}/);
   assert.match(branch, /return <AgentCalendarScreen key=\{session\?\.userId \?\? 'guest'\} \{\.\.\.calendarProps\} \/>;/);
 });
+
+// F5 (QA 9 Nov 2026, ClickUp z8rcteuz1z): Safari drew the status checkboxes faint (accent-color only tints the checked fill).
+// The box is drawn by CSS so the edge reads in every browser and theme.
+test('calendar status checkboxes are drawn by CSS: visible edge, ink fill when checked, focus ring, dark-mode check mark', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'agent-web/agent-calendar.css'), 'utf8');
+  assert.match(css, /\.awc-check input \{[^}]*appearance: none;[^}]*-webkit-appearance: none;[^}]*border: 2px solid var\(--aw-muted\);/);
+  assert.match(css, /\.awc-check input:checked \{[^}]*background-color: var\(--aw-ink\);[^}]*border-color: var\(--aw-ink\);[^}]*background-image: url\("data:image\/svg\+xml/);
+  assert.match(css, /\.awc-check input:focus-visible \{[^}]*outline: 2px solid/);
+  assert.match(css, /\[data-theme="dark"\] \.awc-check input:checked \{[^}]*background-image: url\("data:image\/svg\+xml/);
+  assert.doesNotMatch(css, /\.awc-check input \{[^}]*accent-color/);
+});

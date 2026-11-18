@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { localizedError, useLocale } from "@nestyk/i18n";
-import { MobileBottomSheet, MobileButton, tokens, useMobileTheme } from "@nestyk/ui/native";
+import { MobileBottomSheet, MobileButton, roleOnDark, tokens, useMobileTheme } from "@nestyk/ui/native";
 import type { TenantBill } from "@nestyk/types";
 import { billFormatters } from "../lib/bill-format";
 import { listReceivedBills, openReceivedBillSlip, openReceivedLateFee } from "../lib/tenant-bills-api";
@@ -14,7 +14,7 @@ export function OwnerConfirmedRent({
   reloadToken?: number;
   onReloadSettled?: (token: number) => void;
 }) {
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
   const copy = t.owner.bills;
   const { date, month, amount } = billFormatters(locale);
@@ -70,7 +70,7 @@ export function OwnerConfirmedRent({
   return (
     <View style={styles.root}>
       <Text style={[styles.heading, title]}>{copy.confirmedTitle}</Text>
-      {loading ? <ActivityIndicator color={tokens.colors.roles.landlord} /> : null}
+      {loading ? <ActivityIndicator color={roleOnDark(tokens.colors.roles.landlord, isDark)} /> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {/* A failed load is not "no rent yet" (QA web flow bugs 6 Nov 2026 item 2). */}
       {!loading && !rows.length && !error ? <Text style={[styles.copy, body]}>{copy.confirmedEmpty}</Text> : null}

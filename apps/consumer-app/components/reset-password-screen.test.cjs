@@ -84,8 +84,8 @@ function screen({ tokenHash = null, pkceLink = false, brokenLink = false, resetS
       enterAfterPasswordReset: async () => {}, hasResetSession: async () => resetSession, verifyRecoveryLink: (hash) => { calls.push(['verify', hash]); return verify(hash); } }) },
     '../lib/auth/supabase': { openedPasswordResetLink: pkceLink || Boolean(tokenHash), openedRecoveryTokenHash: tokenHash, openedBrokenResetLink: brokenLink },
     '../lib/auth/password-rules': { passwordIsStrong: () => true },
-    '../lib/auth/hcaptcha-site-key': { hcaptchaSiteKey: () => '' },
-    '../components/HcaptchaField': { HcaptchaField: 'Hcaptcha' },
+    '../lib/auth/captcha-site-key': { captchaSiteKey: () => '' },
+    '../components/CaptchaField': { CaptchaField: 'Captcha' },
     '../assets/login-apartment.jpg': 1,
   };
   const Component = load(path.join(__dirname, '../app/reset-password.tsx'), deps).default;

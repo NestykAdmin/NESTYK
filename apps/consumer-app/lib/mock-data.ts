@@ -118,6 +118,7 @@ export function getRoleSubtitle(role: UserRole | 'services'): string {
     landlord: 'Landlord · Rooms managed by your agent',
     agent: 'Agent · Co-Broke Partner',
     admin: 'Admin · Operations',
+    self_owner: 'Owner · Lists rooms directly',
     services: 'Services Hub',
   };
   return map[role];

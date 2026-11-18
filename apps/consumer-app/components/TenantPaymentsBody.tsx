@@ -33,9 +33,9 @@ function ActionButton({
         ? "#FECACA"
         : tokens.colors.danger
       : disabled
-        ? "#FEF3C7"
+        ? "#FFF9E8"
         : tokens.colors.brand[500];
-  const color = danger && !outline ? tokens.colors.white : disabled ? "#D1D5DB" : tokens.colors.primary;
+  const color = danger && !outline ? tokens.colors.white : disabled ? "#CBD5E1" : tokens.colors.primary;
   return (
     <Pressable
       accessibilityRole="button"
@@ -103,7 +103,7 @@ function SlipImage({ billId, label, onPress }: { billId: number; label: string; 
       ) : failed ? (
         <MobileIcon name="camera" size={22} color={theme.textSecondary} />
       ) : (
-        <ActivityIndicator color={tokens.colors.brand[500]} />
+        <ActivityIndicator color={theme.spinner} />
       )}
     </Pressable>
   );
@@ -219,7 +219,7 @@ export function TenantPaymentsBody({
                 },
               ]}
             >
-              <View style={[s.paidIcon, { backgroundColor: isDark ? "rgba(34,197,94,0.18)" : "#DCFCE7" }]}>
+              <View style={[s.paidIcon, { backgroundColor: isDark ? "rgba(34,197,94,0.18)" : "#F0FDF4" }]}>
                 <MobileIcon name="check" size={16} color="#15803D" />
               </View>
               <View style={ps.grow}>

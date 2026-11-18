@@ -94,9 +94,11 @@ function deletion({ loginError = null, failTransaction = false, avatar = null } 
       const saved = structuredClone(user);
       const manager = {
         query: counts,
-        getRepository: () => ({
+        getRepository: (entity) => ({
           findOne: async ({ lock }) => { events.push(`lock user ${lock?.mode}`); return structuredClone(user); },
-          delete: async () => { events.push('remove roles'); },
+          delete: async (where) => {
+            events.push(entity?.name === 'SavedRoomEntity' ? `remove saved rooms ${where.user_id}` : 'remove roles');
+          },
           update: async (_id, patch) => {
             if (failTransaction) throw new Error('database down');
             events.push('anonymize user'); Object.assign(user, patch);
@@ -112,10 +114,11 @@ function deletion({ loginError = null, failTransaction = false, avatar = null } 
   return { auth, events, user };
 }
 
+// AUTH-3 (review R11): deleting keeps the users row (anonymized), so its saved rooms are removed here, not by CASCADE.
 test('the deleted email is sent after the login and the profile are gone, and never when deleting fails', async () => {
   const ok = deletion();
   assert.deepEqual(await ok.auth.deleteAccount(5), { deleted: true });
-  assert.deepEqual(ok.events.filter((e) => !e.startsWith('check')), ['lock user pessimistic_write', 'delete login', 'remove roles', 'anonymize user', 'email ann@example.test']);
+  assert.deepEqual(ok.events.filter((e) => !e.startsWith('check')), ['lock user pessimistic_write', 'delete login', 'remove roles', 'remove saved rooms 5', 'anonymize user', 'email ann@example.test']);
 
   const login = deletion({ loginError: { message: 'Supabase is down' } });
   await assert.rejects(() => login.auth.deleteAccount(5), (e) => e.getStatus() === 503);

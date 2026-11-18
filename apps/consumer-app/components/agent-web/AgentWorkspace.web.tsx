@@ -1,17 +1,19 @@
 import React, { useEffect, useRef } from "react";
-import { useLocale, type SupportedLocale } from "@nestyk/i18n";
+import { dateLocale, useLocale, type SupportedLocale } from "@nestyk/i18n";
 import {
   MobileIcon,
   MobileNestykLogo,
+  roleTileColors,
   useMobileTheme,
   type AppIconName,
   type MobileModePageProps,
 } from "@nestyk/ui/native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import { isAgentComingSoonTab } from "@nestyk/ui/native";
-import { cookieConsentAllows } from "@nestyk/ui/cookie-consent";
+import { COOKIE_SETTINGS_HREF, cookieConsentAllows } from "@nestyk/ui/cookie-consent";
 import type { UserRole } from "@nestyk/types";
 import type { AgentWorkspaceProps, WorkspaceNavItem } from "./AgentWorkspace.types";
+import type { SettingsSection } from "../../lib/app-routes";
 import {
   AGENT_WEB_PRIMARY,
   AGENT_WEB_MORE,
@@ -22,25 +24,19 @@ import "./agent-workspace.css";
 import { WebDialog, WebMenu } from "./ui";
 import { AgentWorkspaceFooter } from "./AgentWorkspaceFooter";
 import { passwordIsStrong } from "../../lib/auth/password-rules";
-import { hcaptchaSiteKey } from "../../lib/auth/hcaptcha-site-key";
-import { HcaptchaField } from "../../components/HcaptchaField";
+import { captchaSiteKey } from "../../lib/auth/captcha-site-key";
+import { CaptchaField } from "../../components/CaptchaField";
+import { legalHref } from "../../lib/legal-footer";
 
-const ROLES: UserRole[] = ["guest", "tenant", "landlord", "agent", "admin"];
-/** Role colour shows only as a small dot (design W1); same values as tokens.colors.roles. */
-const ROLE_DOT: Record<UserRole, string> = {
-  guest: "#F8B615",
-  tenant: "#00C68D",
-  landlord: "#0055DA",
-  agent: "#FF0052",
-  admin: "#0F172A",
-} as Record<UserRole, string>;
+const ROLES: UserRole[] = ["guest", "tenant", "landlord", "agent", "self_owner", "admin"];
 const ROLE_ICON: Record<UserRole, AppIconName> = {
   guest: "search",
   tenant: "home",
   landlord: "key",
   agent: "handshake",
   admin: "shield",
-} as Record<UserRole, AppIconName>;
+  self_owner: "house-plus",
+};
 
 /** Small inline icons the app icon set does not have (web only). */
 function PanelIcon({ collapsed }: { collapsed: boolean }) {
@@ -76,6 +72,17 @@ function MonitorIcon() {
   );
 }
 
+/** Shown on the settings page; same value as the app's account settings (MobileAccountSettingsBody). */
+const APP_VERSION = "0.1.0";
+
+/** Settings page sections in menu order (Mos 18 Nov 2026); no notifications section yet. */
+const SETTINGS_NAV: { key: SettingsSection; icon: AppIconName }[] = [
+  { key: "profile", icon: "user" },
+  { key: "security", icon: "shield" },
+  { key: "display", icon: "sliders" },
+  { key: "help", icon: "info" },
+];
+
 /** Web-only theme choice (4 Nov 2026): "system" follows the device; stored in this browser only. */
 type WebThemePref = "light" | "dark" | "system";
 const THEME_PREF_KEY = "nestyk.web.theme";
@@ -88,10 +95,21 @@ function readThemePref(): WebThemePref {
   }
 }
 
+/** Layout effect in the browser (runs before paint); plain effect where there is no window. */
+const useBeforePaint = typeof window === "undefined" ? useEffect : React.useLayoutEffect;
+
 export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t, locale, setLocale } = useLocale();
   const { theme, isDark, setThemeMode } = useMobileTheme();
   const [collapsed, setCollapsed] = React.useState(false);
+  // W4 layout ก (Mos 17 Nov 2026): the create-tenant page folds the menu to icons so the steps rail and the form
+  // have room; the user can still open it there, and leaving the page brings back their own setting.
+  const formCompact = props.creating === "tenant" && !props.settingsSection;
+  const [formMenuOpen, setFormMenuOpen] = React.useState(false);
+  useEffect(() => {
+    if (!formCompact) setFormMenuOpen(false);
+  }, [formCompact]);
+  const isCollapsed = formCompact ? !formMenuOpen : collapsed;
   const [themePref, setThemePref] = React.useState<WebThemePref>(readThemePref);
   /** Sidebar groups the user opened/closed; unset = open while it holds the current page. */
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
@@ -100,16 +118,15 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   >("activity");
   const accountRef = useRef<HTMLDetailsElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [profileOpen, setProfileOpen] = React.useState(false);
-  const [profileFirst, setProfileFirst] = React.useState("");
-  const [profileLast, setProfileLast] = React.useState("");
-  const [profilePhone, setProfilePhone] = React.useState("");
+  // Profile fields on the settings page: null = not edited yet, so the field shows the saved value.
+  const [profileFirst, setProfileFirst] = React.useState<string | null>(null);
+  const [profileLast, setProfileLast] = React.useState<string | null>(null);
+  const [profilePhone, setProfilePhone] = React.useState<string | null>(null);
   const [profilePhoto, setProfilePhoto] = React.useState<File | null>(null);
   const [profileRemove, setProfileRemove] = React.useState(false);
   const [profileSaving, setProfileSaving] = React.useState(false);
   const [profileError, setProfileError] = React.useState<string | null>(null);
   const [profilePreview, setProfilePreview] = React.useState<string | null>(null);
-  const [passwordOpen, setPasswordOpen] = React.useState(false);
   const [currentPassword, setCurrentPassword] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
@@ -123,7 +140,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [signOutAllOpen, setSignOutAllOpen] = React.useState(false);
   const [signOutAllBusy, setSignOutAllBusy] = React.useState(false);
   const [signOutAllError, setSignOutAllError] = React.useState<string | null>(null);
-  const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
+  /** Account menu, design จ2 (18 Nov 2026): the role row opens the role list inside the same menu. */
+  const [rolePickerOpen, setRolePickerOpen] = React.useState(false);
   const [deleteNowAvailable, setDeleteNowAvailable] = React.useState(false);
   const [deleteBlocked, setDeleteBlocked] = React.useState<string[] | null>(null);
   const [deleteScheduled, setDeleteScheduled] = React.useState<string | null>(null);
@@ -136,9 +154,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   deletePasswordStepRef.current = deletePasswordStep;
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = React.useState(false);
-  const captchaRequired = hcaptchaSiteKey().length > 0;
+  const captchaRequired = captchaSiteKey().length > 0;
   const copy = t.agent.dashboard.webWorkspace;
-  const parent = agentWebParent(props.activeTab);
+  const settingsSection = props.settingsSection ?? null;
+  const settingsOpen = settingsSection !== null;
+  // The settings page is not a sidebar page: nothing in the menu is marked while it is open.
+  const parent = settingsOpen ? null : agentWebParent(props.activeTab);
 
   useEffect(() => {
     if (!props.enabled) return;
@@ -180,16 +201,27 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     if (!props.enabled || !account) return;
     const onToggle = () => {
       if (account.open) return;
-      setPasswordOpen(false);
-      setProfileOpen(false);
-      setDeleteOpen(false);
-      setAccountMenuOpen(false);
-      setPasswordError(null);
-      setProfileError(null);
+      setRolePickerOpen(false);
     };
     account.addEventListener("toggle", onToggle);
     return () => account.removeEventListener("toggle", onToggle);
   }, [props.enabled]);
+
+  // Moving to another section or leaving the settings page drops unsaved edits.
+  useEffect(() => {
+    setProfileFirst(null);
+    setProfileLast(null);
+    setProfilePhone(null);
+    setProfilePhoto(null);
+    setProfileRemove(false);
+    setProfilePreview(null);
+    setProfileError(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError(null);
+    setDeleteOpen(false);
+  }, [settingsSection]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -198,7 +230,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     else if (dialog?.open) dialog.close();
   }, [props.enabled, props.notificationsOpen]);
 
-  useEffect(() => {
+  // D3 (13 Nov 2026): apply the saved theme before the browser paints, so a dark reload shows no light frame.
+  useBeforePaint(() => {
     if (!props.enabled) return;
     if (themePref !== "system") {
       setThemeMode(themePref);
@@ -218,6 +251,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
 
   const navigate = (tab: Parameters<AgentWorkspaceProps["onNavigate"]>[0]) => {
     accountRef.current?.removeAttribute("open");
+    props.onCloseSettings?.();
     props.onNavigate(tab);
   };
   const chooseTheme = (pref: WebThemePref) => {
@@ -238,19 +272,28 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const menuLabel = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
     item.labelKey ? t.agent.dashboard[item.labelKey] : t.mobile.tabs[item.tab];
   const shellRole = props.activeRole ?? "agent";
-  const canEditProfile = shellRole === "agent" && !!props.onSaveProfile;
+  // Agent, admin and self owner edit their profile on the web; tenant and landlord edit it in the app for now.
+  const canEditProfile = (shellRole === "agent" || shellRole === "admin" || shellRole === "self_owner") && !!props.onSaveProfile;
   const canDeleteAccount = !!props.onLoadAccountDeletion && !!props.onDeleteAccount;
-  const hasAccountActions = canEditProfile || !!props.onChangePassword || canDeleteAccount;
-  const openProfile = () => {
-    const parts = props.userName.trim().split(/\s+/).filter(Boolean);
-    setProfileFirst(parts[0] ?? "");
-    setProfileLast(parts.slice(1).join(" "));
-    setProfilePhone(props.userPhone ?? "");
+  const nameParts = props.userName.trim().split(/\s+/).filter(Boolean);
+  const firstValue = profileFirst ?? nameParts[0] ?? "";
+  const lastValue = profileLast ?? nameParts.slice(1).join(" ");
+  const phoneValue = profilePhone ?? props.userPhone ?? "";
+  const previewValue = profileRemove ? null : profilePreview ?? props.avatarUrl ?? null;
+  const profileDirty =
+    firstValue !== (nameParts[0] ?? "") ||
+    lastValue !== nameParts.slice(1).join(" ") ||
+    phoneValue !== (props.userPhone ?? "") ||
+    !!profilePhoto ||
+    profileRemove;
+  const resetProfile = () => {
+    setProfileFirst(null);
+    setProfileLast(null);
+    setProfilePhone(null);
     setProfilePhoto(null);
     setProfileRemove(false);
-    setProfilePreview(props.avatarUrl ?? null);
+    setProfilePreview(null);
     setProfileError(null);
-    setProfileOpen(true);
   };
   const saveProfile = async () => {
     if (!props.onSaveProfile || profileSaving) return;
@@ -267,12 +310,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         });
       }
       await props.onSaveProfile({
-        firstName: profileFirst.trim(),
-        lastName: profileLast.trim(),
-        phone: profilePhone.trim() ? profilePhone.trim() : null,
+        firstName: firstValue.trim(),
+        lastName: lastValue.trim(),
+        phone: phoneValue.trim() ? phoneValue.trim() : null,
       });
-      setProfileOpen(false);
-      setPasswordOpen(false);
+      resetProfile();
       setComplete("profile");
       accountRef.current?.removeAttribute("open");
     } catch (cause) {
@@ -311,7 +353,6 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setPasswordOpen(false);
       setComplete("password");
       accountRef.current?.removeAttribute("open");
     } catch (cause) {
@@ -330,26 +371,30 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const currentMenu = [...AGENT_WEB_PRIMARY, ...AGENT_WEB_MORE].find(
     (item) => item.tab === props.activeTab,
   );
+  // Selected item (design ก, Mos 17 Nov 2026): slate fill + yellow bar in light, lifted grey + yellow bar in dark.
+  // Its icon is dark gold on the light fill (CI yellow is too faint there) and CI yellow in dark mode;
+  // other icons are slate 700 / the dark body step #E2E8F0 (v1.2 B+C) so they no longer look faded.
   const itemColor = (active: boolean) =>
-    active ? (isDark ? "#f4cd76" : "#795719") : theme.textSecondary;
+    active ? (isDark ? "#F8B615" : "#795719") : isDark ? "#E2E8F0" : "#334155";
   const customItem = (item: WorkspaceNavItem) => (
     <button
       key={item.id}
       type="button"
-      className={`aw-nav-item ${item.active ? "is-active" : ""}`}
-      aria-current={item.active ? "page" : undefined}
+      className={`aw-nav-item ${item.active && !settingsOpen ? "is-active" : ""}`}
+      aria-current={item.active && !settingsOpen ? "page" : undefined}
       disabled={props.navigationDisabled || item.disabled}
       title={item.title ?? item.label}
       onClick={() => {
         if (props.navigationDisabled || item.disabled) return;
         accountRef.current?.removeAttribute("open");
+        props.onCloseSettings?.();
         item.onPress();
       }}
     >
-      <MobileIcon name={item.icon} size={20} color={itemColor(Boolean(item.active))} />
+      <MobileIcon name={item.icon} size={20} color={itemColor(Boolean(item.active) && !settingsOpen)} />
       <span className="aw-nav-label">{item.label}</span>
       {item.badge ? <span className="aw-soon aw-nav-label">{item.badge}</span> : null}
-      {item.active ? <span className="aw-active-dot" /> : null}
+      {item.active && !settingsOpen ? <span className="aw-active-dot" /> : null}
     </button>
   );
   const navItem = (item: (typeof AGENT_WEB_PRIMARY)[number]) =>
@@ -388,7 +433,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const listingOpen = expanded.listing ?? parent === "listingRoom";
   const tenantsOpen = expanded.tenants ?? parent === "clients";
   const toggleGroup = (id: "listing" | "tenants", open: boolean, first: () => void) => {
-    if (collapsed) {
+    if (isCollapsed) {
       first();
       return;
     }
@@ -398,11 +443,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     <button
       key={id}
       type="button"
-      className={`aw-nav-subitem ${active ? "is-active" : ""}`}
-      aria-current={active ? "page" : undefined}
+      className={`aw-nav-subitem ${active && !settingsOpen ? "is-active" : ""}`}
+      aria-current={active && !settingsOpen ? "page" : undefined}
       disabled={props.navigationDisabled}
       onClick={() => {
         accountRef.current?.removeAttribute("open");
+        props.onCloseSettings?.();
         onPress();
       }}
     >
@@ -421,7 +467,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       <button
         type="button"
         className={`aw-nav-item ${parent === tab ? "is-active" : ""}`}
-        aria-expanded={collapsed ? undefined : open}
+        aria-expanded={isCollapsed ? undefined : open}
         disabled={props.navigationDisabled}
         title={label}
         onClick={() => toggleGroup(id, open, () => navigate(tab))}
@@ -429,10 +475,10 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         <MobileIcon name={icon} size={20} color={itemColor(parent === tab)} />
         <span className="aw-nav-label">{label}</span>
         <span className="aw-nav-chev" aria-hidden="true">
-          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+          <MobileIcon name="chevron-right" size={14} color={parent === tab && isDark ? "#CBD5E1" : theme.textSecondary} />
         </span>
       </button>
-      {open && !collapsed ? <div className="aw-nav-sub">{subs}</div> : null}
+      {open && !isCollapsed ? <div className="aw-nav-sub">{subs}</div> : null}
     </React.Fragment>
   );
   const soonItem = (key: string, icon: AppIconName, label: string) => (
@@ -457,6 +503,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         return t.agent.dashboard.addListing;
       case "listingLead":
         return t.mobile.drawerMenu.listingLead;
+      case "createLead":
+        return props.editingLead ? t.agent.leads.editLead : t.mobile.tabs.createLead;
       case "clients":
         return creatingTenant ? t.agent.tenants.create : t.mobile.drawerMenu.clients;
       default:
@@ -464,21 +512,574 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     }
   };
   const pageTitle =
+    (settingsSection
+      ? { profile: copy.settingsProfile, security: copy.settingsSecurity, display: copy.settingsDisplay, help: copy.settingsHelp }[settingsSection]
+      : null) ||
     (customCurrent ? customCurrent.label : props.navSections ? t.mobile.tabs[props.activeTab] : agentTitle()) ||
     workspaceLabel;
   const switchRoles = ROLES.filter(
     (role) => !props.allowedRoles || props.allowedRoles.includes(role) || role === shellRole,
   );
-  const create = props.onCreate;
+  const create = props.onCreate
+    ? (kind: Parameters<NonNullable<AgentWorkspaceProps["onCreate"]>>[0]) => {
+        props.onCloseSettings?.();
+        props.onCreate!(kind);
+      }
+    : undefined;
+  const roleTile = roleTileColors(shellRole, isDark);
+  // Initials avatar in the role colours (option ก, Mos 18 Nov 2026): ink and gold now mean admin only.
+  const initialsStyle = { background: roleTile.bg, color: roleTile.fg };
+  /** Breadcrumb middle item: the sidebar group or the parent page, when it is not the page itself. */
+  const parentLabel =
+    parent === "listingRoom"
+      ? t.mobile.drawerMenu.listing
+      : parent && parent !== props.activeTab
+        ? (() => {
+            const item = [...AGENT_WEB_PRIMARY, ...AGENT_WEB_MORE].find((entry) => entry.tab === parent);
+            return item ? menuLabel(item) : null;
+          })()
+        : parent === "clients" && creatingTenant
+          ? t.mobile.drawerMenu.clients
+          : null;
+  const crumbParent =
+    !props.navSections && parent && parentLabel && parentLabel !== pageTitle ? { tab: parent, label: parentLabel } : null;
+  const moreItem = (tab: string) => {
+    const item = AGENT_WEB_MORE.find((entry) => entry.tab === tab);
+    return item ? navItem(item) : null;
+  };
+  /** Coming-soon pages in one row (design จ2): contacts · services · team. */
+  const laterLabels = [
+    ...AGENT_WEB_MORE.filter((entry) => entry.tab === "contact" || entry.tab === "services").map(menuLabel),
+    copy.team,
+  ].join(" · ");
+
+  const openDelete = () => {
+    if (!props.onLoadAccountDeletion) return;
+    setDeleteError(null);
+    setDeleteBlocked(null);
+    setDeleteOpen(true);
+    void props.onLoadAccountDeletion().then((preview) => {
+      setDeleteBlocked(preview.blocked ? preview.reasons : []);
+      setDeleteScheduled(preview.scheduledFor);
+      setDeleteNowAvailable(preview.deleteNowAvailable === true);
+      setDeletePending(null);
+    }).catch((cause: unknown) => {
+      setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
+    });
+  };
+  const app = t.mobile.appSettings;
+  const account = t.mobile.account;
+  const sectionLabel: Record<SettingsSection, string> = {
+    profile: copy.settingsProfile,
+    security: copy.settingsSecurity,
+    display: copy.settingsDisplay,
+    help: copy.settingsHelp,
+  };
+  const sectionHint: Record<SettingsSection, string> = {
+    profile: copy.settingsProfileHint,
+    security: copy.settingsSecurityHint,
+    display: copy.settingsDisplayHint,
+    help: copy.settingsHelpHint,
+  };
+  const openSection = (section: SettingsSection) => {
+    accountRef.current?.removeAttribute("open");
+    props.onOpenSettings?.(section);
+  };
+  const facts: { label: string; value: string }[] = [
+    { label: account.fullName, value: props.userName },
+    { label: account.email, value: props.userEmail || "-" },
+    { label: account.phone, value: props.userPhone || "-" },
+  ];
+
+  const photoInput = (
+    <input
+      className="aw-photo-file"
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      data-testid="settings.photo"
+      onChange={(event) => {
+        const file = event.target.files?.[0] ?? null;
+        setProfilePhoto(file);
+        setProfileRemove(false);
+        setProfilePreview(file ? URL.createObjectURL(file) : null);
+        // Review R10: clear the picker so the same file can be chosen again after Cancel.
+        event.target.value = "";
+      }}
+    />
+  );
+
+  /** Settings header (canvas page "setting", T1): photo with the role ring, name, role chip, contact, then the tabs. */
+  const settingsHeader = settingsSection ? (
+    <section className="aw-settings-card aw-settings-hero" aria-label={copy.settings}>
+      <div className="aw-settings-hero-body">
+        <div className="aw-settings-avatar">
+          <span className="aw-avatar-wrap" style={{ boxShadow: `0 0 0 3px var(--aw-surface), 0 0 0 5px ${roleTile.ring}` }}>
+            {previewValue ? (
+              <img className="aw-avatar aw-avatar-photo aw-avatar-xl" src={previewValue} alt="" />
+            ) : (
+              <span className="aw-avatar aw-avatar-xl" style={initialsStyle}>{props.initials}</span>
+            )}
+          </span>
+          {canEditProfile && settingsSection === "profile" ? (
+            <label className="aw-settings-camera" title={account.changePhoto}>
+              <span className="aw-photo-sr">{account.changePhoto}</span>
+              <MobileIcon name="camera" size={15} color="#211E1E" />
+              {photoInput}
+            </label>
+          ) : null}
+        </div>
+        <div className="aw-settings-hero-text">
+          <h2 className="aw-settings-name">{props.userName}</h2>
+          <div className="aw-settings-meta">
+            <span className="aw-settings-rolechip" style={{ background: roleTile.bg, color: roleTile.fg, boxShadow: `inset 0 0 0 1.5px ${roleTile.ring}` }}>
+              <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={15} color={roleTile.fg} />
+              {t.roles[shellRole]}
+            </span>
+            {props.userEmail ? (
+              <span className="aw-settings-metaitem">
+                <MobileIcon name="envelope" size={16} color={theme.textSecondary} />
+                {props.userEmail}
+              </span>
+            ) : null}
+            {props.userPhone ? (
+              <span className="aw-settings-metaitem">
+                <MobileIcon name="phone" size={16} color={theme.textSecondary} />
+                {props.userPhone}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {canEditProfile && settingsSection !== "profile" ? (
+          <button type="button" className="aw-button aw-button-secondary aw-settings-edit" data-testid="settings.editProfile" onClick={() => openSection("profile")}>
+            <MobileIcon name="pencil" size={16} color={theme.screenTitle} />
+            {account.editProfile}
+          </button>
+        ) : null}
+      </div>
+      <nav className="aw-settings-tabs" aria-label={copy.settings}>
+        {SETTINGS_NAV.map((item) => {
+          const current = item.key === settingsSection;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              className={`aw-settings-tab${current ? " is-current" : ""}`}
+              aria-current={current ? "page" : undefined}
+              data-testid={`settings.nav.${item.key}`}
+              disabled={props.navigationDisabled}
+              onClick={() => openSection(item.key)}
+            >
+              <MobileIcon name={item.icon} size={17} color={current ? (isDark ? "#F8B615" : "#795719") : theme.textSecondary} />
+              <span>{sectionLabel[item.key]}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </section>
+  ) : null;
+
+  /** Profile tab (T1): the agent edits inline, save bar bottom left; other roles read it here and edit in the app. */
+  const profileSection = (
+    <>
+      <section className="aw-settings-card" aria-labelledby="aw-settings-profile-title">
+        <h3 id="aw-settings-profile-title" className="aw-settings-title">{account.personalInfo}</h3>
+        <p className="aw-settings-desc">{sectionHint.profile}</p>
+        {canEditProfile ? (
+          <form
+            className="aw-profile-form aw-settings-form"
+            data-testid="settings.profile.form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              return saveProfile();
+            }}
+          >
+            <div className="aw-settings-fields">
+              <label>
+                {account.firstName}
+                <input value={firstValue} onChange={(event) => setProfileFirst(event.target.value)} autoComplete="given-name" />
+              </label>
+              <label>
+                {account.lastName}
+                <input value={lastValue} onChange={(event) => setProfileLast(event.target.value)} autoComplete="family-name" />
+              </label>
+              <label>
+                {account.phone}
+                <input value={phoneValue} onChange={(event) => setProfilePhone(event.target.value)} autoComplete="tel" inputMode="tel" />
+              </label>
+              <label>
+                {account.email}
+                <input value={props.userEmail} readOnly aria-readonly="true" className="is-readonly" />
+              </label>
+            </div>
+            {previewValue ? (
+              <div className="aw-settings-photo-row">
+                <span className="aw-photo-hint">{account.changePhoto}: JPG, PNG, WEBP</span>
+                <button
+                  type="button"
+                  className="aw-photo-remove"
+                  onClick={() => {
+                    setProfilePhoto(null);
+                    setProfileRemove(true);
+                    setProfilePreview(null);
+                  }}
+                >
+                  {account.removePhoto}
+                </button>
+              </div>
+            ) : null}
+            {profileError ? <p className="aw-profile-error" role="alert">{profileError}</p> : null}
+            <div className="aw-settings-savebar">
+              <button type="submit" className="aw-button aw-button-primary" disabled={profileSaving || !profileDirty}>
+                {profileSaving ? t.common.loading : t.common.save}
+              </button>
+              <button type="button" className="aw-button aw-button-secondary" disabled={profileSaving || !profileDirty} onClick={resetProfile}>
+                {t.common.cancel}
+              </button>
+            </div>
+            {shellRole === "admin" ? (
+              <p className="aw-settings-note" data-testid="settings.admin.note">
+                <MobileIcon name="info" size={16} color={theme.textSecondary} />
+                <span>{copy.adminSettingsNote}</span>
+              </p>
+            ) : null}
+          </form>
+        ) : (
+          <>
+            <dl className="aw-settings-facts">
+              {facts.map((fact) => (
+                <div key={fact.label} className="aw-settings-fact">
+                  <dt>{fact.label}</dt>
+                  <dd>{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="aw-settings-note" data-testid="settings.profile.readOnly">
+              <MobileIcon name="info" size={16} color={theme.textSecondary} />
+              <span>{copy.profileReadOnly}</span>
+            </p>
+          </>
+        )}
+      </section>
+      <section className="aw-settings-card" aria-labelledby="aw-settings-roles-title">
+        <h3 id="aw-settings-roles-title" className="aw-settings-title">{copy.accountRoles}</h3>
+        <div className="aw-settings-rows">
+          {switchRoles.map((role) => {
+            const tile = roleTileColors(role, isDark);
+            const current = role === shellRole;
+            return (
+              <button
+                key={role}
+                type="button"
+                className={`aw-settings-row aw-settings-role-row${current ? " is-current" : ""}`}
+                aria-current={current ? "true" : undefined}
+                disabled={!!props.navigationDisabled}
+                data-testid={`settings.role.${role}`}
+                onClick={() => {
+                  if (!current) props.onRoleChange(role);
+                }}
+              >
+                <span className="aw-role-tile" aria-hidden="true" style={{ background: tile.bg, boxShadow: `0 0 0 1.5px ${tile.ring}` }}>
+                  <MobileIcon name={ROLE_ICON[role] ?? "user"} size={15} color={tile.fg} />
+                </span>
+                <span className="aw-role-text">
+                  <strong>{t.roles[role]}</strong>
+                  <small>{t.mobile.profile.roleDescriptions[role as keyof typeof t.mobile.profile.roleDescriptions] ?? ""}</small>
+                </span>
+                {current ? (
+                  <MobileIcon name="check" size={16} color={isDark ? "#F8B615" : "#795719"} />
+                ) : props.otherSiteRoles?.includes(role) ? (
+                  <span className="aw-role-badge">{t.webSession.otherSite}</span>
+                ) : (
+                  <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {props.otherSiteRoles?.length ? <p className="aw-settings-note">{copy.roleHint}</p> : null}
+      </section>
+    </>
+  );
+
+  /** Security tab (T2): password, linked accounts, devices, then the danger zone. */
+  const securitySection = (
+    <>
+      {props.onChangePassword ? (
+        <section className="aw-settings-card" aria-labelledby="aw-settings-password-title">
+          <h3 id="aw-settings-password-title" className="aw-settings-title">{account.changePassword}</h3>
+          <p className="aw-settings-desc">{t.mobile.auth.passwordRules}</p>
+          <form
+            className="aw-profile-form aw-settings-form"
+            data-testid="settings.password.form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              return savePassword();
+            }}
+          >
+            <div className="aw-settings-fields">
+              <label>
+                {account.password.current}
+                <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" />
+              </label>
+              <span aria-hidden="true" />
+              <label>
+                {account.password.new}
+                <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" />
+              </label>
+              <label>
+                {account.password.confirm}
+                <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
+              </label>
+            </div>
+            {/* Review R2: the box is always shown here (no wait-for-token step like sign-in), and it is not drawn while
+                the delete dialog asks for the password, so the two forms never share one Turnstile token. */}
+            {captchaRequired && !deletePending ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+            {passwordError ? <p className="aw-profile-error" role="alert">{passwordError}</p> : null}
+            <div className="aw-settings-savebar">
+              <button type="submit" className="aw-button aw-button-primary" disabled={passwordSaving}>
+                {passwordSaving ? t.common.loading : account.password.submit}
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
+      {shellRole === "admin" ? (
+        <section className="aw-settings-card" aria-labelledby="aw-settings-2fa-title" data-testid="settings.twoFactor">
+          <h3 id="aw-settings-2fa-title" className="aw-settings-title">{copy.twoFactor}</h3>
+          <p className="aw-settings-desc">{copy.twoFactorBody}</p>
+          <div className="aw-settings-row is-soon" aria-disabled="true">
+            <span className="aw-settings-ico"><MobileIcon name="shield" size={18} color={theme.textSecondary} /></span>
+            <span>{copy.twoFactor}</span>
+            <span className="aw-soon">{t.agent.dashboard.comingSoon}</span>
+          </div>
+        </section>
+      ) : null}
+      <section className="aw-settings-card" aria-labelledby="aw-settings-linked-title">
+        <h3 id="aw-settings-linked-title" className="aw-settings-title">{account.linkedAccounts.title}</h3>
+        <div className="aw-settings-tiles">
+          <div className="aw-settings-row is-static">
+            <span className="aw-settings-ico"><MobileIcon name="envelope" size={18} color={theme.screenTitle} /></span>
+            <span className="aw-role-text">
+              <strong>{copy.emailPassword}</strong>
+              <small>{props.userEmail}</small>
+            </span>
+            <span className="aw-settings-ok">{account.linkedAccounts.connected}</span>
+          </div>
+          {(["google", "facebook", "apple"] as const).map((provider) => (
+            <div key={provider} className="aw-settings-row is-soon" aria-disabled="true">
+              <span className="aw-settings-ico"><MobileIcon name={provider} size={18} color={theme.textSecondary} /></span>
+              <span>{account.linkedAccounts.providers[provider]}</span>
+              <span className="aw-soon">{t.agent.dashboard.comingSoon}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="aw-settings-card" aria-labelledby="aw-settings-devices-title">
+        <h3 id="aw-settings-devices-title" className="aw-settings-title">{copy.devices}</h3>
+        <p className="aw-settings-desc">{copy.devicesBody}</p>
+        <div className="aw-settings-actions">
+          <button type="button" className="aw-signout" disabled={props.navigationDisabled} onClick={props.onSignOut}>
+            {t.common.signOut}
+          </button>
+          {props.onSignOutEverywhere ? (
+            <button
+              type="button"
+              className="aw-signout aw-signout-all"
+              disabled={props.navigationDisabled}
+              data-testid="account.signOutAll"
+              onClick={() => {
+                setSignOutAllError(null);
+                setSignOutAllOpen(true);
+              }}
+            >
+              {t.webSession.signOutAll}
+            </button>
+          ) : null}
+        </div>
+      </section>
+      {canDeleteAccount ? (
+        <section className="aw-settings-card aw-settings-danger" aria-labelledby="aw-settings-danger-title" data-testid="settings.danger">
+          <h3 id="aw-settings-danger-title" className="aw-settings-title">{copy.dangerZone}</h3>
+          {deleteOpen ? (
+            <div className="aw-profile-form">
+              <p className="aw-photo-hint">{account.deleteAccountBody}</p>
+              {deleteBlocked && deleteBlocked.length > 0 ? (
+                <>
+                  <p className="aw-profile-error">{account.deleteAccountBlocked}</p>
+                  {deleteBlocked.map((reason) => (
+                    <p key={reason} className="aw-profile-error">{account.deleteAccountReasons[reason as 'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit']}</p>
+                  ))}
+                </>
+              ) : null}
+              {deleteScheduled ? <p className="aw-photo-hint">{account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(dateLocale(locale), { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
+              {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
+              <div className="aw-settings-actions">
+                {!deleteBlocked?.length && !deleteScheduled ? (
+                  <>
+                    {deleteNowAvailable ? <button type="button" className="aw-button aw-button-danger" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('now')}>{account.deleteAccountNow}</button> : null}
+                    <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('later')}>{account.deleteAccountLater}</button>
+                  </>
+                ) : null}
+                {deleteScheduled && props.onCancelAccountDeletion ? (
+                  <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => {
+                    setDeleteError(null);
+                    setDeletePasswordStep(false);
+                    setDeletePending("cancel");
+                  }}>{account.deleteAccountCancel}</button>
+                ) : null}
+                <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => { setDeleteOpen(false); setDeletePending(null); }}>
+                  {t.common.cancel}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="aw-settings-danger-row">
+              <span className="aw-role-text">
+                <strong>{account.deleteAccount}</strong>
+                <small>{account.deleteAccountBody}</small>
+              </span>
+              <button type="button" className="aw-button aw-settings-danger-button" onClick={openDelete}>
+                <MobileIcon name="trash" size={16} color={isDark ? "#FCA5A5" : "#B42318"} />
+                {account.deleteAccount}
+              </button>
+            </div>
+          )}
+        </section>
+      ) : shellRole === "admin" || props.adminAccount ? (
+        <p className="aw-settings-note" data-testid="settings.admin.deleteNote">
+          <MobileIcon name="info" size={16} color={theme.textSecondary} />
+          <span>{copy.adminDeleteNote}</span>
+        </p>
+      ) : null}
+    </>
+  );
+
+  /** Display tab (T3): the same language and theme choices as the header pill bar, as cards. */
+  const displaySection = (
+    <section className="aw-settings-card">
+      <h3 id="aw-settings-language-title" className="aw-settings-title">{t.mobile.settings.language}</h3>
+      <p className="aw-settings-desc">{sectionHint.display}</p>
+      <div className="aw-settings-choices" role="radiogroup" aria-labelledby="aw-settings-language-title">
+        {Object.entries(t.mobile.settings.languageNames).map(([key, label]) => {
+          const current = key === locale;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={current}
+              className={`aw-settings-choice${current ? " is-current" : ""}`}
+              data-testid={`settings.language.${key}`}
+              onClick={() => setLocale(key as SupportedLocale)}
+            >
+              <MobileIcon name="globe" size={18} color={theme.textSecondary} />
+              <span>{label}</span>
+              <span className="aw-settings-radio" aria-hidden="true">
+                {current ? <MobileIcon name="check" size={12} color="#211E1E" weight="bold" /> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <h3 id="aw-settings-theme-title" className="aw-settings-title aw-settings-subtitle">{copy.theme}</h3>
+      <div className="aw-settings-choices aw-settings-themes" role="radiogroup" aria-labelledby="aw-settings-theme-title">
+        {themeOptions.map((option) => {
+          const current = option.key === themePref;
+          return (
+            <button
+              key={option.key}
+              type="button"
+              role="radio"
+              aria-checked={current}
+              className={`aw-settings-choice${current ? " is-current" : ""}`}
+              data-testid={`settings.theme.${option.key}`}
+              onClick={() => chooseTheme(option.key)}
+            >
+              <span className={`aw-theme-preview is-${option.key}`} aria-hidden="true" />
+              <span className="aw-settings-choice-line">
+                {option.key === "system" ? <MonitorIcon /> : option.key === "dark" ? <MoonIcon /> : <SunIcon />}
+                <span>{option.label}</span>
+                <span className="aw-settings-radio" aria-hidden="true">
+                  {current ? <MobileIcon name="check" size={12} color="#211E1E" weight="bold" /> : null}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  /** Help and about tab (T4): two columns. Terms and privacy open in a new tab like the footer (review R9). */
+  const helpSection = (
+    <div className="aw-settings-columns">
+      <section className="aw-settings-card" aria-labelledby="aw-settings-help-title">
+        <h3 id="aw-settings-help-title" className="aw-settings-title">{app.helpSection}</h3>
+        <details className="aw-settings-info">
+          <summary>{app.faq}</summary>
+          <p>{app.faqBody}</p>
+        </details>
+        <details className="aw-settings-info">
+          <summary>{app.contactSupport}</summary>
+          <p>{app.supportBody}</p>
+        </details>
+      </section>
+      <section className="aw-settings-card" aria-labelledby="aw-settings-about-title">
+        <h3 id="aw-settings-about-title" className="aw-settings-title">{app.aboutSection}</h3>
+        <details className="aw-settings-info">
+          <summary>{app.aboutNestyk}</summary>
+          <p>{app.aboutBody}</p>
+        </details>
+        <a className="aw-settings-row" href={legalHref("terms")} target="_blank" rel="noopener">
+          <MobileIcon name="file-text" size={18} color={theme.textSecondary} />
+          <span>{app.terms}</span>
+          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+        </a>
+        <a className="aw-settings-row" href={legalHref("privacy")} target="_blank" rel="noopener">
+          <MobileIcon name="shield" size={18} color={theme.textSecondary} />
+          <span>{app.privacy}</span>
+          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+        </a>
+        <a className="aw-settings-row" href={COOKIE_SETTINGS_HREF} data-testid="settings.cookies">
+          <MobileIcon name="sliders" size={18} color={theme.textSecondary} />
+          <span>{t.legal.footer.cookies}</span>
+          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+        </a>
+        <div className="aw-settings-row is-static">
+          <MobileIcon name="info" size={18} color={theme.textSecondary} />
+          <span>{app.version}</span>
+          <span className="aw-settings-value">{APP_VERSION}</span>
+        </div>
+      </section>
+    </div>
+  );
+
+  /** Settings page "/<role>/settings[/section]" (Mos 18 Nov 2026, canvas page "setting"): header card + 4 tabs. */
+  const settingsPage = settingsSection ? (
+    <WebContentContainer>
+      <div className="aw-settings" data-testid="settings.page">
+        {settingsHeader}
+        <div className="aw-settings-body" data-testid={`settings.section.${settingsSection}`}>
+          {settingsSection === "profile"
+            ? profileSection
+            : settingsSection === "security"
+              ? securitySection
+              : settingsSection === "display"
+                ? displaySection
+                : helpSection}
+        </div>
+      </div>
+    </WebContentContainer>
+  ) : null;
 
   return (
       <div
-        className={`aw-shell${collapsed ? " aw-collapsed" : ""}`}
+        className={`aw-shell${isCollapsed ? " aw-collapsed" : ""}`}
         data-theme={theme.mode}
         lang={locale}
         style={
           {
-            "--aw-bg": isDark ? theme.background : "#F3F5F8",
+            "--aw-bg": isDark ? theme.background : "#F1F5F9",
             "--aw-surface": theme.surface,
             "--aw-ink": theme.screenTitle,
             "--aw-muted": theme.textSecondary,
@@ -490,36 +1091,53 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           {copy.skip}
         </a>
         <header className="aw-topbar">
-          <div className="aw-logo-cell">
-            <button
-              className="aw-brand"
-              type="button"
-              onClick={() => navigate("dashboard")}
-              disabled={props.navigationDisabled}
-              aria-label={`NESTYK ${t.mobile.tabs.dashboard}`}
-            >
-              <div className="aw-logo-wide">
-                <MobileNestykLogo variant={isDark ? "wordmarkOnDark" : "wordmark"} height={30} />
-              </div>
-              <div className="aw-logo-compact">
-                <MobileNestykLogo variant="markSecondary" height={32} />
-              </div>
-            </button>
-          </div>
           <div className="aw-topbar-main">
-            <button
-              type="button"
-              className="aw-collapse"
-              data-testid="shell.sidebarToggle"
-              onClick={() => setCollapsed(!collapsed)}
-              aria-label={collapsed ? copy.expand : copy.collapse}
-              aria-expanded={!collapsed}
-              title={collapsed ? copy.expand : copy.collapse}
-            >
-              <PanelIcon collapsed={collapsed} />
-            </button>
-            <h1 className="aw-title">{pageTitle}</h1>
-            <div className="aw-topbar-actions">
+            <nav className="aw-crumbs" aria-label={copy.breadcrumb}>
+              {!settingsOpen && (props.navSections || props.activeTab === "dashboard") ? null : (
+                <>
+                  <button
+                    type="button"
+                    className="aw-crumb-link"
+                    onClick={() => navigate("dashboard")}
+                    disabled={props.navigationDisabled}
+                    aria-label={copy.home}
+                    title={copy.home}
+                  >
+                    <MobileIcon name="home" size={17} color={theme.textSecondary} />
+                  </button>
+                  <span className="aw-crumb-sep" aria-hidden="true">/</span>
+                </>
+              )}
+              {settingsOpen ? (
+                <>
+                  <button
+                    type="button"
+                    className="aw-crumb-link"
+                    data-testid="settings.crumb"
+                    onClick={() => openSection("profile")}
+                    disabled={props.navigationDisabled}
+                  >
+                    {copy.settings}
+                  </button>
+                  <span className="aw-crumb-sep" aria-hidden="true">/</span>
+                </>
+              ) : null}
+              {crumbParent ? (
+                <>
+                  <button
+                    type="button"
+                    className="aw-crumb-link"
+                    onClick={() => navigate(crumbParent.tab)}
+                    disabled={props.navigationDisabled}
+                  >
+                    {crumbParent.label}
+                  </button>
+                  <span className="aw-crumb-sep" aria-hidden="true">/</span>
+                </>
+              ) : null}
+              <h1 className="aw-title">{pageTitle}</h1>
+            </nav>
+            <div className="aw-topbar-actions aw-pillbar">
               {create ? (
                 <WebMenu
                   label={copy.create}
@@ -527,8 +1145,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   triggerClassName="aw-create"
                   trigger={
                     <>
-                      <MobileIcon name="plus" size={17} color={isDark ? "#211E1E" : "#FFFFFF"} />
+                      <MobileIcon name="plus" size={17} color={isDark ? "#FFFFFF" : "#211E1E"} />
                       <span className="aw-create-label">{copy.create}</span>
+                      <MobileIcon name="chevron-down" size={13} color={isDark ? "#CBD5E1" : "#475569"} />
                     </>
                   }
                   items={[
@@ -538,17 +1157,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   ]}
                 />
               ) : null}
+              {create ? <span className="aw-pill-sep" aria-hidden="true" /> : null}
               <WebMenu
-                label={t.mobile.settings.language}
+                label={`${t.mobile.settings.language}: ${t.mobile.settings.languageNames[locale]}`}
                 testID="shell.language"
-                triggerClassName="aw-lang"
-                trigger={
-                  <>
-                    <MobileIcon name="globe" size={17} color={theme.screenTitle} />
-                    <span>{locale.toUpperCase()}</span>
-                    <MobileIcon name="chevron-down" size={13} color={theme.textSecondary} />
-                  </>
-                }
+                triggerClassName="aw-icon-button aw-lang"
+                trigger={<MobileIcon name="globe" size={19} color={theme.screenTitle} />}
                 items={Object.entries(t.mobile.settings.languageNames).map(([key, label]) => ({
                   key,
                   label,
@@ -578,49 +1192,176 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                 <MobileIcon name="bell" size={21} color={theme.screenTitle} />
                 {props.notificationCount > 0 ? <span className="aw-notification-dot" /> : null}
               </button>
+              <details className="aw-account aw-account-top" ref={accountRef}>
+                  <summary aria-label={`${copy.account}: ${props.userName}`}>
+                    <span
+                      className="aw-avatar-wrap"
+                      style={{ boxShadow: `0 0 0 2px var(--aw-surface), 0 0 0 3.5px ${roleTile.ring}` }}
+                    >
+                      {props.avatarUrl ? (
+                        <img className="aw-avatar aw-avatar-photo" src={props.avatarUrl} alt="" />
+                      ) : (
+                        <span className="aw-avatar" style={initialsStyle}>{props.initials}</span>
+                      )}
+                      <span
+                        className="aw-avatar-role"
+                        aria-hidden="true"
+                        style={{ background: roleTile.bg, borderColor: roleTile.ring }}
+                      >
+                        <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={9} color={roleTile.fg} />
+                      </span>
+                    </span>
+                  </summary>
+                  <div className="aw-account-popover">
+                    <div className="aw-account-info">
+                      <strong>{props.userName}</strong>
+                      <span>{props.userEmail}</span>
+                    </div>
+                    {rolePickerOpen ? (
+                      <div className="aw-role-picker">
+                        <button type="button" className="aw-role-back" onClick={() => setRolePickerOpen(false)}>
+                          <MobileIcon name="chevron-left" size={16} color={theme.screenTitle} />
+                          {copy.chooseRole}
+                        </button>
+                        <p className="aw-role-hint">{copy.roleHint}</p>
+                        {switchRoles.map((role) => {
+                          const tile = roleTileColors(role, isDark);
+                          const current = role === shellRole;
+                          return (
+                            <button
+                              key={role}
+                              type="button"
+                              className={`aw-role-option${current ? " is-current" : ""}`}
+                              aria-current={current ? "true" : undefined}
+                              disabled={props.navigationDisabled}
+                              data-testid={`account.role.${role}`}
+                              onClick={() => {
+                                accountRef.current?.removeAttribute("open");
+                                if (!current) props.onRoleChange(role);
+                              }}
+                            >
+                              <span className="aw-role-tile" aria-hidden="true" style={{ background: tile.bg, boxShadow: `0 0 0 1.5px ${tile.ring}` }}>
+                                <MobileIcon name={ROLE_ICON[role] ?? "user"} size={15} color={tile.fg} />
+                              </span>
+                              <span className="aw-role-text">
+                                <strong>{t.roles[role]}</strong>
+                                <small>{t.mobile.profile.roleDescriptions[role as keyof typeof t.mobile.profile.roleDescriptions] ?? ""}</small>
+                              </span>
+                              {current ? (
+                                <MobileIcon name="check" size={16} color={isDark ? "#F8B615" : "#795719"} />
+                              ) : props.otherSiteRoles?.includes(role) ? (
+                                <span className="aw-role-badge">{t.webSession.otherSite}</span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="aw-role-row"
+                        data-testid="account.role"
+                        disabled={switchRoles.length < 2 || !!props.navigationDisabled}
+                        onClick={() => setRolePickerOpen(true)}
+                      >
+                        <span className="aw-role-tile" aria-hidden="true" style={{ background: roleTile.bg, boxShadow: `0 0 0 1.5px ${roleTile.ring}` }}>
+                          <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={15} color={roleTile.fg} />
+                        </span>
+                        <span className="aw-role-text">
+                          <small>{t.mobile.profile.role}</small>
+                          <strong>{t.roles[shellRole]}</strong>
+                        </span>
+                        {switchRoles.length > 1 ? (
+                          <>
+                            <span className="aw-role-change">{copy.changeRole}</span>
+                            <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+                          </>
+                        ) : null}
+                      </button>
+                    )}
+                    {rolePickerOpen ? null : <>
+                    {props.onOpenSettings ? (
+                      <>
+                        <div className="aw-menu-sep" aria-hidden="true" />
+                        <button
+                          type="button"
+                          className="aw-menu-row"
+                          data-testid="account.settings"
+                          onClick={() => openSection("profile")}
+                        >
+                          <MobileIcon name="gear" size={18} color={theme.textSecondary} />
+                          <span>{copy.settings}</span>
+                          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+                        </button>
+                        <button
+                          type="button"
+                          className="aw-menu-row"
+                          data-testid="account.help"
+                          onClick={() => openSection("help")}
+                        >
+                          <MobileIcon name="info" size={18} color={theme.textSecondary} />
+                          <span>{t.mobile.appSettings.helpSection}</span>
+                          <MobileIcon name="chevron-right" size={14} color={theme.textSecondary} />
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="aw-signout"
+                      disabled={props.navigationDisabled}
+                      onClick={props.onSignOut}
+                    >
+                      {t.common.signOut}
+                    </button>
+                    </>}
+                  </div>
+                </details>
             </div>
           </div>
         </header>
         <aside className="aw-sidebar" aria-label={t.mobile.profile.navigation}>
+          <div className="aw-logo-cell aw-side-brand">
+            <button
+              className="aw-brand"
+              type="button"
+              onClick={() => navigate("dashboard")}
+              disabled={props.navigationDisabled}
+              aria-label={`NESTYK ${t.mobile.tabs.dashboard}`}
+            >
+              <div className="aw-logo-wide">
+                <MobileNestykLogo variant={isDark ? "wordmarkOnDark" : "wordmark"} height={30} />
+              </div>
+              <div className="aw-logo-compact">
+                <MobileNestykLogo variant="markSecondary" height={32} />
+              </div>
+            </button>
+            <button
+              type="button"
+              className="aw-collapse"
+              data-testid="shell.sidebarToggle"
+              onClick={() => (formCompact ? setFormMenuOpen(!formMenuOpen) : setCollapsed(!collapsed))}
+              aria-label={isCollapsed ? copy.expand : copy.collapse}
+              aria-expanded={!isCollapsed}
+              title={isCollapsed ? copy.expand : copy.collapse}
+            >
+              <PanelIcon collapsed={isCollapsed} />
+            </button>
+          </div>
           <div className="aw-switch">
-            <WebMenu
-              label={copy.switchWorkspace}
-              testID="shell.workspace"
-              align="start"
-              triggerClassName="aw-switcher"
-              trigger={
-                <>
-                  <span className="aw-switch-tile" aria-hidden="true">
-                    <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color="#583C0A" />
-                    <span className="aw-switch-dot" style={{ "--aw-role": ROLE_DOT[shellRole] } as React.CSSProperties} />
-                  </span>
-                  <span className="aw-switch-copy">
-                    <strong>{t.roles[shellRole]}</strong>
-                    <small>{workspaceLabel}</small>
-                  </span>
-                  <span className="aw-switch-chev" aria-hidden="true">
-                    <MobileIcon name="chevron-down" size={14} color={theme.textSecondary} />
-                  </span>
-                </>
-              }
-              items={[
-                ...switchRoles.map((role) => ({
-                  key: role,
-                  label: t.roles[role],
-                  icon: ROLE_ICON[role] ?? ("user" as AppIconName),
-                  checked: role === shellRole,
-                  disabled: props.navigationDisabled,
-                  badge: props.otherSiteRoles?.includes(role) ? t.webSession.otherSite : undefined,
-                  testID: `shell.workspace.${role}`,
-                  onSelect: () => {
-                    accountRef.current?.removeAttribute("open");
-                    if (role !== shellRole) props.onRoleChange(role);
-                  },
-                })),
-                { key: "add", label: copy.addWorkspace, icon: "plus" as AppIconName, disabled: true, badge: t.agent.dashboard.comingSoon },
-                { key: "manage", label: copy.manageWorkspace, icon: "gear" as AppIconName, disabled: true, badge: t.agent.dashboard.comingSoon },
-              ]}
-            />
+            {/* Mos 18 Nov 2026: the role box only shows the current role; switching is in the account menu. */}
+            <div className="aw-switcher aw-switcher-static" data-testid="shell.workspace">
+              <span
+                className="aw-switch-tile"
+                aria-hidden="true"
+                style={{ background: roleTile.bg, boxShadow: `0 0 0 1.5px ${roleTile.ring}` }}
+              >
+                <MobileIcon name={ROLE_ICON[shellRole] ?? "user"} size={18} color={roleTile.fg} />
+              </span>
+              <span className="aw-switch-copy">
+                <strong>{t.roles[shellRole]}</strong>
+                <small>{workspaceLabel}</small>
+              </span>
+            </div>
           </div>
           <div className="aw-sidebar-scroll">
             {props.navSections ? (
@@ -647,252 +1388,29 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                     subItem("list", t.agent.tenants.list.tabAll, parent === "clients" && !creatingTenant, () => navigate("clients")),
                     ...(create ? [subItem("create", t.agent.tenants.create, creatingTenant, () => create("tenant"))] : []),
                   ])}
+                  {moreItem("calendar")}
                 </nav>
                 <div className="aw-nav-divider" />
-                <p className="aw-nav-caption">{t.mobile.tabs.more}</p>
-                <nav className="aw-nav" aria-label={t.mobile.tabs.more}>
-                  {AGENT_WEB_MORE.map(navItem)}
-                </nav>
-                <div className="aw-nav-divider" />
-                <p className="aw-nav-caption">{t.agent.dashboard.financeSection}</p>
-                <nav className="aw-nav" aria-label={t.agent.dashboard.financeSection}>
+                <p className="aw-nav-caption">{copy.docsFinance}</p>
+                <nav className="aw-nav" aria-label={copy.docsFinance}>
+                  {moreItem("contracts")}
                   {soonItem("commission", "wallet", t.mobile.drawerMenu.commission)}
                 </nav>
                 <div className="aw-nav-divider" />
-                <p className="aw-nav-caption">{copy.main}</p>
-                <nav className="aw-nav" aria-label={copy.main}>
-                  {soonItem("team", "users", copy.team)}
-                </nav>
+                <p className="aw-nav-caption">{t.agent.dashboard.comingSoon}</p>
+                {soonItem("later", "dots-vertical", laterLabels)}
               </>
             )}
           </div>
-          <details className="aw-account" ref={accountRef}>
-                  <summary aria-label={copy.account}>
-                    {props.avatarUrl ? (
-                      <img className="aw-avatar aw-avatar-photo" src={props.avatarUrl} alt="" />
-                    ) : (
-                      <span className="aw-avatar">{props.initials}</span>
-                    )}
-                    <span className="aw-account-text">
-                      <strong>{props.userName}</strong>
-                      <small>{props.userEmail || t.roles[shellRole]}</small>
-                    </span>
-                    <span className="aw-account-chev">
-                      <MobileIcon name="chevron-down" size={14} color={theme.textSecondary} />
-                    </span>
-                  </summary>
-                  <div className={passwordOpen ? "aw-account-popover aw-account-popover-password" : "aw-account-popover"}>
-                    <div className="aw-account-info">
-                      <strong>{props.userName}</strong>
-                      <span>{props.userEmail}</span>
-                    </div>
-                    {shellRole === "agent" && props.onSaveProfile && profileOpen ? (
-                      <form
-                        className="aw-profile-form"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          return saveProfile();
-                        }}
-                      >
-                        <div className="aw-photo">
-                          <label className="aw-photo-hit">
-                            <span className="aw-photo-sr">{t.mobile.account.changePhoto}</span>
-                            {profilePreview ? (
-                              <img className="aw-photo-face" src={profilePreview} alt="" />
-                            ) : (
-                              <span className="aw-photo-face" aria-hidden="true">{props.initials}</span>
-                            )}
-                            <span className="aw-photo-badge" aria-hidden="true">
-                              <MobileIcon name="camera" size={14} color="#211E1E" />
-                            </span>
-                            <input
-                              className="aw-photo-file"
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp"
-                              onChange={(event) => {
-                                const file = event.target.files?.[0] ?? null;
-                                setProfilePhoto(file);
-                                setProfileRemove(false);
-                                setProfilePreview(file ? URL.createObjectURL(file) : props.avatarUrl ?? null);
-                              }}
-                            />
-                          </label>
-                          <div className="aw-photo-copy">
-                            <span className="aw-photo-title">{t.mobile.account.changePhoto}</span>
-                            <span className="aw-photo-hint">{t.mobile.account.chooseFromLibrary}</span>
-                            {profilePreview ? (
-                              <button
-                                type="button"
-                                className="aw-photo-remove"
-                                onClick={() => {
-                                  setProfilePhoto(null);
-                                  setProfileRemove(true);
-                                  setProfilePreview(null);
-                                }}
-                              >
-                                {t.mobile.account.removePhoto}
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                        <label>
-                          {t.mobile.account.firstName}
-                          <input value={profileFirst} onChange={(event) => setProfileFirst(event.target.value)} autoComplete="given-name" />
-                        </label>
-                        <label>
-                          {t.mobile.account.lastName}
-                          <input value={profileLast} onChange={(event) => setProfileLast(event.target.value)} autoComplete="family-name" />
-                        </label>
-                        <label>
-                          {t.mobile.account.phone}
-                          <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} autoComplete="tel" inputMode="tel" />
-                        </label>
-                        {profileError ? <p className="aw-profile-error" role="alert">{profileError}</p> : null}
-                        <button type="submit" className="aw-button aw-button-primary" disabled={profileSaving}>
-                          {profileSaving ? t.common.loading : t.common.save}
-                        </button>
-                        <button type="button" className="aw-button aw-button-secondary" disabled={profileSaving} onClick={() => setProfileOpen(false)}>
-                          {t.common.cancel}
-                        </button>
-                      </form>
-                    ) : null}
-                    {props.onChangePassword && passwordOpen ? (
-                      <form
-                        className="aw-profile-form"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          return savePassword();
-                        }}
-                      >
-                        <p className="aw-photo-hint">{t.mobile.auth.passwordRules}</p>
-                        <label>
-                          {t.mobile.account.password.current}
-                          <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" />
-                        </label>
-                        <label>
-                          {t.mobile.account.password.new}
-                          <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" />
-                        </label>
-                        <label>
-                          {t.mobile.account.password.confirm}
-                          <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
-                        </label>
-                        {captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
-                        {passwordError ? <p className="aw-profile-error" role="alert">{passwordError}</p> : null}
-                        <button type="submit" className="aw-button aw-button-primary" disabled={passwordSaving}>
-                          {passwordSaving ? t.common.loading : t.mobile.account.password.submit}
-                        </button>
-                        <button type="button" className="aw-button aw-button-secondary" disabled={passwordSaving} onClick={() => setPasswordOpen(false)}>
-                          {t.common.cancel}
-                        </button>
-                      </form>
-                    ) : null}
-                    {hasAccountActions && !profileOpen && !passwordOpen && !deleteOpen ? (
-                      accountMenuOpen ? (
-                        <>
-                        {canEditProfile ? (
-                          <button type="button" className="aw-button aw-button-secondary" onClick={openProfile}>
-                            {t.mobile.account.editProfile}
-                          </button>
-                        ) : null}
-                        {props.onChangePassword ? (
-                          <button type="button" className="aw-button aw-button-secondary" onClick={() => { setPasswordError(null); setPasswordOpen(true); }}>
-                            {t.mobile.account.changePassword}
-                          </button>
-                        ) : null}
-                        {canDeleteAccount ? (
-                          <button type="button" className="aw-button aw-button-secondary" onClick={() => {
-                            setDeleteError(null);
-                            setDeleteBlocked(null);
-                            setDeleteOpen(true);
-                            void props.onLoadAccountDeletion!().then((preview) => {
-                              setDeleteBlocked(preview.blocked ? preview.reasons : []);
-                              setDeleteScheduled(preview.scheduledFor);
-                              setDeleteNowAvailable(preview.deleteNowAvailable === true);
-                              setDeletePending(null);
-                            }).catch((cause: unknown) => {
-                              setDeleteError(cause instanceof Error && cause.message ? cause.message : t.common.errorGeneric);
-                            });
-                          }}>
-                            {t.mobile.account.deleteAccount}
-                          </button>
-                        ) : null}
-                        <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(false)}>
-                          {t.common.cancel}
-                        </button>
-                        </>
-                      ) : (
-                        <button type="button" className="aw-button aw-button-secondary" onClick={() => setAccountMenuOpen(true)}>
-                          {t.mobile.account.manageAccount}
-                        </button>
-                      )
-                    ) : null}
-                    {profileOpen || passwordOpen ? null : <>
-                    {deleteOpen ? (
-                      <div className="aw-profile-form">
-                        <p className="aw-photo-hint">{t.mobile.account.deleteAccountBody}</p>
-                        {deleteBlocked && deleteBlocked.length > 0 ? (
-                          <>
-                            <p className="aw-profile-error">{t.mobile.account.deleteAccountBlocked}</p>
-                            {deleteBlocked.map((reason) => (
-                              <p key={reason} className="aw-profile-error">{t.mobile.account.deleteAccountReasons[reason as 'open_contract' | 'open_agent_contract' | 'unpaid_bill' | 'bill_awaiting_review' | 'unrefunded_deposit']}</p>
-                            ))}
-                          </>
-                        ) : null}
-                        {deleteScheduled ? <p className="aw-photo-hint">{t.mobile.account.deleteAccountScheduled.replace("{date}", new Date(deleteScheduled).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }))}</p> : null}
-                        {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
-                        {!deleteBlocked?.length && !deleteScheduled ? (
-                          <>
-                            {deleteNowAvailable ? <button type="button" className="aw-button aw-button-primary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('now')}>{t.mobile.account.deleteAccountNow}</button> : null}
-                            <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy || deleteBlocked === null} onClick={() => setDeletePending('later')}>{t.mobile.account.deleteAccountLater}</button>
-                          </>
-                        ) : null}
-                        {deleteScheduled && props.onCancelAccountDeletion ? (
-                          <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => {
-                            setDeleteError(null);
-                            setDeletePasswordStep(false);
-                            setDeletePending("cancel");
-                          }}>{t.mobile.account.deleteAccountCancel}</button>
-                        ) : null}
-                        <button type="button" className="aw-button aw-button-secondary" disabled={deleteBusy} onClick={() => { setDeleteOpen(false); setDeletePending(null); }}>
-                          {t.common.cancel}
-                        </button>
-                      </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="aw-signout"
-                      disabled={props.navigationDisabled}
-                      onClick={props.onSignOut}
-                    >
-                      {t.common.signOut}
-                    </button>
-                    {props.onSignOutEverywhere ? (
-                      <button
-                        type="button"
-                        className="aw-signout aw-signout-all"
-                        disabled={props.navigationDisabled}
-                        data-testid="account.signOutAll"
-                        onClick={() => {
-                          setSignOutAllError(null);
-                          setSignOutAllOpen(true);
-                        }}
-                      >
-                        {t.webSession.signOutAll}
-                      </button>
-                    ) : null}
-                    </>}
-                  </div>
-                </details>
         </aside>
 
           <main
             id="agent-web-main"
             className="aw-main"
-            data-page-width={agentWebPageWidth(props.activeTab, props.creating)}
+            data-page-width={settingsOpen ? "wide" : agentWebPageWidth(props.activeTab, props.creating)}
             tabIndex={-1}
           >
-            {props.children}
+            {settingsPage ?? props.children}
           </main>
         <WebDialog
           open={signOutAllOpen}
@@ -945,9 +1463,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               </h2>
               <p>{complete === "password" ? t.mobile.account.password.updated : t.mobile.account.profileSaved}</p>
               <button type="button" className="aw-button aw-button-primary" onClick={() => {
-                const returnToOverview = complete === "password";
+                // Settings page (18 Nov 2026): the user stays on the section they saved from.
                 setComplete(null);
-                if (returnToOverview) navigate("dashboard");
               }}>
                 {t.mobile.account.done}
               </button>
@@ -984,7 +1501,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   />
                 </label>
               ) : null}
-              {deletePasswordStep && captchaRequired ? <HcaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
+              {deletePasswordStep && captchaRequired ? <CaptchaField resetKey={captchaKey} onToken={setCaptchaToken} /> : null}
               {deleteError ? <p className="aw-profile-error" role="alert">{deleteError}</p> : null}
               <div className="aw-confirm-actions">
                 <button

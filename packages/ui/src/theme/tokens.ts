@@ -8,6 +8,8 @@ export const tokens = {
     brand: {
       50: '#fff9e8',
       100: '#fff0c4',
+      /** Hairline border in the brand family (colour system v1.1). */
+      200: '#fcde96',
       500: '#f8b615',
       600: '#f8b615',
       700: '#d99a0d',
@@ -42,15 +44,16 @@ export const tokens = {
 
     /** Soft status surfaces (pills / icon wells) — prefer over flooding role colors */
     subtle: {
-      successBg: '#dcfce7',
-      successFg: '#15803d',
-      warningBg: '#ffedd5',
-      warningFg: '#c2410c',
-      dangerBg: '#fee2e2',
-      dangerFg: '#dc2626',
-      infoBg: '#dbeafe',
-      infoFg: '#1d4ed8',
-      brandBg: '#fef3c7',
+      // Colour system v1.1 (CI, 12 Nov 2026): bg 50 · text 800 of the CI family.
+      successBg: '#f0fdf4',
+      successFg: '#166534',
+      warningBg: '#fffbeb',
+      warningFg: '#92400e',
+      dangerBg: '#fef2f2',
+      dangerFg: '#991b1b',
+      infoBg: '#eff6ff',
+      infoFg: '#1e3a8a',
+      brandBg: '#fff9e8',
       neutralBg: '#f1f5f9',
       track: '#e2e8f0',
     },
@@ -66,12 +69,81 @@ export const tokens = {
 
     // 🎭 Multi-App Roles & Services
     roles: {
-      guest: '#f8b615',     // 🟡 Warm Yellow (Marketplace)
-      tenant: '#00c68d',    // 🟢 Neo Mint (Tenant)
-      landlord: '#0055da',  // 🔵 Electric Blue (Landlord)
-      agent: '#ff0052',     // 🔴 Neon Rose (Agent)
-      admin: '#0f172a',     // ⚫ Deep Slate (Admin / Operations)
-      services: '#0284c7',  // 🔷 Sky Blue (Services Hub)
+      // Colour system v1.1 (CI, 12 Nov 2026): deep 800 tones of the CI families; agent is brand ink + yellow.
+      guest: '#f8b615',      // brand yellow
+      tenant: '#166534',     // success 800
+      landlord: '#1e3a8a',   // info 800
+      agent: '#211e1e',      // brand ink (paired with yellow)
+      self_owner: '#92400e', // warning 800 ("Owner")
+      admin: '#334155',      // slate 700
+      services: '#475569',   // slate 600
+    },
+
+    // 🌙 Role colours for text, icons and spinners in dark mode (v1.1). The deep role tones read under
+    // 2.4:1 on the dark background, so dark mode uses these light steps (≥ 6.5:1 on #211e1e and #2f2b2b).
+    // Solid role fills (hero card, solid badge) keep `roles` with white text.
+    rolesOnDark: {
+      guest: '#f8b615',      // brand yellow
+      tenant: '#4ade80',     // success 400
+      landlord: '#93c5fd',   // info 300
+      agent: '#f8b615',      // brand yellow (ink + yellow pair)
+      self_owner: '#fdba74', // warning 300
+      admin: '#cbd5e1',      // slate 300
+      services: '#94a3b8',   // slate 400
+    },
+
+    // 💎 Role identity (Mos 17-18 Nov 2026, design "admin profile" จ2): warm luxury jewel + metal pairs, used ONLY
+    // where the UI names a role (role tile, the badge on the own avatar, the ring around it, the role picker).
+    // `roles` / `rolesOnDark` above stay the accent colours of each role's screens. deep = dark tile and light-mode
+    // icon/ring, light = dark-mode icon/ring, soft = light-mode tile. Admin (NESTYK itself) keeps ink + gold in both modes.
+    roleIdentity: {
+      guest: { deep: '#854D0E', light: '#FEF3C7', soft: '#FEF3C7' },
+      tenant: { deep: '#4C1D6E', light: '#E9D5FF', soft: '#F3E8FF' },
+      landlord: { deep: '#172554', light: '#E9D8A6', soft: '#E0E7FF' },
+      agent: { deep: '#065F46', light: '#F6D68A', soft: '#D1FAE5' },
+      self_owner: { deep: '#6D1A36', light: '#FBCFE8', soft: '#FCE7F3' },
+      admin: { deep: '#211E1E', light: '#F8B615', soft: '#211E1E' },
+      services: { deep: '#44403C', light: '#E7E5E4', soft: '#F0EEEC' },
+    },
+
+    // 🌗 v1.2 (12 Nov 2026, dark = B+C): lifted grey for selected / leading elements in dark mode
+    // (selected menu item, workspace box, own avatar). Same value as the web's --aw-lift.
+    lift: '#4A4545',
+    /** Dark mode hover on lifted elements (selected menu item, workspace box). Same value as the web's --aw-lift-hover. */
+    liftHover: '#575151',
+
+    // 🌙 Text on dark surfaces (v1.2 B+C, Mos 12 Nov 2026): primary / body / muted. Each reads >= 4.5:1 on the dark
+    // page (#211E1E) and on cards (#2F2B2B). Same values as the web's --aw-text-1 / --aw-text-2 / --aw-text-3.
+    textOnDark: {
+      primary: '#FFFFFF',
+      secondary: '#E2E8F0',
+      muted: '#A8B4C6',
+    },
+
+    // 🌙 Text fields in dark mode (v1.2 B+C, 13 Nov 2026): card fill, lifted-hover edge, page fill when read-only,
+    // white text, muted placeholder, light red error. Used by MobileInput and the lead form fields.
+    // 🌙 Status text on dark surfaces (v1.2 B+C, 13 Nov 2026): same steps as the dark status pill text.
+    statusOnDark: {
+      success: '#4ADE80',
+      warning: '#FCD34D',
+      danger: '#FCA5A5',
+      info: '#93C5FD',
+    },
+
+    fieldOnDark: {
+      fill: '#2F2B2B',
+      line: '#575151',
+      readOnly: '#211E1E',
+      text: '#FFFFFF',
+      placeholder: '#A8B4C6',
+      error: '#FCA5A5',
+    },
+
+    // 👤 Initials avatar of other people (leads, tenants): one neutral tone for everyone, never the status,
+    // role or brand colour (Mos, 12 Nov 2026, design B4). Yellow stays for the signed-in user's own avatar.
+    avatar: {
+      light: { bg: '#E2E8F0', fg: '#334155' }, // v1.2: CI neutral text (#1E293B was off-CI, Mos 12 Nov 16:13)
+      dark: { bg: '#4A4545', fg: '#E7E5E4' },
     },
   },
 
@@ -99,6 +171,29 @@ export const tokens = {
     lineHeightRatio: 1.5, // บังคับสัดส่วน 1.45–1.5x สำหรับภาษาไทยป้องกันสระตกขอบ
   },
 } as const;
+
+type RoleKey = keyof typeof tokens.colors.roles;
+
+/** A role colour for text, icons or spinners: the light dark-mode step when `isDark`, other colours unchanged. */
+export function roleOnDark(color: string, isDark: boolean): string {
+  if (!isDark) return color;
+  const hex = color.toLowerCase();
+  const role = (Object.keys(tokens.colors.roles) as RoleKey[]).find((key) => tokens.colors.roles[key] === hex);
+  return role ? tokens.colors.rolesOnDark[role] : color;
+}
+
+type RoleIdentityKey = keyof typeof tokens.colors.roleIdentity;
+
+/**
+ * Colours of a role tile (and the ring around the own avatar): light mode = soft tile, deep icon and ring;
+ * dark mode = deep tile, light icon and ring. Admin is the one exception: ink tile, gold icon and ring in both modes.
+ * Unknown roles fall back to the services (neutral) set.
+ */
+export function roleTileColors(role: string, isDark: boolean): { bg: string; fg: string; ring: string } {
+  const set = tokens.colors.roleIdentity[(role in tokens.colors.roleIdentity ? role : 'services') as RoleIdentityKey];
+  if (isDark || role === 'admin') return { bg: set.deep, fg: set.light, ring: set.light };
+  return { bg: set.soft, fg: set.deep, ring: set.deep };
+}
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
 export type TextVariant = 'h1' | 'h2' | 'h3' | 'body' | 'caption' | 'link';

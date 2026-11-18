@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { WebView } from "react-native-webview";
+import { tokens } from "@nestyk/ui/native";
 import { isPdfDocumentUrl, pdfViewerHtml } from "../lib/pdf-viewer/html";
 export { isPdfDocumentUrl } from "../lib/pdf-viewer/html";
 
@@ -44,7 +45,7 @@ export function ContractDocumentPreview({ url }: { url: string }) {
           onMessage={() => {}}
           renderLoading={() => (
             <View style={styles.overlay}>
-              <ActivityIndicator />
+              <ActivityIndicator color={tokens.colors.primary} />
             </View>
           )}
           renderError={() => (
@@ -73,16 +74,16 @@ const styles = StyleSheet.create({
   box: {
     flex: 1,
     minHeight: 240,
-    backgroundColor: "#EEF2F5",
+    backgroundColor: "#F1F5F9",
     overflow: "hidden",
   },
-  viewer: { flex: 1, backgroundColor: "#EEF2F5" },
+  viewer: { flex: 1, backgroundColor: "#F1F5F9" },
   image: { width: "100%", height: "100%" },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     gap: 16,
-    backgroundColor: "#EEF2F5",
+    backgroundColor: "#F1F5F9",
   },
 });

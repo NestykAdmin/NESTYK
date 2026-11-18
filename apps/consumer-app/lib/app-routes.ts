@@ -12,6 +12,8 @@ export const ROLE_PATH: Record<Exclude<UserRole, 'guest'>, string> = {
   tenant: '/tenant',
   landlord: '/landlord',
   admin: '/admin',
+  // Round 2 (Mos 18 Nov 2026): "/owner" stays the old landlord link, so the self owner lives at "/self-owner".
+  self_owner: '/self-owner',
 };
 
 /** Screens that are their own route files (expo-router renders them, the app shell stays out). */
@@ -28,7 +30,7 @@ export type LegalPath = (typeof LEGAL_PATHS)[number];
 const GUEST_SEGMENTS = new Set(['search', 'services']);
 
 /** Order used when a signed-in user lands without a remembered role (Q5). Admin is never picked automatically. */
-const LANDING_ORDER: UserRole[] = ['agent', 'landlord', 'tenant'];
+const LANDING_ORDER: UserRole[] = ['agent', 'landlord', 'tenant', 'self_owner'];
 
 export type ParsedAppPath =
   | { kind: 'app'; role: UserRole; rest: string[] }
@@ -105,7 +107,7 @@ export function canOpenRole(role: UserRole, roles: readonly string[] | null | un
   return role === 'guest' || (roles ?? []).includes(role);
 }
 
-/** Q5: the remembered role if the account still has it, else agent → landlord → tenant → guest. */
+/** Q5: the remembered role if the account still has it, else agent → landlord → tenant → self_owner → guest. */
 export function pickLandingRole(roles: readonly string[] | null | undefined, lastRole?: string | null): UserRole {
   const have = new Set(roles ?? []);
   if (lastRole && lastRole !== 'guest' && lastRole !== 'admin' && have.has(lastRole)) return lastRole as UserRole;
@@ -121,6 +123,107 @@ export function postLoginPath(next: unknown, roles: readonly string[] | null | u
     if (parsed.kind === 'app' && canOpenRole(parsed.role, roles)) return target;
   }
   return roleHomePath(pickLandingRole(roles, lastRole));
+}
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * Guest web on the same site (nestyk-guest-session-plan-20261112.md A5–A6, Mos D1 12 Nov 2026). On nestyk.com the
+ * guest pages are the guest web (apps/web, Next.js); this app keeps sign-in, sign-up and the role pages. Sign-in
+ * started on a guest page comes back to it with a full page load (it is another app on the same site).
+ * ---------------------------------------------------------------------------------------------------------------- */
+
+/** Language prefixes of the guest web (Thai has none). Kept in step with apps/web/i18n/routing.ts by a test. */
+export const GUEST_WEB_LOCALES = ['en', 'ja', 'zh'] as const;
+/** One-segment guest web pages. */
+export const GUEST_WEB_PAGES = ['search', 'saved', 'profile'] as const;
+/** Guest web pages with one id below them: /rooms/<id>, /rent/<area>. */
+export const GUEST_WEB_TREES = ['rooms', 'rent'] as const;
+
+/**
+ * EXPO_PUBLIC_GUEST_WEB_URL: unset (or not usable) = off, as before. "/" = the guest web is this same site
+ * (production nestyk.com). An http(s) address = the guest web there (local dev: http://localhost:3000).
+ */
+export function guestWebBase(value: unknown): string | null {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (text === '/') return '';
+  if (!/^https?:\/\/[^/]/i.test(text)) return null;
+  try {
+    return new URL(text).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A `next` that is a guest web page (path + query, optional language prefix), else null. Same safety as safeNextPath.
+ * The path comes back in lower case (the guest web's paths are; review R7); the query keeps its case.
+ */
+export function guestWebPath(next: unknown): string | null {
+  const value = Array.isArray(next) ? next[0] : next;
+  if (typeof value !== 'string' || value.length === 0 || value.length > 512) return null;
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null;
+  if (/^\/[^?#]*:/.test(value) || /[\u0000-\u001f]/.test(value)) return null;
+  const cut = value.search(/[?#]/);
+  const pathname = (cut === -1 ? value : value.slice(0, cut)).toLowerCase();
+  const back = cut === -1 ? pathname : `${pathname}${value.slice(cut)}`;
+  const segments = segmentsOf(pathname);
+  const rest = (GUEST_WEB_LOCALES as readonly string[]).includes(segments[0] ?? '') ? segments.slice(1) : segments;
+  if (rest.length === 0) return back;
+  if (rest.length === 1 && (GUEST_WEB_PAGES as readonly string[]).includes(rest[0])) return back;
+  if (rest.length === 2 && (GUEST_WEB_TREES as readonly string[]).includes(rest[0])) return back;
+  return null;
+}
+
+/**
+ * Where a move of this app to a guest page goes when the guest web is on (`base` not null): that page on the guest
+ * web (its home when it has no such page). Null for role, sign-in and legal pages, or with the guest web off.
+ */
+export function guestWebUrlFor(appHref: string, base: string | null): string | null {
+  if (base === null) return null;
+  const parsed = parseAppPath(appHref.split(/[?#]/)[0]);
+  if (parsed.kind !== 'app' || parsed.role !== 'guest') return null;
+  return `${base}${guestWebPath(appHref) ?? '/'}`;
+}
+
+export type SignInTarget = { kind: 'app'; href: string } | { kind: 'guestWeb'; url: string };
+
+/**
+ * Where to go after sign-in / sign-up. `appHref` is this app's answer (postLoginHref). With the guest web on
+ * (`base` not null): a guest web `next` goes back there, and a landing on the guest home goes to the guest web.
+ * Role pages always stay in this app. With it off: `appHref`, exactly as before.
+ */
+export function signInTarget(next: unknown, base: string | null, appHref: string): SignInTarget {
+  if (base === null) return { kind: 'app', href: appHref };
+  const back = guestWebPath(next);
+  if (back) return { kind: 'guestWeb', url: `${base}${back}` };
+  const guestWeb = guestWebUrlFor(appHref, base);
+  return guestWeb ? { kind: 'guestWeb', url: guestWeb } : { kind: 'app', href: appHref };
+}
+
+/** Languages the guest web and this app share. */
+const PAGE_LOCALES = ['th', 'en', 'ja', 'zh'] as const;
+export type PageLocale = (typeof PAGE_LOCALES)[number];
+
+/**
+ * D6 (Mos 13 Nov 2026): the language of a sign-in page (login, register, reset, no-access) opened from a guest web
+ * page: `?lang=` when given, else the `next` page's language prefix (none = Thai). Null otherwise, so the language
+ * the app remembers stays (role pages keep their own setting).
+ */
+export function authPageLocale(pathname: string, search: string): PageLocale | null {
+  if (parseAppPath(pathname).kind !== 'auth') return null;
+  const query = parseQuery(search);
+  const lang = (query.lang ?? '').toLowerCase();
+  if ((PAGE_LOCALES as readonly string[]).includes(lang)) return lang as PageLocale;
+  const back = guestWebPath(query.next);
+  if (!back) return null;
+  const head = back.split(/[/?#]/)[1] ?? '';
+  return (GUEST_WEB_LOCALES as readonly string[]).includes(head) ? (head as PageLocale) : 'th';
+}
+
+/** "/register?next=…" / "/login?next=…" when `next` is a safe in-app or guest web page, so switching keeps it. */
+export function withNextParam(pathname: string, next: unknown): string {
+  const value = Array.isArray(next) ? next[0] : next;
+  const keep = safeNextPath(value) ?? guestWebPath(value);
+  return keep ? `${pathname}?next=${encodeURIComponent(keep)}` : pathname;
 }
 
 /* ------------------------------------------------------------------------------------------------------------------
@@ -159,7 +262,13 @@ export interface AppRouteState {
   calendarDate?: string;
   /** Tenant bills: payment history. */
   billHistory?: boolean;
+  /** Web settings page (Mos 18 Nov 2026): "/<role>/settings[/security|display|help]" for every role but guest. */
+  settings?: SettingsSection;
 }
+
+/** Sections of the web settings page; "profile" is "/<role>/settings". */
+export type SettingsSection = 'profile' | 'security' | 'display' | 'help';
+export const SETTINGS_SECTIONS: SettingsSection[] = ['profile', 'security', 'display', 'help'];
 
 /** What the shell passes in to get its URL. `detailOpen` = an R3 page is showing (no path yet). */
 export interface AppRouteSnapshot {
@@ -169,6 +278,7 @@ export interface AppRouteSnapshot {
   partyInbox?: 'contracts' | 'tenants' | null;
   calendarDate?: string | null;
   billHistory?: boolean;
+  settings?: SettingsSection | null;
   detailOpen?: boolean;
 }
 
@@ -196,6 +306,10 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['calendar'], state: { tab: 'calendar' } },
     { path: ['contacts'], state: { tab: 'contact' } },
     { path: ['services'], state: { tab: 'services' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
   ],
   tenant: [
     { path: [], state: { tab: 'dashboard' } },
@@ -203,6 +317,10 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['contracts'], state: { tab: 'dashboard', partyInbox: 'contracts' } },
     { path: ['bills'], state: { tab: 'bills' } },
     { path: ['services'], state: { tab: 'services' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
   ],
   landlord: [
     { path: [], state: { tab: 'dashboard' } },
@@ -210,9 +328,27 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['tenants'], state: { tab: 'dashboard', partyInbox: 'tenants' } },
     { path: ['income'], state: { tab: 'income' } },
     { path: ['services'], state: { tab: 'services' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
   ],
-  // Admin pages are samples for now (plan 3.5): only its home has a path.
-  admin: [{ path: [], state: { tab: 'dashboard' } }],
+  // Admin pages are samples for now (plan 3.5): its home and the settings page (web shell, Mos 18 Nov 2026).
+  admin: [
+    { path: [], state: { tab: 'dashboard' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
+  ],
+  // Self owner (round 2): sample home plus the settings page.
+  self_owner: [
+    { path: [], state: { tab: 'dashboard' } },
+    { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
+    { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
+    { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
+    { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
+  ],
 };
 
 /** Old or mobile-only paths that open another page. "/agent/more" is the mobile More tab; the web sidebar has it all. */
@@ -282,13 +418,18 @@ export function stateToRoute(snapshot: AppRouteSnapshot): string | null {
   if (snapshot.detailOpen) return null;
   const pages = ROUTE_PAGES[snapshot.role] ?? [];
   const inbox = snapshot.partyInbox ?? undefined;
-  const page = pages.find((p) =>
-    inbox
-      ? p.state.partyInbox === inbox
-      : !p.state.partyInbox &&
-        p.state.tab === snapshot.tab &&
-        (snapshot.tab !== 'clients' || !!p.state.creatingTenant === !!snapshot.creatingTenant),
-  );
+  // A role without a settings page (guest) ignores the settings flag and gets its normal page (review R1).
+  const settingsPage = snapshot.settings ? pages.find((p) => p.state.settings === snapshot.settings) : undefined;
+  const page = settingsPage
+    ? settingsPage
+    : pages.find((p) =>
+        !p.state.settings &&
+        (inbox
+          ? p.state.partyInbox === inbox
+          : !p.state.partyInbox &&
+            p.state.tab === snapshot.tab &&
+            (snapshot.tab !== 'clients' || !!p.state.creatingTenant === !!snapshot.creatingTenant)),
+      );
   if (!page) return null;
   const base = snapshot.role === 'guest' ? '' : roleHomePath(snapshot.role);
   const path = [base, ...page.path].join('/') || '/';

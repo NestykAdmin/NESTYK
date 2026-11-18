@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { useMobileTheme } from '../theme/ThemeContext';
-import { STATUS_PILL_TONES, type MobileStatusPillTone, type MobileStatusPillToneKey } from './MobileStatusPill';
+import { pillToneFor, type MobileStatusPillTone, type MobileStatusPillToneKey } from './MobileStatusPill';
 
 export type MobileFilterChipProps = {
   label: string;
@@ -39,8 +39,8 @@ export function MobileFilterChip({
   testID,
   disabled = false,
 }: MobileFilterChipProps) {
-  const { theme } = useMobileTheme();
-  const colors = typeof tone === 'string' ? STATUS_PILL_TONES[tone] : tone;
+  const { theme, isDark } = useMobileTheme();
+  const colors = tone ? pillToneFor(tone, isDark) : undefined;
   const fill = selected
     ? colors
       ? { backgroundColor: colors.bg, borderColor: colors.fg }

@@ -111,7 +111,7 @@ export function AgentRoomDetailModal({
               paddingBottom: sharePreviewing ? 0 : 8,
               flexShrink: 0,
               zIndex: 1,
-              backgroundColor: sharePreviewing ? '#0F172A' : theme.surface,
+              backgroundColor: sharePreviewing ? '#211E1E' : theme.surface,
               borderBottomWidth: sharePreviewing ? 0 : 1,
               borderBottomColor: theme.border,
             }}
@@ -169,7 +169,7 @@ export function AgentRoomDetailModal({
             )}
           </View>
           {!modalReady ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : detailError ? (
             <View style={{ padding: 24, gap: 16 }}>
               <Text style={{ color: theme.textHeading }}>{detailError}</Text>
@@ -216,7 +216,7 @@ export function AgentRoomDetailModal({
               />
             )
           ) : (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           )}
         </SafeAreaView>
       </SafeAreaProvider>

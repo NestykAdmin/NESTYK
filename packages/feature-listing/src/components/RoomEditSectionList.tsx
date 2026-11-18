@@ -82,7 +82,7 @@ function ProgressDonut({
           cx={DONUT_SIZE / 2}
           cy={DONUT_SIZE / 2}
           r={DONUT_R}
-          stroke="#EEF2F6"
+          stroke="#F1F5F9"
           strokeWidth={DONUT_STROKE}
           fill="none"
         />
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     backgroundColor: ICON_BG,
   },
   iconWrapError: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
   },
   rowBody: {
     flex: 1,

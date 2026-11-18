@@ -75,7 +75,7 @@ export function AgentRoomsPage({ reloadToken, onReloadSettled, onAddRoom }: Agen
   const copy = t.agent.listings;
   const web = copy.web;
   const cr = t.agent.createRoom;
-  const localeTag = locale === "th" ? "th-TH" : locale;
+  const localeTag = locale === "th" ? "th-TH-u-ca-gregory" : locale;
 
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");

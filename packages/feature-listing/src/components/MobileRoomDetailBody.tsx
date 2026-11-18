@@ -84,7 +84,7 @@ function formatDisplayDate(iso: string | null | undefined, locale: string) {
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   if (Number.isNaN(date.getTime())) return iso;
   try {
-    return date.toLocaleDateString(locale === 'th' ? 'th-TH' : `${locale}-u-ca-gregory`, {
+    return date.toLocaleDateString(locale === 'th' ? 'th-TH-u-ca-gregory' : `${locale}-u-ca-gregory`, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -1037,7 +1037,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 14,
     paddingVertical: 0,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#211E1E',
   },
   previewBannerText: {
     flex: 1,
@@ -1067,7 +1067,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: 'rgba(15,23,42,0.35)',
+    backgroundColor: 'rgba(33,30,30,0.35)',
     padding: 16,
   },
   photoFallbackText: {
@@ -1444,7 +1444,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     alignItems: 'center',
     justifyContent: 'center',
   },

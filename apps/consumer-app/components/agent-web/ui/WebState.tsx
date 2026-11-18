@@ -63,7 +63,7 @@ export function WebState(props: WebStateProps) {
       data-testid={props.testID ?? `state.${props.kind}`}
     >
       <span className="awu-state-icon" aria-hidden="true">
-        <MobileIcon name={ICON[props.kind]} size={22} color={props.kind === "error" ? "#B42318" : theme.textSecondary} />
+        <MobileIcon name={ICON[props.kind]} size={22} color={props.kind === "error" ? "#991B1B" : theme.textSecondary} />
       </span>
       <p className="awu-state-title">{props.title ?? title}</p>
       <p className="awu-state-desc">{props.description ?? description}</p>

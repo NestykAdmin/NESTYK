@@ -1,0 +1,475 @@
+/* W4 create tenant page (layout ก, Mos 17 Nov 2026): steps rail on the left, lists and the confirm step on the right. */
+.awtc-page {
+  padding: var(--aw-s6) 0 var(--aw-s8);
+}
+.awtc-layout {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: var(--aw-s6);
+  align-items: start;
+}
+
+/* Rail */
+.awtc-rail {
+  position: sticky;
+  top: var(--aw-s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s4);
+  padding: var(--aw-s4);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-lg);
+  background: var(--aw-surface);
+}
+.awtc-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s2);
+}
+.awtc-progress-text {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--aw-s2);
+  font-size: var(--aw-t-small);
+  color: var(--aw-muted);
+}
+.awtc-progress-text b {
+  color: var(--aw-ink);
+  font-size: var(--aw-t-body);
+}
+.awtc-bar {
+  display: block;
+  height: 6px;
+  border-radius: var(--aw-r-pill);
+  background: var(--aw-bg);
+  overflow: hidden;
+}
+.awtc-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--aw-brand);
+  transition: width 200ms ease;
+}
+.awtc-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.awtc-step {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--aw-s3);
+  padding: var(--aw-s2) var(--aw-s2);
+  border: 0;
+  border-radius: var(--aw-r-sm);
+  background: transparent;
+  color: var(--aw-muted);
+  font: inherit;
+  text-align: left;
+}
+.awtc-step.is-current {
+  background: var(--aw-brand-soft);
+  color: var(--aw-ink);
+}
+.awtc-step-done {
+  cursor: pointer;
+  color: var(--aw-ink);
+}
+.awtc-step-done:hover:not(:disabled) {
+  background: var(--aw-bg);
+}
+.awtc-step-done:focus-visible {
+  outline: 2px solid var(--aw-ring);
+  outline-offset: 2px;
+}
+.awtc-step-n {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--aw-border);
+  border-radius: var(--aw-r-pill);
+  font-size: var(--aw-t-small);
+  font-weight: 600;
+}
+.awtc-step.is-current .awtc-step-n {
+  border-color: var(--aw-brand);
+  background: var(--aw-brand);
+  color: var(--aw-black);
+}
+.awtc-step-done .awtc-step-n {
+  border-color: var(--aw-ink);
+  background: var(--aw-ink);
+  color: var(--aw-surface);
+}
+.awtc-step-v {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--aw-t-body);
+}
+.awtc-step-v small {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-caption);
+}
+.awtc-step-v b {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.awtc-step-change {
+  flex: none;
+  font-size: var(--aw-t-caption);
+  text-decoration: underline;
+}
+
+/* Main column */
+.awtc-main {
+  min-width: 0;
+}
+.awtc-list {
+  display: flex;
+  max-width: 900px;
+  flex-direction: column;
+  gap: var(--aw-s2);
+}
+.awtc-confirm {
+  display: flex;
+  max-width: 720px;
+  flex-direction: column;
+  gap: var(--aw-s4);
+}
+.awtc-search {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  padding: 0 var(--aw-s3);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-surface);
+  color: var(--aw-muted);
+}
+.awtc-search:focus-within {
+  outline: 2px solid var(--aw-ring);
+  outline-offset: 1px;
+}
+.awtc-search .awtc-input {
+  border: 0;
+  background: transparent;
+  outline: none;
+}
+.awtc-input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: var(--aw-s2) var(--aw-s3);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+  font: inherit;
+  font-size: var(--aw-t-body);
+}
+.awtc-input:focus-visible {
+  outline: 2px solid var(--aw-ring);
+  outline-offset: 1px;
+}
+.awtc-input::placeholder {
+  color: var(--aw-muted);
+}
+.awtc-input.is-bad {
+  border-color: var(--aw-danger);
+}
+.awtc-input:disabled {
+  opacity: 0.6;
+}
+textarea.awtc-input {
+  min-height: 88px;
+  resize: vertical;
+}
+.awtc-hint {
+  margin: 0;
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.awtc-err {
+  color: var(--aw-danger);
+  font-size: var(--aw-t-small);
+}
+.awtc-req {
+  color: var(--aw-danger);
+}
+.awtc-muted {
+  margin: 0;
+  color: var(--aw-muted);
+  font-size: var(--aw-t-body);
+}
+
+/* Rows: the whole row is the button (a click moves to the next step, like a tap in the app). */
+.awtc-pick {
+  display: flex;
+  width: 100%;
+  min-height: 64px;
+  align-items: center;
+  gap: var(--aw-s3);
+  padding: var(--aw-s3) var(--aw-s4);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.awtc-pick:hover:not(:disabled) {
+  border-color: var(--aw-ink);
+}
+.awtc-pick:focus-visible {
+  outline: 2px solid var(--aw-ring);
+  outline-offset: 2px;
+}
+.awtc-pick.is-on {
+  border-color: var(--aw-brand);
+  background: var(--aw-brand-soft);
+}
+.awtc-pick:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.awtc-pick-v {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--aw-t-body);
+}
+.awtc-pick-v b {
+  font-weight: 600;
+}
+.awtc-pick-v small {
+  overflow: hidden;
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.awtc-avatar,
+.awtc-thumb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--aw-r-pill);
+  background: var(--aw-bg);
+  color: var(--aw-ink);
+  font-size: var(--aw-t-small);
+  font-weight: 600;
+}
+.awtc-thumb {
+  border-radius: var(--aw-r-sm);
+}
+.awtc-go {
+  display: inline-flex;
+  flex: none;
+  color: var(--aw-muted);
+}
+.awtc-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aw-s3);
+  margin-top: var(--aw-s2);
+}
+.awtc-confirm-side {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--aw-s3);
+  margin-left: auto;
+}
+
+/* Cards of the confirm step */
+.awtc-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s4);
+  padding: var(--aw-s4) var(--aw-s5);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-lg);
+  background: var(--aw-surface);
+}
+.awtc-card.is-bad {
+  border-color: var(--aw-danger);
+}
+.awtc-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s3);
+}
+.awtc-card-titles {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.awtc-card-titles h2 {
+  margin: 0;
+  color: var(--aw-ink);
+  font-size: var(--aw-t-title);
+  font-weight: 600;
+}
+.awtc-card-titles small {
+  color: var(--aw-muted);
+  font-size: var(--aw-t-small);
+}
+.awtc-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-bg);
+  color: var(--aw-ink);
+}
+.awtc-edit {
+  flex: none;
+}
+.awtc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aw-s3) var(--aw-s4);
+}
+.awtc-grid-sep {
+  padding-top: var(--aw-s4);
+  border-top: 1px solid var(--aw-border);
+}
+.awtc-span2 {
+  grid-column: 1 / -1;
+}
+.awtc-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aw-s1);
+  color: var(--aw-ink);
+  font-size: var(--aw-t-small);
+  font-weight: 500;
+}
+.awtc-notice {
+  margin: 0;
+  padding: var(--aw-s3) var(--aw-s4);
+  border: 1px solid var(--aw-info-line);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-info-soft);
+  color: var(--aw-info);
+  font-size: var(--aw-t-body);
+}
+.awtc-notice.is-danger {
+  border-color: var(--aw-danger-line);
+  background: var(--aw-danger-soft);
+  color: var(--aw-danger);
+}
+.awtc-cta {
+  min-width: 160px;
+}
+.awtc-cta:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Booked dialog (same as the app's "Booked" sheet) */
+.awtc-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--aw-s4);
+  background: rgba(33, 30, 30, 0.48);
+}
+.awtc-dialog {
+  display: flex;
+  width: min(440px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--aw-s3);
+  padding: var(--aw-s6);
+  border-radius: var(--aw-r-xl);
+  background: var(--aw-surface);
+  text-align: center;
+}
+.awtc-dialog h2 {
+  margin: 0;
+  color: var(--aw-ink);
+  font-size: var(--aw-t-page);
+}
+.awtc-done-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--aw-r-pill);
+  background: var(--aw-success-soft);
+  color: var(--aw-success);
+}
+.awtc-dialog-actions {
+  display: flex;
+  width: 100%;
+  gap: var(--aw-s3);
+  margin-top: var(--aw-s2);
+}
+.awtc-dialog-actions > * {
+  flex: 1;
+}
+
+/* Narrow: the rail becomes a row on top. */
+@media (max-width: 1100px) {
+  .awtc-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .awtc-rail {
+    position: static;
+  }
+  .awtc-steps {
+    flex-direction: row;
+  }
+  .awtc-steps > li {
+    min-width: 0;
+    flex: 1;
+  }
+  .awtc-step-change {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .awtc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .awtc-step-v small {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .awtc-bar > span {
+    transition: none;
+  }
+}

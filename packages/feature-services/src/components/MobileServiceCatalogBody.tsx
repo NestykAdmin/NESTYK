@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   sectionLabel: { fontFamily: tokens.typography.native.body, fontSize: 11, lineHeight: 16, fontWeight: '600', letterSpacing: 0.8 },
   ticketCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, padding: 12 },
   ticketPressed: { opacity: 0.9 },
-  ticketIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E0F2FE', alignItems: 'center', justifyContent: 'center' },
+  ticketIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   ticketText: { flex: 1 },
   ticketTitle: { fontFamily: tokens.typography.native.bodyBold, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   ticketTime: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18 },

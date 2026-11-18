@@ -94,8 +94,26 @@
   flex-wrap: wrap;
 }
 .aov-quick-actions .aw-button {
-  min-height: 42px;
-  padding: var(--aw-s3) var(--aw-s5);
+  min-height: 40px;
+  padding: 0 var(--aw-s4);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: var(--aw-t-small);
+}
+/* CI pair like the guest listing hero (Mos 18 Nov 2026): yellow primary + ink button beside it. Dark mode turns the
+   ink button light, since ink on the dark page would disappear. Still one yellow button per page. */
+.aov-scroll .aw-button-ink {
+  background: #211e1e;
+  color: #ffffff !important;
+}
+.aov-scroll .aw-button-ink:hover {
+  background: #3f3a3a;
+}
+.aov-scroll[data-theme="dark"] .aw-button-ink {
+  background: #f1f5f9;
+  color: #211e1e !important;
+}
+.aov-scroll[data-theme="dark"] .aw-button-ink:hover {
+  background: #ffffff;
 }
 .aov-demo {
   display: flex;
@@ -128,11 +146,11 @@
   border-radius: var(--aw-r-md);
   background: var(--aw-surface);
   color: var(--aw-ink);
-  box-shadow: 0 2px 5px #1a2b4803;
+  box-shadow: 0 2px 5px #211e1e03;
 }
 button.aov-kpi:hover {
   border-color: var(--aw-brand-line);
-  box-shadow: 0 3px 12px #1a2b4809;
+  box-shadow: 0 3px 12px #211e1e09;
 }
 .aov-kpi-top {
   display: flex;
@@ -144,6 +162,20 @@ button.aov-kpi:hover {
 }
 .aov-kpi-top > svg {
   flex-shrink: 0;
+}
+/* v1.2 (12 Nov 2026, design B): KPI icons sit on an ink chip with a yellow icon; dark mode (B+C) uses a yellow tint.
+   Kept on 18 Nov 2026 (Mos, option ก): the brand CI pair in page content, like the guest listing pages. */
+.aov-kpi-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--aw-r-sm);
+  background: #211e1e;
+}
+.aov-scroll[data-theme="dark"] .aov-kpi-icon {
+  background: #f8b61533;
 }
 .aov-kpi-value {
   display: block;
@@ -180,7 +212,7 @@ button.aov-kpi:hover {
   border: 1px solid var(--aw-border);
   border-radius: var(--aw-r-md);
   background: var(--aw-surface);
-  box-shadow: 0 2px 5px #1a2b4803;
+  box-shadow: 0 2px 5px #211e1e03;
   overflow: hidden;
 }
 .aov-panel-heading {
@@ -341,7 +373,7 @@ button.aov-kpi:hover {
   background: var(--aw-bg);
 }
 .aov-tone-success {
-  color: #28734a;
+  color: #166534;
   background: var(--aw-success-soft);
 }
 .aov-tone-warning {
@@ -643,7 +675,7 @@ button.aov-kpi:hover {
   overflow-wrap: anywhere;
 }
 .aov-money-success {
-  color: #378256;
+  color: #166534;
 }
 .aov-money-danger {
   color: var(--aw-danger);
@@ -734,44 +766,45 @@ button.aov-kpi:hover {
   margin-top: var(--aw-s4);
 }
 .aov-scroll[data-theme="dark"] .aov-demo {
-  color: #e6c77f;
-  border-color: #625029;
+  color: #fcde96;
+  border-color: #211E1E;
   background: #f4bd4210;
 }
 .aov-scroll[data-theme="dark"] .aov-text-link,
 .aov-scroll[data-theme="dark"] .aov-next-label,
 .aov-scroll[data-theme="dark"] .aov-appointment.is-next > time {
-  color: #e6c77f !important;
+  color: #fcde96 !important;
 }
+/* v1.2 B+C: tone chips use the dark status pill fills and text (STATUS_PILL_DARK_TONES) */
 .aov-scroll[data-theme="dark"] .aov-tone-success {
-  color: #a4d3b3;
-  background: #79bf9220;
+  color: #4ade80;
+  background: rgba(34,197,94,0.3);
 }
 .aov-scroll[data-theme="dark"] .aov-tone-warning {
-  color: #e3c180;
-  background: #dbb35020;
+  color: #fcde96;
+  background: rgba(248,182,21,0.3);
 }
 .aov-scroll[data-theme="dark"] .aov-tone-danger,
 .aov-scroll[data-theme="dark"] .aov-overdue .aov-row-count {
-  color: #f2a6a9;
-  background: #c43e4325;
+  color: #fca5a5;
+  background: rgba(220,38,38,0.34);
 }
 .aov-scroll[data-theme="dark"] .aov-tone-info {
-  color: #a3c3ed;
-  background: #699add25;
+  color: #93c5fd;
+  background: rgba(96,165,250,0.3);
 }
 .aov-scroll[data-theme="dark"] .aov-work-total {
-  color: #e3c180;
-  background: #dbb35025;
+  color: #fcde96;
+  background: rgba(248,182,21,0.3);
 }
 .aov-scroll[data-theme="dark"] .aov-money-success {
-  color: #92cda7;
+  color: #bbf7d0;
 }
 .aov-scroll[data-theme="dark"] .aov-money-danger {
-  color: #f2a6a9;
+  color: #fecaca;
 }
 .aov-scroll[data-theme="dark"] .aov-money-warning {
-  color: #e3c180;
+  color: #fcde96;
 }
 @container agent-overview (max-width: 1040px) {
   .aov-work-grid {

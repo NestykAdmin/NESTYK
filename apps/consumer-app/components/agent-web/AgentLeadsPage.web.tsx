@@ -41,7 +41,7 @@ export function AgentLeadsPage({ workFilter = null, reloadToken, onReloadSettled
   const web = c.web;
   const pager = t.agent.listings.web;
   const dash = t.agent.dashboard;
-  const localeTag = locale === "th" ? "th-TH" : locale;
+  const localeTag = locale === "th" ? "th-TH-u-ca-gregory" : locale;
 
   const [query, setQuery] = useState(memory?.query ?? "");
   const [search, setSearch] = useState((memory?.query ?? "").trim());
@@ -213,10 +213,9 @@ export function AgentLeadsPage({ workFilter = null, reloadToken, onReloadSettled
       key: "lead",
       header: web.colLead,
       cell: (lead) => {
-        const tone = leadStatusTone(leadDisplayStatus(lead));
         return (
           <span className="awl-lead">
-            <span className={`awl-avatar awl-tone-${tone}`} aria-hidden="true">
+            <span className="awl-avatar" aria-hidden="true">
               {leadAvatarInitials(lead.name)}
             </span>
             <span className="awr-room">

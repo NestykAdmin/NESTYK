@@ -275,7 +275,10 @@ export function LeadViewingSheet({
 
             <View style={styles.daySection}>
               <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>{c.dayViewings}</Text>
-              {dayViewings === null ? null : dayViewings.length === 0 ? (
+              {/* F2: a loading row holds the space so the save button does not jump when the list arrives. */}
+              {dayViewings === null ? (
+                <Text style={[styles.muted, { color: theme.textSecondary }]}>{t.common.loading}</Text>
+              ) : dayViewings.length === 0 ? (
                 <Text style={[styles.muted, { color: theme.textSecondary }]}>{c.noDayViewings}</Text>
               ) : (
                 dayViewings.map((v) => (
@@ -291,7 +294,8 @@ export function LeadViewingSheet({
 
             <MobileInput value={note} onChangeText={setNote} placeholder={c.notePlaceholder} maxLength={500} editable={!busy} />
             {error ? <Text style={[styles.error, { color: tokens.colors.danger }]}>{error}</Text> : null}
-            <MobileButton onPress={() => void save()} isLoading={busy} disabled={past}>
+            {/* F2: save waits for the day list, which the near-viewing warning needs (a failed load gives []). */}
+            <MobileButton onPress={() => void save()} isLoading={busy} disabled={past || dayViewings === null}>
               {viewing ? c.saveChange : c.save}
             </MobileButton>
             {viewing ? (

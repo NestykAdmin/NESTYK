@@ -6,9 +6,11 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { AgentModule } from './agent/agent.module';
 import { BillingModule } from './billing/billing.module';
+import { PublicListingsModule } from './public-listings/public-listings.module';
+import { MeModule } from './me/me.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), DatabaseModule, AuthModule, AgentModule, BillingModule],
+  imports: [ScheduleModule.forRoot(), DatabaseModule, AuthModule, AgentModule, BillingModule, PublicListingsModule, MeModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -34,6 +34,7 @@ import {
   MobileIcon,
   MobileInput,
   tokens,
+  roleOnDark,
   useMobileTheme,
   type AppIconName,
 } from '@nestyk/ui/native';
@@ -105,7 +106,7 @@ export function CreateLeadForm({
 }) {
   const { t, locale } = useLocale();
   const c = t.agent.leads;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const agent = tokens.colors.roles.agent;
   const [tab, setTab] = useState<FormTab>(initialTab);
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -587,7 +588,7 @@ export function CreateLeadForm({
           <Text style={[styles.heading, { color: theme.textHeading }]}>{c.profileTitle}</Text>
           <Text style={[styles.hint, { color: theme.textSecondary }]}>{c.profileSubtitle}</Text>
         </View>
-        <Text style={[styles.requiredLegend, { color: agent }]}>{c.requiredLegend}</Text>
+        <Text style={[styles.requiredLegend, { color: roleOnDark(agent, isDark) }]}>{c.requiredLegend}</Text>
       </View>
 
       <View style={styles.row2}>
@@ -651,7 +652,7 @@ export function CreateLeadForm({
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-      <View style={[styles.careBox, { borderColor: theme.border }]}>
+      <View style={[styles.careBox, { borderColor: theme.border, backgroundColor: isDark ? DARK_WELL : '#F8FAFC' }]}>
         <View style={{ gap: 2 }}>
           <Text style={[styles.heading, { color: theme.textHeading }]}>{c.careNotes}</Text>
           <Text style={[styles.hint, { color: theme.textSecondary }]}>{c.careNotesHint}</Text>
@@ -679,19 +680,35 @@ export function CreateLeadForm({
   const matchingTab = (
     <Animated.View key="matching" entering={FadeIn.duration(150)} style={styles.tabBody}>
       {!bannerDismissed ? (
-        <View style={[styles.banner, matchingReady ? styles.bannerReady : styles.bannerPending]}>
-          <View style={[styles.bannerIcon, matchingReady ? styles.bannerIconReady : null]}>
+        <View
+          style={[
+            styles.banner,
+            matchingReady ? styles.bannerReady : styles.bannerPending,
+            isDark ? (matchingReady ? DARK_BANNER.ready : DARK_BANNER.pending) : null,
+          ]}
+        >
+          <View
+            style={[
+              styles.bannerIcon,
+              matchingReady ? styles.bannerIconReady : null,
+              isDark ? { backgroundColor: tokens.colors.lift } : null,
+            ]}
+          >
             <MobileIcon
               name={matchingReady ? 'check' : 'home'}
               size={18}
-              color={matchingReady ? tokens.colors.subtle.successFg : tokens.colors.brand[700]}
+              color={
+                matchingReady
+                  ? isDark ? '#4ADE80' : tokens.colors.subtle.successFg
+                  : isDark ? tokens.colors.brand[500] : tokens.colors.brand[700]
+              }
             />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[styles.bannerTitle, { color: theme.textHeading }]}>
               {matchingReady ? c.matchingReady : c.matchingBannerTitle}
             </Text>
-            <Text style={[styles.bannerBody, { color: theme.textSecondary }]}>
+            <Text style={[styles.bannerBody, { color: isDark ? tokens.colors.textOnDark.secondary : theme.textSecondary }]}>
               {matchingReady ? c.matchingReadyHint : c.matchingBannerBody}
             </Text>
           </View>
@@ -785,7 +802,7 @@ export function CreateLeadForm({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.tabsWrap}>
-        <View style={[styles.tabs, { borderColor: theme.border }]} accessibilityRole="tablist">
+        <View style={[styles.tabs, { borderColor: theme.border, backgroundColor: isDark ? theme.background : '#F1F5F9' }]} accessibilityRole="tablist">
           {tabButton('profile', c.tabProfile, profileHasError)}
           {tabButton('matching', c.tabMatching, matchingHasError)}
         </View>
@@ -835,6 +852,13 @@ export function CreateLeadForm({
   );
 }
 
+// D2 (v1.2 B+C dark mode): the tab track, the care-notes well and the matching banner follow the theme.
+const DARK_WELL = '#3F3A3A';
+const DARK_BANNER = {
+  pending: { backgroundColor: 'rgba(248,182,21,0.3)', borderColor: 'transparent' },
+  ready: { backgroundColor: 'rgba(34,197,94,0.3)', borderColor: 'transparent' },
+} as const;
+
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   tabsWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
@@ -844,7 +868,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 4,
     gap: 4,
-    backgroundColor: '#F1F5F9',
   },
   tab: {
     flex: 1,
@@ -927,7 +950,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     gap: 14,
-    backgroundColor: '#F8FAFC',
   },
   banner: {
     flexDirection: 'row',
@@ -953,7 +975,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: tokens.colors.brand[100],
   },
-  bannerIconReady: { backgroundColor: '#FFFFFF' },
+  bannerIconReady: { backgroundColor: tokens.colors.white },
   bannerTitle: {
     fontFamily: tokens.typography.native.bodyBold,
     fontSize: 14,

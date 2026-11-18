@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFF9E8',
   },
   quotaChipExhausted: {
     backgroundColor: '#E2E8F0',

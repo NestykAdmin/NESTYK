@@ -10,6 +10,7 @@ import {
   MobileInput,
   MobileSegmentedTabs,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import type { AgentContract, AgentTenant, AgentTenantBill, AgentTenantBilling, TenantBill } from "@nestyk/types";
@@ -44,6 +45,7 @@ import { TenantDirectoryBody, type TenantDirectoryFilter } from "./TenantDirecto
 import { TenantWorkTable } from "./agent-web/TenantWorkTable";
 import { TenantDirectoryTable } from "./agent-web/TenantDirectoryTable";
 import { TenantDetailFrame } from "./agent-web/TenantDetailFrame";
+import { AgentTenantCreatePage } from "./agent-web/AgentTenantCreatePage";
 import { DetailCard, DetailField } from "./TenantDetailParts";
 import { FinancialDocumentForm } from "./FinancialDocumentForm";
 
@@ -136,7 +138,7 @@ export function AgentTenantsScreen({
   const { t, locale } = useLocale();
   const c = t.agent.tenants;
   const d = c.detail;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const [items, setItems] = useState<AgentTenant[]>([]);
   const [selected, setSelected] = useState<AgentTenant | null>(
     entry?.tenant ?? createdTenant,
@@ -426,25 +428,46 @@ export function AgentTenantsScreen({
       />
     );
   }
-  if (creating)
-    return (
+  if (creating) {
+    const addCreated = (tenant: AgentTenant) => {
+      setItems((current) => [
+        tenant,
+        ...current.filter((t) => t.id !== tenant.id),
+      ]);
+      onTenantCreated?.(tenant);
+    };
+    const finishCreate = (tenant: AgentTenant, open: boolean) => {
+      setCreating(false);
+      setSelected(open ? tenant : null);
+      setSection(null);
+      setError("");
+      setNotice(c.createdNotice);
+    };
+    // W4 (17 Nov 2026): wide web has its own wizard page; phones and native keep the app form.
+    return webTables ? (
+      <AgentTenantCreatePage
+        onBusy={onCreateBusy}
+        backRef={createBackRef}
+        onCreated={addCreated}
+        onDone={(tenant, next) => {
+          finishCreate(tenant, next !== "list");
+          if (next === "reservation") {
+            setSection("contracts");
+            setContractStart("reservation");
+          }
+        }}
+      />
+    ) : (
       <TenantForm
         onBusy={onCreateBusy}
         backRef={createBackRef}
         onCreated={(tenant) => {
-          setItems((current) => [
-            tenant,
-            ...current.filter((t) => t.id !== tenant.id),
-          ]);
-          onTenantCreated?.(tenant);
-          setCreating(false);
-          setSelected(tenant);
-          setSection(null);
-          setError("");
-          setNotice(c.createdNotice);
+          addCreated(tenant);
+          finishCreate(tenant, true);
         }}
       />
     );
+  }
   if (selected) {
     const fmt = billFormatters(locale);
     const runAction = (action: TenantNextAction) => {
@@ -537,7 +560,7 @@ export function AgentTenantsScreen({
         {!!notice && (
           <Text
             accessibilityRole="alert"
-            style={[s.body, { color: "#198460" }]}
+            style={[s.body, { color: "#166534" }]}
           >
             {notice}
           </Text>
@@ -545,7 +568,7 @@ export function AgentTenantsScreen({
         {!!error && !editing && (
           <Text
             accessibilityRole="alert"
-            style={[s.body, { color: "#C43D4C" }]}
+            style={[s.body, { color: "#991B1B" }]}
           >
             {error}
           </Text>
@@ -556,7 +579,7 @@ export function AgentTenantsScreen({
           style={s.section}
         >
         {(section === null || section === 'bills' || section === 'payments') && billingLoading ? (
-          <ActivityIndicator size="small" color={theme.textHeading} />
+          <ActivityIndicator size="small" color={theme.spinner} />
         ) : section === null ? (
           <TenantDetailHub
             tenant={selected}
@@ -821,7 +844,7 @@ export function AgentTenantsScreen({
         value={listView}
         onChange={setView}
       />
-      {opening ? <ActivityIndicator color={tokens.colors.roles.agent} /> : null}
+      {opening ? <ActivityIndicator color={roleOnDark(tokens.colors.roles.agent, isDark)} /> : null}
       {!!error && (
         <Text accessibilityRole="alert" style={[s.body, { color: tokens.colors.danger }]}>
           {error}

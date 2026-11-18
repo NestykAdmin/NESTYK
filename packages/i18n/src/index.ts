@@ -19,6 +19,7 @@ export * from './LocaleContext';
 export * from './error-message';
 export * from './resolveLocale';
 export * from './template';
+export * from './date-locale';
 export * from './types';
 export {
   AMENITIES_CATALOG_GROUP_ORDER,

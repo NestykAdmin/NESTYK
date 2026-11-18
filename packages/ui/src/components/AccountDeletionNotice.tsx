@@ -4,7 +4,7 @@ import { useLocale } from '@nestyk/i18n';
 import { tokens } from '../theme/tokens';
 
 export function formatAccountDeletionDate(iso: string, locale: string): string {
-  const tag = locale === 'th' ? 'th-TH' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : 'en-GB';
+  const tag = locale === 'th' ? 'th-TH-u-ca-gregory' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : 'en-GB';
   return new Date(iso).toLocaleDateString(tag, {
     day: 'numeric',
     month: 'long',

@@ -68,7 +68,7 @@ export function BookingInvoiceListCard({
         <Text style={text}>
           ฿{payment.total.toLocaleString(localeTag(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
-        <Text style={{ ...text, color: payment.status === "paid" ? "#198460" : "#B45309" }}>
+        <Text style={{ ...text, color: payment.status === "paid" ? "#166534" : "#92400E" }}>
           {closed ? (isFulfilledReservation(contract) ? tc.payment.fulfilled : tc.payment.closed) : payment.status === "paid" ? tc.payment.status.paid : payment.status === "submitted" ? tc.payment.submittedShort : tc.payment.unpaidShort}
         </Text>
       </View>

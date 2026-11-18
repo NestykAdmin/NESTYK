@@ -84,7 +84,7 @@ export function ContractTypePicker({
           return <Pressable key={option.kind} accessibilityRole="button" accessibilityState={{ disabled }}
             accessibilityLabel={fillTemplate(pc.createA11y, { label })} disabled={disabled}
             onPress={() => onSelect(option.kind)} style={({ pressed }) => [styles.tile, disabled && styles.tileDisabled, { opacity: disabled ? 0.65 : pressed ? 0.75 : 1 }]}>
-            <View style={styles.icon}><MobileIcon name={option.icon} size={23} color={disabled ? "#64748B" : "#A66B00"} weight="regular" /></View>
+            <View style={styles.icon}><MobileIcon name={option.icon} size={23} color={disabled ? "#64748B" : "#211E1E"} weight="regular" /></View>
             <Text style={[styles.label, disabled && styles.labelDisabled]}>{label}</Text>
             <MobileIcon name="chevron-right" size={18} color="#64748B" />
           </Pressable>;
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     fontFamily: tokens.typography.native.body,
     fontSize: 14,
     lineHeight: 22,
-    color: "#C74747",
+    color: "#991B1B",
   },
   group: { gap: 10 },
   groupTitle: { fontFamily: tokens.typography.native.headingTh, fontSize: 17, lineHeight: 26 },
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12, padding: 14,
     borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 16, backgroundColor: "#FFFFFF",
   },
-  icon: { backgroundColor: "#FFF6DC", padding: 10, borderRadius: 12 },
+  icon: { backgroundColor: "#FFF9E8", padding: 10, borderRadius: 12 },
   label: { flex: 1, fontFamily: tokens.typography.native.headingTh, fontSize: 14, lineHeight: 22, color: "#334155" },
   tileDisabled: { backgroundColor: "#F8FAFC" },
   labelDisabled: { color: "#64748B" },

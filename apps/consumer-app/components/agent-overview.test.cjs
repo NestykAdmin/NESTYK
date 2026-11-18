@@ -6,7 +6,7 @@ const ts = require('typescript');
 const React = require('react');
 
 const root = path.resolve(__dirname, '../../..');
-const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#1A2B48', textSecondary: '#64748B', border: '#E5E7EB' };
+const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#211E1E', textSecondary: '#64748B', border: '#E5E7EB' };
 let locale = 'en';
 let sequence = 0;
 const cache = new Map();

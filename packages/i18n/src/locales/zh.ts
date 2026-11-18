@@ -3,6 +3,7 @@ import { TranslationSchema } from '../types';
 import { contractsZh } from './contracts/zh';
 import { legalZh } from './legal/zh';
 import { webSessionZh } from './web-session/zh';
+import { guestZh } from './guest/zh';
 
 export const zh: TranslationSchema = {
   common: {
@@ -31,12 +32,14 @@ export const zh: TranslationSchema = {
     landlord: '房东',
     agent: '中介',
     admin: 'Nestyk 管理员',
+    self_owner: '业主',
     services: '服务中心',
     guestSubtitle: '访客',
     tenantSubtitle: '租客 · 1804室',
     landlordSubtitle: '房东 · 由中介管理的房源',
     agentSubtitle: '中介 · 联卖伙伴',
     adminSubtitle: 'Nestyk 管理员 · 运营',
+    self_ownerSubtitle: '业主 · 自行出租',
     servicesSubtitle: '综合服务中心',
   },
   mobile: {
@@ -157,6 +160,7 @@ export const zh: TranslationSchema = {
         landlord: '查看并签署中介发送的文件',
         agent: '连接客户与房源',
         admin: '平台运营',
+        self_owner: '自行发布房源并寻找租客',
       },
       navigation: '导航',
       settings: '设置',
@@ -494,6 +498,26 @@ export const zh: TranslationSchema = {
       confirmedEmpty: '中介确认凭证后，房租会显示在这里。',
     },
   },
+  adminWeb: {
+    brandTag: 'ADMIN WORKSPACE',
+    workspaceLabel: '平台管理',
+    main: '平台',
+  },
+  selfOwnerWeb: {
+    brandTag: 'OWNER WORKSPACE',
+    workspaceLabel: '房东工作区',
+    main: '我的房间',
+    money: '租客与财务',
+    listings: '房间与房源',
+    interested: '意向租客',
+    viewings: '看房预约',
+    tenants: '租客',
+    contracts: '合同',
+    billsIncome: '账单与收入',
+    repairs: '报修',
+    homeTitle: '房东工作区',
+    homeBody: '自行出租房东的菜单将在下一阶段开放。',
+  },
   agent: {
     calendar: {
       liveNotice: '来自您客户线索的看房预约',
@@ -623,6 +647,23 @@ export const zh: TranslationSchema = {
       makeReservation: '制作预订书',
       addEmail: '添加租客邮箱',
       addIdentity: '添加租客证件号码',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: '创建租客的步骤',
+        stepOf: '第 {step} 步，共 {total} 步',
+        change: '更改',
+        leadSub: '同意租房的客户',
+        roomSub: '要预订的房间',
+        confirmSub: '报价 · 邮箱 · 证件',
+        pickLeadHint: '点击潜在客户以选择房间',
+        pickRoomHint: '点击房间以确认预订',
+        docTitle: '预订书所需信息',
+        docHint: '预订时可不填，但制作预订书前必须填写',
+        customerTitle: '客户信息',
+        customerHint: '取自潜在客户，如有不符可编辑',
+        editCustomer: '编辑',
+        hideCustomer: '收起',
+      },
       detail: {
         title: '租客',
         subtitle: '{name} · {room} 号房',
@@ -2134,6 +2175,30 @@ export const zh: TranslationSchema = {
         themeDark: '深色',
         themeSystem: '跟随设备',
         brandTag: '中介工作区',
+        home: '首页',
+        changeRole: '更改',
+        chooseRole: '选择角色',
+        roleHint: '其他角色使用同一账户，在各自的网站中打开。',
+        docsFinance: '文件与财务',
+        settings: '设置',
+        settingsProfile: '个人资料',
+        settingsProfileHint: '此账户显示的个人信息',
+        settingsSecurity: '安全',
+        settingsSecurityHint: '密码、关联账户和设备',
+        settingsDisplay: '显示',
+        settingsDisplayHint: '此网站的语言和主题',
+        settingsHelp: '帮助与关于',
+        settingsHelpHint: '常见问题、联系与条款',
+        profileReadOnly: '网页编辑功能即将推出，目前可在 NESTYK 应用中编辑。',
+        accountRoles: '此账户的角色',
+        devices: '已登录的设备',
+        devicesBody: '退出使用此账户的所有设备',
+        emailPassword: '邮箱和密码',
+        dangerZone: '危险区域',
+        twoFactor: '两步验证 (2FA)',
+        twoFactorBody: '建议所有管理员账户开启，因为可以访问所有用户的数据。',
+        adminDeleteNote: '管理员账户不能自行删除，需由其他管理员在「用户」中关闭。',
+        adminSettingsNote: '此页面仅用于您自己的账户。整个平台的设置在「系统 › 运营设置」中。',
       },
       webOverview: {
         property: '楼盘 / 房间',
@@ -2277,6 +2342,7 @@ export const zh: TranslationSchema = {
   contracts: contractsZh,
   legal: legalZh,
   webSession: webSessionZh,
+  guest: guestZh,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.zh,
     facilities: { ...AMENITIES_FACILITY_LABELS.zh, air_conditioner: '空调', wifi: '无线网', parking: '停车', swimming_pool: '泳池', elevator: '电梯', security: '安保' },

@@ -217,6 +217,17 @@ const DRAWER_MENU_MATRIX: Record<UserRole, DrawerMenuSection[]> = {
       ],
     },
   ],
+  // Round 2 sample menus (docs/ROLE-CHANGE-PLAN.md 5.1): every item shows "coming soon"; no API grants self_owner yet.
+  self_owner: [
+    {
+      titleKey: 'sectionTitle',
+      items: [
+        { id: 'createListing', labelKey: 'createListing', icon: 'house-plus', comingSoon: true, action: { type: 'route', path: '/self-owner/rooms/new' } },
+        { id: 'incomeReport', labelKey: 'incomeReport', icon: 'credit-card', comingSoon: true, action: { type: 'route', path: '/self-owner/income' } },
+        { id: 'documents', labelKey: 'documents', icon: 'clipboard', comingSoon: true, action: { type: 'route', path: '/self-owner/documents' } },
+      ],
+    },
+  ],
   admin: [
     {
       titleKey: 'sectionTitle',

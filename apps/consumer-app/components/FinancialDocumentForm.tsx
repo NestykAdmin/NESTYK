@@ -8,6 +8,7 @@ import {
   MobileIcon,
   MobileInput,
   tokens,
+  roleOnDark,
   useMobileTheme,
 } from "@nestyk/ui/native";
 import { fillTemplate, localizedError, useLocale } from "@nestyk/i18n";
@@ -99,7 +100,7 @@ export function FinancialDocumentForm({
 }) {
   const { t, locale } = useLocale();
   const labels = t.agent.contracts.financial;
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const linked = fixedContractId != null;
   const standalone = kind === "invoice" && !linked;
   const needsHostPick = fixedContractId == null && !standalone && kind !== "receipt";
@@ -583,7 +584,7 @@ export function FinancialDocumentForm({
             {labels.pickInvoice} *
           </Text>
           {loading && invoiceId == null ? (
-            <ActivityIndicator />
+            <ActivityIndicator color={theme.spinner} />
           ) : !invoiceChoices.length ? (
             <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
               {labels.needInvoiceFirst}
@@ -601,7 +602,7 @@ export function FinancialDocumentForm({
                   style={({ pressed }) => ({
                     borderWidth: 1,
                     borderColor: selected ? "#F8B615" : theme.border,
-                    backgroundColor: selected ? "#FFF8E7" : theme.surface,
+                    backgroundColor: selected ? (isDark ? "rgba(248,182,21,0.16)" : "#FFF9E8") : theme.surface,
                     borderRadius: 12,
                     padding: 12,
                     gap: 4,
@@ -613,7 +614,7 @@ export function FinancialDocumentForm({
                   </Text>
                   <Text style={[{ fontSize: 13, lineHeight: 20 }, muted]}>
                     {invoice.customerName} ·{" "}
-                    {invoice.total.toLocaleString("th-TH", {
+                    {invoice.total.toLocaleString("th-TH-u-ca-gregory", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -651,7 +652,7 @@ export function FinancialDocumentForm({
                   style={({ pressed }) => ({
                     borderWidth: 1,
                     borderColor: selected ? "#F8B615" : theme.border,
-                    backgroundColor: selected ? "#FFF8E7" : theme.surface,
+                    backgroundColor: selected ? (isDark ? "rgba(248,182,21,0.16)" : "#FFF9E8") : theme.surface,
                     borderRadius: 12,
                     padding: 12,
                     gap: 4,
@@ -674,13 +675,13 @@ export function FinancialDocumentForm({
       {!!error && (
         <Text
           accessibilityRole="alert"
-          style={{ color: "#DC2626", lineHeight: 24 }}
+          style={{ color: isDark ? tokens.colors.statusOnDark.danger : "#DC2626", lineHeight: 24 }}
         >
           {error}
         </Text>
       )}
       {isReceipt && !linked && invoiceId == null ? null : !standalone && !isReceipt && contractId == null ? null : loading ? (
-        <ActivityIndicator />
+        <ActivityIndicator color={theme.spinner} />
       ) : !form ? (
         <MobileButton onPress={() => setRetry((n) => n + 1)}>
           {labels.retry}
@@ -728,7 +729,7 @@ export function FinancialDocumentForm({
                   Number(withholding.replace(/,/g, "")) < total ? (
                     <Text style={{ color: theme.textHeading, lineHeight: 22 }}>
                       {fillTemplate(rc.net, {
-                        amount: (Math.round((total - Number(withholding.replace(/,/g, ""))) * 100) / 100).toLocaleString("th-TH", {
+                        amount: (Math.round((total - Number(withholding.replace(/,/g, ""))) * 100) / 100).toLocaleString("th-TH-u-ca-gregory", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         }),
@@ -790,7 +791,7 @@ export function FinancialDocumentForm({
           >
             {labels.total}:{" "}
             {Number.isFinite(total)
-              ? total.toLocaleString("th-TH", {
+              ? total.toLocaleString("th-TH-u-ca-gregory", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })
@@ -802,7 +803,7 @@ export function FinancialDocumentForm({
           {!!error && (
             <Text
               accessibilityRole="alert"
-              style={{ color: "#DC2626", lineHeight: 24 }}
+              style={{ color: isDark ? tokens.colors.statusOnDark.danger : "#DC2626", lineHeight: 24 }}
             >
               {error}
             </Text>
@@ -924,7 +925,7 @@ export function FinancialDocumentForm({
           >
             {labels.total}:{" "}
             {Number.isFinite(total)
-              ? total.toLocaleString("th-TH", {
+              ? total.toLocaleString("th-TH-u-ca-gregory", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })
@@ -935,7 +936,7 @@ export function FinancialDocumentForm({
           {!!error && (
             <Text
               accessibilityRole="alert"
-              style={{ color: "#DC2626", lineHeight: 24 }}
+              style={{ color: isDark ? tokens.colors.statusOnDark.danger : "#DC2626", lineHeight: 24 }}
             >
               {error}
             </Text>
@@ -1025,7 +1026,7 @@ export function FinancialDocumentForm({
               <MobileIcon
                 name={option.icon}
                 size={22}
-                color={tokens.colors.roles.agent}
+                color={roleOnDark(tokens.colors.roles.agent, isDark)}
                 weight="bold"
               />
             </View>

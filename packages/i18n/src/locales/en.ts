@@ -3,6 +3,7 @@ import { TranslationSchema } from '../types';
 import { contractsEn } from './contracts/en';
 import { legalEn } from './legal/en';
 import { webSessionEn } from './web-session/en';
+import { guestEn } from './guest/en';
 
 export const en: TranslationSchema = {
   common: {
@@ -31,12 +32,14 @@ export const en: TranslationSchema = {
     landlord: 'Landlord',
     agent: 'Agent',
     admin: 'Admin Nestyk',
+    self_owner: 'Owner',
     services: 'Services',
     guestSubtitle: 'Guest',
     tenantSubtitle: 'Tenant · Room 1804',
     landlordSubtitle: 'Landlord · Rooms managed by your agent',
     agentSubtitle: 'Agent · Co-Broke Partner',
     adminSubtitle: 'Admin Nestyk · Operations',
+    self_ownerSubtitle: 'Owner · Lists rooms directly',
     servicesSubtitle: 'Services Hub',
   },
   mobile: {
@@ -157,6 +160,7 @@ export const en: TranslationSchema = {
         landlord: 'Review and sign documents from your agent',
         agent: 'Connect clients and homes',
         admin: 'Platform operations',
+        self_owner: 'List rooms and find tenants yourself',
       },
       navigation: 'Navigation',
       settings: 'Settings',
@@ -495,6 +499,26 @@ export const en: TranslationSchema = {
       confirmedEmpty: 'Rent appears here after the agent confirms the slip.',
     },
   },
+  adminWeb: {
+    brandTag: 'ADMIN WORKSPACE',
+    workspaceLabel: 'Platform workspace',
+    main: 'Platform',
+  },
+  selfOwnerWeb: {
+    brandTag: 'OWNER WORKSPACE',
+    workspaceLabel: 'Owner workspace',
+    main: 'My rooms',
+    money: 'Tenants and money',
+    listings: 'Rooms and listings',
+    interested: 'Interested people',
+    viewings: 'Viewings',
+    tenants: 'Tenants',
+    contracts: 'Contracts',
+    billsIncome: 'Bills and income',
+    repairs: 'Repairs',
+    homeTitle: 'Owner workspace',
+    homeBody: 'The menus for owners who list rooms themselves open in the next phase.',
+  },
   agent: {
     calendar: {
       liveNotice: 'Viewings scheduled from your leads',
@@ -624,6 +648,23 @@ export const en: TranslationSchema = {
       makeReservation: 'Make reservation letter',
       addEmail: 'Add tenant email',
       addIdentity: 'Add tenant ID number',
+      // W4 agent web create-tenant page (17 Nov 2026)
+      webCreate: {
+        stepsLabel: 'Steps to create a tenant',
+        stepOf: 'Step {step} of {total}',
+        change: 'Change',
+        leadSub: 'The customer who agreed to rent',
+        roomSub: 'The room to book',
+        confirmSub: 'Offer · email · ID',
+        pickLeadHint: 'Click a lead to choose a room',
+        pickRoomHint: 'Click a room to confirm the booking',
+        docTitle: 'For the reservation letter',
+        docHint: 'Optional when booking, needed before the reservation letter',
+        customerTitle: 'Customer details',
+        customerHint: 'Taken from the lead; edit if anything is wrong',
+        editCustomer: 'Edit',
+        hideCustomer: 'Hide',
+      },
       detail: {
         title: 'Tenant',
         subtitle: '{name} · Room {room}',
@@ -2137,6 +2178,30 @@ export const en: TranslationSchema = {
         themeDark: 'Dark',
         themeSystem: 'Match device',
         brandTag: 'AGENT WORKSPACE',
+        home: 'Home',
+        changeRole: 'Change',
+        chooseRole: 'Choose a role',
+        roleHint: 'Other roles open on their own site, with the same account.',
+        docsFinance: 'Documents and finance',
+        settings: 'Settings',
+        settingsProfile: 'Profile',
+        settingsProfileHint: 'Personal details shown on this account',
+        settingsSecurity: 'Security',
+        settingsSecurityHint: 'Password, linked accounts and devices',
+        settingsDisplay: 'Display',
+        settingsDisplayHint: 'Language and theme for this site',
+        settingsHelp: 'Help and about',
+        settingsHelpHint: 'FAQ, contact and terms',
+        profileReadOnly: 'Editing on the web is coming soon. You can edit it in the NESTYK app for now.',
+        accountRoles: 'Roles on this account',
+        devices: 'Signed-in devices',
+        devicesBody: 'Sign out of every device using this account',
+        emailPassword: 'Email and password',
+        dangerZone: 'Danger zone',
+        twoFactor: 'Two-step verification (2FA)',
+        twoFactorBody: 'Recommended for every admin account, because it can reach data of all users.',
+        adminDeleteNote: 'Admin accounts cannot delete themselves. Another admin closes the account from Users.',
+        adminSettingsNote: 'This page is for your own account. Settings for the whole platform are under System › Operations settings.',
       },
       webOverview: {
         property: 'Property / room',
@@ -2279,6 +2344,7 @@ export const en: TranslationSchema = {
   contracts: contractsEn,
   legal: legalEn,
   webSession: webSessionEn,
+  guest: guestEn,
   masters: {
     facilityGroups: AMENITIES_FACILITY_GROUP_LABELS.en,
     facilities: { ...AMENITIES_FACILITY_LABELS.en, air_conditioner: 'Air con', wifi: 'Wi‑Fi', parking: 'Parking', swimming_pool: 'Pool', elevator: 'Elevator', security: 'Security' },
