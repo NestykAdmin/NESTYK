@@ -1872,6 +1872,9 @@ export function AppHomeScreen() {
             null
           ) : isTenantWeb && !partyInbox && activeTab !== 'bills' ? (
             null
+          ) : isAdminWeb || isSelfOwnerWeb ? (
+            // The web shell already has the profile picture, the bell and the breadcrumb (Mos 18 Nov 2026).
+            null
           ) : partyInbox ? (
             <SectionHeader
               title={

@@ -919,7 +919,8 @@
   margin-left: auto;
   gap: var(--aw-s2);
 }
-/* + Create (design W1): dark pill, so it never competes with the page's yellow primary button */
+/* + Create: a secondary pill (Mos 18 Nov 2026), so the page's yellow button stays the one primary action.
+   Light: slate 100 fill + ink text. Dark: lifted fill + white text. (Was a solid ink pill, design W1.) */
 .aw-shell .aw-create {
   display: inline-flex;
   align-items: center;
@@ -928,20 +929,20 @@
   padding: 0 var(--aw-s4) 0 var(--aw-s3);
   border: 0;
   border-radius: var(--aw-r-pill);
-  background: var(--aw-black);
-  color: #ffffff !important;
+  background: #f1f5f9;
+  color: var(--aw-ink) !important;
   font-family: "NotoSansThai_600SemiBold", sans-serif;
   font-size: var(--aw-t-body);
 }
 .aw-shell .aw-create:hover {
-  background: #3f3a3a;
+  background: #e2e8f0;
 }
 .aw-shell[data-theme="dark"] .aw-create {
-  background: #f1f5f9;
-  color: #211e1e !important;
+  background: #4a4545;
+  color: #ffffff !important;
 }
 .aw-shell[data-theme="dark"] .aw-create:hover {
-  background: #ffffff;
+  background: #5a5454;
 }
 /* Top bar icon buttons (design W1): round, no border; the language button is the only outlined one */
 .aw-shell .aw-topbar .aw-icon-button {
@@ -1292,7 +1293,60 @@
   box-shadow: 0 0 0 2px var(--aw-surface);
 }
 .aw-account-top .aw-account-popover {
-  width: 312px;
+  width: 288px;
+}
+/* Account menu sizes (Mos 18 Nov 2026): compact like a menu, not a form. Rows sit on an 8px rail, the role tile and
+   the row icons share one 28px column so every label starts at the same line, groups split by thin lines. */
+.aw-account-top .aw-account-popover {
+  padding: var(--aw-s2);
+  gap: 2px;
+  border-radius: 14px;
+}
+.aw-account-top .aw-account-info {
+  gap: 2px;
+  padding: var(--aw-s2) var(--aw-s2) var(--aw-s3);
+  margin-bottom: var(--aw-s1);
+  line-height: 1.35;
+}
+.aw-account-top .aw-account-info strong {
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-weight: normal;
+  font-size: var(--aw-t-small);
+}
+.aw-account-top .aw-role-row,
+.aw-account-top .aw-role-option {
+  min-height: 48px;
+  padding: 6px var(--aw-s2);
+  border-radius: 10px;
+}
+.aw-account-top .aw-role-text strong {
+  font-size: var(--aw-t-small);
+}
+.aw-account-top .aw-role-text small {
+  font-size: 12px;
+}
+.aw-account-top .aw-role-change {
+  font-size: 12px;
+}
+.aw-account-top .aw-menu-row {
+  min-height: 40px;
+  padding: 0 var(--aw-s2);
+  border-radius: 10px;
+  font-size: var(--aw-t-small);
+}
+.aw-account-top .aw-menu-row > :first-child {
+  margin: 0 5px;
+}
+.aw-account-top .aw-menu-sep {
+  height: 1px;
+  margin: 2px var(--aw-s2) var(--aw-s1);
+  background: var(--aw-border);
+}
+.aw-account-top .aw-signout {
+  min-height: 38px;
+  margin-top: var(--aw-s2);
+  border-radius: 10px;
+  font-size: var(--aw-t-small);
 }
 /* Account menu: the role row, and the role list that replaces the menu while it is open */
 .aw-role-row,

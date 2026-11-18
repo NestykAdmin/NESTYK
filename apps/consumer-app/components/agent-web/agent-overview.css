@@ -94,8 +94,26 @@
   flex-wrap: wrap;
 }
 .aov-quick-actions .aw-button {
-  min-height: 42px;
-  padding: var(--aw-s3) var(--aw-s5);
+  min-height: 40px;
+  padding: 0 var(--aw-s4);
+  font-family: "NotoSansThai_600SemiBold", sans-serif;
+  font-size: var(--aw-t-small);
+}
+/* CI pair like the guest listing hero (Mos 18 Nov 2026): yellow primary + ink button beside it. Dark mode turns the
+   ink button light, since ink on the dark page would disappear. Still one yellow button per page. */
+.aov-scroll .aw-button-ink {
+  background: #211e1e;
+  color: #ffffff !important;
+}
+.aov-scroll .aw-button-ink:hover {
+  background: #3f3a3a;
+}
+.aov-scroll[data-theme="dark"] .aw-button-ink {
+  background: #f1f5f9;
+  color: #211e1e !important;
+}
+.aov-scroll[data-theme="dark"] .aw-button-ink:hover {
+  background: #ffffff;
 }
 .aov-demo {
   display: flex;
@@ -145,7 +163,8 @@ button.aov-kpi:hover {
 .aov-kpi-top > svg {
   flex-shrink: 0;
 }
-/* v1.2 (12 Nov 2026, design B): KPI icons sit on an ink chip with a yellow icon; dark mode (B+C) uses a yellow tint. */
+/* v1.2 (12 Nov 2026, design B): KPI icons sit on an ink chip with a yellow icon; dark mode (B+C) uses a yellow tint.
+   Kept on 18 Nov 2026 (Mos, option ก): the brand CI pair in page content, like the guest listing pages. */
 .aov-kpi-icon {
   display: grid;
   place-items: center;

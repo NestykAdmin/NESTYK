@@ -1145,9 +1145,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                   triggerClassName="aw-create"
                   trigger={
                     <>
-                      <MobileIcon name="plus" size={17} color={isDark ? "#211E1E" : "#FFFFFF"} />
+                      <MobileIcon name="plus" size={17} color={isDark ? "#FFFFFF" : "#211E1E"} />
                       <span className="aw-create-label">{copy.create}</span>
-                      <MobileIcon name="chevron-down" size={13} color={isDark ? "#211E1E" : "#FFFFFF"} />
+                      <MobileIcon name="chevron-down" size={13} color={isDark ? "#CBD5E1" : "#475569"} />
                     </>
                   }
                   items={[
@@ -1282,6 +1282,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
                     {rolePickerOpen ? null : <>
                     {props.onOpenSettings ? (
                       <>
+                        <div className="aw-menu-sep" aria-hidden="true" />
                         <button
                           type="button"
                           className="aw-menu-row"

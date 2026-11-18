@@ -311,18 +311,18 @@ export function AgentOverview({
               className="aw-button aw-button-primary"
               onClick={() => onNavigate({ type: "action", id: "addListing" })}
             >
-              <MobileIcon name="plus" size={18} color="#211e1e" />
+              <MobileIcon name="plus" size={16} color="#211e1e" />
               {copy.addListing}
             </button>
             <button
               type="button"
-              className="aw-button aw-button-secondary"
+              className="aw-button aw-button-ink"
               onClick={() => onNavigate({ type: "action", id: "newLead" })}
             >
               <MobileIcon
                 name="user-plus"
-                size={18}
-                color={theme.screenTitle}
+                size={16}
+                color={theme.mode === "dark" ? "#211E1E" : "#FFFFFF"}
               />
               {copy.newLead}
             </button>

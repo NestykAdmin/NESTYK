@@ -678,3 +678,13 @@ test('review R2: the password Turnstile is always visible and is not drawn while
   assert.match(security, /\{captchaRequired && !deletePending \? <CaptchaField resetKey=\{captchaKey\} onToken=\{setCaptchaToken\} \/> : null\}/);
   assert.doesNotMatch(security, /interaction-only/);
 });
+
+test('overview quick actions (Mos 18 Nov 2026): CI pair, yellow add room + ink new lead, one yellow button; ink turns light in dark mode', () => {
+  const overview = fs.readFileSync(path.join(__dirname, 'agent-web/AgentOverview.web.tsx'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, 'agent-web/agent-overview.css'), 'utf8');
+  const quick = overview.slice(overview.indexOf('className="aov-quick-actions"'), overview.indexOf('</header>', overview.indexOf('className="aov-quick-actions"')));
+  assert.equal((quick.match(/aw-button aw-button-primary/g) || []).length, 1);
+  assert.match(quick, /className="aw-button aw-button-ink"/);
+  assert.match(css, /\.aov-scroll \.aw-button-ink \{\s*background: #211e1e;\s*color: #ffffff !important;/);
+  assert.match(css, /\.aov-scroll\[data-theme="dark"\] \.aw-button-ink \{\s*background: #f1f5f9;\s*color: #211e1e !important;/);
+});

@@ -42,3 +42,8 @@ test('self owner sidebar (round 2 sample menus): my rooms, then tenants and mone
   check(sections, ['My rooms', 'Tenants and money'], ['dashboard', 'listings', 'interested', 'viewings', 'tenants', 'contracts', 'billsIncome', 'repairs']);
   assert.equal(sections[0].items[0].active, false);
 });
+
+test('admin and self owner on the web shell get no phone header (profile picture and bell are already in the shell)', () => {
+  const index = fs.readFileSync(path.join(__dirname, '../app/index.tsx'), 'utf8');
+  assert.match(index, /\) : isAdminWeb \|\| isSelfOwnerWeb \? \(\s*\/\/[^\n]*\n\s*null\s*\) : partyInbox \? \(/);
+});
