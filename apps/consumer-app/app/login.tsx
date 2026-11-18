@@ -13,7 +13,10 @@ import {
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import Svg, { Path } from "react-native-svg";
-import { Eye, EyeSlash, LockKey, ArrowRight } from "phosphor-react-native";
+import { Eye } from "phosphor-react-native/src/icons/Eye";
+import { EyeSlash } from "phosphor-react-native/src/icons/EyeSlash";
+import { LockKey } from "phosphor-react-native/src/icons/LockKey";
+import { ArrowRight } from "phosphor-react-native/src/icons/ArrowRight";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { localizedError, useLocale } from "@nestyk/i18n";
