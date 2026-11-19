@@ -516,6 +516,38 @@ export interface TranslationSchema {
     homeTitle: string;
     homeBody: string;
   };
+  /** Self owner Dashboard (UI round, 19 Nov 2026, ClickUp z8rcteng6b). */
+  selfOwnerDashboard: {
+    greeting: string;
+    addListing: string;
+    comingSoon: string;
+    demoNote: string;
+    myRooms: string;
+    roomCount: string;
+    occupiedCount: string;
+    vacantCount: string;
+    roomState: { occupied: string, listed: string, unlisted: string };
+    perMonth: string;
+    tenantLine: string;
+    leaseEnds: string;
+    interests: string;
+    noRooms: string;
+    rentTitle: string;
+    received: string;
+    outstanding: string;
+    rentState: { paid: string, due: string, overdue: string };
+    noRent: string;
+    todoTitle: string;
+    todo: { overdue_rent: string, new_interest: string, awaiting_signature: string, renewal: string };
+    noTodo: string;
+    viewingsTitle: string;
+    noViewings: string;
+    sectionError: string;
+    viewAllRooms: string;
+    viewAllRent: string;
+    viewCalendar: string;
+    moreItems: string;
+  };
   agent: {
     calendar: {
       demoNotice: string;

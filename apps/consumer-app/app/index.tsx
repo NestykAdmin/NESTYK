@@ -38,9 +38,12 @@ import {
 } from '../components/tenant-web/navigation';
 import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import { AgentOverview } from '../components/agent-web/AgentOverview';
+import { SelfOwnerOverview } from '../components/self-owner/SelfOwnerOverview';
+import { MobileSelfOwnerDashboardBody } from '../components/self-owner/MobileSelfOwnerDashboardBody';
 import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { useAgentDashboard } from '../lib/agent-dashboard';
+import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
 import { AgentLeadDetailBody } from '../components/AgentLeadDetailBody';
@@ -1050,6 +1053,11 @@ export function AppHomeScreen() {
     locale,
     onSettled: finishPageRefresh,
   });
+  // Self owner Dashboard (UI round, 19 Nov 2026): demo data until the self owner API exists.
+  const selfOwnerDashboardSnapshot = useSelfOwnerDashboard({
+    greetingName: dashboardGreetingName,
+    locale,
+  });
 
   const calendarViewings = useAgentCalendarViewings({
     enabled: activeRole === 'agent' && activeTab === 'calendar' && isAuthenticated,
@@ -1160,6 +1168,15 @@ export function AppHomeScreen() {
             onRefresh={handlePageRefresh}
             deletionScheduledFor={deletionScheduledFor}
           />
+        </View>
+      );
+    }
+    if (activeRole === 'self_owner') {
+      return isSelfOwnerWeb ? (
+        <SelfOwnerOverview snapshot={selfOwnerDashboardSnapshot} deletionScheduledFor={deletionScheduledFor} />
+      ) : (
+        <View style={styles.bodyContainer}>
+          <MobileSelfOwnerDashboardBody snapshot={selfOwnerDashboardSnapshot} initials={profileInitials} deletionScheduledFor={deletionScheduledFor} />
         </View>
       );
     }

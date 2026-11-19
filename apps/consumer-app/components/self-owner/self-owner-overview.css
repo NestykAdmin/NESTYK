@@ -1,0 +1,176 @@
+/* Self owner web Dashboard (UI round, 19 Nov 2026). Same theme as agent-overview.css (--aw-* tokens, Mitr headings,
+   Noto Sans Thai body); the owner's role colour (--sov-accent, set from tokens.colors.roles) marks rented rooms. */
+.sov-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--aw-s1) 0 var(--aw-s6);
+  color: var(--aw-ink);
+  font: 14px/1.5 "NotoSansThai_400Regular", sans-serif;
+}
+.sov-scroll *,
+.sov-scroll *::before,
+.sov-scroll *::after { box-sizing: border-box; }
+/* :where keeps the reset at zero specificity so class rules below can set margins. */
+:where(.sov-scroll) :where(h1, h2, h3, p, ul) { margin: 0; }
+:where(.sov-scroll) :where(ul) { padding: 0; list-style: none; }
+.sov-scroll strong { font-family: "NotoSansThai_600SemiBold", sans-serif; font-weight: 600; }
+.sov-muted { color: var(--aw-muted); }
+
+.sov-dashboard { display: grid; gap: var(--aw-s6); }
+
+.sov-deletion {
+  padding: var(--aw-s3) var(--aw-s4);
+  border: 1px solid var(--aw-danger-line);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-danger-soft);
+  color: var(--aw-danger);
+}
+
+/* Greeting and the one action */
+.sov-intro { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--aw-s4); }
+.sov-intro h1 { font: 26px/1.5 "Mitr_500Medium", sans-serif; }
+.sov-date { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.sov-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  min-height: 40px;
+  padding: var(--aw-s2) var(--aw-s4);
+  border: 1px solid transparent;
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-brand);
+  color: var(--aw-on-brand);
+  font: inherit;
+  font-size: var(--aw-t-small);
+}
+.sov-action:disabled { cursor: not-allowed; opacity: 0.6; }
+.sov-action:focus-visible { outline: 2px solid var(--aw-ring); outline-offset: 3px; }
+.sov-soon {
+  padding: 0 var(--aw-s2);
+  border-radius: var(--aw-r-pill);
+  background: color-mix(in srgb, var(--aw-on-brand) 12%, transparent);
+  font-size: var(--aw-t-caption);
+}
+
+.sov-demo {
+  display: flex;
+  align-items: center;
+  gap: var(--aw-s2);
+  padding: var(--aw-s2) var(--aw-s3);
+  border: 1px solid var(--aw-brand-line);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-brand-soft);
+  color: var(--aw-brand-text);
+  font-size: var(--aw-t-small);
+}
+
+/* Section headings */
+.sov-section { display: grid; gap: var(--aw-s3); min-width: 0; }
+.sov-section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--aw-s2) var(--aw-s4); }
+.sov-section-head h2 { font: 18px/1.5 "Mitr_500Medium", sans-serif; }
+.sov-counts { display: flex; flex-wrap: wrap; gap: var(--aw-s4); color: var(--aw-muted); font-size: var(--aw-t-small); }
+.sov-count-occupied { color: var(--sov-accent); }
+
+/* My rooms: one tile per room, the left edge says its state */
+.sov-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--aw-s3); }
+.sov-room {
+  --sov-state: var(--aw-border);
+  display: grid;
+  align-content: start;
+  gap: var(--aw-s1);
+  min-width: 0;
+  padding: var(--aw-s4);
+  border: 1px solid var(--aw-border);
+  border-inline-start: 4px solid var(--sov-state);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-surface);
+}
+.sov-room[data-state="occupied"] { --sov-state: var(--sov-accent); }
+.sov-room[data-state="listed"] { --sov-state: var(--aw-brand); }
+.sov-room-state { display: inline-flex; align-items: center; gap: var(--aw-s2); color: var(--aw-muted); font-size: var(--aw-t-caption); }
+.sov-room-state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--sov-state); }
+.sov-room-title,
+.sov-room-project { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sov-room-title { font: 16px/1.5 "Mitr_500Medium", sans-serif; }
+.sov-room-project { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.sov-room-rent { margin-top: var(--aw-s2); font: 20px/1.4 "Mitr_500Medium", sans-serif; font-variant-numeric: tabular-nums; }
+.sov-room-meta { display: flex; flex-wrap: wrap; gap: 0 var(--aw-s3); min-height: 18px; color: var(--aw-muted); font-size: var(--aw-t-caption); }
+
+/* Rent and the side column */
+.sov-columns { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: var(--aw-s4); align-items: start; }
+@media (max-width: 900px) {
+  .sov-columns { grid-template-columns: minmax(0, 1fr); }
+}
+.sov-side { display: grid; gap: var(--aw-s4); min-width: 0; }
+.sov-panel {
+  padding: var(--aw-s4) var(--aw-s5);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-surface);
+}
+
+.sov-rent-summary { display: grid; gap: var(--aw-s2); }
+.sov-rent-received { font-family: "NotoSansThai_600SemiBold", sans-serif; font-variant-numeric: tabular-nums; }
+.sov-bar { height: 8px; overflow: hidden; border-radius: var(--aw-r-pill); background: var(--aw-border); }
+.sov-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--sov-accent); }
+.sov-rent-overdue { color: var(--aw-danger); font-size: var(--aw-t-small); }
+.sov-rent-list { margin-top: var(--aw-s2); }
+.sov-rent-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--aw-s4);
+  padding: var(--aw-s3) 0;
+  border-top: 1px solid var(--aw-border);
+}
+.sov-rent-room { display: grid; min-width: 0; }
+.sov-rent-room > strong,
+.sov-rent-room > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sov-rent-room > span { color: var(--aw-muted); font-size: var(--aw-t-caption); }
+.sov-rent-amount { font-variant-numeric: tabular-nums; }
+.sov-rent-state {
+  padding: 2px var(--aw-s2);
+  border-radius: var(--aw-r-pill);
+  background: color-mix(in srgb, var(--aw-muted) 12%, transparent);
+  color: var(--aw-muted);
+  font-size: var(--aw-t-caption);
+  white-space: nowrap;
+}
+.sov-rent-row[data-state="paid"] .sov-rent-state { background: var(--aw-success-soft); color: var(--aw-success); }
+.sov-rent-row[data-state="overdue"] .sov-rent-state { background: var(--aw-danger-soft); color: var(--aw-danger); }
+
+.sov-todo-row,
+.sov-viewing { padding: var(--aw-s2) 0; border-top: 1px solid var(--aw-border); }
+.sov-todo-list > :first-child,
+.sov-viewing-list > :first-child { border-top: 0; }
+.sov-todo-row { display: flex; align-items: center; justify-content: space-between; gap: var(--aw-s3); }
+.sov-todo-row > strong {
+  min-width: 28px;
+  padding: 0 var(--aw-s2);
+  border-radius: var(--aw-r-pill);
+  background: color-mix(in srgb, var(--sov-accent) 14%, transparent);
+  color: var(--sov-accent);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.sov-todo-row[data-kind="overdue_rent"] > strong { background: var(--aw-danger-soft); color: var(--aw-danger); }
+.sov-viewing { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: var(--aw-s3); align-items: baseline; }
+.sov-viewing > time { font: 16px/1.5 "Mitr_500Medium", sans-serif; color: var(--sov-accent); font-variant-numeric: tabular-nums; }
+.sov-viewing > span { display: grid; min-width: 0; }
+.sov-viewing > span > span { color: var(--aw-muted); font-size: var(--aw-t-caption); }
+
+/* "View all" links: same spot as the agent overview, disabled until the pages exist */
+.sov-head-aside { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--aw-s2) var(--aw-s4); }
+.sov-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--aw-muted);
+  font: inherit;
+  font-size: var(--aw-t-small);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sov-link:disabled { cursor: not-allowed; opacity: 0.7; }
+.sov-more { margin-top: var(--aw-s2); color: var(--aw-muted); font-size: var(--aw-t-caption); }
