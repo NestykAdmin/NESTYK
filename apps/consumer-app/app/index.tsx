@@ -47,6 +47,7 @@ import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
 import { useSelfOwnerRooms } from '../lib/self-owner-rooms';
+import { SelfOwnerListingEditor } from '../components/self-owner/SelfOwnerListingEditor';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
 import { AgentLeadDetailBody } from '../components/AgentLeadDetailBody';
@@ -501,6 +502,19 @@ export function AppHomeScreen() {
     if (createListingBackRef.current?.()) return;
     goBackFromSecondary();
   }, [goBackFromSecondary]);
+
+  /** Self owner add form: the wizard steps back first, then back to where it was opened. Edit lives in the room modal. */
+  const handleSelfOwnerFormBack = useCallback(() => {
+    if (createListingBackRef.current?.()) return;
+    goBackFromSecondary();
+  }, [goBackFromSecondary]);
+
+  /** Saved (demo only): say so, then back to the rooms list. */
+  const finishSelfOwnerForm = useCallback(() => {
+    Alert.alert(t.selfOwnerRooms.createTitle, t.selfOwnerRooms.savedDemo);
+    setSecondaryReturnTab(null);
+    setActiveTab('listingRoom');
+  }, [t]);
 
   const handleCreateLeadBack = useCallback(() => {
     if (createLeadBusy) return;
@@ -1062,6 +1076,11 @@ export function AppHomeScreen() {
     locale,
   });
   const selfOwnerRooms = useSelfOwnerRooms();
+  // The owner's profile is the room contact in the self owner room form (Jom 20 Nov 2026).
+  const selfOwnerContact = useMemo(
+    () => ({ name: isAuthenticated ? displayName : '', phone: session?.phone ?? '' }),
+    [isAuthenticated, displayName, session?.phone],
+  );
 
   const calendarViewings = useAgentCalendarViewings({
     enabled: activeRole === 'agent' && activeTab === 'calendar' && isAuthenticated,
@@ -1189,6 +1208,7 @@ export function AppHomeScreen() {
           snapshot={selfOwnerDashboardSnapshot}
           deletionScheduledFor={deletionScheduledFor}
           onOpenRooms={() => handleTabPress('listingRoom')}
+          onAddListing={openCreateListing}
         />
       ) : (
         <View style={styles.bodyContainer}>
@@ -1197,6 +1217,7 @@ export function AppHomeScreen() {
             initials={profileInitials}
             deletionScheduledFor={deletionScheduledFor}
             onOpenRooms={() => handleTabPress('listingRoom')}
+            onAddListing={openCreateListing}
           />
         </View>
       );
@@ -1534,11 +1555,38 @@ export function AppHomeScreen() {
 
     if (activeRole === 'self_owner' && activeTab === 'listingRoom') {
       // Self owner rooms and listings (UI round, 19 Nov 2026): demo rooms until the self owner API exists.
+      // Add from here; a row / card opens the room detail modal for edit and publish (Jom 20 Nov 2026). Demo only.
       return isSelfOwnerWeb ? (
-        <SelfOwnerRoomsPage rooms={selfOwnerRooms.rooms} status={selfOwnerRooms.status} isDemoPreview={selfOwnerRooms.isDemoPreview} />
+        <SelfOwnerRoomsPage
+          rooms={selfOwnerRooms.rooms}
+          status={selfOwnerRooms.status}
+          isDemoPreview={selfOwnerRooms.isDemoPreview}
+          onAddListing={openCreateListing}
+          ownerContact={selfOwnerContact}
+        />
       ) : (
         <View style={styles.bodyContainer}>
-          <MobileSelfOwnerRoomsScreen rooms={selfOwnerRooms.rooms} status={selfOwnerRooms.status} isDemoPreview={selfOwnerRooms.isDemoPreview} />
+          <MobileSelfOwnerRoomsScreen
+            rooms={selfOwnerRooms.rooms}
+            status={selfOwnerRooms.status}
+            isDemoPreview={selfOwnerRooms.isDemoPreview}
+            onAddListing={openCreateListing}
+            ownerContact={selfOwnerContact}
+          />
+        </View>
+      );
+    }
+
+    if (activeRole === 'self_owner' && activeTab === 'createListing') {
+      // The agent listing wizard with the owner preset and demo choices; never calls /agent/* (20 Nov 2026).
+      return (
+        <View style={[styles.bodyContainer, styles.wizardBody]}>
+          <SelfOwnerListingEditor
+            backHandlerRef={createListingBackRef}
+            onHeaderTitleChange={setCreateListingHeaderTitle}
+            onDone={finishSelfOwnerForm}
+            ownerContact={selfOwnerContact}
+          />
         </View>
       );
     }
@@ -1843,7 +1891,7 @@ export function AppHomeScreen() {
       : isAdminWeb
         ? adminWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
         : isSelfOwnerWeb
-          ? selfOwnerWebNavSections(roleMenuCopy, activeTab, (tab) => handleTabPress(tab))
+          ? selfOwnerWebNavSections(roleMenuCopy, activeTab, (tab) => (tab === 'createListing' ? openCreateListing() : handleTabPress(tab)))
           : undefined;
   const workspaceRole: UserRole = isDesktopWeb && !isAgentWeb ? activeRole : 'agent';
   const workspaceCopy = isLandlordWeb
@@ -1921,6 +1969,14 @@ export function AppHomeScreen() {
             null
           ) : isTenantWeb && !partyInbox && activeTab !== 'bills' ? (
             null
+          ) : activeRole === 'self_owner' && activeTab === 'createListing' ? (
+            // Add room form: a back header like the agent's, on the web shell and the phone.
+            <SectionHeader
+              title={createListingHeaderTitle || t.selfOwnerRooms.createTitle}
+              accentColor={accentColor}
+              leading="back"
+              onBackPress={handleSelfOwnerFormBack}
+            />
           ) : isAdminWeb || isSelfOwnerWeb ? (
             // The web shell already has the profile picture, the bell and the breadcrumb (Mos 18 Nov 2026).
             null

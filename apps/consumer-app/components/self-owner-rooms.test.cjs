@@ -12,7 +12,7 @@ function load(file) {
   const module = { exports: {} };
   cache.set(file, module);
   const localRequire = (name) => {
-    if (name === 'react') return { useMemo: (fn) => fn() };
+    if (name === 'react') return { useMemo: (fn) => fn(), useSyncExternalStore: (_subscribe, get) => get() };
     if (name.startsWith('.')) {
       const base = path.resolve(path.dirname(file), name);
       return load([`${base}.ts`, base].find((f) => fs.existsSync(f)));

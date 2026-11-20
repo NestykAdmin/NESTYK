@@ -16,14 +16,17 @@ function load(filename) {
   const module = { exports: {} };
   cache.set(filename, module);
   const localRequire = (name) => {
-    if (name === 'react') return { ...React, useMemo: fn => fn(), useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
-    if (name === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 } };
+    if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useRef: () => ({ current: null }), useSyncExternalStore: (_s, get) => get(), useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
+    if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 }, Platform: { OS: 'ios' }, Alert: { alert() {} } };
+    // The room detail modal (Jom 20 Nov 2026) is closed in these tests.
+    if (name === 'react-native-safe-area-context') return { SafeAreaProvider: ({ children }) => children, SafeAreaView: ({ children }) => children, initialWindowMetrics: null };
+    if (name === 'expo-image-picker') return {};
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
     if (name === '@nestyk/ui/native') return {
-      useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileButton: 'MobileButton', MobileInput: 'MobileInput', MobileProfileAvatar: 'Avatar',
+      useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileButton: 'MobileButton', MobileSectionHeader: 'MobileSectionHeader', MobileInput: 'MobileInput', MobileProfileAvatar: 'Avatar',
       AccountDeletionNotice: 'AccountDeletionNotice', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens, getCardElevation: () => ({}),
     };
-    if (name === '@nestyk/feature-listing') return load(`${root}/packages/feature-listing/src/dashboard/types.ts`);
+    if (name === '@nestyk/feature-listing') return { ...load(`${root}/packages/feature-listing/src/dashboard/types.ts`), MobileRoomDetailBody: 'Detail', MobileCreateListingWizardBody: 'Wizard', defaultOwnerListingConfig: {} };
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
     return load([base, `${base}.ts`, `${base}.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));

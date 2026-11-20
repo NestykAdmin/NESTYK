@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { MobileBottomSheet, MobileIcon, tokens } from '@nestyk/ui/native';
 import { WizardSheetChrome } from './WizardSheetChrome';
+import { useWizardSheetProps } from './wizard-desktop';
 import { dateLocale } from '@nestyk/i18n';
 
 LocaleConfig.locales.en = LocaleConfig.locales[''];
@@ -56,6 +57,8 @@ export function MoveInDateField({
   closeLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Centred dialog on the self owner desktop form; the phone bottom sheet otherwise (Jom 20 Nov 2026).
+  const sheetProps = useWizardSheetProps();
   const minDate = todayIsoDate();
   const selected = clampMoveInDate(value || minDate);
   const markedDates = useMemo(
@@ -92,7 +95,7 @@ export function MoveInDateField({
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <MobileBottomSheet visible={open} onClose={() => setOpen(false)}>
+      <MobileBottomSheet visible={open} onClose={() => setOpen(false)} {...sheetProps}>
         <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 8 }}>
           <WizardSheetChrome title={label} closeLabel={closeLabel} onClose={() => setOpen(false)} />
           <Calendar

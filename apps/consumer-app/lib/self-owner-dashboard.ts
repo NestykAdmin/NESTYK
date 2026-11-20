@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { DashboardSectionStatus } from '@nestyk/feature-listing';
-import { createSelfOwnerRoomsDemo, type SelfOwnerRoom } from './self-owner-rooms';
+import { createSelfOwnerRoomsDemo, useSelfOwnerRooms, type SelfOwnerRoom } from './self-owner-rooms';
 
 export type { SelfOwnerRoom, SelfOwnerRoomState } from './self-owner-rooms';
 
@@ -69,13 +69,15 @@ export function createSelfOwnerDashboardDemoFixture(input: {
   greetingName: string;
   localDateLabel: string;
   now?: Date;
+  /** The owner's rooms (the shared room store); defaults to the demo set. */
+  rooms?: SelfOwnerRoom[];
 }): SelfOwnerDashboardSnapshot {
   const now = input.now ?? new Date();
   const today = bangkokYmd(now);
   const [year, month] = today.split('-').map(Number);
   const ym = `${year}-${String(month).padStart(2, '0')}`;
 
-  const rooms = createSelfOwnerRoomsDemo(now);
+  const rooms = input.rooms ?? createSelfOwnerRoomsDemo(now);
   // Rent this month for every rented room; a few rooms are due later or overdue so each state shows.
   const rentPlan: Record<string, { state: SelfOwnerRentState; day: string; overdueDays?: number }> = {
     r2: { state: 'overdue', day: '01', overdueDays: 3 },
@@ -126,6 +128,7 @@ export function createSelfOwnerDashboardDemoFixture(input: {
 /** The self owner Dashboard data. Demo only until the self owner API exists. */
 export function useSelfOwnerDashboard(input: { greetingName: string; locale: SelfOwnerLocale }): SelfOwnerDashboardSnapshot {
   const { greetingName, locale } = input;
+  const { rooms } = useSelfOwnerRooms();
   return useMemo(() => {
     const localDateLabel = new Date().toLocaleDateString(SELF_OWNER_LOCALE_TAG[locale], {
       weekday: 'long',
@@ -134,6 +137,6 @@ export function useSelfOwnerDashboard(input: { greetingName: string; locale: Sel
       year: 'numeric',
       timeZone: 'Asia/Bangkok',
     });
-    return createSelfOwnerDashboardDemoFixture({ greetingName, localDateLabel });
-  }, [greetingName, locale]);
+    return createSelfOwnerDashboardDemoFixture({ greetingName, localDateLabel, rooms });
+  }, [greetingName, locale, rooms]);
 }

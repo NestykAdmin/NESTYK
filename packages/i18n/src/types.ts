@@ -507,6 +507,8 @@ export interface TranslationSchema {
     main: string;
     money: string;
     listings: string;
+    listingsView: string;
+    listingsCreate: string;
     interested: string;
     viewings: string;
     tenants: string;
@@ -563,6 +565,25 @@ export interface TranslationSchema {
     prev: string;
     next: string;
     resultCount: string;
+    createTitle: string;
+    editTitle: string;
+    edit: string;
+    savedDemo: string;
+    publish: string;
+    unpublish: string;
+    publishConfirm: string;
+    unpublishConfirm: string;
+    occupiedNoToggle: string;
+    /** Create form (20 Nov 2026): the agent's "listing name" for an owner. */
+    titleField: string;
+    titleFieldHint: string;
+    titlePlaceholder: string;
+    /** Create form: the agent's "listing source" section for an owner. */
+    contactSection: string;
+    /** Room name when left blank: "{room}" = the room number. */
+    autoTitle: string;
+    /** Under the save button of a new room (the agent's says "not on Guest search"). */
+    privateHint: string;
   };
   agent: {
     calendar: {

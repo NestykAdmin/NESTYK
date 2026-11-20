@@ -15,6 +15,8 @@ export type { AgentListingCard } from './components/MobileAgentListingsBody';
 
 export * from "./components/MobileAgentRoomBody";
 export * from './components/MobileRoomDetailBody';
+// Web desktop room detail (self owner modal, 20 Nov 2026); the agent reaches it through MobileAgentRoomBody.web.
+export { AgentRoomDesktopBody } from './components/AgentRoomDesktopBody';
 export * from './components/RoomShareLinkSheet';
 export * from './components/MobileAgentDashboardBody';
 export * from './dashboard/types';

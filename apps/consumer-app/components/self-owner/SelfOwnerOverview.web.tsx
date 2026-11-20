@@ -35,7 +35,7 @@ function Section({ title, aside, className = "", children }: { title: string; as
  * (--aw-* tokens, Mitr headings), laid out around the owner's own rooms. Pages it would link to do not exist yet,
  * so it has no navigation; the one action is shown disabled as "coming soon".
  */
-export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms }: SelfOwnerOverviewProps) {
+export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms, onAddListing }: SelfOwnerOverviewProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerDashboard;
@@ -132,11 +132,18 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms 
               <h1>{interpolate(copy.greeting, { name: snapshot.greetingName })}</h1>
               <p className="sov-date">{snapshot.localDateLabel}</p>
             </div>
-            <button type="button" className="sov-action" disabled aria-disabled="true" title={copy.comingSoon}>
-              <MobileIcon name="plus" size={16} color="currentColor" />
-              {copy.addListing}
-              <span className="sov-soon">{copy.comingSoon}</span>
-            </button>
+            {onAddListing ? (
+              <button type="button" className="sov-action" onClick={onAddListing}>
+                <MobileIcon name="plus" size={16} color="currentColor" />
+                {copy.addListing}
+              </button>
+            ) : (
+              <button type="button" className="sov-action" disabled aria-disabled="true" title={copy.comingSoon}>
+                <MobileIcon name="plus" size={16} color="currentColor" />
+                {copy.addListing}
+                <span className="sov-soon">{copy.comingSoon}</span>
+              </button>
+            )}
           </header>
 
           {snapshot.isDemoPreview ? (

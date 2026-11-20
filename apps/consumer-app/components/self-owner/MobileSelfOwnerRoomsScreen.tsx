@@ -11,6 +11,7 @@ import {
   type SelfOwnerRoomFilter,
 } from '../../lib/self-owner-rooms';
 import { MobileSelfOwnerRoomCard } from './MobileSelfOwnerRoomCard';
+import { SelfOwnerRoomDetailModal } from './SelfOwnerRoomDetailModal';
 import type { SelfOwnerRoomsPageProps } from './SelfOwnerRoomsPage.types';
 
 const FILTERS: SelfOwnerRoomFilter[] = ['all', 'occupied', 'listed', 'unlisted'];
@@ -18,9 +19,17 @@ const { subtle } = tokens.colors;
 
 /**
  * Self owner rooms list on the phone (UI round, 19 Nov 2026, ClickUp z8rcteng6c): search, status chips with counts,
- * room cards ten per page. Newest first, like the agent's phone list; no room detail or editing yet.
+ * room cards ten per page. Newest first, like the agent's phone list; a card opens the room detail (edit, publish).
  */
-export function MobileSelfOwnerRoomsScreen({ rooms, status, isDemoPreview, initialQuery = '', initialFilter = 'all' }: SelfOwnerRoomsPageProps) {
+export function MobileSelfOwnerRoomsScreen({
+  rooms,
+  status,
+  isDemoPreview,
+  initialQuery = '',
+  initialFilter = 'all',
+  onAddListing,
+  ownerContact,
+}: SelfOwnerRoomsPageProps) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerRooms;
@@ -31,6 +40,7 @@ export function MobileSelfOwnerRoomsScreen({ rooms, status, isDemoPreview, initi
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<SelfOwnerRoomFilter>(initialFilter);
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<string | null>(null);
 
   const counts = useMemo(() => countSelfOwnerRooms(rooms), [rooms]);
   const results = useMemo(() => filterSelfOwnerRooms(rooms, query, filter, 'updated_desc'), [rooms, query, filter]);
@@ -64,7 +74,14 @@ export function MobileSelfOwnerRoomsScreen({ rooms, status, isDemoPreview, initi
         </View>
       );
     }
-    return shown.map((room) => <MobileSelfOwnerRoomCard key={room.id} room={room} testID={`so-room-${room.id}`} />);
+    return shown.map((room) => (
+      <MobileSelfOwnerRoomCard
+        key={room.id}
+        room={room}
+        testID={`so-room-${room.id}`}
+        onPress={() => setSelected(room.id)}
+      />
+    ));
   };
 
   return (
@@ -76,9 +93,13 @@ export function MobileSelfOwnerRoomsScreen({ rooms, status, isDemoPreview, initi
         </View>
       ) : null}
 
-      <MobileButton disabled onPress={() => {}}>
-        {`+ ${shared.addListing} · ${shared.comingSoon}`}
-      </MobileButton>
+      {onAddListing ? (
+        <MobileButton onPress={onAddListing}>{`+ ${shared.addListing}`}</MobileButton>
+      ) : (
+        <MobileButton disabled onPress={() => {}}>
+          {`+ ${shared.addListing} · ${shared.comingSoon}`}
+        </MobileButton>
+      )}
 
       <MobileInput
         value={query}
@@ -140,6 +161,7 @@ export function MobileSelfOwnerRoomsScreen({ rooms, status, isDemoPreview, initi
           </Pressable>
         </View>
       ) : null}
+      <SelfOwnerRoomDetailModal roomId={selected} onClose={() => setSelected(null)} ownerContact={ownerContact} />
     </View>
   );
 }

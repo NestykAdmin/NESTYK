@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import { tokens, useMobileTheme } from '@nestyk/ui/native';
 import { interpolate } from '@nestyk/feature-listing';
@@ -7,10 +7,20 @@ import { SELF_OWNER_LOCALE_TAG } from '../../lib/self-owner-dashboard';
 import type { SelfOwnerRoom } from '../../lib/self-owner-rooms';
 
 /** One room on the phone (self owner Dashboard and rooms list). The left edge says the room's state. */
-export function MobileSelfOwnerRoomCard({ room, testID }: { room: SelfOwnerRoom; testID?: string }) {
+export function MobileSelfOwnerRoomCard({
+  room,
+  testID,
+  onPress,
+}: {
+  room: SelfOwnerRoom;
+  testID?: string;
+  /** Tap the card (rooms list: open the room detail, like the agent's phone list). */
+  onPress?: () => void;
+}) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerDashboard;
+  const roomsCopy = t.selfOwnerRooms;
   const tag = SELF_OWNER_LOCALE_TAG[locale as keyof typeof SELF_OWNER_LOCALE_TAG] ?? SELF_OWNER_LOCALE_TAG.th;
   const ink = theme.screenTitle;
   const muted = theme.textSecondary;
@@ -21,8 +31,11 @@ export function MobileSelfOwnerRoomCard({ room, testID }: { room: SelfOwnerRoom;
     ? new Date(`${room.leaseEndsAt}T00:00:00+07:00`).toLocaleDateString(tag, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' })
     : null;
 
+  const Card = onPress ? Pressable : View;
+  const pressProps = onPress ? { onPress, accessibilityRole: 'button' as const, accessibilityLabel: `${roomsCopy.edit} ${room.title}` } : {};
+
   return (
-    <View testID={testID} style={[styles.room, { borderColor: theme.border, borderLeftColor: edge }]}>
+    <Card testID={testID} {...pressProps} style={[styles.room, { borderColor: theme.border, borderLeftColor: edge }]}>
       <View style={styles.row}>
         <Text style={[styles.title, { color: ink }]} numberOfLines={1}>
           {room.title}
@@ -41,7 +54,7 @@ export function MobileSelfOwnerRoomCard({ room, testID }: { room: SelfOwnerRoom;
       ) : room.state === 'listed' ? (
         <Text style={[styles.caption, { color: muted }]}>{interpolate(copy.interests, { n: room.interestCount ?? 0 })}</Text>
       ) : null}
-    </View>
+    </Card>
   );
 }
 

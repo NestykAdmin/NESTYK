@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { DashboardSectionStatus } from '@nestyk/feature-listing';
 
 /**
@@ -30,6 +30,35 @@ export type SelfOwnerRoomSort = 'updated_desc' | 'updated_asc' | 'rent_asc' | 'r
 export type SelfOwnerSortColumn = 'rent' | 'updated';
 
 export const SELF_OWNER_ROOMS_PAGE_SIZE = 10;
+/** Web rooms page: 24 a page, like the agent rooms page (6 rows of the 4-column card grid). */
+export const SELF_OWNER_ROOMS_WEB_PAGE_SIZE = 24;
+
+/**
+ * Filters of the web rooms page (Jom 20 Nov 2026): the ones the demo rooms have, with the agent's names and values.
+ * `bedrooms` '0' = studio, '4' = 4 or more; prices are plain digit strings, '' = no limit.
+ */
+export type SelfOwnerRoomFilters = { bedrooms: string; minPrice: string; maxPrice: string };
+export const EMPTY_SELF_OWNER_FILTERS: SelfOwnerRoomFilters = { bedrooms: '', minPrice: '', maxPrice: '' };
+export const SELF_OWNER_BEDROOM_FILTERS = ['0', '1', '2', '3', '4'];
+
+/** Chips on the toolbar: bedrooms is one, the rent range (either end) is one. */
+export function activeSelfOwnerFilterCount(filters: SelfOwnerRoomFilters): number {
+  return (filters.bedrooms ? 1 : 0) + (filters.minPrice || filters.maxPrice ? 1 : 0);
+}
+
+const priceOf = (text: string): number | null => (text && Number.isFinite(Number(text)) ? Number(text) : null);
+
+export function applySelfOwnerRoomFilters(rooms: SelfOwnerRoom[], filters: SelfOwnerRoomFilters): SelfOwnerRoom[] {
+  const beds = filters.bedrooms === '' ? null : Number(filters.bedrooms);
+  const min = priceOf(filters.minPrice);
+  const max = priceOf(filters.maxPrice);
+  return rooms.filter(
+    (room) =>
+      (beds == null || (beds >= 4 ? room.bedrooms >= 4 : room.bedrooms === beds)) &&
+      (min == null || room.monthlyRent >= min) &&
+      (max == null || room.monthlyRent <= max),
+  );
+}
 
 type DemoRoom = Omit<SelfOwnerRoom, 'updatedAt' | 'leaseEndsAt'> & { updatedDaysAgo: number; leaseEnds?: [yearOffset: number, monthDay: string] };
 
@@ -117,7 +146,52 @@ export function clampPage(page: number, total: number, size: number = SELF_OWNER
   return Math.min(Math.max(1, Math.floor(page) || 1), pages);
 }
 
+/**
+ * In-memory demo rooms (listing UI round, 20 Nov 2026, ClickUp z8rcteng6d): rooms added, edited or (un)listed here
+ * show on both the Dashboard and the rooms page, and are gone on reload. Replace with the self owner API later.
+ */
+function createRoomStore() {
+  let rooms: SelfOwnerRoom[] = createSelfOwnerRoomsDemo();
+  const listeners = new Set<() => void>();
+  const emit = () => listeners.forEach((listener) => listener());
+  return {
+    get: (): SelfOwnerRoom[] => rooms,
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    add(room: SelfOwnerRoom): void {
+      rooms = [...rooms, room];
+      emit();
+    },
+    update(id: string, patch: Partial<SelfOwnerRoom>): void {
+      rooms = rooms.map((room) => (room.id === id ? { ...room, ...patch, id } : room));
+      emit();
+    },
+    /** Back to the 14 demo rooms (tests). */
+    reset(now: Date = new Date()): void {
+      rooms = createSelfOwnerRoomsDemo(now);
+      emit();
+    },
+  };
+}
+
+export const selfOwnerRoomStore = createRoomStore();
+
+/** A rented room stays listed off the public site; only listed / unlisted rooms switch. */
+export function canToggleListing(room: SelfOwnerRoom): boolean {
+  return room.state !== 'occupied';
+}
+
+/** Listed <-> unlisted for one room; a rented or unknown room is left as is. */
+export function toggleListing(id: string, now: Date = new Date()): void {
+  const room = selfOwnerRoomStore.get().find((item) => item.id === id);
+  if (!room || !canToggleListing(room)) return;
+  selfOwnerRoomStore.update(id, { state: room.state === 'listed' ? 'unlisted' : 'listed', updatedAt: now.toISOString() });
+}
+
 /** The owner's rooms. Demo only until the self owner API exists. */
 export function useSelfOwnerRooms(): { status: DashboardSectionStatus; rooms: SelfOwnerRoom[]; isDemoPreview: boolean } {
-  return useMemo(() => ({ status: 'demo' as DashboardSectionStatus, rooms: createSelfOwnerRoomsDemo(), isDemoPreview: true }), []);
+  const rooms = useSyncExternalStore(selfOwnerRoomStore.subscribe, selfOwnerRoomStore.get, selfOwnerRoomStore.get);
+  return useMemo(() => ({ status: 'demo' as DashboardSectionStatus, rooms, isDemoPreview: true }), [rooms]);
 }

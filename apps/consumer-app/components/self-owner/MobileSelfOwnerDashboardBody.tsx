@@ -30,13 +30,15 @@ export type MobileSelfOwnerDashboardBodyProps = {
   deletionScheduledFor?: string | null;
   /** Opens the rooms list; without it "view all rooms" stays "coming soon". */
   onOpenRooms?: () => void;
+  /** Opens the add-room form; without it "list a room" stays "coming soon". */
+  onAddListing?: () => void;
 };
 
 /**
  * Self owner phone Dashboard (UI round, 19 Nov 2026, ClickUp z8rcteng6b). Same sections and order as the web page:
  * my rooms → rent this month → to do → today's viewings. No navigation yet; the one action is disabled.
  */
-export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletionScheduledFor, onOpenRooms }: MobileSelfOwnerDashboardBodyProps) {
+export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletionScheduledFor, onOpenRooms, onAddListing }: MobileSelfOwnerDashboardBodyProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerDashboard;
@@ -111,9 +113,13 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
         </View>
       </View>
 
-      <MobileButton disabled onPress={() => {}}>
-        {`+ ${copy.addListing} · ${copy.comingSoon}`}
-      </MobileButton>
+      {onAddListing ? (
+        <MobileButton onPress={onAddListing}>{`+ ${copy.addListing}`}</MobileButton>
+      ) : (
+        <MobileButton disabled onPress={() => {}}>
+          {`+ ${copy.addListing} · ${copy.comingSoon}`}
+        </MobileButton>
+      )}
 
       {snapshot.isDemoPreview ? (
         <View style={[styles.demo, { backgroundColor: subtle.brandBg, borderColor: tokens.colors.icon.brand }]}>

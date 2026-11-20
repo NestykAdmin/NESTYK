@@ -157,3 +157,17 @@ test('loading sections show a skeleton, never stale rows or counts', () => {
   const all = texts(tree).join('\n');
   assert.doesNotMatch(all, new RegExp(copy.roomCount.replace('{n}', '\\d+')));
 });
+
+// Listing UI round (20 Nov 2026, ClickUp z8rcteng6d)
+test('the listing action opens the form when the shell passes onAddListing', () => {
+  locale = 'th';
+  const copy = copyOf();
+  let added = 0;
+  const button = render(fixture(), { onAddListing: () => { added += 1; } })
+    .filter(node => node?.type === 'button')
+    .find(node => texts(nodes(node.props.children)).join('').includes(copy.addListing));
+  assert.equal(!!button.props.disabled, false);
+  assert.ok(!texts(nodes(button.props.children)).join('').includes(copy.comingSoon));
+  button.props.onClick();
+  assert.equal(added, 1);
+});

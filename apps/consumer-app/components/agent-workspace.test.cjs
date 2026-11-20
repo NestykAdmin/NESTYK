@@ -688,3 +688,49 @@ test('overview quick actions (Mos 18 Nov 2026): CI pair, yellow add room + ink n
   assert.match(css, /\.aov-scroll \.aw-button-ink \{\s*background: #211e1e;\s*color: #ffffff !important;/);
   assert.match(css, /\.aov-scroll\[data-theme="dark"\] \.aw-button-ink \{\s*background: #f1f5f9;\s*color: #211e1e !important;/);
 });
+
+// Self owner sub menu (Jom 20 Nov 2026): a custom item with children works like the agent Listing group.
+test('a custom sidebar item with children opens as a group with its sub-pages', () => {
+  locale = 'en';
+  state = [];
+  const calls = [];
+  const input = props({
+    activeRole: 'self_owner',
+    activeTab: 'createListing',
+    navSections: [{
+      id: 'main',
+      caption: 'My rooms',
+      items: [
+        { id: 'dashboard', icon: 'grid', label: 'Overview', onPress: () => calls.push('dashboard') },
+        {
+          id: 'listings', icon: 'buildings', label: 'Rooms and listings', active: true, onPress: () => calls.push('group'),
+          children: [
+            { id: 'rooms', icon: 'buildings', label: 'View rooms', onPress: () => calls.push('listingRoom') },
+            { id: 'add', icon: 'plus', label: 'Add room', active: true, onPress: () => calls.push('createListing') },
+          ],
+        },
+      ],
+    }],
+  });
+  let tree = render(input);
+  const subs = byClass(tree, 'aw-nav-subitem');
+  assert.deepEqual(subs.map((node) => node.props.children), ['View rooms', 'Add room']);
+  assert.equal(subs[1].props['aria-current'], 'page');
+  const group = byClass(tree, 'aw-nav-item').find((node) => node.props.title === 'Rooms and listings');
+  assert.equal(group.props['aria-expanded'], true);
+  assert.ok(group.props.className.split(' ').includes('is-active'));
+  assert.equal(tree.find((node) => node?.type === 'h1').props.children, 'Add room');
+  subs.forEach((node) => node.props.onClick());
+  assert.deepEqual(calls, ['listingRoom', 'createListing']);
+  // The group row folds its sub-pages instead of navigating while the sidebar is open.
+  group.props.onClick();
+  tree = render(input);
+  assert.equal(byClass(tree, 'aw-nav-subitem').length, 0);
+  assert.deepEqual(calls, ['listingRoom', 'createListing']);
+  // Folded sidebar: the group icon goes to its first sub-page.
+  state = [];
+  byClass(render(input), 'aw-collapse')[0].props.onClick();
+  tree = render(input);
+  byClass(tree, 'aw-nav-item').find((node) => node.props.title === 'Rooms and listings').props.onClick();
+  assert.equal(calls.at(-1), 'group', 'the folded group runs its own onPress (the self owner menu points it at the rooms list)');
+});

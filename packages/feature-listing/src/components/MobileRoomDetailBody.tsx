@@ -1000,10 +1000,11 @@ export function MobileRoomDetailBody({
           </View>
         ) : null}
 
-        <View style={{ height: isAgent ? 100 : 24 }} />
+        <View style={{ height: isAgent && onShare ? 100 : 24 }} />
       </ScrollView>
 
-      {isAgent ? (
+      {/* Self owner (20 Nov 2026) shows the agent detail without sharing: no onShare, no bar. */}
+      {isAgent && onShare ? (
         <View style={[styles.sticky, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
           <View style={styles.agentStickyRow}>
             <MobileButton onPress={onShare} style={styles.agentStickyBtn}>

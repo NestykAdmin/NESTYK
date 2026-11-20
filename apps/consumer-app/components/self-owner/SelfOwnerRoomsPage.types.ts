@@ -9,4 +9,8 @@ export interface SelfOwnerRoomsPageProps {
   initialQuery?: string;
   /** Starting status filter. */
   initialFilter?: SelfOwnerRoomFilter;
+  /** Opens the add-room form; without it the button stays "coming soon". */
+  onAddListing?: () => void;
+  /** The owner's profile contact, handed to the room edit form. */
+  ownerContact?: { name: string; phone: string };
 }

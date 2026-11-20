@@ -18,11 +18,16 @@ function load(filename) {
   cache.set(filename, module);
   const localRequire = (name) => {
     if (name.endsWith('.css')) return {};
-    if (name === 'react') return { ...React, useMemo: fn => fn(), useEffect() {}, useId: () => `test-${sequence++}`, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
+    if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useSyncExternalStore: (_s, get) => get(), useEffect() {}, useRef: () => ({ current: null }), useId: () => `test-${sequence++}`, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
-    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileStatusPill: 'MobileStatusPill', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens };
+    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileStatusPill: 'MobileStatusPill', MobileSectionHeader: 'MobileSectionHeader', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens };
     if (name === '@nestyk/ui/web-content') return load(`${root}/packages/ui/src/shells/WebContentContainer.tsx`);
-    if (name === '@nestyk/feature-listing') return load(`${root}/packages/feature-listing/src/dashboard/types.ts`);
+    if (name === '@nestyk/ui/cookie-consent') return { cookieConsentAllows: () => false };
+    if (name === '@nestyk/feature-search') return { RENT_PRICE_LIMIT: 1000000, RENT_PRICE_PRESETS: [], RENT_PRICE_STEP: 500 };
+    if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: v => v }, Platform: { OS: 'web' }, Alert: { alert() {} } };
+    if (name === 'react-native-safe-area-context') return { SafeAreaProvider: ({ children }) => children, SafeAreaView: ({ children }) => children, initialWindowMetrics: null };
+    if (name === 'expo-image-picker') return {};
+    if (name === '@nestyk/feature-listing') return { ...load(`${root}/packages/feature-listing/src/dashboard/types.ts`), MobileRoomDetailBody: 'Detail', MobileCreateListingWizardBody: 'Wizard', defaultOwnerListingConfig: {} };
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
     return load([base, `${base}.ts`, `${base}.tsx`].find(file => fs.existsSync(file) && fs.statSync(file).isFile()));
@@ -51,30 +56,35 @@ const byClass = (tree, name) => tree.filter(node => node?.props?.className?.spli
 const texts = (tree) => tree.filter(node => typeof node === 'string' || typeof node === 'number').map(String);
 const label = (node) => texts(nodes(node.props.children)).join('');
 
-test('first page: ten rooms in a bordered table card, agent pager (range + numbered pages)', () => {
+// Rebuilt like the agent rooms page (Jom 20 Nov 2026): awr-* layout, 24 a page, filters, cards, row opens the detail.
+test('first page: every demo room in the agent table card, 24 a page, so one page and no page buttons', () => {
   locale = 'th';
   const tree = render();
   const web = copyOf().agent.listings.web;
-  assert.equal(byClass(tree, 'sor-room').length, 10);
-  assert.equal(byClass(tree, 'sor-table-card').length, 1);
-  assert.ok(texts(tree).includes(web.pageRange.replace('{from}', '1').replace('{to}', '10').replace('{total}', '14')));
-  const pager = byClass(tree, 'sor-page-btn');
+  assert.equal(byClass(tree, 'awr-room').length, 14);
+  assert.equal(byClass(tree, 'awr-table-card').length, 1);
+  assert.ok(texts(tree).includes(web.pageRange.replace('{from}', '1').replace('{to}', '14').replace('{total}', '14')));
+  assert.equal(byClass(tree, 'awr-page-btn').length, 0);
+  const many = Array.from({ length: 30 }, (_, i) => ({ ...demo()[i % 14], id: `r${i + 1}` }));
+  const big = render({ rooms: many });
+  assert.equal(byClass(big, 'awr-room').length, 24);
+  const pager = byClass(big, 'awr-page-btn');
   assert.deepEqual(pager.map(button => button.props['aria-label'] ?? label(button)), [web.prevPage, '1', '2', web.nextPage]);
-  assert.deepEqual(pager.map(button => !!button.props.disabled), [true, false, false, false]);
   assert.equal(pager[1].props['aria-current'], 'page');
-  assert.ok(pager[1].props.className.split(' ').includes('is-current'));
 });
 
-test('rows match the agent table: photo cell, status pill with the agent tones', () => {
+test('rows match the agent table: photo cell, status pill with the agent tones, the row is pressable', () => {
   locale = 'th';
   const tree = render({ initialFilter: 'listed' });
   const so = copyOf().selfOwnerDashboard;
   const tones = load(path.join(__dirname, 'agent-web/ui/statusIntent.ts')).STATUS_INTENT_TONES;
   const counts = roomsLib().countSelfOwnerRooms(demo());
-  assert.equal(byClass(tree, 'sor-thumb').length, counts.listed);
+  assert.equal(byClass(tree, 'awr-thumb').length, counts.listed);
   const pills = tree.filter(node => node?.type === 'MobileStatusPill');
   assert.equal(pills.length, counts.listed);
   assert.ok(pills.every(pill => pill.props.label === so.roomState.listed && pill.props.tone.bg === tones.done.bg));
+  const rows = tree.filter(node => node?.type === 'tr' && typeof node.props.onClick === 'function');
+  assert.equal(rows.length, counts.listed, 'rows open the room like the agent table');
 });
 
 test('status is one dropdown like the agent rooms page, with counts in the options', () => {
@@ -85,24 +95,23 @@ test('status is one dropdown like the agent rooms page, with counts in the optio
   const counts = roomsLib().countSelfOwnerRooms(demo());
   const tree = render();
   const selects = tree.filter(node => node?.type === 'select');
-  assert.equal(selects.length, 1, 'no separate sort dropdown in the table view');
-  const select = byClass(tree, 'sor-status-select').flatMap(wrap => nodes(wrap.props.children)).find(node => node?.type === 'select');
+  assert.equal(selects.length, 1, 'no sort dropdown and no open filter dialog in the table view');
+  const select = byClass(tree, 'awr-status-select').flatMap(wrap => nodes(wrap.props.children)).find(node => node?.type === 'select');
   assert.equal(select.props.value, 'all');
   assert.equal(select.props['aria-label'], so.filterLabel);
   const options = nodes(select.props.children).filter(node => node?.type === 'option');
   assert.deepEqual(options.map(option => option.props.value), ['all', 'occupied', 'listed', 'unlisted']);
   assert.deepEqual(options.map(label), [
-    so.filterAll,
+    `${so.filterLabel}: ${so.filterAll}`,
     `${state.occupied} (${counts.occupied})`,
     `${state.listed} (${counts.listed})`,
     `${state.unlisted} (${counts.unlisted})`,
   ]);
   const listed = render({ initialFilter: 'listed' });
-  assert.equal(byClass(listed, 'sor-room').length, counts.listed);
-  assert.equal(listed.find(node => node?.type === 'select').props.value, 'listed');
+  assert.equal(byClass(listed, 'awr-room').length, counts.listed);
 });
 
-test('rent and updated sort from the column headers; newest first by default', () => {
+test('rent and updated sort from the column headers; newest first by default; no action column', () => {
   locale = 'th';
   const web = copyOf().agent.listings.web;
   const tree = render();
@@ -116,13 +125,13 @@ test('rent and updated sort from the column headers; newest first by default', (
 
 test('search narrows the rows; no match shows the filtered state with clear filters', () => {
   locale = 'th';
-  assert.equal(byClass(render({ initialQuery: '  EMILY ' }), 'sor-room').length, 1);
+  assert.equal(byClass(render({ initialQuery: '  EMILY ' }), 'awr-room').length, 1);
   const tree = render({ initialQuery: 'ไม่มีห้องนี้แน่นอน' });
   const states = copyOf().agent.dashboard.webStates;
-  assert.equal(byClass(tree, 'sor-room').length, 0);
+  assert.equal(byClass(tree, 'awr-room').length, 0);
   assert.ok(texts(tree).includes(states.filteredTitle));
   assert.ok(tree.some(node => node?.type === 'button' && label(node) === states.clearFilters));
-  assert.equal(byClass(tree, 'sor-pager').length, 0);
+  assert.equal(byClass(tree, 'awr-pager').length, 0);
 });
 
 test('the listing action is disabled as coming soon and the demo note shows', () => {
@@ -133,15 +142,15 @@ test('the listing action is disabled as coming soon and the demo note shows', ()
   assert.equal(action.props.disabled, true);
   assert.equal(action.props.title, so.comingSoon);
   assert.equal(tree.filter(node => node?.props?.role === 'note').length, 1);
-  assert.equal(byClass(render({ isDemoPreview: false }), 'sov-demo').length + render({ isDemoPreview: false }).filter(node => node?.props?.role === 'note').length, 0);
+  assert.equal(render({ isDemoPreview: false }).filter(node => node?.props?.role === 'note').length, 0);
 });
 
 test('thai page has no english interface copy; every locale fills its copy', () => {
   locale = 'th';
-  assert.doesNotMatch(texts(render()).join('\n'), /\b(Rooms|Search|Status|All|Sort|Rent|Room|Size|Details|Updated|Previous|Next|Page|Coming soon|Sample|Clear filters|bed|sq m)\b/);
+  assert.doesNotMatch(texts(render()).join('\n'), /\b(Rooms|Search|Status|All|Sort|Rent|Room|Size|Details|Updated|Previous|Next|Page|Coming soon|Sample|Clear filters|Filters|Table|Cards|bed|sq m)\b/);
   for (const l of ['en', 'ja', 'zh']) {
     locale = l;
-    assert.doesNotMatch(texts(render()).join('\n'), /undefined|\{(n|name|amount|date|beds|sqm|page|pages)\}/, l);
+    assert.doesNotMatch(texts(render()).join('\n'), /undefined|\{(n|name|amount|date|beds|sqm|page|pages|count|price|from|to|total)\}/, l);
   }
   locale = 'th';
 });
@@ -151,7 +160,7 @@ test('loading shows the table skeleton and no counts', () => {
   const all = copyOf();
   const tree = render({ status: 'loading', rooms: [] });
   assert.ok(tree.some(node => node?.props?.className === 'awu-skeleton'));
-  assert.equal(byClass(tree, 'sor-count').length, 0);
+  assert.equal(texts(byClass(tree, 'awr-count')).join('').trim(), '');
   const options = tree.filter(node => node?.type === 'option').map(label);
-  assert.deepEqual(options, [all.selfOwnerRooms.filterAll, ...['occupied', 'listed', 'unlisted'].map(key => all.selfOwnerDashboard.roomState[key])]);
+  assert.deepEqual(options, [`${all.selfOwnerRooms.filterLabel}: ${all.selfOwnerRooms.filterAll}`, ...['occupied', 'listed', 'unlisted'].map(key => all.selfOwnerDashboard.roomState[key])]);
 });

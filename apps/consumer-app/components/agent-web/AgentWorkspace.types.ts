@@ -14,6 +14,11 @@ export interface WorkspaceNavItem {
   badge?: string;
   title?: string;
   onPress: () => void;
+  /**
+   * Sub-pages (self owner "rooms and listings", Jom 20 Nov 2026): the item becomes a group like the agent's Listing.
+   * It folds open and closed; on the folded (icon) sidebar `onPress` runs instead. Mark the current sub-page `active`.
+   */
+  children?: WorkspaceNavItem[];
 }
 
 export interface WorkspaceNavSection {

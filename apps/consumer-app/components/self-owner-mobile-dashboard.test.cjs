@@ -45,7 +45,7 @@ function nodes(element) {
   return [element, ...nodes(element.props.children)];
 }
 const body = () => load(path.join(__dirname, 'self-owner/MobileSelfOwnerDashboardBody.tsx'));
-function render(snapshot = fixture()) { return nodes(body().MobileSelfOwnerDashboardBody({ snapshot, initials: 'J' })); }
+function render(snapshot = fixture(), extra = {}) { return nodes(body().MobileSelfOwnerDashboardBody({ snapshot, initials: 'J', ...extra })); }
 const texts = tree => tree.filter(node => typeof node === 'string' || typeof node === 'number').map(String);
 const byTestId = (tree, prefix) => tree.filter(node => typeof node?.props?.testID === 'string' && node.props.testID.startsWith(prefix));
 
@@ -137,4 +137,15 @@ test('loading sections show a spinner, never stale rows or counts', () => {
   for (const prefix of ['so-room-', 'so-rent-', 'so-todo-', 'so-viewing-']) assert.equal(byTestId(tree, prefix).length, 0, prefix);
   assert.ok(!texts(tree).some(text => text === '…'));
   assert.doesNotMatch(texts(tree).join('\n'), new RegExp(copy.roomCount.replace('{n}', '\\d+')));
+});
+
+// Listing UI round (20 Nov 2026, ClickUp z8rcteng6d)
+test('the listing button opens the form when the shell passes onAddListing', () => {
+  locale = 'th';
+  let added = 0;
+  const button = render(fixture(), { onAddListing: () => { added += 1; } }).find(node => node?.type === 'MobileButton');
+  assert.equal(!!button.props.disabled, false);
+  assert.ok(!texts(nodes(button.props.children)).join(' ').includes(copyOf().comingSoon));
+  button.props.onPress();
+  assert.equal(added, 1);
 });

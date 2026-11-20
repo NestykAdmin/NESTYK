@@ -240,5 +240,12 @@ test('self owner (round 2, Mos 18 Nov 2026) lives at /self-owner; the old /owner
   assert.equal(rooms.state.role, 'self_owner');
   assert.equal(rooms.state.tab, 'listingRoom');
   assert.equal(stateToRoute({ role: 'self_owner', tab: 'listingRoom' }), '/self-owner/rooms');
+  // Add a room (listing UI round, 20 Nov 2026, ClickUp z8rcteng6d): same path as the agent's.
+  const create = routeToState('/self-owner/rooms/new');
+  assert.equal(create.state.role, 'self_owner');
+  assert.equal(create.state.tab, 'createListing');
+  assert.equal(stateToRoute({ role: 'self_owner', tab: 'createListing' }), '/self-owner/rooms/new');
+  // Room edit happens in the detail modal like the agent (Jom 20 Nov 2026): no edit URL.
+  assert.equal(routeToState('/self-owner/rooms/r5/edit').href, '/self-owner');
   assert.deepEqual(parseAppPath('/owner/contracts'), { kind: 'redirect', to: '/landlord/contracts' });
 });

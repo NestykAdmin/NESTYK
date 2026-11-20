@@ -12,7 +12,7 @@ const copy = {
   comingSoon: 'Coming soon', dashboard: 'Dashboard', services: 'Services',
   drawer: { users: 'Users', tickets: 'Tickets', system: 'System', audit: 'Audit log', opsSettings: 'Operations settings' },
   admin: { main: 'Platform' },
-  selfOwner: { main: 'My rooms', money: 'Tenants and money', listings: 'Rooms and listings', interested: 'Interested people', viewings: 'Viewings', tenants: 'Tenants', contracts: 'Contracts', billsIncome: 'Bills and income', repairs: 'Repairs' },
+  selfOwner: { main: 'My rooms', money: 'Tenants and money', listings: 'Rooms and listings', listingsView: 'View rooms', listingsCreate: 'Add room', interested: 'Interested people', viewings: 'Viewings', tenants: 'Tenants', contracts: 'Contracts', billsIncome: 'Bills and income', repairs: 'Repairs' },
 };
 
 function check(sections, captions, ids) {
@@ -61,4 +61,19 @@ test('self owner sidebar: my rooms (overview and rooms work, 19 Nov 2026), then 
 test('admin and self owner on the web shell get no phone header (profile picture and bell are already in the shell)', () => {
   const index = fs.readFileSync(path.join(__dirname, '../app/index.tsx'), 'utf8');
   assert.match(index, /\) : isAdminWeb \|\| isSelfOwnerWeb \? \(\s*\/\/[^\n]*\n\s*null\s*\) : partyInbox \? \(/);
+});
+
+// Sub menu like the agent's Listing group (Jom 20 Nov 2026): view rooms and add a room.
+test('self owner "rooms and listings" is a group with view rooms and add room', () => {
+  const calls = [];
+  const listings = (tab) => selfOwnerWebNavSections(copy, tab, (next) => calls.push(next))[0].items[1];
+  const group = listings('createListing');
+  assert.deepEqual(group.children.map((c) => [c.id, c.label]), [['rooms', 'View rooms'], ['add', 'Add room']]);
+  assert.equal(group.active, true);
+  assert.deepEqual(group.children.map((c) => !!c.active), [false, true]);
+  assert.deepEqual(listings('listingRoom').children.map((c) => !!c.active), [true, false]);
+  assert.equal(listings('dashboard').active, false);
+  group.children.forEach((c) => c.onPress());
+  group.onPress();
+  assert.deepEqual(calls, ['listingRoom', 'createListing', 'listingRoom']);
 });

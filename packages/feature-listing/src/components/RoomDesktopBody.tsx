@@ -690,7 +690,8 @@ export function RoomDesktopBody({
                         <p>{rd.otherFeesNote}</p>
                       </div>
                     )}
-                    {agent && (
+                    {/* Self owner (20 Nov 2026) shows this body without sharing: no onShare, no button. */}
+                    {agent && onShare && (
                       <button
                         className="aw-button aw-button-primary ard-share"
                         onClick={onShare}

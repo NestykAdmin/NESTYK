@@ -365,8 +365,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     }
   };
   const workspaceLabel = props.workspaceLabel ?? t.agent.dashboard.workspaceLabel;
+  // The page title is the current sub-page when a group has one (like the agent's "Room Listings").
   const customCurrent = props.navSections
-    ?.flatMap((section) => section.items)
+    ?.flatMap((section) => section.items.flatMap((item) => [...(item.children ?? []), item]))
     .find((item) => item.active);
   const currentMenu = [...AGENT_WEB_PRIMARY, ...AGENT_WEB_MORE].find(
     (item) => item.tab === props.activeTab,
@@ -376,7 +377,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   // other icons are slate 700 / the dark body step #E2E8F0 (v1.2 B+C) so they no longer look faded.
   const itemColor = (active: boolean) =>
     active ? (isDark ? "#F8B615" : "#795719") : isDark ? "#E2E8F0" : "#334155";
-  const customItem = (item: WorkspaceNavItem) => (
+  const customItem = (item: WorkspaceNavItem): React.ReactNode => {
+    if (item.children?.length) return customGroup(item, item.children);
+    return customLeaf(item);
+  };
+  const customLeaf = (item: WorkspaceNavItem) => (
     <button
       key={item.id}
       type="button"
@@ -429,6 +434,44 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       {parent === item.tab ? <span className="aw-active-dot" /> : null}
     </button>
   );
+
+  // A custom group (navSections item with children): same look and folding as the agent's Listing group.
+  const customGroup = (item: WorkspaceNavItem, children: WorkspaceNavItem[]) => {
+    const open = expanded[item.id] ?? Boolean(item.active);
+    const active = Boolean(item.active) && !settingsOpen;
+    return (
+      <React.Fragment key={item.id}>
+        <button
+          type="button"
+          className={`aw-nav-item ${active ? "is-active" : ""}`}
+          aria-expanded={isCollapsed ? undefined : open}
+          disabled={props.navigationDisabled || item.disabled}
+          title={item.title ?? item.label}
+          onClick={() => {
+            if (props.navigationDisabled || item.disabled) return;
+            if (isCollapsed) {
+              accountRef.current?.removeAttribute("open");
+              props.onCloseSettings?.();
+              item.onPress();
+              return;
+            }
+            setExpanded({ ...expanded, [item.id]: !open });
+          }}
+        >
+          <MobileIcon name={item.icon} size={20} color={itemColor(active)} />
+          <span className="aw-nav-label">{item.label}</span>
+          <span className="aw-nav-chev" aria-hidden="true">
+            <MobileIcon name="chevron-right" size={14} color={active && isDark ? "#CBD5E1" : theme.textSecondary} />
+          </span>
+        </button>
+        {open && !isCollapsed ? (
+          <div className="aw-nav-sub">
+            {children.map((child) => subItem(child.id, child.label, Boolean(child.active), child.onPress))}
+          </div>
+        ) : null}
+      </React.Fragment>
+    );
+  };
 
   const listingOpen = expanded.listing ?? parent === "listingRoom";
   const tenantsOpen = expanded.tenants ?? parent === "clients";

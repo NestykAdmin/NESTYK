@@ -60,6 +60,7 @@ import { PlaceDetails, PlaceSuggestion } from '../places';
 import { placesSearchAction } from './places-search-gate';
 import { PropertyPlaceMap } from './PropertyPlaceMap';
 import { MoveInDateField, todayIsoDate, clampMoveInDate } from './MoveInDateField';
+import { WizardDesktopContext, wizardSheetProps } from './wizard-desktop';
 
 /** Stored move-in date as YYYY-MM-DD ('' if missing/invalid). Not clamped: a past date stays as-is. */
 function storedMoveInDate(value: string | null | undefined): string {
@@ -242,6 +243,11 @@ export interface MobileCreateListingWizardBodyProps {
   /** Edit mode: called after user confirms discarding unsaved changes. */
   onAbandonUnsaved?: () => void;
   /**
+   * Edit mode: ask before discarding unsaved changes and call `discard` on yes. Omit to use the native Alert
+   * (react-native-web's Alert does nothing, so a web host passes its own prompt).
+   */
+  confirmLeave?: (discard: () => void) => void;
+  /**
    * Sync shell header title: section names on drill-in, "Add room" on hub/source.
    */
   onHeaderTitleChange?: (title: string) => void;
@@ -249,6 +255,28 @@ export interface MobileCreateListingWizardBodyProps {
   uploadPhoto?: (photo: RoomPhoto) => Promise<string>;
   enhancePhoto?: (photo: RoomPhoto) => Promise<RoomPhoto>;
   config: ListingEngineConfig;
+  /**
+   * Fixed listing source for a new room (self owner is always the owner): skips the "who is listing" picker.
+   * Omit for the agent flow, which asks first.
+   */
+  presetListingSource?: ListingSourceCode;
+  /**
+   * Self owner (Jom 20 Nov 2026): replace a few create-room texts, e.g. the agent's "listing name" becomes the owner's
+   * "room name" and "listing source" becomes "contact". Omit for the agent texts.
+   */
+  copyOverrides?: Partial<Record<'listingTitle' | 'listingTitleHint' | 'listingTitlePlaceholder' | 'sourceSection' | 'contactStepTitle' | 'visibilityPrivateHint', string>>;
+  /** Self owner: the room name may be left blank (the host names the room). Omit: required, as for the agent. */
+  listingTitleOptional?: boolean;
+  /**
+   * Self owner: the person listing is the room's only contact. Name and phone start from their profile and are locked
+   * when the profile has them; Line / Facebook stay editable. No contact book, no second contact. Omit for the agent.
+   */
+  ownerContact?: { name: string; phone: string };
+  /**
+   * Self owner wide web (Jom 20 Nov 2026): pickers open as centred dialogs and the footer buttons keep their own width.
+   * Omit for the phone look (the agent web form too).
+   */
+  desktopLayout?: boolean;
   onSubmitListing?: (data: CreateRoomWizardSubmitData) => void | Promise<void>;
   searchPlaces?: (query: string) => Promise<PlaceSuggestion[]>;
   getPlaceDetails?: (placeId: string) => Promise<PlaceDetails>;
@@ -316,12 +344,18 @@ export const MobileCreateListingWizardBody: React.FC<
   MobileCreateListingWizardBodyProps
 > = ({
   config,
+  presetListingSource,
+  copyOverrides,
+  listingTitleOptional,
+  ownerContact,
+  desktopLayout,
   initialData,
   title,
   submitLabel,
   onSubmittingChange,
   backHandlerRef,
   onAbandonUnsaved,
+  confirmLeave,
   onHeaderTitleChange,
   pickPhotos,
   uploadPhoto,
@@ -340,7 +374,17 @@ export const MobileCreateListingWizardBody: React.FC<
   generateListingPromo,
 }) => {
   const { t, locale } = useLocale();
-  const cr = t.agent.createRoom;
+  const cr = useMemo(() => {
+    const base = t.agent.createRoom;
+    if (!copyOverrides) return base;
+    const { contactStepTitle, ...rest } = copyOverrides;
+    return {
+      ...base,
+      ...rest,
+      steps: contactStepTitle ? { ...base.steps, ownerVisibility: contactStepTitle } : base.steps,
+    };
+  }, [t, copyOverrides]);
+  const sheetProps = wizardSheetProps(!!desktopLayout);
   const accent = tokens.colors.brand[500];
   const accentInk = tokens.colors.primary;
 
@@ -453,10 +497,10 @@ export const MobileCreateListingWizardBody: React.FC<
   listRoomTypesRef.current = listRoomTypes;
   const [listingTitle, setListingTitle] = useState('');
   const [listingSourceCode, setListingSourceCode] = useState<ListingSourceCode | null>(
-    initialData?.listingSourceCode ?? null,
+    initialData?.listingSourceCode ?? presetListingSource ?? null,
   );
   const [sourceDraft, setSourceDraft] = useState<ListingSourceCode | null>(
-    initialData?.listingSourceCode ?? null,
+    initialData?.listingSourceCode ?? presetListingSource ?? null,
   );
   const [roomId, setRoomId] = useState('');
   const [floor, setFloor] = useState('');
@@ -537,8 +581,15 @@ export const MobileCreateListingWizardBody: React.FC<
   const hubDirtyRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [ownerName, setOwnerName] = useState('');
-  const [ownerPhone, setOwnerPhone] = useState('');
+  const [ownerName, setOwnerName] = useState(ownerContact?.name ?? '');
+  const [ownerPhone, setOwnerPhone] = useState(ownerContact?.phone ?? '');
+  // Self owner: the profile can arrive after the form opened (a direct link); fill what is still empty, never overwrite.
+  useEffect(() => {
+    if (!ownerContact) return;
+    setOwnerName((current) => (current.trim() ? current : ownerContact.name));
+    setOwnerPhone((current) => (current.trim() ? current : ownerContact.phone));
+    // Only the profile values matter, not the object's identity.
+  }, [ownerContact?.name, ownerContact?.phone]);
   const [ownerLine, setOwnerLine] = useState('');
   const [ownerFacebook, setOwnerFacebook] = useState('');
   const [ownerOther, setOwnerOther] = useState('');
@@ -619,6 +670,18 @@ export const MobileCreateListingWizardBody: React.FC<
               },
             ].filter((c) => c.name || c.phone || c.id)
           : [];
+    if (ownerContact) {
+      const saved = initialData.contact ?? initialData.selectedContacts?.[0];
+      setRoomContacts([]);
+      setOwnerMode('create');
+      setOwnerName(saved?.name || ownerContact.name);
+      setOwnerPhone(saved?.phone || ownerContact.phone);
+      setOwnerLine(saved?.lineId ?? '');
+      setOwnerFacebook(saved?.facebook ?? '');
+      setOwnerOther(initialData.contact?.note ?? '');
+      appliedPlaceName.current = p.name;
+      return;
+    }
     setRoomContacts(
       seeded.slice(0, MAX_ROOM_CONTACTS).map((c) => ({
         key: roomContactKey(c.id, c.phone),
@@ -1336,7 +1399,7 @@ export const MobileCreateListingWizardBody: React.FC<
     }
 
     if (current === 2) {
-      if (!listingTitle.trim()) nextErrors.listingTitle = cr.required;
+      if (!listingTitleOptional && !listingTitle.trim()) nextErrors.listingTitle = cr.required;
       if (listRoomTypesRef.current && !roomTypeId) {
         nextErrors.roomType = cr.roomTypeRequired;
       }
@@ -1443,13 +1506,17 @@ export const MobileCreateListingWizardBody: React.FC<
       setEditView('overview');
       return true;
     }
-    if (listingSourceCode && editView === 'overview' && !initialData) {
+    if (listingSourceCode && editView === 'overview' && !initialData && !presetListingSource) {
       setSourceDraft(listingSourceCode);
       setListingSourceCode(null);
       setEditView('overview');
       return true;
     }
     if (listingSourceCode && editView === 'overview' && initialData && hubDirtyRef.current) {
+      if (confirmLeave) {
+        confirmLeave(() => onAbandonUnsaved?.());
+        return true;
+      }
       Alert.alert(cr.setupUnsavedLeaveTitle, cr.setupUnsavedLeaveBody, [
         { text: cr.setupUnsavedLeaveStay, style: 'cancel' },
         {
@@ -1464,6 +1531,7 @@ export const MobileCreateListingWizardBody: React.FC<
   }, [
     requiredPrompt,
     listingSourceCode,
+    presetListingSource,
     editView,
     initialData,
     contactSheet,
@@ -1474,6 +1542,7 @@ export const MobileCreateListingWizardBody: React.FC<
     cr.setupUnsavedLeaveStay,
     cr.setupUnsavedLeaveDiscard,
     onAbandonUnsaved,
+    confirmLeave,
   ]);
 
   useEffect(() => {
@@ -2245,15 +2314,15 @@ export const MobileCreateListingWizardBody: React.FC<
   });
 
   const renderNav = () => (
-    <View style={styles.footerSolo}>
-      <View style={styles.footerNote}>
+    <View style={desktopLayout ? [styles.footerSolo, styles.footerDesktop] : styles.footerSolo}>
+      <View style={desktopLayout ? [styles.footerNote, styles.footerNoteDesktop] : styles.footerNote}>
         <MobileIcon name="warning" size={16} color={tokens.colors.textSecondary} />
         <Text style={styles.footerNoteText}>{cr.sessionSaveNote}</Text>
       </View>
       <MobileButton
         onPress={finishSection}
         disabled={submitting || pickingPhotos || !!enhancingUri}
-        style={styles.footerCta}
+        style={desktopLayout ? [styles.footerCta, styles.footerCtaDesktop] : styles.footerCta}
         textStyle={styles.footerCtaText}
       >
         {cr.sectionDone}
@@ -2271,6 +2340,7 @@ export const MobileCreateListingWizardBody: React.FC<
   };
 
   return (
+    <WizardDesktopContext.Provider value={!!desktopLayout}>
     <View style={styles.container}>
       <View style={styles.chrome}>
         {pickingSource ? (
@@ -2389,7 +2459,7 @@ export const MobileCreateListingWizardBody: React.FC<
             </View>
             ) : null}
           </ScrollView>
-          <View style={styles.footer}>
+          <View style={desktopLayout ? [styles.footer, styles.footerDesktop] : styles.footer}>
             {initialData ? (
               hubDirty ? (
                 <Text style={styles.footerNoteText}>{cr.setupUnsavedChanges}</Text>
@@ -2401,7 +2471,7 @@ export const MobileCreateListingWizardBody: React.FC<
               onPress={handleSubmit}
               isLoading={submitting}
               disabled={submitting || !!enhancingUri}
-              style={styles.footerCta}
+              style={desktopLayout ? [styles.footerCta, styles.footerCtaDesktop] : styles.footerCta}
               textStyle={styles.footerCtaText}
             >
               {submitLabel ?? cr.saveRoom}
@@ -2729,7 +2799,7 @@ export const MobileCreateListingWizardBody: React.FC<
                 label={cr.listingTitle}
                 placeholder={cr.listingTitlePlaceholder}
                 value={listingTitle}
-                required
+                required={!listingTitleOptional}
                 onChangeText={(v) => {
                   setListingTitle(v);
                   clearFieldError('listingTitle');
@@ -3237,7 +3307,7 @@ export const MobileCreateListingWizardBody: React.FC<
                 }}
                 onClose={() => setComparePreviewSide(null)}
               />
-              <MobileBottomSheet visible={photoMenuUri != null} onClose={() => setPhotoMenuUri(null)}>
+              <MobileBottomSheet {...sheetProps} visible={photoMenuUri != null} onClose={() => setPhotoMenuUri(null)}>
                 <MobileActionSheetBody
                   title={cr.steps.photos}
                   actions={[
@@ -3477,7 +3547,7 @@ export const MobileCreateListingWizardBody: React.FC<
           </>}
           {step === 8 && (
             <>
-              <Text style={styles.hint}>{cr.roomContactsMaxHint}</Text>
+              {!ownerContact ? <Text style={styles.hint}>{cr.roomContactsMaxHint}</Text> : null}
               {roomContacts.length > 0 ? (
                 <View style={{ gap: 12 }}>
                   <Text style={styles.fieldLabel}>{cr.selectedContactLabel}</Text>
@@ -3526,7 +3596,7 @@ export const MobileCreateListingWizardBody: React.FC<
                 )
               ) : (
                 <>
-                  {!roomContacts.length ? (
+                  {!roomContacts.length && !ownerContact ? (
                     <Text style={styles.hint}>{cr.ownerPickRequired}</Text>
                   ) : null}
                   <MobileInput
@@ -3534,6 +3604,7 @@ export const MobileCreateListingWizardBody: React.FC<
                     placeholder={cr.ownerNamePlaceholder}
                     value={ownerName}
                     required
+                    editable={!ownerContact?.name.trim()}
                     onChangeText={(v) => {
                       setOwnerName(v);
                       clearFieldError('ownerName');
@@ -3546,6 +3617,7 @@ export const MobileCreateListingWizardBody: React.FC<
                     keyboardType="phone-pad"
                     value={ownerPhone}
                     required
+                    editable={!ownerContact?.phone.trim()}
                     onChangeText={(v) => {
                       setOwnerPhone(v);
                       clearFieldError('ownerPhone');
@@ -3587,7 +3659,7 @@ export const MobileCreateListingWizardBody: React.FC<
         </Animated.View>
       ) : null}
 
-      <MobileBottomSheet visible={layoutSheet != null} onClose={() => setLayoutSheet(null)}>
+      <MobileBottomSheet {...sheetProps} visible={layoutSheet != null} onClose={() => setLayoutSheet(null)}>
         <WizardSheetChrome
           title={
             layoutSheet === 'propertyType'
@@ -3719,7 +3791,7 @@ export const MobileCreateListingWizardBody: React.FC<
         </ScrollView>
       </MobileBottomSheet>
 
-      <MobileBottomSheet visible={leaseSheet != null} onClose={closeLeaseSheet} avoidKeyboard>
+      <MobileBottomSheet {...sheetProps} visible={leaseSheet != null} onClose={closeLeaseSheet} avoidKeyboard>
         {(() => {
           const editing = leaseSheet?.mode === 'edit';
           const editOpt =
@@ -3834,7 +3906,7 @@ export const MobileCreateListingWizardBody: React.FC<
         })()}
       </MobileBottomSheet>
 
-      <MobileBottomSheet
+      <MobileBottomSheet {...sheetProps}
         visible={contactSheet != null}
         onClose={dismissContactSheetStep}
         avoidKeyboard
@@ -4053,7 +4125,7 @@ export const MobileCreateListingWizardBody: React.FC<
         </View>
       </Modal>
 
-      <MobileBottomSheet
+      <MobileBottomSheet {...sheetProps}
         visible={promoAiPhase !== 'closed'}
         onClose={closePromoAiSheet}
         closeOnBackdropPress={promoAiPhase !== 'generating'}
@@ -4186,6 +4258,7 @@ export const MobileCreateListingWizardBody: React.FC<
         </View>
       </Modal>
     </View>
+    </WizardDesktopContext.Provider>
   );
 };
 
@@ -5360,6 +5433,21 @@ const styles = StyleSheet.create({
   footerCtaText: {
     fontSize: 16,
     lineHeight: 24,
+  },
+  // Desktop look (desktopLayout): note on the left, the button on the right at its own width.
+  footerDesktop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 16,
+  },
+  footerNoteDesktop: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  footerCtaDesktop: {
+    minWidth: 200,
+    paddingHorizontal: 24,
   },
   sourceLead: {
     fontFamily: tokens.typography.native.body,

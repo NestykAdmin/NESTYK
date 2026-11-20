@@ -9,7 +9,7 @@ const file = path.join(__dirname, '../lib/self-owner-dashboard.ts');
 function loadFile(target) {
   const module = { exports: {} };
   const localRequire = (name) => {
-    if (name === 'react') return { useMemo: (fn) => fn() };
+    if (name === 'react') return { useMemo: (fn) => fn(), useSyncExternalStore: (_subscribe, get) => get() };
     if (name.startsWith('.')) return loadFile(`${path.resolve(path.dirname(target), name)}.ts`);
     return require(name);
   };

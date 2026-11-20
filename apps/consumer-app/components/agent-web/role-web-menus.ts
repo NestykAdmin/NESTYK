@@ -16,6 +16,9 @@ export interface RoleWebMenuCopy {
     main: string;
     money: string;
     listings: string;
+    /** Sub menu of "listings" (Jom 20 Nov 2026), like the agent's Listing group. */
+    listingsView: string;
+    listingsCreate: string;
     interested: string;
     viewings: string;
     tenants: string;
@@ -55,7 +58,7 @@ export function adminWebNavSections(copy: RoleWebMenuCopy, overviewActive: boole
 }
 
 /** Self owner tabs that have a page (19 Nov 2026: overview and rooms and listings; the rest is still "coming soon"). */
-export type SelfOwnerWebTab = "dashboard" | "listingRoom";
+export type SelfOwnerWebTab = "dashboard" | "listingRoom" | "createListing";
 
 export function selfOwnerWebNavSections(
   copy: RoleWebMenuCopy,
@@ -70,7 +73,17 @@ export function selfOwnerWebNavSections(
       caption: o.main,
       items: [
         overview(copy, activeTab === "dashboard", () => onSelect("dashboard")),
-        { id: "listings", icon: "buildings", label: o.listings, active: activeTab === "listingRoom", onPress: () => onSelect("listingRoom") },
+        {
+          id: "listings",
+          icon: "buildings",
+          label: o.listings,
+          active: activeTab === "listingRoom" || activeTab === "createListing",
+          onPress: () => onSelect("listingRoom"),
+          children: [
+            { id: "rooms", icon: "buildings", label: o.listingsView, active: activeTab === "listingRoom", onPress: () => onSelect("listingRoom") },
+            { id: "add", icon: "plus", label: o.listingsCreate, active: activeTab === "createListing", onPress: () => onSelect("createListing") },
+          ],
+        },
         soon("interested", "clipboard", o.interested, s),
         soon("viewings", "calendar", o.viewings, s),
       ],
