@@ -104,7 +104,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
   deletionScheduledFor,
 }) => {
   const { t, locale } = useLocale();
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const copy = t.agent.dashboard;
   const ink = theme.screenTitle || primary;
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
@@ -123,6 +123,12 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
       : 0;
 
   const outlineMuted = { borderColor: theme.border, backgroundColor: theme.surface } as const;
+  // CI pair of the agent web overview (Mos 20 Nov 2026): yellow "add room" beside an ink "new lead";
+  // KPI icons are yellow on an ink box. Dark mode: light-grey button with ink text, yellow-tinted icon box.
+  const inkFill = isDark ? subtle.neutralBg : primary;
+  const inkButton = { borderColor: inkFill, backgroundColor: inkFill } as const;
+  const inkButtonText = { color: isDark ? primary : '#FFFFFF' } as const;
+  const kpiIconBox = { backgroundColor: isDark ? 'rgba(248,182,21,0.2)' : primary } as const;
 
   const now = Date.now();
   const upcoming = snapshot.schedule.items
@@ -225,7 +231,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
       {/* Zone A — compact */}
       <View style={styles.zone}>
         <View style={styles.greetingRow}>
-          <MobileProfileAvatar initials={initials} imageUri={avatarUri} size="md" />
+          <MobileProfileAvatar initials={initials} imageUri={avatarUri} size="md" role="agent" />
           <View style={styles.greetingText}>
             <Text style={[styles.welcome, { color: ink }]} numberOfLines={1}>
               {interpolate(copy.welcome, { name: snapshot.greetingName })}
@@ -245,8 +251,8 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
           <View style={styles.ctaHalf}>
             <MobileButton
               variant="outline"
-              style={outlineMuted}
-              textStyle={{ color: ink }}
+              style={inkButton}
+              textStyle={inkButtonText}
               onPress={() => onNavigate({ type: 'action', id: 'newLead' })}
             >
               {`+ ${copy.newLead}`}
@@ -261,6 +267,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
             {[
               {
                 label: copy.availableListings,
+                icon: 'buildings' as AppIconName,
                 value: String(snapshot.business.availableListings),
                 sub: interpolate(copy.ofTotal, { count: snapshot.business.totalListings }),
                 onPress: () => onNavigate({ type: 'tab', tab: 'listingRoom' }),
@@ -268,6 +275,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               },
               {
                 label: copy.openLeads,
+                icon: 'clipboard' as AppIconName,
                 value: String(snapshot.business.openLeads),
                 sub: '',
                 onPress: () => onNavigate({ type: 'tab', tab: 'listingLead' }),
@@ -275,6 +283,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               },
               {
                 label: copy.currentClients,
+                icon: 'handshake' as AppIconName,
                 value: String(snapshot.business.currentClients),
                 sub: interpolate(copy.tenantsCount, { count: snapshot.business.tenantsCount }),
                 onPress: () => onNavigate({ type: 'tab', tab: 'clients' }),
@@ -282,6 +291,7 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
               },
               {
                 label: copy.commissionPending,
+                icon: 'coins' as AppIconName,
                 value: formatMoney(snapshot.business.commissionPending),
                 sub: '',
                 onPress: () => onNavigate({ type: 'action', id: 'viewCommission' }),
@@ -303,7 +313,12 @@ export const MobileAgentDashboardBody: React.FC<MobileAgentDashboardBodyProps> =
                   },
                 ]}
               >
-                <Text style={[styles.kpiValue, { color: ink }]} numberOfLines={1}>{isReady(kpi.status) ? kpi.value : '—'}</Text>
+                <View style={styles.kpiTop}>
+                  <Text style={[styles.kpiValue, styles.kpiValueFlex, { color: ink }]} numberOfLines={1}>{isReady(kpi.status) ? kpi.value : '—'}</Text>
+                  <View style={[styles.kpiIcon, kpiIconBox]}>
+                    <MobileIcon name={kpi.icon} size={16} color={brand[500]} />
+                  </View>
+                </View>
                 <Text style={[styles.kpiLabel, { color: theme.textSecondary }]} numberOfLines={2}>{kpi.label}</Text>
                 {!isReady(kpi.status) ? <Text style={[styles.kpiSub, { color: theme.textSecondary }]}>{copy.unavailableSection}</Text> : kpi.sub ? (
                   <Text style={[styles.kpiSub, { color: theme.textSecondary }]} numberOfLines={1}>{kpi.sub}</Text>
@@ -643,6 +658,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   kpiValue: { fontFamily: tokens.typography.native.headingTh, fontSize: 20, lineHeight: 28, fontWeight: '500' },
+  kpiTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  kpiValueFlex: { flex: 1, minWidth: 0 },
+  kpiIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   kpiLabel: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18 },
   kpiSub: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18 },
   countPill: {

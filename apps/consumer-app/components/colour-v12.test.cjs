@@ -84,15 +84,68 @@ test('web shell: selected item slate (light) / lifted grey (dark) with a yellow 
   assert.match(read(path.join(web, 'agent-overview.css')), /\.aov-kpi-icon \{[^}]*background: #211e1e;[\s\S]*\[data-theme="dark"\] \.aov-kpi-icon \{\s*background: #f8b61533;/);
 });
 
-test('app: own avatar ink with yellow initials, lifted grey in dark; tab bar and drawer role box follow the same design', () => {
+// Mos 20 Nov 2026: the app follows the web. Where a role is shown (own avatar, drawer role box, role list, role badge)
+// the app uses the same role identity colours as the web (roleTileColors); ink and gold now mean admin only.
+test('app: own avatar takes the role identity colours when it gets a role, and keeps ink with yellow initials without one', () => {
   const avatar = read(path.join(ui, 'components/MobileProfileAvatar.tsx'));
-  assert.match(avatar, /const fill = isDark \? tokens\.colors\.lift : tokens\.colors\.primary;/);
-  assert.match(avatar, /const text = tokens\.colors\.brand\[500\];/);
+  assert.match(avatar, /const tile = role \? roleTileColors\(role, isDark\) : null;/);
+  assert.match(avatar, /const fill = tile \? tile\.bg : isDark \? tokens\.colors\.lift : tokens\.colors\.primary;/);
+  assert.match(avatar, /const ring = tile \? tile\.ring : /);
+  assert.match(avatar, /const text = tile \? tile\.fg : tokens\.colors\.brand\[500\];/);
   assert.ok(contrast('#F8B615', '#211E1E') >= 4.5 && contrast('#F8B615', '#4A4545') >= 4.5);
   assert.match(read(path.join(ui, 'components/MobileBottomTabBar.tsx')), /mutedColor=\{isDark \? '#E2E8F0' : '#334155'\}/);
+});
+
+test('app: every place that shows the own avatar passes the current role', () => {
+  assert.match(read(path.join(ui, 'components/MobileHeaderActions.tsx')), /<MobileProfileAvatar initials=\{initials\} size="sm" role=\{role\} \/>/);
+  assert.match(read(path.join(__dirname, '../app/index.tsx')), /<MobileHeaderActions\s+initials=\{profileInitials\}\s+role=\{activeRole\}/);
   const drawer = read(path.join(ui, 'shells/MobileProfileDrawer.tsx'));
-  assert.match(drawer, /styles\.roleIconBox, \{ backgroundColor: roleBoxFill \}/);
-  assert.match(drawer, /const roleBoxFill = isDark \? tokens\.colors\.lift : roleColor;/);
+  assert.match(drawer, /<MobileProfileAvatar initials=\{initials\} imageUri=\{avatarUri\} size="md" role=\{activeRole\} \/>/);
+  assert.match(drawer, /<MobileProfileEditBody[^>]*?role=\{activeRole\}/);
+  assert.match(drawer, /avatarUri,\s+role: activeRole,\s+\}\}/);
+  assert.match(read(path.join(ui, 'components/MobileProfileEditBody.tsx')), /size="lg"\s+role=\{role\}/);
+  const account = read(path.join(ui, 'shells/MobileAccountSettingsBody.tsx'));
+  assert.match(account, /<MobileProfileAvatar initials=\{profile\.initials\} size="lg" role=\{profile\.role\}/);
+  assert.match(account, /avatarUri=\{profile\.avatarUri\}\s+role=\{profile\.role\}/);
+  const dashboard = read(path.join(ui, '../../feature-listing/src/components/MobileAgentDashboardBody.tsx'));
+  assert.match(dashboard, /<MobileProfileAvatar initials=\{initials\} imageUri=\{avatarUri\} size="md" role="agent" \/>/);
+});
+
+test('app: drawer role box, role list and role badge are role identity tiles with a ring; initials and icons read 4.5:1 or more', () => {
+  const drawer = read(path.join(ui, 'shells/MobileProfileDrawer.tsx'));
+  assert.match(drawer, /const roleTile = roleTileColors\(activeRole, isDark\);/);
+  assert.match(drawer, /styles\.roleIconBox, \{ backgroundColor: roleTile\.bg, borderColor: roleTile\.ring \}/);
+  assert.match(drawer, /color=\{roleTile\.fg\}/);
+  assert.match(drawer, /const tile = roleTileColors\(role\.key, isDark\);/);
+  assert.match(drawer, /styles\.roleIconBoxLg, \{ backgroundColor: tile\.bg, borderColor: tile\.ring \}/);
+  assert.match(drawer, /color=\{tile\.fg\}/);
+  assert.match(drawer, /const decorRingColor = roleTile\.ring;/);
+  assert.doesNotMatch(drawer, /roleBoxFill|roleBoxIcon|roleIconTint/);
+  assert.match(drawer, /roleIconBox: \{[^}]*borderWidth: 1\.5,/);
+  assert.match(drawer, /roleIconBoxLg: \{[^}]*borderWidth: 1\.5,/);
+  const badge = read(path.join(ui, 'components/MobileBadge.tsx'));
+  assert.match(badge, /const tile = roleTileColors\(role, isDark\);/);
+  assert.match(badge, /backgroundColor: variant === 'solid' \? roleColor : tile\.bg,/);
+  assert.match(badge, /variant === 'solid' \? \([^)]*\) : tile\.fg,/);
+  const { roleTileColors } = load(path.join(ui, 'theme/tokens.ts'));
+  for (const role of ['guest', 'tenant', 'landlord', 'agent', 'self_owner', 'admin']) {
+    for (const dark of [false, true]) {
+      const tile = roleTileColors(role, dark);
+      assert.ok(contrast(tile.fg, tile.bg) >= 4.5, `${role} ${dark ? 'dark' : 'light'}: ${contrast(tile.fg, tile.bg).toFixed(2)}`);
+    }
+  }
+});
+
+test('app: agent overview uses the CI pair of the web: ink "new lead" button beside the yellow one, yellow KPI icons on ink', () => {
+  const dashboard = read(path.join(ui, '../../feature-listing/src/components/MobileAgentDashboardBody.tsx'));
+  assert.match(dashboard, /const inkFill = isDark \? subtle\.neutralBg : primary;/);
+  assert.equal(tokens.colors.subtle.neutralBg.toLowerCase(), '#f1f5f9');
+  assert.match(dashboard, /const inkButtonText = \{ color: isDark \? primary : '#FFFFFF' \} as const;/);
+  assert.match(dashboard, /style=\{inkButton\}\s+textStyle=\{inkButtonText\}\s+onPress=\{\(\) => onNavigate\(\{ type: 'action', id: 'newLead' \}\)\}/);
+  assert.match(dashboard, /const kpiIconBox = \{ backgroundColor: isDark \? 'rgba\(248,182,21,0\.2\)' : primary \} as const;/);
+  assert.match(dashboard, /<View style=\{\[styles\.kpiIcon, kpiIconBox\]\}>\s*<MobileIcon name=\{kpi\.icon\} size=\{16\} color=\{brand\[500\]\} \/>/);
+  assert.equal((dashboard.match(/icon: '[a-z-]+' as AppIconName,/g) || []).length, 4);
+  assert.ok(contrast('#FFFFFF', '#211E1E') >= 4.5 && contrast('#211E1E', '#F1F5F9') >= 4.5);
 });
 
 test('status pills, light: 100 step, no border, text 4.5:1 or more', () => {

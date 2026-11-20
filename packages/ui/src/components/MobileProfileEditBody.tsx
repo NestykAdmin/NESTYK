@@ -10,6 +10,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
+import { UserRole } from '@nestyk/types';
 import { MobileInput } from './MobileInput';
 import { MobileButton } from './MobileButton';
 import { AccountCompleteModal } from './AccountCompleteModal';
@@ -39,6 +40,8 @@ export interface MobileProfileEditBodyProps {
   phone?: string;
   /** Optional existing avatar URL (local or remote). */
   avatarUri?: string | null;
+  /** Current role: colours of the avatar (role identity, as on the web). */
+  role?: UserRole;
   onSave?: (input: ProfileSaveInput) => Promise<void>;
   onUploadAvatar?: (photo: ProfilePhotoFile) => Promise<string>;
   onRemoveAvatar?: () => Promise<void>;
@@ -119,6 +122,7 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
   email: initialEmail,
   phone: initialPhone,
   avatarUri: initialAvatarUri,
+  role,
   onSave,
   onUploadAvatar,
   onRemoveAvatar,
@@ -246,6 +250,7 @@ export const MobileProfileEditBody: React.FC<MobileProfileEditBodyProps> = ({
                 initials={initials}
                 imageUri={avatarUri}
                 size="lg"
+                role={role}
               />
               <View style={[styles.cameraBadge, { backgroundColor: tokens.colors.brand[500], borderColor: theme.card }]}>
                 <MobileIcon name="camera" size={14} color={tokens.colors.primary} weight="bold" />

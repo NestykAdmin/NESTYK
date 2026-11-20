@@ -132,9 +132,9 @@ test('overview: KPI chip is a yellow tint with a yellow icon; tone chips in dark
   }
 });
 
-test('D1: the agent hero in the drawer is lifted grey in dark mode (ink on the ink page vanished)', () => {
+test('D1: the drawer hero is the role identity deep tone; the ink one (admin since 20 Nov 2026) lifts to grey in dark mode (ink on the ink page vanished)', () => {
   const code = read(path.join(ui, 'shells/MobileProfileDrawer.tsx'));
-  assert.match(code, /const heroFill = isDark && activeRole === 'agent' \? tokens\.colors\.lift : roleColor;/);
+  assert.match(code, /const heroFill =\s+activeRole === 'guest'\s+\? roleColor\s+: isDark && activeRole === 'admin'\s+\? tokens\.colors\.lift\s+: tokens\.colors\.roleIdentity\[activeRole\]\.deep;/);
   assert.match(code, /styles\.heroCard, \{ backgroundColor: heroFill \}/);
 });
 

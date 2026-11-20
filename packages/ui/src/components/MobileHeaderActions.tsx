@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { UserRole } from '@nestyk/types';
 import { MobileIcon } from '../icons/MobileIcon';
 import { MobileProfileAvatar } from './MobileProfileAvatar';
 import { tokens } from '../theme/tokens';
@@ -7,6 +8,8 @@ import { useMobileTheme } from '../theme/ThemeContext';
 
 export interface MobileHeaderActionsProps {
   initials?: string;
+  /** Current role: colours of the own avatar (role identity, as on the web). */
+  role?: UserRole;
   /** When false, show outline user icon instead of profile avatar. */
   isAuthenticated?: boolean;
   notificationCount?: number;
@@ -17,6 +20,7 @@ export interface MobileHeaderActionsProps {
 
 export const MobileHeaderActions: React.FC<MobileHeaderActionsProps> = ({
   initials = 'JD',
+  role,
   isAuthenticated = true,
   notificationCount = 0,
   onAvatarPress,
@@ -34,7 +38,7 @@ export const MobileHeaderActions: React.FC<MobileHeaderActionsProps> = ({
         accessibilityLabel={isAuthenticated ? undefined : 'Sign in'}
       >
         {isAuthenticated ? (
-          <MobileProfileAvatar initials={initials} size="sm" />
+          <MobileProfileAvatar initials={initials} size="sm" role={role} />
         ) : (
           <View style={[styles.guestAvatar, { borderColor: theme.border, backgroundColor: theme.card }]}>
             <MobileIcon name="user" size={20} color={theme.textSecondary} />
