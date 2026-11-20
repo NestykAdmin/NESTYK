@@ -147,3 +147,26 @@ test('"near BTS/MRT" stays hidden until rooms have station data, everywhere it s
   assert.match(read('app/components/guest/SearchPanel.tsx'), /shownQuickFilters\(GUEST_QUICK_FILTERS\)\.map/);
   assert.match(read('app/[locale]/(marketplace)/page.tsx'), /HOME_RAILS\.filter\(\(rail\) => NEAR_TRANSIT_READY \|\| rail !== 'near_transit'\)/);
 });
+
+test('every filter but the rent range is a dropdown, one open at a time, opening below its button (works inside the phone sheet)', () => {
+  const fields = read('app/components/guest/SearchFilterFields.tsx');
+  assert.match(fields, /function FilterDropdown/);
+  assert.match(fields, /aria-expanded=\{open\}/);
+  assert.match(fields, /const \[openId, setOpenId\] = useState<FilterId \| null>\(null\);/);
+  assert.match(fields, /className="nk-filter-dd nk-filter-dd--open" data-testid="searchFilters\.price"/, 'the rent range stays open');
+  for (const id of ['type', 'beds', 'moveIn', 'more']) assert.match(fields, new RegExp(`\\{\\.\\.\\.props\\('${id}'\\)\\}`), id);
+  assert.match(fields, /filterSummaries\(/);
+  // Esc closes only the open dropdown (caught on the way down, before the phone sheet closes itself).
+  assert.match(fields, /if \(event\.key !== 'Escape'\) return;\s*event\.stopPropagation\(\);/);
+  assert.match(fields, /document\.addEventListener\('keydown', onKeyDown, true\)/);
+  assert.doesNotMatch(fields, /portal/, 'inline, so the phone sheet keeps focus inside');
+});
+
+// Mos 20 Nov 2026: the rent keeps its slider and min/max boxes, and its ready ranges become one dropdown in the panel.
+test('the rent range mixes the slider with a dropdown of ready ranges in the filter panel', () => {
+  const field = read('app/components/guest/PriceRangeField.tsx');
+  assert.match(field, /presets = 'chips'/);
+  assert.match(field, /<select[\s\S]*className="nk-input nk-price-field__select"/);
+  assert.match(field, /value=\{presetIndex >= 0 \? String\(presetIndex\) : 'custom'\}/);
+  assert.match(read('app/components/guest/SearchFilterFields.tsx'), /<PriceRangeField[^\n]*presets="select" \/>/);
+});

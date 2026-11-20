@@ -139,6 +139,7 @@ export const guestZh: GuestCopy = {
     availabilityWithin1Month: '1 个月内',
     availabilityWithin3Months: '3 个月内',
     more: '其他',
+    moreNone: '不限',
     allFilters: '全部筛选',
     found: '找到 {count} 套房源',
     foundInMap: '地图范围内有 {count} 套房源',

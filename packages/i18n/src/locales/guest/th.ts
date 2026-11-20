@@ -139,6 +139,7 @@ export const guestTh: GuestCopy = {
     availabilityWithin1Month: 'ภายใน 1 เดือน',
     availabilityWithin3Months: 'ภายใน 3 เดือน',
     more: 'อื่น ๆ',
+    moreNone: 'ไม่ระบุ',
     allFilters: 'ตัวกรองทั้งหมด',
     found: 'พบ {count} ห้อง',
     foundInMap: 'พบ {count} ห้องในบริเวณแผนที่',

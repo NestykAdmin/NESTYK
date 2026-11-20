@@ -219,3 +219,28 @@ test('a map area has its own heading and chip, and clearing removes it', () => {
   assert.equal(chips[0].href, '/search?view=map&type=condo');
   assert.equal(search.searchHref(search.clearedFilters(c)), '/search?view=map');
 });
+
+// Mos 20 Nov 2026: each filter is a dropdown whose button shows what is chosen.
+test('filterSummaries gives the button text of each filter dropdown', () => {
+  const words = {
+    typeAll: 'ทั้งหมด',
+    propertyType: labels.propertyType,
+    price: { priceAny: 'ทุกช่วงราคา', priceUnder: 'ไม่เกิน {max}', priceBetween: '{min}–{max}', priceOver: 'ตั้งแต่ {min}' },
+    bedroomsAny: 'ทั้งหมด',
+    bedroom: { studio: 'สตูดิโอ', one: '{count} ห้องนอน', many: '{count} ห้องนอน', threePlus: '3 ห้องนอนขึ้นไป' },
+    moveInAny: 'ทุกช่วงเวลา',
+    moveIn: { now: 'เข้าอยู่ได้ทันที', '30d': 'ภายใน 1 เดือน', '90d': 'ภายใน 3 เดือน' },
+    quick: labels.quick,
+    moreNone: 'ไม่ระบุ',
+  };
+  const none = search.filterSummaries(parse(''), words);
+  assert.deepEqual(none, { type: 'ทั้งหมด', price: 'ทุกช่วงราคา', beds: 'ทั้งหมด', moveIn: 'ทุกช่วงเวลา', more: 'ไม่ระบุ' });
+  const some = search.filterSummaries(parse('type=condo,house&min=10000&max=20000&beds=0,3&movein=now&quick=petFriendly,shortTerm'), words);
+  assert.deepEqual(some, {
+    type: 'คอนโด, บ้าน',
+    price: '฿10,000–฿20,000',
+    beds: 'สตูดิโอ, 3 ห้องนอนขึ้นไป',
+    moveIn: 'เข้าอยู่ได้ทันที',
+    more: 'เลี้ยงสัตว์ได้, เช่าระยะสั้น',
+  });
+});

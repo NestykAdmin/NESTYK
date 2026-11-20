@@ -332,3 +332,42 @@ export function sliderText(range: SliderRange, openMax: string): string {
 export function sliderValueText(value: number, openMax: string): string {
   return value >= PRICE_SLIDER.max ? fill(openMax, { max: baht(PRICE_SLIDER.max) }) : baht(value);
 }
+
+export interface FilterSummaryWords {
+  typeAll: string;
+  propertyType: Record<PropertyType, string>;
+  price: PriceWords;
+  bedroomsAny: string;
+  bedroom: { studio: string; one: string; many: string; threePlus: string };
+  moveInAny: string;
+  moveIn: Record<PublicMoveIn, string>;
+  quick: Record<GuestQuickFilter, string>;
+  moreNone: string;
+}
+
+export interface FilterSummaries {
+  type: string;
+  price: string;
+  beds: string;
+  moveIn: string;
+  more: string;
+}
+
+/** Button text of each filter dropdown (Mos 20 Nov 2026): what is chosen, or "all" / "any". */
+export function filterSummaries(criteria: GuestSearchCriteria, words: FilterSummaryWords): FilterSummaries {
+  const types = criteria.propertyType ?? [];
+  const beds = criteria.bedrooms ?? [];
+  const bedText = (count: number) => {
+    if (count === 0) return words.bedroom.studio;
+    if (count >= BEDROOMS_OR_MORE) return words.bedroom.threePlus;
+    return fill(count === 1 ? words.bedroom.one : words.bedroom.many, { count });
+  };
+  const more = criteria.quick.filter((code) => code !== 'moveInReady');
+  return {
+    type: types.length ? types.map((type) => words.propertyType[type]).join(', ') : words.typeAll,
+    price: priceButtonText(criteria.minPrice, criteria.maxPrice, words.price),
+    beds: beds.length ? beds.map(bedText).join(', ') : words.bedroomsAny,
+    moveIn: criteria.moveIn ? words.moveIn[criteria.moveIn] : words.moveInAny,
+    more: more.length ? more.map((code) => words.quick[code]).join(', ') : words.moreNone,
+  };
+}

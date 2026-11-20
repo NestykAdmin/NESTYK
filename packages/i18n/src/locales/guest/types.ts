@@ -147,6 +147,7 @@ export interface GuestCopy {
     availabilityWithin1Month: string;
     availabilityWithin3Months: string;
     more: string;
+    moreNone: string;
     allFilters: string;
     found: string;
     foundInMap: string;

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocale } from '@nestyk/i18n';
 import { isRentPreset } from '@nestyk/feature-search';
-import { RENT_PRESET_CHOICES, presetLabel, type PriceWords } from '../../../lib/guest-search';
+import { RENT_PRESET_CHOICES, presetLabel, priceButtonText, type PriceWords } from '../../../lib/guest-search';
 import { PriceRangeSlider } from './PriceRangeSlider';
 
 export type Price = { minPrice: number | undefined; maxPrice: number | undefined };
@@ -21,9 +21,16 @@ function parsePrice(text: string): number | undefined {
 /**
  * Monthly rent: slider, the six preset chips shared with the app, and the two boxes for an exact amount. Used by
  * the search filter panel, the mobile filter sheet and the home search box. Dragging and typing report with
- * `debounce`; a preset applies at once.
+ * `debounce`; a preset applies at once. `presets="select"` (search filter panel and sheet, Mos 20 Nov 2026): the ready
+ * ranges are one dropdown instead of six chips.
  */
-export function PriceRangeField({ minPrice, maxPrice, onChange, idPrefix }: Price & { onChange: PriceChange; idPrefix: string }) {
+export function PriceRangeField({
+  minPrice,
+  maxPrice,
+  onChange,
+  idPrefix,
+  presets = 'chips',
+}: Price & { onChange: PriceChange; idPrefix: string; presets?: 'chips' | 'select' }) {
   const { t } = useLocale();
   const copy = t.guest;
   const words: PriceWords = {
@@ -32,6 +39,7 @@ export function PriceRangeField({ minPrice, maxPrice, onChange, idPrefix }: Pric
     priceBetween: copy.search.priceBetween,
     priceOver: copy.results.priceFromChip,
   };
+  const presetIndex = RENT_PRESET_CHOICES.findIndex((preset) => isRentPreset(minPrice, maxPrice, preset));
   const [minText, setMinText] = useState(priceText(minPrice));
   const [maxText, setMaxText] = useState(priceText(maxPrice));
   const minRef = useRef<HTMLInputElement>(null);
@@ -51,6 +59,31 @@ export function PriceRangeField({ minPrice, maxPrice, onChange, idPrefix }: Pric
   return (
     <div className="nk-price-field">
       <PriceRangeSlider minPrice={minPrice} maxPrice={maxPrice} onChange={(price) => onChange(price, { debounce: true })} idPrefix={idPrefix} />
+      {presets === 'select' ? (
+        <select
+          id={`${idPrefix}-preset`}
+          className="nk-input nk-price-field__select"
+          aria-label={copy.results.priceRangeLabel}
+          value={presetIndex >= 0 ? String(presetIndex) : 'custom'}
+          onChange={(event) => {
+            const preset = RENT_PRESET_CHOICES[Number(event.target.value)];
+            if (preset) onChange({ minPrice: preset.min, maxPrice: preset.max });
+          }}
+          data-testid="priceField.presetSelect"
+        >
+          {presetIndex < 0 ? (
+            // A range set with the slider or the boxes: shown as it is, not offered as a choice.
+            <option value="custom" disabled>
+              {priceButtonText(minPrice, maxPrice, words)}
+            </option>
+          ) : null}
+          {RENT_PRESET_CHOICES.map((preset, index) => (
+            <option key={index} value={String(index)}>
+              {presetLabel(preset, words)}
+            </option>
+          ))}
+        </select>
+      ) : (
       <div className="nk-filters__chips nk-price-field__presets">
         {RENT_PRESET_CHOICES.map((preset, index) => (
           <button
@@ -65,6 +98,7 @@ export function PriceRangeField({ minPrice, maxPrice, onChange, idPrefix }: Pric
           </button>
         ))}
       </div>
+      )}
       <div className="nk-filters__price">
         <label className="nk-filters__price-field" htmlFor={`${idPrefix}-min`}>
           <span className="nk-filters__hint">{copy.results.priceMin}</span>

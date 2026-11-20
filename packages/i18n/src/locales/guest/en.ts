@@ -139,6 +139,7 @@ export const guestEn: GuestCopy = {
     availabilityWithin1Month: 'Within 1 month',
     availabilityWithin3Months: 'Within 3 months',
     more: 'More',
+    moreNone: 'Any',
     allFilters: 'All filters',
     found: '{count} rooms found',
     foundInMap: '{count} rooms in this map area',

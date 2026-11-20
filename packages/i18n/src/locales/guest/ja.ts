@@ -139,6 +139,7 @@ export const guestJa: GuestCopy = {
     availabilityWithin1Month: '1 か月以内',
     availabilityWithin3Months: '3 か月以内',
     more: 'その他',
+    moreNone: '指定なし',
     allFilters: 'すべての条件',
     found: '{count} 件見つかりました',
     foundInMap: '地図の範囲内に {count} 件',
