@@ -2171,14 +2171,16 @@ a.nk-types__item:hover {
   background: var(--nk-color-ink);
   color: var(--nk-color-surface);
 }
+/* "ดูบนแผนที่" opens the map view (S4.3). */
 .nk-search-map-btn {
   min-height: var(--nk-tap);
   padding: 0 var(--nk-space-4);
   gap: var(--nk-space-2);
   border-color: var(--nk-color-border);
-  color: var(--nk-color-text-disabled);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
   font: 600 var(--nk-text-sm) var(--nk-font-body);
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 /* List view: photo beside the text. Phones always use it (design v2.2 row cards). */

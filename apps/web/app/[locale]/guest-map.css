@@ -1,0 +1,515 @@
+/*
+ * Map search (S4.3, design SearchMapWebV23 / MapMobileV22, Mos 20 Nov 2026). Tokens come from guest.css (:root).
+ * Imported by SearchMap. Wide screens: rooms in view on the left, the map on the right. ≤ 960px: the map fills the
+ * screen above the tab bar under a floating search bar.
+ */
+.nk-search-layout--map {
+  max-width: 1392px;
+  grid-template-columns: minmax(0, 1fr);
+  padding-top: var(--nk-space-4);
+  gap: var(--nk-space-3);
+}
+/* The filters live in the sheet here (no side panel beside the map). */
+.nk-search-top--map .nk-search-sheet-btn {
+  display: inline-flex;
+}
+
+.nk-map-view {
+  display: grid;
+  grid-template-columns: minmax(340px, 440px) minmax(0, 1fr);
+  gap: var(--nk-space-4);
+  align-items: start;
+}
+.nk-map-view[aria-busy='true'] .nk-map-list__rooms {
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+}
+
+/* List beside the map */
+.nk-map-list {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-map-list__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-3);
+}
+.nk-map-list__count {
+  margin: 0;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-map-list__rooms.nk-search-list {
+  gap: var(--nk-space-3);
+}
+.nk-map-list__room {
+  border-radius: var(--nk-radius-lg);
+  scroll-margin: calc(72px + var(--nk-space-4)) 0 var(--nk-space-4);
+}
+.nk-map-list__room.is-on .nk-room {
+  box-shadow: 0 0 0 2px var(--nk-color-ink);
+}
+.nk-map-note {
+  margin: 0;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-view-switch {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  overflow: hidden;
+}
+.nk-view-switch > button {
+  min-height: 40px;
+  padding: 0 var(--nk-space-4);
+  border: 0;
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-view-switch > button[aria-pressed='true'] {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+  cursor: default;
+}
+
+/* Map */
+.nk-map-stage {
+  position: sticky;
+  top: calc(72px + var(--nk-space-4));
+  height: calc(100dvh - 72px - var(--nk-space-8));
+  min-height: 520px;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  overflow: hidden;
+  background: #e9eef3;
+}
+.nk-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+.nk-map-empty {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: var(--nk-space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nk-space-3);
+  text-align: center;
+  color: var(--nk-color-text-secondary);
+}
+.nk-map-empty p {
+  margin: 0;
+  max-width: 360px;
+}
+.nk-map-top {
+  display: none;
+}
+
+/* Price pins: white with an ink edge, ink with a yellow price when picked, a yellow count for one spot of several. */
+.nk-map-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+.nk-map-pin__label {
+  height: 32px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--nk-color-ink);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 13px var(--nk-font-body);
+  white-space: nowrap;
+}
+.nk-map-pin__count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-brand);
+  color: var(--nk-color-ink);
+  font-size: 12px;
+}
+.nk-map-pin__tip {
+  width: 10px;
+  height: 10px;
+  margin-top: -6px;
+  background: var(--nk-color-surface);
+  border-right: 1.5px solid var(--nk-color-ink);
+  border-bottom: 1.5px solid var(--nk-color-ink);
+  transform: rotate(45deg);
+}
+.nk-map-pin.is-hover .nk-map-pin__label,
+.nk-map-pin.is-hover .nk-map-pin__tip {
+  background: var(--nk-color-brand-soft);
+}
+.nk-map-pin.is-selected .nk-map-pin__label,
+.nk-map-pin.is-selected .nk-map-pin__tip {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
+}
+/* The picked station, place or "near me" at the middle of its circle. */
+.nk-map-place {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--nk-color-surface);
+  border-radius: 50%;
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
+  box-shadow: var(--nk-shadow-pop);
+}
+
+/* Buttons on the map */
+.nk-map-fab {
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-map-fab:hover {
+  background: var(--nk-color-neutral-bg);
+}
+.nk-map-fab[aria-busy='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.nk-map-fab__back-icon {
+  transform: scaleX(-1);
+}
+.nk-map-controls {
+  position: absolute;
+  z-index: 2;
+  top: var(--nk-space-4);
+  right: var(--nk-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+}
+.nk-map-zoom {
+  display: flex;
+  flex-direction: column;
+}
+.nk-map-zoom .nk-map-fab:first-child {
+  border-radius: var(--nk-radius-md) var(--nk-radius-md) 0 0;
+}
+.nk-map-zoom .nk-map-fab:last-child {
+  border-top: 0;
+  border-radius: 0 0 var(--nk-radius-md) var(--nk-radius-md);
+}
+.nk-map-tools {
+  position: absolute;
+  z-index: 2;
+  top: var(--nk-space-4);
+  left: var(--nk-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+.nk-map-tools > * {
+  pointer-events: auto;
+}
+.nk-map-toggle {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-3);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-map-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--nk-color-ink);
+}
+.nk-map-search-here {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  border: 1px solid var(--nk-color-ink);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+
+/* Room card of the picked pin */
+.nk-map-peek {
+  position: absolute;
+  z-index: 3;
+  right: var(--nk-space-4);
+  bottom: var(--nk-space-4);
+  width: 340px;
+  max-width: calc(100% - 2 * var(--nk-space-4));
+  max-height: min(60%, 420px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--nk-space-3);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  background: var(--nk-color-surface);
+  box-shadow: var(--nk-shadow-pop);
+}
+.nk-map-peek__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-2);
+  margin: calc(-1 * var(--nk-space-2)) calc(-1 * var(--nk-space-2)) 0 0;
+}
+.nk-map-peek__title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-map-peek__close {
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-map-peek__rooms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+/* One room: its card sits under the close button. */
+.nk-map-peek__head + .nk-map-peek__rooms {
+  margin-top: calc(-1 * var(--nk-space-6));
+}
+.nk-map-peek__title + .nk-map-peek__close {
+  margin-top: 0;
+}
+.nk-map-peek:has(.nk-map-peek__title) .nk-map-peek__rooms {
+  margin-top: var(--nk-space-1);
+}
+.nk-map-peek__room {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-map-peek__room + .nk-map-peek__room {
+  padding-top: var(--nk-space-3);
+  border-top: 1px solid var(--nk-color-border);
+}
+.nk-map-peek__row {
+  display: flex;
+  gap: var(--nk-space-3);
+  padding-right: var(--nk-space-8);
+}
+.nk-map-peek__photo {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-text-secondary);
+}
+.nk-map-peek__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nk-map-peek__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nk-map-peek__price {
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-ink);
+}
+.nk-map-peek__price strong {
+  font: 700 20px/1.2 var(--nk-font-brand);
+}
+.nk-map-peek__name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--nk-color-ink);
+}
+.nk-map-peek__specs {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-map-peek__link {
+  min-height: var(--nk-tap);
+  justify-content: center;
+  text-decoration: none;
+}
+.nk-map-handle {
+  display: none;
+}
+
+/* ≤ 960px: the map fills the screen (design MapMobileV22) */
+@media (max-width: 960px) {
+  .nk-search-top--map {
+    display: none;
+  }
+  .nk-map-view {
+    display: block;
+  }
+  .nk-map-list {
+    display: none;
+  }
+  .nk-map-stage {
+    position: fixed;
+    z-index: 55;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: var(--nk-tabbar-height);
+    height: auto;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .nk-map-top {
+    display: block;
+    position: absolute;
+    z-index: 4;
+    top: max(var(--nk-space-3), env(safe-area-inset-top));
+    left: var(--nk-space-3);
+    right: var(--nk-space-3);
+  }
+  /* One row: back, the box, filters. Scoped under .nk-map-top so it wins over guest.css's column bar. */
+  .nk-map-top .nk-search-bar--map {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--nk-space-2);
+  }
+  .nk-map-top .nk-search-bar--map .nk-search-bar__form {
+    flex: 1;
+    min-width: 0;
+  }
+  .nk-map-top .nk-search-bar--map .nk-input,
+  .nk-map-top .nk-search-bar--map .nk-map-fab,
+  .nk-map-top .nk-search-bar--map .nk-search-sheet-btn {
+    height: 48px;
+    box-shadow: var(--nk-shadow-pop);
+  }
+  .nk-map-top .nk-search-bar--map .nk-map-fab {
+    width: 48px;
+  }
+  .nk-map-top .nk-search-bar--map .nk-search-sheet-btn {
+    min-height: 48px;
+    padding: 0 var(--nk-space-3);
+    background: var(--nk-color-surface);
+  }
+  .nk-map-tools {
+    top: calc(max(var(--nk-space-3), env(safe-area-inset-top)) + 48px + var(--nk-space-3));
+    left: var(--nk-space-3);
+    right: var(--nk-space-3);
+    justify-content: center;
+  }
+  .nk-map-toggle {
+    min-height: 40px;
+    font-size: var(--nk-text-xs);
+    box-shadow: var(--nk-shadow-pop);
+  }
+  .nk-map-search-here {
+    box-shadow: var(--nk-shadow-pop);
+  }
+  .nk-map-controls {
+    top: calc(max(var(--nk-space-3), env(safe-area-inset-top)) + 48px + 40px + var(--nk-space-6));
+    right: var(--nk-space-3);
+  }
+  .nk-map-peek {
+    left: var(--nk-space-3);
+    right: var(--nk-space-3);
+    bottom: calc(56px + var(--nk-space-3));
+    width: auto;
+    max-width: none;
+    max-height: 50%;
+  }
+  .nk-map-handle {
+    position: absolute;
+    z-index: 3;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--nk-space-1);
+    border: 0;
+    border-top: 1px solid var(--nk-color-border);
+    border-radius: var(--nk-radius-lg) var(--nk-radius-lg) 0 0;
+    background: var(--nk-color-surface);
+    color: var(--nk-color-ink);
+    font: 600 var(--nk-text-md) var(--nk-font-body);
+    cursor: pointer;
+  }
+  .nk-map-handle__grip {
+    width: 40px;
+    height: 5px;
+    border-radius: var(--nk-radius-pill);
+    background: var(--nk-color-placeholder);
+  }
+}

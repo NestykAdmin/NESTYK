@@ -84,8 +84,9 @@ function rounded(value: number, decimals: number): number {
  * The search change for a choice. An area or "near me" replaces the place and the text typed to find it; a keyword
  * only sets the keyword, so it narrows a place already chosen (each shows as its own chip on /search).
  */
-export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchCriteria, 'area' | 'keyword' | 'nearGps' | 'placeName'>> {
-  if (choice.kind === 'area') return { area: choice.slug, keyword: undefined, nearGps: undefined, placeName: undefined };
+export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchCriteria, 'area' | 'keyword' | 'nearGps' | 'placeName' | 'nearMap'>> {
+  // Any pick ends a map area (S4.3), so a later "near me" is not read back as "บริเวณแผนที่".
+  if (choice.kind === 'area') return { area: choice.slug, keyword: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined };
   if (choice.kind === 'nearMe') {
     return {
       nearGps: {
@@ -94,6 +95,7 @@ export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchC
         radiusKm: NEAR_ME_RADIUS_KM,
       },
       placeName: undefined,
+      nearMap: undefined,
       keyword: undefined,
       area: undefined,
     };
@@ -106,6 +108,7 @@ export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchC
         radiusKm: choice.station ? STATION_RADIUS_KM : PLACE_RADIUS_KM,
       },
       placeName: choice.name.trim().slice(0, 80) || undefined,
+      nearMap: undefined,
       keyword: undefined,
       area: undefined,
     };
@@ -113,7 +116,7 @@ export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchC
   return { keyword: choice.text.trim().slice(0, 100) || undefined };
 }
 
-export type LocationLabelKind = 'station' | 'place' | 'nearMe' | 'area' | 'keyword' | 'none';
+export type LocationLabelKind = 'station' | 'place' | 'mapArea' | 'nearMe' | 'area' | 'keyword' | 'none';
 
 // "BTS อโศก" and "BTS Asok": names a station pick puts in the URL (railStationName in Thai, English for other pages).
 let railNames: Set<string> | null = null;
@@ -129,13 +132,14 @@ function isRailPlaceName(name: string): boolean {
  * picked place (a station of our list or a Google place), else "near me", else the area.
  */
 export function locationLabel(
-  criteria: Partial<Pick<GuestSearchCriteria, 'keyword' | 'area' | 'nearGps' | 'placeName'>>,
-  labels: { nearMe: string; areaNames: Record<string, string> },
+  criteria: Partial<Pick<GuestSearchCriteria, 'keyword' | 'area' | 'nearGps' | 'placeName' | 'nearMap'>>,
+  labels: { nearMe: string; mapArea?: string; areaNames: Record<string, string> },
 ): { kind: LocationLabelKind; text: string } {
   if (criteria.keyword) return { kind: 'keyword', text: criteria.keyword };
   if (criteria.nearGps && criteria.placeName) {
     return { kind: isRailPlaceName(criteria.placeName) ? 'station' : 'place', text: criteria.placeName };
   }
+  if (criteria.nearGps && criteria.nearMap && labels.mapArea) return { kind: 'mapArea', text: labels.mapArea };
   if (criteria.nearGps) return { kind: 'nearMe', text: labels.nearMe };
   if (criteria.area) return { kind: 'area', text: labels.areaNames[criteria.area] ?? criteria.area };
   return { kind: 'none', text: '' };

@@ -358,3 +358,22 @@ export const MapIcon = (props: IconProps) => (
     <path d="M9 4v14M15 6v14" />
   </Line>
 );
+
+/** Map zoom buttons and "ค้นหาบริเวณนี้" (design SearchMapWebV23 / MapMobileV22). */
+export const PlusIcon = (props: IconProps) => (
+  <Line strokeWidth={2.2} {...props}>
+    <path d="M12 5v14M5 12h14" />
+  </Line>
+);
+
+export const MinusIcon = (props: IconProps) => (
+  <Line strokeWidth={2.2} {...props}>
+    <path d="M5 12h14" />
+  </Line>
+);
+
+export const RefreshIcon = (props: IconProps) => (
+  <Line strokeWidth={2} {...props}>
+    <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" />
+  </Line>
+);

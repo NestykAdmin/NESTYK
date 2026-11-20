@@ -76,6 +76,8 @@ export interface SearchTitleLabels {
   nearMeTitle?: string;
   /** "ห้องเช่าใกล้ {place}" for a place picked in the keyword box. */
   nearPlaceTitle?: string;
+  /** "ห้องเช่าในบริเวณแผนที่" after the map was moved (S4.3). */
+  mapAreaTitle?: string;
 }
 
 /** Name of an area slug in the reader's language; an unknown slug (an old link) shows as it is. */
@@ -88,6 +90,7 @@ export function searchTitle(criteria: GuestSearchCriteria, labels: SearchTitleLa
   if (criteria.keyword) return fill(labels.titleKeyword, { keyword: criteria.keyword });
   if (criteria.area && labels.areaTitle) return fill(labels.areaTitle, { name: areaName(criteria.area, labels.areaNames) });
   if (criteria.nearGps && criteria.placeName && labels.nearPlaceTitle) return fill(labels.nearPlaceTitle, { place: criteria.placeName });
+  if (criteria.nearGps && criteria.nearMap && labels.mapAreaTitle) return labels.mapAreaTitle;
   if (criteria.nearGps && labels.nearMeTitle) return labels.nearMeTitle;
   const nearTransit = criteria.quick.includes('nearTransit');
   const types = criteria.propertyType ?? [];
@@ -116,6 +119,8 @@ export interface FilterChipLabels {
   nearMeChip?: string;
   /** "ใกล้ {place} · {km} กม." for a place picked in the keyword box. */
   nearPlaceChip?: string;
+  /** "บริเวณแผนที่" after the map was moved (S4.3). */
+  mapAreaChip?: string;
 }
 
 export interface FilterChip {
@@ -154,8 +159,10 @@ export function activeFilterChips(criteria: GuestSearchCriteria, labels: FilterC
     const label =
       criteria.placeName && labels.nearPlaceChip
         ? fill(labels.nearPlaceChip, { place: criteria.placeName, km: criteria.nearGps.radiusKm })
-        : labels.nearMeChip;
-    if (label) add('near', label, { nearGps: undefined, placeName: undefined });
+        : criteria.nearMap && labels.mapAreaChip
+          ? labels.mapAreaChip
+          : labels.nearMeChip;
+    if (label) add('near', label, { nearGps: undefined, placeName: undefined, nearMap: undefined });
   }
   if (criteria.area) {
     const name = areaName(criteria.area, labels.areaNames);
@@ -248,6 +255,7 @@ export function clearedFilters(criteria: GuestSearchCriteria, options: { keyword
     stationName: undefined,
     nearGps: undefined,
     placeName: undefined,
+    nearMap: undefined,
     durationMonths: undefined,
   });
 }

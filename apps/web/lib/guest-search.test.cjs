@@ -207,3 +207,15 @@ test('area: sent to the API, shown as a chip and in the title, cleared with the 
   // An unknown slug keeps its own text rather than an empty chip.
   assert.equal(search.activeFilterChips(parse('area=old-area'), areaLabels)[0].label, 'ทำเล: old-area');
 });
+
+// Map search (S4.3, Mos 20 Nov 2026): the area the map was moved to is "บริเวณแผนที่" in the heading and the chip,
+// and the chip, "ล้างตัวกรอง" and the view switch treat it like any other place.
+test('a map area has its own heading and chip, and clearing removes it', () => {
+  const c = parse('view=map&lat=13.74&lng=100.56&r=2.3&near=map&type=condo');
+  const titles = { ...labels, nearMeTitle: 'ใกล้คุณ', nearPlaceTitle: 'ใกล้ {place}', mapAreaTitle: 'ห้องเช่าในบริเวณแผนที่' };
+  assert.equal(search.searchTitle(c, titles), 'ห้องเช่าในบริเวณแผนที่');
+  const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ฉัน', mapAreaChip: 'บริเวณแผนที่' });
+  assert.equal(chips[0].label, 'บริเวณแผนที่');
+  assert.equal(chips[0].href, '/search?view=map&type=condo');
+  assert.equal(search.searchHref(search.clearedFilters(c)), '/search?view=map');
+});

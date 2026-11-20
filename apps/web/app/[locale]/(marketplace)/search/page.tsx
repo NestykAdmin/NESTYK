@@ -8,9 +8,11 @@ import { EmptyState, ErrorState } from '../../../components/guest/GuestStates';
 import { CloseIcon } from '../../../components/guest/GuestIcons';
 import { SearchFilters } from '../../../components/guest/SearchFilters';
 import { SearchKeywordBar } from '../../../components/guest/SearchKeywordBar';
+import { SearchMap } from '../../../components/guest/SearchMap';
 import { SearchNavigation } from '../../../components/guest/SearchNavigation';
 import { SearchResults } from '../../../components/guest/SearchResults';
 import { bangkokToday } from '../../../../lib/guest-home';
+import { MAP_PAGE_SIZE } from '../../../../lib/guest-map';
 import { loadSearchResults } from '../../../../lib/guest-rooms';
 import {
   activeFilterChips,
@@ -51,6 +53,7 @@ export default async function SearchPage({ params, searchParams }: Props) {
     areaNames,
     nearMeTitle: t.location.nearMeTitle,
     nearPlaceTitle: t.location.nearPlaceTitle,
+    mapAreaTitle: t.location.mapAreaTitle,
   });
   const chips = activeFilterChips(criteria, {
     propertyType: t.propertyType,
@@ -73,9 +76,12 @@ export default async function SearchPage({ params, searchParams }: Props) {
     areaNames,
     nearMeChip: t.location.nearMeChip,
     nearPlaceChip: t.location.nearPlaceChip,
+    mapAreaChip: t.location.mapArea,
   });
 
-  const load = firstLoad(criteria);
+  // The map (S4.3) starts with the API's largest page and loads up to 3 more in the browser.
+  const onMap = criteria.view === 'map';
+  const load = onMap ? { page: 1, limit: MAP_PAGE_SIZE, loadedPages: 1 } : firstLoad(criteria);
   let result: PublicRoomSearchResult | null = null;
   if (criteria.mode === 'rent') {
     try {
@@ -102,6 +108,9 @@ export default async function SearchPage({ params, searchParams }: Props) {
         retry={{ label: t.states.retry, href: localePath(locale, searchHref(criteria)) }}
       />
     );
+  } else if (onMap) {
+    // One key for every map search: the map stays put while it is moved and searched again.
+    body = <SearchMap key="map" criteria={criteria} initialItems={result.items} total={result.total} today={today} locale={locale} />;
   } else {
     body = (
       <SearchResults
@@ -118,15 +127,17 @@ export default async function SearchPage({ params, searchParams }: Props) {
 
   return (
     <SearchNavigation criteria={criteria}>
-      <div className="nk-search-top">
+      <div className={`nk-search-top${onMap ? ' nk-search-top--map' : ''}`}>
         <div className="nk-search-top__inner">
           <SearchKeywordBar criteria={criteria} total={result?.total ?? null} />
         </div>
       </div>
-      <div className="nk-search-layout">
-        <aside className="nk-search-aside" aria-label={t.results.filtersTitle}>
-          <SearchFilters criteria={criteria} />
-        </aside>
+      <div className={`nk-search-layout${onMap ? ' nk-search-layout--map' : ''}`}>
+        {onMap ? null : (
+          <aside className="nk-search-aside" aria-label={t.results.filtersTitle}>
+            <SearchFilters criteria={criteria} />
+          </aside>
+        )}
         <section className="nk-search-main" aria-labelledby="search-title">
           <h1 id="search-title" className="nk-search-title" data-testid="searchPage.title">
             {title}

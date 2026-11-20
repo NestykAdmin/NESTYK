@@ -126,3 +126,19 @@ test('a place name rides with lat/lng, is trimmed to 80 characters and dropped w
   assert.equal(parse('place=Central%20World').placeName, undefined);
   assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), placeName: 'Central World' }).toString(), '', 'no position: no name');
 });
+
+// Map search (S4.3, Mos 20 Nov 2026): an area the map was moved to rides as near=map, so the page says "บริเวณแผนที่"
+// and not "ใกล้ตำแหน่งของฉัน". A place name wins over it; without a position it means nothing.
+test('near=map marks a map area, needs a position and gives way to a place name', () => {
+  const c = parse('view=map&lat=13.74&lng=100.56&r=2.3&near=map');
+  assert.equal(c.view, 'map');
+  assert.equal(c.nearMap, true);
+  assert.deepEqual(c.nearGps, { latitude: 13.74, longitude: 100.56, radiusKm: 2.3 });
+  assert.equal(criteriaToSearchParams(c).toString(), 'view=map&lat=13.74&lng=100.56&r=2.3&near=map');
+  assert.equal(parse('near=map').nearMap, undefined, 'no position');
+  assert.equal(parse('lat=13.7&lng=100.5&near=x').nearMap, undefined);
+  const named = parse('lat=13.7&lng=100.5&place=BTS%20Asok&near=map');
+  assert.equal(named.placeName, 'BTS Asok');
+  assert.equal(named.nearMap, undefined, 'a picked place is not a map area');
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), nearMap: true }).toString(), '', 'no position: no flag');
+});

@@ -194,6 +194,16 @@ export interface GuestCopy {
     close: string;
     viewDetails: string;
     pinRooms: string;
+    viewCards: string;
+    viewMap: string;
+    searchHere: string;
+    foundInArea: string;
+    capped: string;
+    showList: string;
+    back: string;
+    unavailable: string;
+    noPins: string;
+    roomsHere: string;
   };
   states: {
     emptyTitle: string;
@@ -466,6 +476,8 @@ export interface GuestCopy {
     nearPlaceTitle: string;
     /** "{place}", "{km}": the search radius. */
     nearPlaceChip: string;
+    mapArea: string;
+    mapAreaTitle: string;
     stationsHeading: string;
     interchange: string;
     browseLines: string;

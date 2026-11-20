@@ -70,12 +70,13 @@ test('text with no area match still offers "near me" and the keyword', () => {
 // narrows an area or "near me" already chosen, as the search box did before (both show as chips on /search).
 // The position is rounded to about 100 m before it goes into the URL (the link can be shared or kept in history).
 test('a choice becomes the search: an area or "near me" replaces the place, a keyword narrows it', () => {
-  assert.deepEqual(loc.locationPatch({ kind: 'area', slug: 'sukhumvit' }), { area: 'sukhumvit', keyword: undefined, nearGps: undefined, placeName: undefined });
+  assert.deepEqual(loc.locationPatch({ kind: 'area', slug: 'sukhumvit' }), { area: 'sukhumvit', keyword: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined });
   assert.deepEqual(loc.locationPatch({ kind: 'keyword', text: '  Ideo  ' }), { keyword: 'Ideo' });
   assert.deepEqual(loc.locationPatch({ kind: 'keyword', text: '   ' }), { keyword: undefined });
   assert.deepEqual(loc.locationPatch({ kind: 'nearMe', latitude: 13.73712, longitude: 100.56012 }), {
     nearGps: { latitude: 13.737, longitude: 100.56, radiusKm: loc.NEAR_ME_RADIUS_KM },
     placeName: undefined,
+    nearMap: undefined,
     keyword: undefined,
     area: undefined,
   });
@@ -88,6 +89,7 @@ test('a picked place searches around it: 1.5 km for a station, 3 km otherwise, w
   assert.deepEqual(loc.locationPatch({ kind: 'place', name: ' BTS Asok ', latitude: 13.737123, longitude: 100.560456, station: true }), {
     nearGps: { latitude: 13.7371, longitude: 100.5605, radiusKm: 1.5 },
     placeName: 'BTS Asok',
+    nearMap: undefined,
     keyword: undefined,
     area: undefined,
   });
@@ -168,12 +170,24 @@ test('locationLabel names what the search is about, in the same order as the pag
 test('the search bar shows the label, its icon and a clear button that drops the place too', () => {
   const bar = read('app/components/guest/SearchKeywordBar.tsx');
   assert.match(bar, /locationLabel\(criteria,/);
-  assert.match(bar, /data-testid="searchPage\.clear"/);
+  assert.match(bar, /data-testid=\{`\$\{tid\}\.clear`\}/);
   assert.match(bar, /update\(\{ keyword: undefined, \.\.\.NO_PLACE \}\)/);
   // Submitting the label unchanged keeps the place search instead of turning it into a keyword.
   assert.match(bar, /if \(text === label\.text\) return;/);
   // New text in the box replaces the place it showed (typed and submitted, or the "ค้นหา “…”" row).
-  assert.match(bar, /const NO_PLACE = \{ area: undefined, nearGps: undefined, placeName: undefined \} as const;/);
+  
   assert.match(bar, /update\(\{ \.\.\.locationPatch\(\{ kind: 'keyword', text \}\), \.\.\.NO_PLACE \}\)/);
   assert.match(bar, /choice\.kind === 'keyword' \? \{ \.\.\.locationPatch\(choice\), \.\.\.NO_PLACE \} : locationPatch\(choice\)/);
+});
+
+// Map search (S4.3): a map area shows as "บริเวณแผนที่", and picking anything else ends it.
+test('a map area labels the box, and every location pick clears the map-area flag', () => {
+  const labels = { nearMe: 'ใกล้ตำแหน่งของฉัน', mapArea: 'บริเวณแผนที่', areaNames: NAMES };
+  const near = { latitude: 13.7, longitude: 100.5, radiusKm: 2 };
+  assert.deepEqual(loc.locationLabel({ nearGps: near, nearMap: true }, labels), { kind: 'mapArea', text: 'บริเวณแผนที่' });
+  assert.equal(loc.locationPatch({ kind: 'area', slug: 'ratchada-rama9' }).nearMap, undefined);
+  assert.ok('nearMap' in loc.locationPatch({ kind: 'area', slug: 'ratchada-rama9' }));
+  assert.ok('nearMap' in loc.locationPatch({ kind: 'nearMe', latitude: 13.7, longitude: 100.5 }));
+  assert.ok('nearMap' in loc.locationPatch({ kind: 'place', name: 'BTS อโศก', latitude: 13.7, longitude: 100.5, station: true }));
+  assert.match(read('app/components/guest/SearchKeywordBar.tsx'), /const NO_PLACE = \{ area: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined \} as const;/);
 });

@@ -22,8 +22,7 @@ type SortOption = (typeof SEARCH_SORT_OPTIONS)[number];
 const LOAD_MORE_SKELETONS = 3;
 
 /**
- * Results of the search page (S4.2): count, sort, card / list view, the map button ("เร็ว ๆ นี้" until S4.3,
- * Mos 12 Nov 2026 Q4), the rooms and "โหลดเพิ่ม" (Q2). The page passes a `key` per search, so a new search
+ * Results of the search page (S4.2): count, sort, card / list view, the map button (opens /search?view=map, S4.3), the rooms and "โหลดเพิ่ม" (Q2). The page passes a `key` per search, so a new search
  * starts fresh. "โหลดเพิ่ม" adds the next page below and writes the page number into the URL, so a shared link
  * opens with the same rooms showing.
  */
@@ -123,17 +122,9 @@ export function SearchResults({
               <ListIcon size={20} />
             </button>
           </div>
-          <button
-            type="button"
-            className="nk-btn nk-btn--outline nk-search-map-btn"
-            disabled
-            aria-disabled="true"
-            aria-label={fillTemplate(copy.nav.soonItem, { label: copy.results.showMap })}
-            data-testid="searchResults.map"
-          >
+          <button type="button" className="nk-btn nk-btn--outline nk-search-map-btn" onClick={() => update({ view: 'map' })} data-testid="searchResults.map">
             <MapIcon size={18} />
             {copy.results.showMap}
-            <span className="nk-soon">{copy.nav.comingSoon}</span>
           </button>
         </div>
       </div>

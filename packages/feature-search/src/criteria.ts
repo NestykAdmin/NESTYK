@@ -25,6 +25,8 @@ export interface GuestSearchCriteria extends SearchFilterParams {
   area?: string;
   /** Name of the place picked in the keyword box, for the heading and chip. Only kept together with nearGps. */
   placeName?: string;
+  /** nearGps is the area the map was moved to (S4.3, URL near=map): "บริเวณแผนที่", not "near me". */
+  nearMap?: boolean;
 }
 
 export const GUEST_PAGE_SIZE_DEFAULT = 12;
@@ -134,6 +136,7 @@ export function criteriaFromSearchParams(input: GuestSearchParamsInput): GuestSe
     criteria.nearGps = { latitude: lat, longitude: lng, radiusKm };
     const placeName = get('place')?.trim().slice(0, GUEST_PLACE_NAME_MAX_LENGTH).trim();
     if (placeName) criteria.placeName = placeName;
+    else if (get('near') === 'map') criteria.nearMap = true;
   }
 
   const duration = pick(get('dur'), DURATIONS);
@@ -167,6 +170,7 @@ export function criteriaToSearchParams(criteria: Partial<GuestSearchCriteria>): 
     set('lng', criteria.nearGps.longitude);
     if (criteria.nearGps.radiusKm !== GUEST_GPS_RADIUS_DEFAULT_KM) set('r', criteria.nearGps.radiusKm);
     set('place', criteria.placeName?.trim());
+    if (criteria.nearMap && !criteria.placeName?.trim()) set('near', 'map');
   }
   set('dur', criteria.durationMonths);
   set('movein', criteria.moveIn);

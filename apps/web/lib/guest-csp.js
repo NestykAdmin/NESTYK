@@ -53,12 +53,15 @@ function guestCsp({ supabaseUrl, dev, maps = false }) {
 
 /** Paths the policy covers: everything except the API, Next files and the account paths. */
 // Also skipped, like the middleware: the room share page /s/<token> and signing links /sign/<token> (Maps, full API URL).
-// Room pages (/rooms/<id>, /en/rooms/<id>, ...) have their own policy below: a page with two policies obeys both.
-const GUEST_CSP_GROUP = `((?!api(?:/|$)|_next/|_vercel/|s/|sign/|(?:(?:en|ja|zh)/)?rooms/|(?:${ACCOUNT_PATHS.map((p) => p.slice(1)).join('|')})(?:/|$)).*)`;
+// Room pages (/rooms/<id>, /en/rooms/<id>, ...) and the search page (/search, /en/search, ...) have the maps policy
+// below: a page with two policies obeys both, so they are left out here.
+const GUEST_CSP_GROUP = `((?!api(?:/|$)|_next/|_vercel/|s/|sign/|(?:(?:en|ja|zh)/)?rooms/|(?:(?:en|ja|zh)/)?search$|(?:${ACCOUNT_PATHS.map((p) => p.slice(1)).join('|')})(?:/|$)).*)`;
 /** Next `headers()` source (named parameter form). */
 const GUEST_CSP_SOURCE = `/:path${GUEST_CSP_GROUP}`;
 
 /** Room pages in every language (the same languages as i18n/routing.ts). */
 const GUEST_ROOM_CSP_SOURCES = ['/rooms/:id*', '/:locale(en|ja|zh)/rooms/:id*'];
+/** The search page in every language: its map view (?view=map, S4.3 plan D1) shows a Google map. */
+const GUEST_SEARCH_CSP_SOURCES = ['/search', '/:locale(en|ja|zh)/search'];
 
-module.exports = { guestCsp, GUEST_CSP_GROUP, GUEST_CSP_SOURCE, GUEST_ROOM_CSP_SOURCES };
+module.exports = { guestCsp, GUEST_CSP_GROUP, GUEST_CSP_SOURCE, GUEST_ROOM_CSP_SOURCES, GUEST_SEARCH_CSP_SOURCES };
