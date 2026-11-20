@@ -23,6 +23,11 @@ export async function pickRoomPhotos(limit: number): Promise<RoomPhoto[]> {
 
 export async function uploadRoomPhoto(photo: RoomPhoto): Promise<string> {
   await ensureAgentSession();
+  return uploadRoomPhotoTo('/agent/rooms/media/upload', photo);
+}
+
+/** One room photo to an upload endpoint (agent or self owner: same storage and rules); returns its stored URL. */
+export async function uploadRoomPhotoTo(path: string, photo: RoomPhoto): Promise<string> {
   const form = new FormData();
   if (Platform.OS === 'web') {
     const file = photo.file ?? await (await fetch(photo.uri)).blob();
@@ -33,7 +38,7 @@ export async function uploadRoomPhoto(photo: RoomPhoto): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);
   try {
-    const result = await apiRequest<{ mediaUrl: string }>('/agent/rooms/media/upload', { method: 'POST', body: form, signal: controller.signal });
+    const result = await apiRequest<{ mediaUrl: string }>(path, { method: 'POST', body: form, signal: controller.signal });
     return result.mediaUrl;
   } finally {
     clearTimeout(timeout);

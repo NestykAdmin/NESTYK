@@ -21,7 +21,7 @@ function load(filename) {
     if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useSyncExternalStore: (_s, get) => get() };
     if (name === 'react-native') return { Platform, useWindowDimensions: () => ({ width: windowWidth, height: 900 }) };
     if (name === 'expo-image-picker') return { launchImageLibraryAsync: async () => ({ canceled: true }), UIImagePickerPreferredAssetRepresentationMode: {} };
-    if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
+    if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }), localizedError: (e, fallback) => e?.message || fallback };
     if (name === '@nestyk/feature-listing') return { MobileCreateListingWizardBody: 'Wizard', defaultOwnerListingConfig: { actorRole: 'landlord' }, interpolate: (t, v) => Object.entries(v).reduce((a, [k, x]) => a.replace(`{${k}}`, String(x)), t) };
     if (!name.startsWith('.')) return require(name);
     const base = path.resolve(path.dirname(filename), name);
@@ -188,4 +188,96 @@ test('desktop look on wide web only (768 and up, like the web shell); phone and 
   } finally {
     Platform.OS = 'web'; windowWidth = 1440;
   }
+});
+
+// Connected to the self owner API (20 Nov 2026, D4): choices, photos and saving go through the store's backend.
+function connectedBackend(over = {}) {
+  const seen = [];
+  const options = { propertyTypes: [{ id: 9, code: 'condo' }], contractTypes: [{ id: 31, code: 'twelve_months', termMonths: 12 }], roomTypes: [{ id: 41, code: 'one_bedroom', bedroomCount: 1 }], facilities: [{ code: 'wifi', groupCode: 'appliances' }] };
+  const backend = {
+    seen,
+    list: async () => { seen.push(['list']); return []; },
+    options: async () => options,
+    uploadPhoto: async (photo) => { seen.push(['upload', photo.uri]); return `https://cdn/${photo.name}`; },
+    save: async (id, data) => { seen.push(['save', id, data.listingTitle]); return id ?? '77'; },
+    setVisibility: async () => 'listed',
+    detail: async () => { throw new Error('not used'); },
+    ...over,
+  };
+  return backend;
+}
+const settle = () => new Promise((r) => setImmediate(r));
+
+test('connected: the form gets the API choices and uploads photos to the API', async () => {
+  const backend = connectedBackend();
+  roomsLib().selfOwnerRoomStore.connect(backend, 'u1');
+  const props = wizardProps();
+  assert.deepEqual(await props.listContractTypes(), [{ id: 31, code: 'twelve_months', termMonths: 12 }]);
+  assert.deepEqual(await props.listPropertyTypes(), [{ id: 9, code: 'condo' }]);
+  assert.deepEqual(await props.listRoomTypes(), [{ id: 41, code: 'one_bedroom', bedroomCount: 1 }]);
+  assert.deepEqual(await props.listFacilities(), [{ code: 'wifi', groupCode: 'appliances' }]);
+  assert.equal(await props.uploadPhoto({ uri: 'file:///a.jpg', name: 'a.jpg', mimeType: 'image/jpeg' }), 'https://cdn/a.jpg');
+});
+
+test('connected: saving creates through the API, then the list loads again', async () => {
+  const backend = connectedBackend();
+  roomsLib().selfOwnerRoomStore.connect(backend, 'u1');
+  await settle();
+  let done;
+  const props = wizardProps({ onDone: (r) => { done = r; } });
+  const data = listingLib().wizardDataFromRoom({ id: 'x', title: 'ห้อง 3305', project: 'Ideo Q', monthlyRent: 19000, state: 'unlisted', bedrooms: 1, sizeSqm: 33, updatedAt: now.toISOString() });
+  await props.onSubmitListing({ ...data, prices: [{ contractTypeId: 31, price: 19000 }], roomTypeId: 41 });
+  await settle();
+  assert.deepEqual(backend.seen.filter(([k]) => k === 'save'), [['save', undefined, 'ห้อง 3305']]);
+  assert.equal(done.id, '77');
+  assert.equal(done.monthlyRent, 19000, 'the 12-month rent of the API choices');
+  assert.equal(listingLib().selfOwnerListingDrafts.get('77').listingTitle, 'ห้อง 3305');
+  assert.equal(backend.seen.filter(([k]) => k === 'list').length, 2, 'loaded on connect and again after saving');
+});
+
+test('connected: editing saves the same room; a failed save tells the owner on the web and keeps the form', async () => {
+  const backend = connectedBackend({ save: async () => { throw new Error('API down'); } });
+  roomsLib().selfOwnerRoomStore.connect(backend, 'u1');
+  await settle();
+  const asked = [];
+  const previous = globalThis.alert;
+  globalThis.alert = (text) => asked.push(text);
+  try {
+    let done;
+    const props = wizardProps({ onDone: (r) => { done = r; } });
+    const data = listingLib().wizardDataFromRoom({ id: 'x', title: 'ห้อง 3305', project: 'Ideo Q', monthlyRent: 19000, state: 'unlisted', bedrooms: 1, sizeSqm: 33, updatedAt: now.toISOString() });
+    await assert.rejects(props.onSubmitListing(data), /API down/);
+    assert.equal(done, undefined);
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /API down/);
+  } finally {
+    globalThis.alert = previous;
+  }
+});
+
+// Review fix (20 Nov 2026): once the API has saved the room, nothing after it reports a failure (a retry would add
+// the room twice).
+test('connected: a saved room counts as saved even if the choices cannot be read afterwards', async () => {
+  let saves = 0;
+  const backend = connectedBackend({ save: async () => { saves += 1; return '77'; }, options: async () => { throw new Error('options down'); } });
+  roomsLib().selfOwnerRoomStore.connect(backend, 'u1');
+  await settle();
+  let done;
+  const props = wizardProps({ onDone: (r) => { done = r; } });
+  const data = listingLib().wizardDataFromRoom({ id: 'x', title: 'ห้อง 3305', project: 'Ideo Q', monthlyRent: 19000, state: 'unlisted', bedrooms: 1, sizeSqm: 33, updatedAt: now.toISOString() });
+  await props.onSubmitListing(data);
+  assert.equal(saves, 1);
+  assert.equal(done.id, '77');
+});
+
+// Browser check (20 Nov 2026): opening "add room" straight from a page load renders the form before the app connects
+// the store. The form must start again on the API choices once it connects (nothing typed yet at that moment).
+test('a form opened before the store connects switches to the API once it connects', async () => {
+  const before = load(editorFile).SelfOwnerListingEditor({ onDone: () => {} });
+  assert.deepEqual(await before.props.listContractTypes(), listingLib().SELF_OWNER_DEMO_OPTIONS.contractTypes);
+  roomsLib().selfOwnerRoomStore.connect(connectedBackend(), 'u1');
+  const after = load(editorFile).SelfOwnerListingEditor({ onDone: () => {} });
+  assert.notEqual(after.key, before.key, 'the wizard starts again when the store connects');
+  assert.deepEqual(await after.props.listContractTypes(), [{ id: 31, code: 'twelve_months', termMonths: 12 }]);
+  assert.deepEqual(await before.props.listContractTypes(), [{ id: 31, code: 'twelve_months', termMonths: 12 }], 'a list asked later reads the connected store');
 });

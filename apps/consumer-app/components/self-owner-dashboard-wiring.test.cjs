@@ -116,3 +116,36 @@ test('the add form, the rooms page and the phone rooms screen get the owner cont
     assert.match(tag, /ownerContact=\{selfOwnerContact\}/, component);
   }
 });
+
+// Review fix (20 Nov 2026): the self owner Dashboard and rooms page refresh the API rooms (a failed load can recover).
+test('self owner: page refresh reloads the rooms from the API and then stops spinning', async () => {
+  const ts = require('typescript');
+  const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
+  const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const initializers = {};
+  (function visit(node) {
+    if (ts.isVariableDeclaration(node) && ['handlePageRefresh', 'onPageRefresh'].includes(node.name.getText(ast))) {
+      initializers[node.name.getText(ast)] = node.initializer.getText(ast);
+    }
+    ts.forEachChild(node, visit);
+  })(ast);
+  for (const activeTab of ['dashboard', 'listingRoom']) {
+    const refreshed = [], finished = [], reloads = [];
+    const env = {
+      useCallback: (fn) => fn, activeRole: 'self_owner', activeTab, partyInbox: false,
+      pendingRefresh: { current: null }, refreshSequence: { current: 0 },
+      setPageRefreshing() {}, setRoomsReloadToken: (t) => reloads.push(t), finishPageRefresh: (t) => finished.push(t),
+      selfOwnerRoomStore: { refresh: async () => { refreshed.push(activeTab); } },
+      isTenantWorkspace: false, isWizardTab: false, isLandlordWeb: false, isTenantWeb: false,
+    };
+    const compile = (code) => new Function(...Object.keys(env), `return (${code});`)(...Object.values(env));
+    env.handlePageRefresh = compile(initializers.handlePageRefresh);
+    const callback = compile(initializers.onPageRefresh);
+    assert.equal(callback, env.handlePageRefresh, activeTab);
+    callback();
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(refreshed, [activeTab]);
+    assert.deepEqual(finished, [1]);
+    assert.deepEqual(reloads, [], 'not the agent rooms');
+  }
+});

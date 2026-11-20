@@ -66,6 +66,7 @@ function nodes(element) {
 }
 const th = () => load(`${root}/packages/i18n/src/locales/th.ts`).th;
 const roomsLib = () => load(path.join(__dirname, '../lib/self-owner-rooms.ts'));
+const listingLib = () => load(path.join(__dirname, '../lib/self-owner-listing.ts'));
 const now = new Date('2026-11-20T04:00:00Z');
 const texts = (tree) => tree.filter((n) => typeof n === 'string' || typeof n === 'number').map(String);
 const label = (node) => texts(nodes(node.props.children)).join('');
@@ -75,7 +76,7 @@ const room = (id) => roomsLib().selfOwnerRoomStore.get().find((r) => r.id === id
 const web = (props) => { hookIndex = 0; return nodes(load(path.join(__dirname, 'self-owner/SelfOwnerRoomDetailModal.web.tsx')).SelfOwnerRoomDetailModal({ onClose() {}, ...props })); };
 const phone = (props) => { hookIndex = 0; return nodes(load(path.join(__dirname, 'self-owner/SelfOwnerRoomDetailModal.tsx')).SelfOwnerRoomDetailModal({ onClose() {}, ...props })); };
 
-beforeEach(() => { hooks = []; alerts = []; roomsLib().selfOwnerRoomStore.reset(now); });
+beforeEach(() => { hooks = []; alerts = []; roomsLib().selfOwnerRoomStore.reset(now); listingLib().selfOwnerListingDrafts.clear(); });
 
 test('web: closed when no room; open shows the agent desktop detail page without sharing', () => {
   assert.equal(web({ roomId: null }).length, 0);
@@ -220,3 +221,122 @@ test('the room modal hands the owner contact to the edit form (web and phone)', 
   tree = phone({ roomId: 'r5', ownerContact: owner });
   assert.deepEqual(tree.find((n) => n?.type === 'Wizard').props.ownerContact, owner);
 });
+
+// Connected to the self owner API (20 Nov 2026, D4): the modal loads the room's form data, publishing asks the API.
+const settle = () => new Promise((r) => setImmediate(r));
+function apiRoom(over = {}) {
+  return { id: '7', title: 'ห้อง 3305', project: 'Ideo Q', monthlyRent: 19000, state: 'unlisted', bedrooms: 1, sizeSqm: 33, updatedAt: now.toISOString(), ...over };
+}
+function apiForm(photos) {
+  return {
+    visibility: 'private', listingTitle: 'ห้อง 3305', listingSourceCode: 'owner', isScoutRoom: true, documents: [],
+    property: { name: 'Ideo Q', address: 'x', district: 'd', province: 'p', propertyTypeId: 9 }, roomTypeId: 41,
+    prices: [{ contractTypeId: 31, price: 19000 }], advanceRentMonths: 1, depositMonths: 2, layout: [{ code: 'bedroom', value: '1' }],
+    facilities: [], medias: Array.from({ length: photos }, (_, i) => ({ mediaUrl: `https://cdn/${i}.jpg`, category: 'room', sortOrder: i })),
+    contact: { name: 'Jom', phone: '081' },
+  };
+}
+async function connect({ photos = 5, detail, visibility } = {}) {
+  const seen = [];
+  const backend = {
+    seen,
+    list: async () => [apiRoom()],
+    detail: detail ?? (async (id) => { seen.push(['detail', id]); return apiForm(photos); }),
+    options: async () => ({ propertyTypes: [{ id: 9, code: 'condo' }], contractTypes: [{ id: 31, code: 'twelve_months', termMonths: 12 }], roomTypes: [{ id: 41, code: 'one_bedroom', bedroomCount: 1 }], facilities: [] }),
+    setVisibility: visibility ?? (async (id, v) => { seen.push(['visibility', id, v]); return v === 'published' ? 'listed' : 'unlisted'; }),
+    save: async () => '7',
+    uploadPhoto: async () => '',
+  };
+  roomsLib().selfOwnerRoomStore.connect(backend, 'u1');
+  await settle();
+  return backend;
+}
+async function withEffects(fn) {
+  const before = fakeReact.useEffect;
+  fakeReact.useEffect = (effect) => { effect(); };
+  try { return await fn(); } finally { fakeReact.useEffect = before; }
+}
+
+test('connected web: loads the form data, then shows the detail with the API lease lengths', () => withEffects(async () => {
+  const backend = await connect();
+  let tree = web({ roomId: '7' });
+  assert.equal(tree.find((n) => n?.type === 'DesktopDetail'), undefined, 'nothing to show until the room is loaded');
+  assert.equal(byTestId(tree, 'sord-edit'), undefined, 'no edit before the form data is here');
+  await settle();
+  tree = web({ roomId: '7' });
+  const detail = tree.find((n) => n?.type === 'DesktopDetail');
+  assert.equal(detail.props.room.prices[0].termMonths, 12);
+  assert.equal(detail.props.room.roomTypeCode, 'one_bedroom');
+  assert.deepEqual(backend.seen, [['detail', '7']]);
+}));
+
+test('connected web: a failed load says so', () => withEffects(async () => {
+  await connect({ detail: async () => { throw new Error('down'); } });
+  web({ roomId: '7' });
+  await settle();
+  assert.ok(texts(web({ roomId: '7' })).includes(th().selfOwnerRooms.detailLoadError));
+}));
+
+test('connected web: publish needs 5 photos; the API decides, and a refusal stays in the confirm', () => withEffects(async () => {
+  const so = th().selfOwnerRooms;
+  let backend = await connect({ photos: 4 });
+  web({ roomId: '7' });
+  await settle();
+  byTestId(web({ roomId: '7' }), 'sord-toggle').props.onClick();
+  byTestId(web({ roomId: '7' }), 'sord-toggle-confirm').props.onClick();
+  await settle();
+  assert.ok(texts(web({ roomId: '7' })).includes(so.publishNeedsPhotos));
+  assert.equal(backend.seen.some(([k]) => k === 'visibility'), false, 'not sent when the room has too few photos');
+
+  await settle(); // the last render's load finishes before the next room set
+  hooks = [];
+  roomsLib().selfOwnerRoomStore.reset(now);
+  listingLib().selfOwnerListingDrafts.clear();
+  backend = await connect({ photos: 5 });
+  web({ roomId: '7' });
+  await settle();
+  byTestId(web({ roomId: '7' }), 'sord-toggle').props.onClick();
+  byTestId(web({ roomId: '7' }), 'sord-toggle-confirm').props.onClick();
+  await settle();
+  assert.deepEqual(backend.seen.at(-1), ['visibility', '7', 'published']);
+  assert.equal(room('7').state, 'listed');
+  assert.equal(byClass(web({ roomId: '7' }), 'awu-dialog-panel').length, 0, 'the confirm closes');
+
+  await settle(); // the last render's load finishes before the next room set
+  hooks = [];
+  roomsLib().selfOwnerRoomStore.reset(now);
+  listingLib().selfOwnerListingDrafts.clear();
+  await connect({ photos: 5, visibility: async () => { throw new Error('409'); } });
+  web({ roomId: '7' });
+  await settle();
+  byTestId(web({ roomId: '7' }), 'sord-toggle').props.onClick();
+  byTestId(web({ roomId: '7' }), 'sord-toggle-confirm').props.onClick();
+  await settle();
+  const tree = web({ roomId: '7' });
+  assert.ok(texts(tree).includes(so.toggleFailed));
+  assert.equal(room('7').state, 'unlisted');
+}));
+
+test('connected phone: too few photos or a refusal is said with an alert', () => withEffects(async () => {
+  const so = th().selfOwnerRooms;
+  await connect({ photos: 2 });
+  phone({ roomId: '7' });
+  await settle();
+  byTestId(phone({ roomId: '7' }), 'sord-toggle').props.onPress();
+  alerts[0][2].find((b) => b.style !== 'cancel').onPress();
+  await settle();
+  assert.equal(alerts[1][1], so.publishNeedsPhotos);
+}));
+
+// Review fix (20 Nov 2026): publish waits for the room's photos to be known (loading or failed: no switch).
+test('connected: no publish switch while the room loads or after it failed to load', () => withEffects(async () => {
+  await connect({ detail: () => new Promise(() => {}) });
+  assert.equal(byTestId(web({ roomId: '7' }), 'sord-toggle'), undefined);
+  assert.equal(byTestId(phone({ roomId: '7' }), 'sord-toggle'), undefined);
+  hooks = [];
+  roomsLib().selfOwnerRoomStore.reset(now);
+  await connect({ detail: async () => { throw new Error('down'); } });
+  web({ roomId: '7' });
+  await settle();
+  assert.equal(byTestId(web({ roomId: '7' }), 'sord-toggle'), undefined);
+}));

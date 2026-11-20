@@ -3,7 +3,9 @@ import { randomUUID } from 'crypto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 
-export const MAX_ROOM_PHOTO_BYTES = 10 * 1024 * 1024;
+import { MAX_ROOM_PHOTO_BYTES } from './room-photo-limits';
+
+export { MAX_ROOM_PHOTO_BYTES };
 const IMAGE_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.jpg$/;
 
 @Injectable()

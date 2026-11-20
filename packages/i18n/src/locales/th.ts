@@ -581,6 +581,10 @@ export const th: TranslationSchema = {
     contactSection: 'ช่องทางติดต่อ',
     autoTitle: 'ห้อง {room}',
     privateHint: 'ห้องใหม่ยังไม่ประกาศ เห็นเฉพาะคุณจนกว่าจะเปิดประกาศ',
+    saved: 'บันทึกห้องแล้ว',
+    publishNeedsPhotos: 'ต้องมีรูปห้องอย่างน้อย 5 รูปก่อนเปิดประกาศ แก้ไขห้องเพื่อเพิ่มรูปได้',
+    toggleFailed: 'เปลี่ยนสถานะประกาศไม่สำเร็จ กรุณาลองอีกครั้ง',
+    detailLoadError: 'โหลดข้อมูลห้องไม่สำเร็จ กรุณาลองอีกครั้ง',
   },
   agent: {
     calendar: {

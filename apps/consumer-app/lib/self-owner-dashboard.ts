@@ -71,6 +71,8 @@ export function createSelfOwnerDashboardDemoFixture(input: {
   now?: Date;
   /** The owner's rooms (the shared room store); defaults to the demo set. */
   rooms?: SelfOwnerRoom[];
+  /** Load state of `rooms` (the API rooms once connected); the demo set is 'demo'. */
+  roomsStatus?: DashboardSectionStatus;
 }): SelfOwnerDashboardSnapshot {
   const now = input.now ?? new Date();
   const today = bangkokYmd(now);
@@ -110,7 +112,7 @@ export function createSelfOwnerDashboardDemoFixture(input: {
     greetingName: input.greetingName,
     localDateLabel: input.localDateLabel,
     currency: 'THB',
-    rooms: { status: 'demo', items: rooms },
+    rooms: { status: input.roomsStatus ?? 'demo', items: rooms },
     rent: { status: 'demo', periodYear: year, periodMonth: month, items: rent },
     todo: {
       status: 'demo',
@@ -125,10 +127,10 @@ export function createSelfOwnerDashboardDemoFixture(input: {
   };
 }
 
-/** The self owner Dashboard data. Demo only until the self owner API exists. */
+/** The self owner Dashboard data: rooms from the room store (the API once connected); rent, to-dos and viewings are demo. */
 export function useSelfOwnerDashboard(input: { greetingName: string; locale: SelfOwnerLocale }): SelfOwnerDashboardSnapshot {
   const { greetingName, locale } = input;
-  const { rooms } = useSelfOwnerRooms();
+  const { rooms, status: roomsStatus } = useSelfOwnerRooms();
   return useMemo(() => {
     const localDateLabel = new Date().toLocaleDateString(SELF_OWNER_LOCALE_TAG[locale], {
       weekday: 'long',
@@ -137,6 +139,6 @@ export function useSelfOwnerDashboard(input: { greetingName: string; locale: Sel
       year: 'numeric',
       timeZone: 'Asia/Bangkok',
     });
-    return createSelfOwnerDashboardDemoFixture({ greetingName, localDateLabel, rooms });
-  }, [greetingName, locale, rooms]);
+    return createSelfOwnerDashboardDemoFixture({ greetingName, localDateLabel, rooms, roomsStatus });
+  }, [greetingName, locale, rooms, roomsStatus]);
 }

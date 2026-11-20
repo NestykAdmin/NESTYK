@@ -581,6 +581,10 @@ export const en: TranslationSchema = {
     contactSection: 'Contact',
     autoTitle: 'Room {room}',
     privateHint: 'A new room is not listed yet: only you see it until you publish it.',
+    saved: 'Room saved.',
+    publishNeedsPhotos: 'A room needs at least 5 photos before you publish it. Edit the room to add photos.',
+    toggleFailed: 'Could not change the listing. Please try again.',
+    detailLoadError: 'Could not load this room. Please try again.',
   },
   agent: {
     calendar: {

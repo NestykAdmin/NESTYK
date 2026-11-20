@@ -1,24 +1,12 @@
-import type {
-  AgentRoomDetail,
-  ContractTypeOption,
-  CreateRoomWizardSubmitData,
-  PropertyTypeOption,
-  RoomTypeOption,
-} from '@nestyk/feature-listing';
-import type { FacilityOption } from '@nestyk/types';
-import type { SelfOwnerRoom } from './self-owner-rooms';
+import type { AgentRoomDetail, CreateRoomWizardSubmitData } from '@nestyk/feature-listing';
+import type { SelfOwnerRoom, SelfOwnerRoomOptions } from './self-owner-rooms';
 
 /**
  * Self owner listing form (UI round, 20 Nov 2026, ClickUp z8rcteng6c / z8rcteng6d). The form is the agent listing
  * wizard; every `/agent/*` endpoint it normally reads is `@Roles('agent')`, so this file gives it demo choices and maps
  * its data to and from a self owner room. No network: swap for the self owner API later.
  */
-export const SELF_OWNER_DEMO_OPTIONS: {
-  propertyTypes: PropertyTypeOption[];
-  contractTypes: ContractTypeOption[];
-  roomTypes: RoomTypeOption[];
-  facilities: FacilityOption[];
-} = {
+export const SELF_OWNER_DEMO_OPTIONS: SelfOwnerRoomOptions = {
   propertyTypes: [
     { id: 1, code: 'condo' },
     { id: 2, code: 'apartment' },
@@ -47,6 +35,7 @@ export const SELF_OWNER_DEMO_OPTIONS: {
 };
 
 const YEAR_CONTRACT = SELF_OWNER_DEMO_OPTIONS.contractTypes.find((type) => type.termMonths === 12)!;
+const yearContractId = (options: SelfOwnerRoomOptions) => options.contractTypes.find((type) => type.termMonths === 12)?.id;
 
 /**
  * What the owner last saved in the form, by room id, so editing a room they added shows every field again.
@@ -74,11 +63,11 @@ function layoutNumber(data: CreateRoomWizardSubmitData, code: string): number | 
  */
 export function roomFromWizard(
   data: CreateRoomWizardSubmitData,
-  input: { id: string; now: Date; previous?: SelfOwnerRoom },
+  input: { id: string; now: Date; previous?: SelfOwnerRoom; options?: SelfOwnerRoomOptions },
 ): SelfOwnerRoom {
-  const { id, now, previous } = input;
-  const roomType = SELF_OWNER_DEMO_OPTIONS.roomTypes.find((type) => type.id === data.roomTypeId);
-  const yearPrice = data.prices.find((price) => price.contractTypeId === YEAR_CONTRACT.id);
+  const { id, now, previous, options = SELF_OWNER_DEMO_OPTIONS } = input;
+  const roomType = options.roomTypes.find((type) => type.id === data.roomTypeId);
+  const yearPrice = data.prices.find((price) => price.contractTypeId === yearContractId(options));
   const size = layoutNumber(data, 'room_size');
   const state: SelfOwnerRoom['state'] =
     previous?.state === 'occupied' ? 'occupied' : previous && data.visibility === 'published' ? 'listed' : 'unlisted';
@@ -131,11 +120,15 @@ export function wizardDataFromRoom(room: SelfOwnerRoom, saved?: CreateRoomWizard
  * Room -> the agent room detail shape, so the self owner modal shows the same detail page as the agent
  * (Jom 20 Nov 2026). Uses what the owner saved when there is one; demo rooms show what the room has.
  */
-export function roomDetailFromSelfOwner(room: SelfOwnerRoom, saved?: CreateRoomWizardSubmitData): AgentRoomDetail {
+export function roomDetailFromSelfOwner(
+  room: SelfOwnerRoom,
+  saved?: CreateRoomWizardSubmitData,
+  options: SelfOwnerRoomOptions = SELF_OWNER_DEMO_OPTIONS,
+): AgentRoomDetail {
   const data = wizardDataFromRoom(room, saved);
   const numericId = Number(room.id.replace(/^\D+/, '')) || 0;
-  const roomType = SELF_OWNER_DEMO_OPTIONS.roomTypes.find((type) => type.id === data.roomTypeId);
-  const propertyType = SELF_OWNER_DEMO_OPTIONS.propertyTypes.find((type) => type.id === data.property.propertyTypeId);
+  const roomType = options.roomTypes.find((type) => type.id === data.roomTypeId);
+  const propertyType = options.propertyTypes.find((type) => type.id === data.property.propertyTypeId);
   const text = (value: number | undefined) => (value == null ? null : String(value));
   const latitude = data.property.latitude ?? data.latitude;
   const longitude = data.property.longitude ?? data.longitude;
@@ -169,7 +162,7 @@ export function roomDetailFromSelfOwner(room: SelfOwnerRoom, saved?: CreateRoomW
     latitude: text(latitude),
     longitude: text(longitude),
     prices: data.prices.map((price) => {
-      const contract = SELF_OWNER_DEMO_OPTIONS.contractTypes.find((type) => type.id === price.contractTypeId);
+      const contract = options.contractTypes.find((type) => type.id === price.contractTypeId);
       return {
         contractTypeId: price.contractTypeId,
         contractTypeCode: contract?.code ?? '',

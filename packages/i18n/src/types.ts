@@ -584,6 +584,11 @@ export interface TranslationSchema {
     autoTitle: string;
     /** Under the save button of a new room (the agent's says "not on Guest search"). */
     privateHint: string;
+    /** Saved through the self owner API. */
+    saved: string;
+    publishNeedsPhotos: string;
+    toggleFailed: string;
+    detailLoadError: string;
   };
   agent: {
     calendar: {

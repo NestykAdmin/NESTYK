@@ -145,3 +145,4 @@
 
 /* Publish / unpublish confirm text (room detail modal, 20 Nov 2026). */
 .sor-confirm { margin: 0; color: var(--aw-ink); line-height: 1.6; }
+.sor-confirm-error { margin: 12px 0 0; color: var(--aw-danger, #b42318); line-height: 1.5; }

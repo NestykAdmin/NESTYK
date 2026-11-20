@@ -51,8 +51,9 @@ function readView(): RoomsView {
   }
 }
 
-/** Cover photo the owner saved for a room they added; demo rooms have none. */
+/** The room's cover: from the API list, else what the owner saved in the form; demo rooms have none. */
 function coverOf(room: SelfOwnerRoom): string | null {
+  if (room.coverUrl) return room.coverUrl;
   const medias = selfOwnerListingDrafts.get(room.id)?.medias ?? [];
   return (medias.find((media) => media.isCover) ?? medias[0])?.mediaUrl ?? null;
 }

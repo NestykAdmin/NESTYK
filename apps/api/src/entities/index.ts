@@ -21,7 +21,15 @@ import { DealCancellationEntity } from "./deal-cancellation.entity";
 export * from "./deal-offer.entity";
 import { RoomShareLinkEntity } from "./room-share-link.entity";
 import { SavedRoomEntity } from "./saved-room.entity";
+import { SelfOwnerRoomEntity } from "./self-owner-room.entity";
+import { SelfOwnerRoomPriceEntity } from "./self-owner-room-price.entity";
+import { SelfOwnerRoomMediaEntity } from "./self-owner-room-media.entity";
+import { SelfOwnerRoomFacilityEntity } from "./self-owner-room-facility.entity";
 export * from "./saved-room.entity";
+export * from "./self-owner-room.entity";
+export * from "./self-owner-room-price.entity";
+export * from "./self-owner-room-media.entity";
+export * from "./self-owner-room-facility.entity";
 import { MasterAgreementTypeEntity } from './master-agreement-type.entity';
 export * from './base.entity';
 export * from './user.entity';
@@ -108,6 +116,7 @@ export const ALL_ENTITIES = [
   HandoverRecordEntity, HandoverItemEntity, HandoverPhotoEntity,
   RoomShareLinkEntity,
   SavedRoomEntity,
+  SelfOwnerRoomEntity, SelfOwnerRoomPriceEntity, SelfOwnerRoomMediaEntity, SelfOwnerRoomFacilityEntity,
   MasterAgreementTypeEntity,
   UserEntity,
   MasterRoleEntity,

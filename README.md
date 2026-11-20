@@ -64,6 +64,12 @@ npm run lint
 # รันทุกแอปพลิเคชันทั้งหมดใน Monorepo
 npm run dev:all
 
+# เหมือน npm run dev แต่ API ใช้ฐานข้อมูลใน Supabase ในเครื่อง (docker, DB port 54422) แทนค่าใน .env.api
+# ต้องเปิด Docker ไว้ · ครั้งแรก supabase start รัน migration ให้เอง แต่ต้องใส่ข้อมูล master เองครั้งเดียว:
+#   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres SUPABASE_URL=http://127.0.0.1:54421 npm run db:seed -w @nestyk/api -- masters
+# บัญชีที่ล็อกอินครั้งแรกเป็น guest เพิ่ม role อื่นเองใน Studio http://127.0.0.1:54423 (ตาราง user_roles)
+npm run dev:local
+
 # รันเฉพาะ Marketplace Web
 npm run dev --filter=@nestyk/web
 

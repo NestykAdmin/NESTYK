@@ -581,6 +581,10 @@ export const ja: TranslationSchema = {
     contactSection: '連絡先',
     autoTitle: '{room}号室',
     privateHint: '新しい部屋はまだ掲載されません。掲載するまであなただけが見られます。',
+    saved: '部屋を保存しました。',
+    publishNeedsPhotos: '掲載するには部屋の写真が5枚以上必要です。部屋を編集して写真を追加してください。',
+    toggleFailed: '掲載状態を変更できませんでした。もう一度お試しください。',
+    detailLoadError: '部屋の情報を読み込めませんでした。もう一度お試しください。',
   },
   agent: {
     calendar: {

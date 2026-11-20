@@ -580,6 +580,10 @@ export const zh: TranslationSchema = {
     contactSection: '联系方式',
     autoTitle: '{room} 号房',
     privateHint: '新房间尚未发布：在您发布之前只有您能看到。',
+    saved: '房间已保存。',
+    publishNeedsPhotos: '发布前房间至少需要 5 张照片。请编辑房间添加照片。',
+    toggleFailed: '无法更改发布状态，请重试。',
+    detailLoadError: '无法加载此房间，请重试。',
   },
   agent: {
     calendar: {

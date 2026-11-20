@@ -1,11 +1,11 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, Text, View } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { MobileRoomDetailBody, interpolate } from '@nestyk/feature-listing';
 import { MobileSectionHeader, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useLocale } from '@nestyk/i18n';
-import { canToggleListing, toggleListing, useSelfOwnerRooms } from '../../lib/self-owner-rooms';
-import { roomDetailFromSelfOwner, selfOwnerListingDrafts } from '../../lib/self-owner-listing';
+import { canToggleListing, selfOwnerRoomStore, toggleListing, useSelfOwnerRooms } from '../../lib/self-owner-rooms';
+import { useSelfOwnerRoomDetail } from './useSelfOwnerRoomDetail';
 import { SelfOwnerListingEditor } from './SelfOwnerListingEditor';
 import type { SelfOwnerRoomDetailModalProps } from './SelfOwnerRoomDetailModal.types';
 
@@ -20,7 +20,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
   const so = t.selfOwnerRooms;
   const { rooms } = useSelfOwnerRooms();
   const room = roomId ? rooms.find((item) => item.id === roomId) ?? null : null;
-  const detail = useMemo(() => (room ? roomDetailFromSelfOwner(room, selfOwnerListingDrafts.get(room.id)) : null), [room]);
+  const { status, detail, photoCount } = useSelfOwnerRoomDetail(room);
 
   const [editing, setEditing] = useState(false);
   const [editHeaderTitle, setEditHeaderTitle] = useState('');
@@ -45,7 +45,16 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
     if (!room) return;
     Alert.alert(toggleLabel, interpolate(listed ? so.unpublishConfirm : so.publishConfirm, { title: room.title }), [
       { text: t.common.cancel, style: 'cancel' },
-      { text: toggleLabel, onPress: () => toggleListing(room.id) },
+      { text: toggleLabel, onPress: () => {
+        // Connected, the API decides; a room with fewer than 5 photos is told so without asking it.
+        if (selfOwnerRoomStore.backend() && !listed && photoCount < 5) {
+          Alert.alert(toggleLabel, so.publishNeedsPhotos);
+          return;
+        }
+        void toggleListing(room.id).then((result) => {
+          if (!result.ok && selfOwnerRoomStore.backend()) Alert.alert(toggleLabel, so.toggleFailed);
+        });
+      } },
     ]);
   };
 
@@ -58,12 +67,12 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
               title={editing ? editHeaderTitle || copy.editRoom : copy.details}
               leading="back"
               onBackPress={handleBack}
-              onActionPress={room && !editing ? () => setEditing(true) : undefined}
-              actionLabel={room && !editing ? copy.edit : undefined}
+              onActionPress={room && !editing && status === 'ready' ? () => setEditing(true) : undefined}
+              actionLabel={room && !editing && status === 'ready' ? copy.edit : undefined}
               actionVariant="icon"
               actionIcon="note"
             />
-            {room && !editing && canToggleListing(room) ? (
+            {room && !editing && status === 'ready' && canToggleListing(room) ? (
               <Pressable
                 testID="sord-toggle"
                 accessibilityRole="button"
@@ -74,9 +83,13 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
               </Pressable>
             ) : null}
           </View>
-          {!room || !detail ? (
+          {room && status === 'loading' ? (
             <View style={{ padding: 24 }}>
-              <Text style={{ color: theme.textHeading }}>{so.noMatch}</Text>
+              <ActivityIndicator color={theme.spinner} accessibilityLabel={t.common.loading} />
+            </View>
+          ) : !room || !detail ? (
+            <View style={{ padding: 24 }}>
+              <Text style={{ color: theme.textHeading }}>{room && status === 'error' ? so.detailLoadError : so.noMatch}</Text>
             </View>
           ) : editing ? (
             <View style={{ flex: 1, padding: 16 }}>

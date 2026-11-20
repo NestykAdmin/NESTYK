@@ -1,9 +1,17 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import type { DashboardSectionStatus } from '@nestyk/feature-listing';
+import type {
+  ContractTypeOption,
+  CreateRoomWizardSubmitData,
+  DashboardSectionStatus,
+  PropertyTypeOption,
+  RoomPhoto,
+  RoomTypeOption,
+} from '@nestyk/feature-listing';
+import type { FacilityOption } from '@nestyk/types';
 
 /**
- * Self owner rooms (UI round, 19 Nov 2026, ClickUp z8rcteng6c). One demo room set shared by the Dashboard
- * and the rooms page until the self owner API exists; `useSelfOwnerRooms` is the one place to swap for it.
+ * Self owner rooms (UI round, 19 Nov 2026, ClickUp z8rcteng6c). One room set shared by the Dashboard and the rooms
+ * page: demo rooms until the app connects the self owner API (`selfOwnerRoomStore.connect`).
  */
 export type SelfOwnerRoomState = 'occupied' | 'listed' | 'unlisted';
 
@@ -22,6 +30,8 @@ export type SelfOwnerRoom = {
   /** ISO date (YYYY-MM-DD) */
   leaseEndsAt?: string;
   interestCount?: number;
+  /** Cover photo (API rooms). */
+  coverUrl?: string;
 };
 
 export type SelfOwnerRoomFilter = 'all' | SelfOwnerRoomState;
@@ -147,31 +157,92 @@ export function clampPage(page: number, total: number, size: number = SELF_OWNER
 }
 
 /**
- * In-memory demo rooms (listing UI round, 20 Nov 2026, ClickUp z8rcteng6d): rooms added, edited or (un)listed here
- * show on both the Dashboard and the rooms page, and are gone on reload. Replace with the self owner API later.
+ * What the store needs from the self owner API (lib/self-owner-rooms-api.ts). Kept as an interface so this file stays
+ * free of network code and the tests can hand in a fake.
+ */
+export interface SelfOwnerRoomsBackend {
+  list(): Promise<SelfOwnerRoom[]>;
+  setVisibility(id: string, visibility: 'private' | 'published'): Promise<SelfOwnerRoomState>;
+  /** One room as the listing form's data (edit and the detail view). */
+  detail(id: string): Promise<CreateRoomWizardSubmitData>;
+  /** New room (no id) or replace one; resolves to the room's id. */
+  save(id: string | undefined, data: CreateRoomWizardSubmitData): Promise<string>;
+  options(): Promise<SelfOwnerRoomOptions>;
+  uploadPhoto(photo: RoomPhoto): Promise<string>;
+}
+
+/** The four choice lists of the listing form. */
+export type SelfOwnerRoomOptions = {
+  propertyTypes: PropertyTypeOption[];
+  contractTypes: ContractTypeOption[];
+  roomTypes: RoomTypeOption[];
+  facilities: FacilityOption[];
+};
+
+type RoomStoreState = { source: 'demo' | 'api'; status: DashboardSectionStatus; rooms: SelfOwnerRoom[] };
+
+/**
+ * The owner's rooms, shared by the Dashboard and the rooms page. Demo rooms until the app connects the self owner
+ * API (20 Nov 2026, D4); connected, it holds the signed-in owner's rooms and local changes until the next load.
  */
 function createRoomStore() {
-  let rooms: SelfOwnerRoom[] = createSelfOwnerRoomsDemo();
+  let state: RoomStoreState = { source: 'demo', status: 'demo', rooms: createSelfOwnerRoomsDemo() };
+  let backend: SelfOwnerRoomsBackend | null = null;
+  let accountKey: string | null = null;
+  let loadId = 0;
   const listeners = new Set<() => void>();
-  const emit = () => listeners.forEach((listener) => listener());
+  const set = (next: Partial<RoomStoreState>) => {
+    state = { ...state, ...next };
+    listeners.forEach((listener) => listener());
+  };
+  const load = async (): Promise<void> => {
+    if (!backend) return;
+    const id = ++loadId;
+    const source = backend;
+    try {
+      const rooms = await source.list();
+      if (id === loadId && backend === source) set({ status: 'available', rooms });
+    } catch {
+      if (id === loadId && backend === source) set({ status: 'error' });
+    }
+  };
   return {
-    get: (): SelfOwnerRoom[] => rooms,
+    get: (): SelfOwnerRoom[] => state.rooms,
+    getState: (): RoomStoreState => state,
+    backend: (): SelfOwnerRoomsBackend | null => backend,
     subscribe(listener: () => void): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     add(room: SelfOwnerRoom): void {
-      rooms = [...rooms, room];
-      emit();
+      set({ rooms: [...state.rooms.filter((item) => item.id !== room.id), room] });
     },
     update(id: string, patch: Partial<SelfOwnerRoom>): void {
-      rooms = rooms.map((room) => (room.id === id ? { ...room, ...patch, id } : room));
-      emit();
+      set({ rooms: state.rooms.map((room) => (room.id === id ? { ...room, ...patch, id } : room)) });
     },
-    /** Back to the 14 demo rooms (tests). */
+    /** Use the API for this account; the same account again is a no-op, another account loads its own rooms. */
+    connect(next: SelfOwnerRoomsBackend, account: string): void {
+      if (backend === next && accountKey === account) return;
+      backend = next;
+      accountKey = account;
+      set({ source: 'api', status: 'loading', rooms: [] });
+      void load();
+    },
+    /** Load the rooms again (after a save, or pull to refresh); nothing to do on the demo. */
+    refresh: (): Promise<void> => load(),
+    /** Signed out: back to the demo rooms. */
+    disconnect(now: Date = new Date()): void {
+      backend = null;
+      accountKey = null;
+      loadId++;
+      set({ source: 'demo', status: 'demo', rooms: createSelfOwnerRoomsDemo(now) });
+    },
+    /** Back to the 14 demo rooms, not connected (tests). */
     reset(now: Date = new Date()): void {
-      rooms = createSelfOwnerRoomsDemo(now);
-      emit();
+      backend = null;
+      accountKey = null;
+      loadId++;
+      set({ source: 'demo', status: 'demo', rooms: createSelfOwnerRoomsDemo(now) });
     },
   };
 }
@@ -183,15 +254,32 @@ export function canToggleListing(room: SelfOwnerRoom): boolean {
   return room.state !== 'occupied';
 }
 
-/** Listed <-> unlisted for one room; a rented or unknown room is left as is. */
-export function toggleListing(id: string, now: Date = new Date()): void {
+export type ToggleListingResult = { ok: true } | { ok: false; error?: unknown };
+
+/**
+ * Listed <-> unlisted for one room; a rented or unknown room is left as is. Connected, the API decides (it refuses a
+ * room with fewer than 5 photos) and the room changes only when it agrees; on the demo it changes at once.
+ */
+export function toggleListing(id: string, now: Date = new Date()): Promise<ToggleListingResult> {
   const room = selfOwnerRoomStore.get().find((item) => item.id === id);
-  if (!room || !canToggleListing(room)) return;
-  selfOwnerRoomStore.update(id, { state: room.state === 'listed' ? 'unlisted' : 'listed', updatedAt: now.toISOString() });
+  if (!room || !canToggleListing(room)) return Promise.resolve({ ok: false });
+  const visibility = room.state === 'listed' ? 'private' : 'published';
+  const backend = selfOwnerRoomStore.backend();
+  if (!backend) {
+    selfOwnerRoomStore.update(id, { state: visibility === 'published' ? 'listed' : 'unlisted', updatedAt: now.toISOString() });
+    return Promise.resolve({ ok: true });
+  }
+  return backend.setVisibility(id, visibility).then(
+    (state): ToggleListingResult => {
+      selfOwnerRoomStore.update(id, { state, updatedAt: now.toISOString() });
+      return { ok: true };
+    },
+    (error): ToggleListingResult => ({ ok: false, error }),
+  );
 }
 
-/** The owner's rooms. Demo only until the self owner API exists. */
+/** The owner's rooms: the demo until the app connects the API, then the signed-in owner's rooms. */
 export function useSelfOwnerRooms(): { status: DashboardSectionStatus; rooms: SelfOwnerRoom[]; isDemoPreview: boolean } {
-  const rooms = useSyncExternalStore(selfOwnerRoomStore.subscribe, selfOwnerRoomStore.get, selfOwnerRoomStore.get);
-  return useMemo(() => ({ status: 'demo' as DashboardSectionStatus, rooms, isDemoPreview: true }), [rooms]);
+  const state = useSyncExternalStore(selfOwnerRoomStore.subscribe, selfOwnerRoomStore.getState, selfOwnerRoomStore.getState);
+  return useMemo(() => ({ status: state.status, rooms: state.rooms, isDemoPreview: state.source === 'demo' }), [state]);
 }

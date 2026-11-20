@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useSyncExternalStore } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform, useWindowDimensions } from 'react-native';
 import {
@@ -7,7 +7,7 @@ import {
   type CreateRoomWizardSubmitData,
   type RoomPhoto,
 } from '@nestyk/feature-listing';
-import { useLocale } from '@nestyk/i18n';
+import { localizedError, useLocale } from '@nestyk/i18n';
 import { interpolate } from '@nestyk/feature-listing';
 import { selfOwnerRoomStore, type SelfOwnerRoom } from '../../lib/self-owner-rooms';
 import {
@@ -20,8 +20,9 @@ import {
 
 /**
  * Self owner "add / edit room" (UI round, 20 Nov 2026, ClickUp z8rcteng6c / z8rcteng6d): the agent listing wizard
- * with the owner preset (no "who is listing" picker) and demo choices. Saving writes the in-memory room store only;
- * place search, nearby, AI copy, photo enhance and the contact list stay off because they are `/agent/*` today.
+ * with the owner preset (no "who is listing" picker). Connected to the self owner API (the room store's backend,
+ * 20 Nov 2026) it takes the API choices, uploads photos and saves there; otherwise demo choices and the in-memory store.
+ * Place search, nearby, AI copy, photo enhance and the contact list stay off because they are `/agent/*` today.
  */
 export interface SelfOwnerListingEditorProps {
   /** Room to edit; omit to add a new one. */
@@ -35,7 +36,7 @@ export interface SelfOwnerListingEditorProps {
   ownerContact?: { name: string; phone: string };
 }
 
-/** Photos from the device (same picker settings as the agent); they stay on the device in this round. */
+/** Photos from the device (same picker settings as the agent). */
 async function pickLocalPhotos(limit: number): Promise<RoomPhoto[]> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
@@ -54,7 +55,7 @@ async function pickLocalPhotos(limit: number): Promise<RoomPhoto[]> {
 }
 
 export function SelfOwnerListingEditor({ room, onDone, onCancel, backHandlerRef, onHeaderTitleChange, ownerContact }: SelfOwnerListingEditorProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const copy = t.selfOwnerRooms;
   const initialData = useMemo(
     () => (room ? wizardDataFromRoom(room, selfOwnerListingDrafts.get(room.id)) : undefined),
@@ -86,7 +87,16 @@ export function SelfOwnerListingEditor({ room, onDone, onCancel, backHandlerRef,
   const { width } = useWindowDimensions();
   const desktopLayout = Platform.OS === 'web' && width >= 768;
 
+  // Re-render when the app connects the store: a page opened straight on "add room" renders before that happens.
+  const source = useSyncExternalStore(selfOwnerRoomStore.subscribe, selfOwnerRoomStore.getState, selfOwnerRoomStore.getState).source;
+  // Read at call time, so a list asked after the store connects goes to the API.
+  const options = () => {
+    const live = selfOwnerRoomStore.backend();
+    return live ? live.options() : Promise.resolve(SELF_OWNER_DEMO_OPTIONS);
+  };
+
   const save = async (submitted: CreateRoomWizardSubmitData) => {
+    const backend = selfOwnerRoomStore.backend();
     // The room name may be blank: "ห้อง {เลขห้อง}", else the project name.
     const roomNumber = submitted.roomId?.trim();
     const data = submitted.listingTitle.trim()
@@ -95,18 +105,34 @@ export function SelfOwnerListingEditor({ room, onDone, onCancel, backHandlerRef,
           ...submitted,
           listingTitle: roomNumber ? interpolate(copy.autoTitle, { room: roomNumber }) : submitted.property.name.trim(),
         };
-    const id = room?.id ?? nextSelfOwnerRoomId(selfOwnerRoomStore.get());
     const previous = room ? selfOwnerRoomStore.get().find((item) => item.id === room.id) ?? room : undefined;
-    const saved = roomFromWizard(data, { id, now: new Date(), previous });
+    let id = room?.id ?? nextSelfOwnerRoomId(selfOwnerRoomStore.get());
+    let choices = SELF_OWNER_DEMO_OPTIONS;
+    if (backend) {
+      try {
+        id = await backend.save(room?.id, data);
+      } catch (err) {
+        // The wizard reports a failed save with Alert, which does nothing on react-native-web.
+        if (Platform.OS === 'web' && typeof globalThis.alert === 'function') {
+          globalThis.alert(`${cr.saveError}\n${localizedError(err, t.common.errorGeneric, locale)}`);
+        }
+        throw err;
+      }
+      // Saved: from here on nothing may fail the submit (the owner would save again and add the room twice).
+      choices = await backend.options().catch(() => SELF_OWNER_DEMO_OPTIONS);
+    }
+    const saved = roomFromWizard(data, { id, now: new Date(), previous, options: choices });
     selfOwnerListingDrafts.set(id, data);
     if (previous) selfOwnerRoomStore.update(id, saved);
     else selfOwnerRoomStore.add(saved);
+    if (backend) void selfOwnerRoomStore.refresh();
     onDone(saved);
   };
 
   return (
     <MobileCreateListingWizardBody
-      key={room?.id ?? 'new'}
+      // The form starts again on the API choices when the store connects (nothing is typed that early).
+      key={`${room?.id ?? 'new'}-${source}`}
       config={defaultOwnerListingConfig}
       presetListingSource="owner"
       copyOverrides={copyOverrides}
@@ -120,11 +146,14 @@ export function SelfOwnerListingEditor({ room, onDone, onCancel, backHandlerRef,
       onAbandonUnsaved={onCancel}
       confirmLeave={confirmLeave}
       pickPhotos={pickLocalPhotos}
-      uploadPhoto={async (photo) => photo.uri}
-      listPropertyTypes={async () => SELF_OWNER_DEMO_OPTIONS.propertyTypes}
-      listContractTypes={async () => SELF_OWNER_DEMO_OPTIONS.contractTypes}
-      listRoomTypes={async () => SELF_OWNER_DEMO_OPTIONS.roomTypes}
-      listFacilities={async () => SELF_OWNER_DEMO_OPTIONS.facilities}
+      uploadPhoto={async (photo) => {
+        const live = selfOwnerRoomStore.backend();
+        return live ? live.uploadPhoto(photo) : photo.uri;
+      }}
+      listPropertyTypes={async () => (await options()).propertyTypes}
+      listContractTypes={async () => (await options()).contractTypes}
+      listRoomTypes={async () => (await options()).roomTypes}
+      listFacilities={async () => (await options()).facilities}
       mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
       onSubmitListing={save}
     />

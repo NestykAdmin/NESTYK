@@ -20,6 +20,7 @@
     "build": "turbo build",
     "dev": "turbo dev --filter=@nestyk/web --filter=@nestyk/api --filter=@nestyk/consumer-app",
     "dev:all": "turbo dev",
+    "dev:local": "npx supabase start && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres turbo dev --env-mode=loose --filter=@nestyk/web --filter=@nestyk/api --filter=@nestyk/consumer-app",
     "lint": "turbo lint",
     "test": "turbo test",
     "check:roles": "node apps/api/scripts/check-roles.cjs",

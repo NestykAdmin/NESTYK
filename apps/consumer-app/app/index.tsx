@@ -46,7 +46,8 @@ import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
-import { useSelfOwnerRooms } from '../lib/self-owner-rooms';
+import { selfOwnerRoomStore, useSelfOwnerRooms } from '../lib/self-owner-rooms';
+import { selfOwnerRoomsApi } from '../lib/self-owner-rooms-api';
 import { SelfOwnerListingEditor } from '../components/self-owner/SelfOwnerListingEditor';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
@@ -509,9 +510,9 @@ export function AppHomeScreen() {
     goBackFromSecondary();
   }, [goBackFromSecondary]);
 
-  /** Saved (demo only): say so, then back to the rooms list. */
+  /** Saved: say so (the demo says it was not kept), then back to the rooms list. */
   const finishSelfOwnerForm = useCallback(() => {
-    Alert.alert(t.selfOwnerRooms.createTitle, t.selfOwnerRooms.savedDemo);
+    Alert.alert(t.selfOwnerRooms.createTitle, selfOwnerRoomStore.backend() ? t.selfOwnerRooms.saved : t.selfOwnerRooms.savedDemo);
     setSecondaryReturnTab(null);
     setActiveTab('listingRoom');
   }, [t]);
@@ -1070,11 +1071,17 @@ export function AppHomeScreen() {
     locale,
     onSettled: finishPageRefresh,
   });
-  // Self owner Dashboard (UI round, 19 Nov 2026): demo data until the self owner API exists.
+  // Self owner Dashboard (UI round, 19 Nov 2026): rooms from the room store; rent, to-dos and viewings still demo.
   const selfOwnerDashboardSnapshot = useSelfOwnerDashboard({
     greetingName: dashboardGreetingName,
     locale,
   });
+  // A signed-in self owner works on their own rooms through the self owner API (20 Nov 2026, D4); signed out, the demo.
+  const selfOwnerAccount = isAuthenticated && activeRole === 'self_owner' ? session?.userId ?? null : null;
+  useEffect(() => {
+    if (selfOwnerAccount != null) selfOwnerRoomStore.connect(selfOwnerRoomsApi, String(selfOwnerAccount));
+    else if (!isAuthenticated) selfOwnerRoomStore.disconnect();
+  }, [selfOwnerAccount, isAuthenticated]);
   const selfOwnerRooms = useSelfOwnerRooms();
   // The owner's profile is the room contact in the self owner room form (Jom 20 Nov 2026).
   const selfOwnerContact = useMemo(
@@ -1103,6 +1110,9 @@ export function AppHomeScreen() {
     setPageRefreshing(true);
     if (partyInbox && activeRole !== 'agent') {
       setPartyContractsReloadToken(token);
+    } else if (activeRole === 'self_owner' && (activeTab === 'dashboard' || activeTab === 'listingRoom')) {
+      // The owner's rooms from the self owner API (the rest of the Dashboard is still demo).
+      void selfOwnerRoomStore.refresh().finally(() => finishPageRefresh(token));
     } else if (activeRole === 'agent' && activeTab === 'dashboard') {
       setDashboardRefreshKey(token);
     } else if (activeRole === 'agent' && activeTab === 'calendar') {
@@ -1835,7 +1845,8 @@ export function AppHomeScreen() {
     (isLandlordWeb && (activeTab === 'dashboard' || activeTab === 'income')) ||
     (isTenantWeb && (activeTab === 'dashboard' || activeTab === 'bills')) ||
     (!partyInbox && !isWizardTab && activeRole === 'agent' &&
-      ['dashboard', 'listingLead', 'listingRoom', 'calendar'].includes(activeTab))
+      ['dashboard', 'listingLead', 'listingRoom', 'calendar'].includes(activeTab)) ||
+    (!partyInbox && !isWizardTab && activeRole === 'self_owner' && ['dashboard', 'listingRoom'].includes(activeTab))
       ? handlePageRefresh : undefined;
 
   const tenantActiveId = tenantWebActiveId({ partyInbox, activeTab });

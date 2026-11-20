@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Modal } from "react-native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import { AgentRoomDesktopBody, interpolate } from "@nestyk/feature-listing";
@@ -6,15 +6,15 @@ import { MobileIcon, useMobileTheme } from "@nestyk/ui/native";
 import { useLocale } from "@nestyk/i18n";
 import "../agent-web/agent-room-detail.css";
 import { WebDialog } from "../agent-web/ui/WebDialog";
-import { canToggleListing, toggleListing, useSelfOwnerRooms } from "../../lib/self-owner-rooms";
-import { roomDetailFromSelfOwner, selfOwnerListingDrafts } from "../../lib/self-owner-listing";
+import { canToggleListing, selfOwnerRoomStore, toggleListing, useSelfOwnerRooms } from "../../lib/self-owner-rooms";
+import { useSelfOwnerRoomDetail } from "./useSelfOwnerRoomDetail";
 import { SelfOwnerListingEditor } from "./SelfOwnerListingEditor";
 import type { SelfOwnerRoomDetailModalProps } from "./SelfOwnerRoomDetailModal.types";
 
 /**
  * Self owner room detail over the rooms page (Jom 20 Nov 2026), like the agent's AgentRoomDetailModal.web.tsx:
  * the agent room detail page without the share bar, edit in the modal, and publish / unpublish in the header
- * (asks first). Demo store only.
+ * (asks first). Connected to the self owner API it loads the room first, and the API decides publishing.
  */
 export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: SelfOwnerRoomDetailModalProps) {
   const { t } = useLocale();
@@ -23,10 +23,16 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
   const so = t.selfOwnerRooms;
   const { rooms } = useSelfOwnerRooms();
   const room = roomId ? rooms.find((item) => item.id === roomId) ?? null : null;
-  const detail = useMemo(() => (room ? roomDetailFromSelfOwner(room, selfOwnerListingDrafts.get(room.id)) : null), [room]);
+  const { status, detail, photoCount } = useSelfOwnerRoomDetail(room);
 
   const [editing, setEditing] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirmingState] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const setConfirming = useCallback((open: boolean) => {
+    setConfirmingState(open);
+    setToggleError(null);
+  }, []);
   const [editHeaderTitle, setEditHeaderTitle] = useState("");
   const editBackRef = useRef<(() => boolean) | null>(null);
 
@@ -38,7 +44,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
     stopEditing();
     setConfirming(false);
     onClose();
-  }, [onClose, stopEditing]);
+  }, [onClose, stopEditing, setConfirming]);
   // Like the agent: the form steps back first (section -> hub), then the form closes, then the modal.
   // An open publish confirm closes first (RN Web also calls onRequestClose on Escape).
   const handleBack = useCallback(() => {
@@ -52,12 +58,31 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
       return;
     }
     close();
-  }, [confirming, editing, stopEditing, close]);
+  }, [confirming, editing, stopEditing, close, setConfirming]);
 
   // Escape inside the publish confirm belongs to the confirm (its <dialog> closes itself), not to this modal.
   const dialogEscape = useRef(false);
   const listed = room?.state === "listed";
   const toggleLabel = listed ? so.unpublish : so.publish;
+  // Connected, the API decides; a room with fewer than 5 photos is told so here without asking it.
+  const confirmToggle = () => {
+    if (!room || toggling) return;
+    if (!selfOwnerRoomStore.backend()) {
+      void toggleListing(room.id);
+      setConfirming(false);
+      return;
+    }
+    if (!listed && photoCount < 5) {
+      setToggleError(so.publishNeedsPhotos);
+      return;
+    }
+    setToggling(true);
+    void toggleListing(room.id).then((result) => {
+      setToggling(false);
+      if (result.ok) setConfirming(false);
+      else setToggleError(so.toggleFailed);
+    });
+  };
 
   return (
     <Modal visible={roomId !== null} transparent animationType="none" onRequestClose={handleBack} accessibilityLabel={editing ? editHeaderTitle || copy.editRoom : copy.details}>
@@ -97,13 +122,13 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
                   {!editing && room ? <span>{room.title}</span> : null}
                 </div>
                 <div className="ard-header-actions">
-                  {room && !editing && canToggleListing(room) ? (
+                  {room && !editing && status === "ready" && canToggleListing(room) ? (
                     <button className="aw-button aw-button-secondary" data-testid="sord-toggle" onClick={() => setConfirming(true)}>
                       <MobileIcon name="globe" size={17} color="currentColor" />
                       {toggleLabel}
                     </button>
                   ) : null}
-                  {room && !editing ? (
+                  {room && !editing && status === "ready" ? (
                     <button className="aw-button aw-button-secondary" data-testid="sord-edit" onClick={() => setEditing(true)}>
                       <MobileIcon name="pencil" size={17} color="currentColor" />
                       {copy.edit}
@@ -118,10 +143,14 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
               </div>
             </WebContentContainer>
           </header>
-          {!room || !detail ? (
+          {room && status === "loading" ? (
+            <div className="ard-state" aria-busy="true">
+              <p>{t.common.loading}</p>
+            </div>
+          ) : !room || !detail ? (
             <div className="ard-state" role="alert">
               <MobileIcon name="warning" size={30} color="currentColor" />
-              <p>{so.noMatch}</p>
+              <p>{room && status === "error" ? so.detailLoadError : so.noMatch}</p>
             </div>
           ) : editing ? (
             <div className="ard-editor">
@@ -159,10 +188,9 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
                   type="button"
                   className="awu-btn awu-btn-primary"
                   data-testid="sord-toggle-confirm"
-                  onClick={() => {
-                    if (room) toggleListing(room.id);
-                    setConfirming(false);
-                  }}
+                  disabled={toggling}
+                  aria-busy={toggling}
+                  onClick={confirmToggle}
                 >
                   {toggleLabel}
                 </button>
@@ -170,6 +198,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
             }
           >
             {room ? <p className="sor-confirm">{interpolate(listed ? so.unpublishConfirm : so.publishConfirm, { title: room.title })}</p> : null}
+            {toggleError ? <p className="sor-confirm-error" role="alert">{toggleError}</p> : null}
           </WebDialog>
         </section>
       </div>

@@ -244,3 +244,8 @@ test('web: a mouse press on a row or card does not focus it; other presses are l
   tree = webPage({});
   assert.equal(press(tree, inside(true)), 1, 'card');
 });
+
+test('web: an API room shows its cover photo', () => {
+  const tree = webPage({ rooms: [{ ...demo()[5], id: '7', coverUrl: 'https://cdn/c.jpg' }], status: 'available', isDemoPreview: false });
+  assert.ok(tree.some((n) => n?.type === 'img' && n.props.src === 'https://cdn/c.jpg'));
+});
