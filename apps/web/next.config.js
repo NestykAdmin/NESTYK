@@ -11,11 +11,14 @@ const { accountWebUpstream, accountRewrites, accountDevFallback } = require('./l
 const ACCOUNT_WEB_UPSTREAM = accountWebUpstream(process.env.ACCOUNT_WEB_UPSTREAM);
 
 // Content-Security-Policy of the guest pages (AUTH-2.6): own scripts only, connections to this site and Supabase.
-const { guestCsp, GUEST_CSP_SOURCE } = require('./lib/guest-csp');
-const GUEST_CSP = guestCsp({
+const { guestCsp, GUEST_CSP_SOURCE, GUEST_ROOM_CSP_SOURCES } = require('./lib/guest-csp');
+const CSP_INPUT = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL,
   dev: process.env.NODE_ENV === 'development',
-});
+};
+const GUEST_CSP = guestCsp(CSP_INPUT);
+/** Room pages may show a Google map (S7.3 plan D1). */
+const GUEST_ROOM_CSP = guestCsp({ ...CSP_INPUT, maps: true });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -44,9 +47,11 @@ const nextConfig = {
   ],
   async headers() {
     const headers = [{ key: 'Content-Security-Policy', value: GUEST_CSP }];
+    const roomHeaders = [{ key: 'Content-Security-Policy', value: GUEST_ROOM_CSP }];
     return [
       { source: '/', headers },
       { source: GUEST_CSP_SOURCE, headers },
+      ...GUEST_ROOM_CSP_SOURCES.map((source) => ({ source, headers: roomHeaders })),
     ];
   },
   async rewrites() {

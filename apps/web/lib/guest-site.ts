@@ -35,7 +35,7 @@ const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
   help: false,
   viewingRequests: false,
   theme: false,
-  rooms: false,
+  rooms: true,
   rent: false,
 };
 
@@ -69,6 +69,11 @@ export function activeTabKey(pathname: string): GuestTabKey | null {
   if (pathname === '/' || pathname === '') return 'home';
   const tab = GUEST_TABS.find((item) => item.href !== '/' && (pathname === item.href || pathname.startsWith(`${item.href}/`)));
   return tab ? tab.key : null;
+}
+
+/** The mobile tab bar shows on every guest page except the room page, which has its own price + viewing bar (S7.3). */
+export function showsTabBar(pathname: string): boolean {
+  return !/^\/rooms\//.test(pathname);
 }
 
 /** Default language of the URL rules (i18n/routing.ts: localePrefix "as-needed"): its paths have no prefix. */

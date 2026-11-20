@@ -106,6 +106,11 @@ export function toMetadata(seo: PageSeo, { locale, title, description }: PageMet
   };
 }
 
+/** Room pages are indexed in Thai only for now (SEO plan, Mos 11 Nov 2026); other languages are noindex. */
+export function roomPageIndex(locale: string): boolean {
+  return locale === DEFAULT_SEO_LOCALE;
+}
+
 /** Metadata of one guest page for this deploy. Every page under app/[locale] calls this (the test checks). */
 export function guestPageMetadata(input: PageMetaInput & { path: string; index?: boolean }): Metadata {
   const seo = pageSeo({

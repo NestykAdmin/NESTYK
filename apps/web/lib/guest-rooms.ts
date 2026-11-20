@@ -1,4 +1,4 @@
-import type { PublicAreaSummary, PublicFeaturedRail, PublicRoomCard, PublicRoomSearchQuery, PublicRoomSearchResult } from '@nestyk/types';
+import type { PublicAreaSummary, PublicFeaturedRail, PublicRoomCard, PublicRoomDetail, PublicRoomSearchQuery, PublicRoomSearchResult } from '@nestyk/types';
 import { createApiPublicRoomsSource } from '@nestyk/feature-listing/public';
 import { apiUrlMissing, HOME_RAIL_LIMIT, HOME_RAILS, keepPreviousHomePage, PUBLIC_API_TIMEOUT_MS, publicApiBase } from './guest-home';
 
@@ -66,4 +66,39 @@ export async function loadHomeData(): Promise<HomeData> {
 /** One page of search results (S4.2). Throws when the API cannot be reached; the page shows the error state. */
 export async function loadSearchResults(query: PublicRoomSearchQuery): Promise<PublicRoomSearchResult> {
   return publicRooms(SEARCH_REVALIDATE_SECONDS).search(query);
+}
+
+/**
+ * One room for /rooms/<id> (S7.3). Null when the API answers 404 (not public, rented or never existed). Throws when
+ * the API cannot be reached; the page then shows the error state. Kept for 5 minutes like the home page.
+ */
+export async function loadRoomDetail(id: string): Promise<PublicRoomDetail | null> {
+  return publicRooms().detail(id);
+}
+
+/** Rooms shown under "ห้องอื่นใกล้ ..." on a room page. */
+export const NEARBY_ROOM_LIMIT = 4;
+
+/**
+ * Other rooms near the same station (or in the same district when the room has no station), without this room.
+ * Never throws: the section is left out when the API fails.
+ */
+export async function loadNearbyRooms(room: PublicRoomDetail): Promise<PublicRoomCard[]> {
+  const station = room.nearestStation;
+  if (!station && !room.district) return [];
+  const query: PublicRoomSearchQuery = {
+    mode: 'rent',
+    quick: [],
+    sortBy: 'recommended',
+    page: 1,
+    limit: NEARBY_ROOM_LIMIT + 1,
+    ...(station ? { stationType: station.type, stationName: station.name } : { keyword: room.district ?? undefined }),
+  };
+  try {
+    const result = await publicRooms().search(query);
+    return result.items.filter((item) => item.id !== room.id).slice(0, NEARBY_ROOM_LIMIT);
+  } catch (error) {
+    console.error('[guest room] nearby rooms failed:', error);
+    return [];
+  }
 }

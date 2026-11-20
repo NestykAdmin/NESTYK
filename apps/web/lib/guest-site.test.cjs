@@ -82,6 +82,9 @@ test('the active tab follows the path, and a deeper page keeps its section activ
   assert.equal(site.activeTabKey('/search'), 'search');
   assert.equal(site.activeTabKey('/search/map'), 'search');
   assert.equal(site.activeTabKey('/rooms/sample-asok-01'), null);
+  // S7.3: the room page has its own bottom bar (price + viewing request) instead of the tab bar.
+  assert.equal(site.showsTabBar('/rooms/sample-asok-01'), false);
+  for (const p of ['/', '/search', '/saved', '/profile', '/roomsx']) assert.equal(site.showsTabBar(p), true, p);
 });
 
 test('the 4 languages match the URL locales and use their own names', () => {
@@ -132,4 +135,9 @@ test('links built on the server carry the language prefix of the URL rules (Thai
   assert.equal(site.localePath('ja', '/search?type=condo'), '/ja/search?type=condo');
   assert.equal(site.localePath('zh', '/#areas'), '/zh#areas');
   assert.equal(site.localePath('en', '/?tab=new'), '/en?tab=new');
+});
+
+test('S7.3: the room page is open; viewing requests wait for their API (shown as coming soon)', () => {
+  assert.equal(site.isGuestPageReady('rooms'), true);
+  assert.equal(site.isGuestPageReady('viewingRequests'), false);
 });

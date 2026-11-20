@@ -180,3 +180,15 @@ test('robots.txt and sitemap.xml exist and use the shared rules', () => {
   assert.match(fs.readFileSync(path.join(APP_DIR, 'robots.ts'), 'utf8'), /robotsRules\(/);
   assert.match(fs.readFileSync(path.join(APP_DIR, 'sitemap.ts'), 'utf8'), /sitemapEntries\(/);
 });
+
+// SEO plan (Mos 11 Nov 2026): room pages are indexed in Thai only for now; the other languages stay noindex.
+test('room pages: only the Thai page may be indexed', () => {
+  assert.equal(seo.roomPageIndex('th'), true);
+  for (const locale of ['en', 'ja', 'zh']) assert.equal(seo.roomPageIndex(locale), false, locale);
+  const thai = seo.pageSeo({ origin: SITE, indexable: true, locale: 'th', path: '/rooms/12', index: seo.roomPageIndex('th') });
+  assert.deepEqual(thai.robots, { index: true, follow: true });
+  assert.equal(thai.canonical, `${SITE}/rooms/12`);
+  const en = seo.pageSeo({ origin: SITE, indexable: true, locale: 'en', path: '/rooms/12', index: seo.roomPageIndex('en') });
+  assert.deepEqual(en.robots, { index: false, follow: true });
+  assert.equal(en.languages, null);
+});
