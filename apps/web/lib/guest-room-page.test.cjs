@@ -94,3 +94,15 @@ test('room highlight tags are white with a border and a yellow tick, not grey', 
   assert.doesNotMatch(tag[1], /neutral-bg|brand-soft/);
   assert.match(css, /\.nk-rp-tags svg \{[^}]*color: var\(--nk-color-brand\)/);
 });
+
+// SEO-1, room page part (Mos 19 Nov 2026): JSON-LD in the page, the cover as the shared picture, no hreflang.
+test('the room page writes its JSON-LD through the escaping helper and shares its cover picture', () => {
+  const page = read(`${ROOM_DIR}/page.tsx`);
+  assert.match(page, /type="application\/ld\+json"/);
+  assert.match(page, /dangerouslySetInnerHTML=\{\{ __html: jsonLdScript\(/);
+  assert.match(page, /roomJsonLd\(/);
+  assert.match(page, /hreflang: false/);
+  assert.match(page, /image: /);
+  // The only raw HTML on the page is the escaped JSON-LD.
+  assert.equal((page.match(/dangerouslySetInnerHTML/g) || []).length, 1);
+});

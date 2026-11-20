@@ -1,6 +1,7 @@
 import type { PublicAreaSummary, PublicFeaturedRail, PublicRoomCard, PublicRoomDetail, PublicRoomSearchQuery, PublicRoomSearchResult } from '@nestyk/types';
 import { createApiPublicRoomsSource } from '@nestyk/feature-listing/public';
 import { apiUrlMissing, HOME_RAIL_LIMIT, HOME_RAILS, keepPreviousHomePage, PUBLIC_API_TIMEOUT_MS, publicApiBase } from './guest-home';
+import { collectRoomIds } from './guest-room-seo';
 
 /**
  * Rooms for the guest pages, read on the server from the public API (S6, apps/api/src/public-listings).
@@ -101,4 +102,21 @@ export async function loadNearbyRooms(room: PublicRoomDetail): Promise<PublicRoo
     console.error('[guest room] nearby rooms failed:', error);
     return [];
   }
+}
+
+/** sitemap.xml is rebuilt hourly (SEO-1); its API calls are kept as long. */
+export const SITEMAP_REVALIDATE_SECONDS = 3600;
+/** The API's largest search page (apps/api public-search.ts SEARCH_PAGE_SIZE_MAX). */
+const SITEMAP_PAGE_SIZE = 48;
+/** Guard: at most 2,400 rooms in the sitemap. Raise it (or split the sitemap) when there are more. */
+const SITEMAP_MAX_PAGES = 50;
+
+/** Ids of every public room, newest first, for sitemap.xml. Throws when the API cannot be reached. */
+export async function loadRoomIdsForSitemap(): Promise<string[]> {
+  const rooms = publicRooms(SITEMAP_REVALIDATE_SECONDS);
+  return collectRoomIds(
+    (page) => rooms.search({ mode: 'rent', quick: [], sortBy: 'newest', page, limit: SITEMAP_PAGE_SIZE }),
+    SITEMAP_PAGE_SIZE,
+    SITEMAP_MAX_PAGES,
+  );
 }

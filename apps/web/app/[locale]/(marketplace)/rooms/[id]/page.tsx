@@ -28,7 +28,8 @@ import { RoomPriceCards, RoomTermProvider, RoomViewingButton, RoomViewingCard } 
 import { bangkokToday, roomDisplayTitle } from '../../../../../lib/guest-home';
 import { loadNearbyRooms, loadRoomDetail } from '../../../../../lib/guest-rooms';
 import { searchHref } from '../../../../../lib/guest-search';
-import { guestPageMetadata, roomPageIndex } from '../../../../../lib/guest-seo';
+import { jsonLdScript, roomJsonLd } from '../../../../../lib/guest-room-seo';
+import { guestPageMetadata, guestSiteOrigin, roomPageIndex } from '../../../../../lib/guest-seo';
 import { localePath } from '../../../../../lib/guest-site';
 
 type Props = { params: Promise<{ locale: string; id: string }> };
@@ -78,7 +79,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const price = formatPublicPrice(room.priceFrom);
   // No price: the title and place only, never "from  a month" (review R6).
   const description = price ? fillTemplate(t.room.metaDescription, { title, price, place }).trim() : [title, place].filter(Boolean).join(' · ');
-  return guestPageMetadata({ locale, path, title: `${title} · NESTYK`, description, index: roomPageIndex(locale) });
+  const cover = room.coverImageUrl ?? room.imageUrls[0] ?? null;
+  // SEO-1 (Mos 19 Nov 2026): no hreflang while only the Thai room page is indexed; the cover is the shared picture.
+  return guestPageMetadata({
+    locale,
+    path,
+    title: `${title} · NESTYK`,
+    description,
+    index: roomPageIndex(locale),
+    hreflang: false,
+    image: cover ? { url: cover, alt: title } : null,
+  });
 }
 
 /**
@@ -115,6 +126,8 @@ export default async function RoomPage({ params }: Props) {
   );
   const resultsHref = localePath(locale, '/search');
   const saveRoom = { title, priceText: lowest ? `${lowest} ${t.card.perMonthLong}` : null, coverImageUrl: room.coverImageUrl };
+  // SEO-1: what the page says, for search engines (no position). Left out when the site address is not set.
+  const jsonLd = roomJsonLd({ origin: guestSiteOrigin(), locale, path: roomPagePath(room.id), title, homeName: t.tabs.home, room });
 
   const facts: { key: string; icon: React.ReactNode; value: string; label: string }[] = [];
   if (room.bedrooms != null) facts.push({ key: 'bed', icon: <BedIcon size={20} />, value: room.bedrooms === 0 ? copy.studio : String(room.bedrooms), label: copy.bedrooms });
@@ -140,6 +153,10 @@ export default async function RoomPage({ params }: Props) {
 
   return (
     <article className="nk-rp" data-testid="roomPage">
+      {jsonLd ? (
+        // The only raw HTML here: jsonLdScript writes "<" as an escape, so the agent's text cannot close the tag.
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
+      ) : null}
       <div className="nk-rp-top">
         <nav className="nk-rp-crumbs" aria-label={copy.breadcrumbLabel}>
           <RoomBackLink href={resultsHref} className="nk-rp-back">
