@@ -180,7 +180,7 @@ export const guestEn: GuestCopy = {
   },
   map: {
     label: 'Rental map',
-    searchAsMove: 'Search as I move the map',
+    searchAsMove: 'Update as map moves',
     myLocation: 'Find my location',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',

@@ -180,7 +180,7 @@ export const guestZh: GuestCopy = {
   },
   map: {
     label: '出租房地图',
-    searchAsMove: '移动地图时搜索',
+    searchAsMove: '随地图更新',
     myLocation: '定位我的位置',
     zoomIn: '放大',
     zoomOut: '缩小',

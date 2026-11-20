@@ -11,6 +11,19 @@ import { useSearchNavigation } from './SearchNavigation';
 
 type SortOption = (typeof SEARCH_SORT_OPTIONS)[number];
 
+/** Every filter a chip can show, off; the search box's place and keyword are not chips and stay. */
+const CHIP_FILTERS_OFF: Partial<GuestSearchCriteria> = {
+  propertyType: undefined,
+  minPrice: undefined,
+  maxPrice: undefined,
+  bedrooms: undefined,
+  moveIn: undefined,
+  quick: [],
+  stationType: undefined,
+  stationName: undefined,
+  durationMonths: undefined,
+};
+
 /** id of the filter panel beside the cards, for the toggle's aria-controls. */
 export const SEARCH_FILTERS_ID = 'search-filters';
 
@@ -64,24 +77,31 @@ export function SearchViewSwitch({ view }: { view: GuestSearchCriteria['view'] }
  */
 export function SearchFilterChips({ chips, locale }: { chips: readonly FilterChip[]; locale: string }) {
   const { t } = useLocale();
+  const { update } = useSearchNavigation();
   if (!chips.length) return null;
   return (
-    <ul className="nk-search-chips" aria-label={t.guest.results.activeFilters} data-testid="searchPage.activeFilters">
-      {chips.map((chip) => (
-        <li key={chip.key}>
-          <Link
-            href={localePath(locale, chip.href)}
-            scroll={false}
-            className="nk-filter-chip"
-            aria-label={fillTemplate(t.guest.results.removeFilter, { label: chip.label })}
-            data-testid={`searchPage.removeFilter.${chip.key}`}
-          >
-            {chip.label}
-            <CloseIcon size={14} />
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="nk-search-toolbar__chips">
+      <ul className="nk-search-chips" aria-label={t.guest.results.activeFilters} data-testid="searchPage.activeFilters">
+        {chips.map((chip) => (
+          <li key={chip.key}>
+            <Link
+              href={localePath(locale, chip.href)}
+              scroll={false}
+              className="nk-filter-chip"
+              aria-label={fillTemplate(t.guest.results.removeFilter, { label: chip.label })}
+              data-testid={`searchPage.removeFilter.${chip.key}`}
+            >
+              {chip.label}
+              <CloseIcon size={14} />
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {/* Clears what the chips show; the place or keyword in the search box stays (it has its own ✕). */}
+      <button type="button" className="nk-link-btn" onClick={() => update(CHIP_FILTERS_OFF)} data-testid="searchPage.clearChips">
+        {t.guest.results.clearAll}
+      </button>
+    </div>
   );
 }
 

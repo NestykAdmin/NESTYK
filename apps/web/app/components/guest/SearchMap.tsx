@@ -154,6 +154,21 @@ export function SearchMap({
     if (first) document.querySelector(`[data-map-room="${CSS.escape(first)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
 
+  // Folds the list away for a full-width map; it sits with the map tools, beside the switch (Mos 20 Nov 2026).
+  const foldButton = (
+    <button
+      type="button"
+      className="nk-map-fold"
+      aria-expanded={!listHidden}
+      aria-controls={listId}
+      aria-label={listHidden ? copy.map.showListPanel : copy.map.hideListPanel}
+      title={listHidden ? copy.map.showListPanel : copy.map.hideListPanel}
+      onClick={() => setListHidden((hidden) => !hidden)}
+      data-testid="searchMap.fold"
+    >
+      <ChevronRightIcon size={18} className={listHidden ? undefined : 'nk-map-fold__left'} />
+    </button>
+  );
   const count = bounds ? visible.length : total;
   const countText = bounds ? fillTemplate(copy.map.foundInArea, { count: count.toLocaleString('en-US') }) : fillTemplate(copy.results.found, { count: count.toLocaleString('en-US') });
   const capped = total > items.length && items.length >= MAP_ROOM_LIMIT;
@@ -161,16 +176,18 @@ export function SearchMap({
   return (
     <div className={`nk-map-view${listHidden ? ' is-full' : ''}`} aria-busy={pending} data-testid="searchMap">
       <div className="nk-search-toolbar">
-        <div className="nk-search-toolbar__lead">
-          <p className="nk-search-toolbar__count" role="status" data-testid="searchMap.count">
-            {countText}
-          </p>
-          <SearchFilterChips chips={chips} locale={locale} />
+        <div className="nk-search-toolbar__row">
+          <div className="nk-search-toolbar__lead">
+            <p className="nk-search-toolbar__count" role="status" data-testid="searchMap.count">
+              {countText}
+            </p>
+          </div>
+          <div className="nk-search-toolbar__actions">
+            <SearchSort criteria={criteria} testId="searchMap.sort" />
+            <SearchViewSwitch view="map" />
+          </div>
         </div>
-        <div className="nk-search-toolbar__actions">
-          <SearchSort criteria={criteria} testId="searchMap.sort" />
-          <SearchViewSwitch view="map" />
-        </div>
+        <SearchFilterChips chips={chips} locale={locale} />
       </div>
       <section id={listId} className="nk-map-list" aria-label={copy.results.listLabel} data-testid="searchMap.list">
         {capped ? <p className="nk-map-note">{fillTemplate(copy.map.capped, { shown: items.length.toLocaleString('en-US'), total: total.toLocaleString('en-US') })}</p> : null}
@@ -200,18 +217,6 @@ export function SearchMap({
       </section>
 
       <section className="nk-map-stage" aria-label={copy.map.label} data-testid="searchMap.stage">
-        <button
-          type="button"
-          className="nk-map-fold"
-          aria-expanded={!listHidden}
-          aria-controls={listId}
-          aria-label={listHidden ? copy.map.showListPanel : copy.map.hideListPanel}
-          title={listHidden ? copy.map.showListPanel : copy.map.hideListPanel}
-          onClick={() => setListHidden((hidden) => !hidden)}
-          data-testid="searchMap.fold"
-        >
-          <ChevronRightIcon size={18} className={listHidden ? undefined : 'nk-map-fold__left'} />
-        </button>
         <div className="nk-map-top">
           <SearchKeywordBar criteria={criteria} total={total} variant="map" onBack={toCards} />
         </div>
@@ -219,6 +224,7 @@ export function SearchMap({
           <MapConsentGate style={{ height: '100%', borderRadius: 0 }} testID="searchMap.consent">
             <APIProvider apiKey={apiKey}>
               <MapStage
+                leading={foldButton}
                 criteria={criteria}
                 pins={pins}
                 selected={selected}
@@ -267,6 +273,7 @@ function MapUnavailable({ copy, onCards }: { copy: Copy; onCards: () => void }) 
 }
 
 function MapStage({
+  leading,
   criteria,
   pins,
   selected,
@@ -277,6 +284,8 @@ function MapStage({
   searchKey,
   copy,
 }: {
+  /** Shown first among the map tools (the list fold button). */
+  leading?: React.ReactNode;
   criteria: GuestSearchCriteria;
   pins: RoomPin[];
   selected: string | null;
@@ -432,9 +441,18 @@ function MapStage({
       </div>
 
       <div className="nk-map-tools">
+        {leading}
+        {/* An on/off switch (Mos 20 Nov 2026): a checkbox with role="switch", so it reads "on" / "off". */}
         <label className="nk-map-toggle">
-          <input type="checkbox" checked={searchAsMove} onChange={(event) => setSearchAsMove(event.target.checked)} data-testid="searchMap.searchAsMove" />
           {copy.map.searchAsMove}
+          <input
+            type="checkbox"
+            role="switch"
+            className="nk-switch"
+            checked={searchAsMove}
+            onChange={(event) => setSearchAsMove(event.target.checked)}
+            data-testid="searchMap.searchAsMove"
+          />
         </label>
         {!searchAsMove && moved ? (
           <button

@@ -1259,6 +1259,19 @@ summary.nk-row:hover {
   font-size: var(--nk-text-2xl);
   line-height: 1.2;
 }
+/* The room's price, wherever it stands out (Mos 20 Nov 2026): room cards, the map's room card, the room page's price
+   card and its phone bar. A thick brand-yellow line under the number: the brand colour without yellow text, which
+   would be too faint on white (about 1.8:1). */
+.nk-room .nk-price__value,
+.nk-map-peek__price strong,
+.nk-rp-card__value,
+.nk-rp-bar__value {
+  text-decoration-line: underline;
+  text-decoration-color: var(--nk-color-brand);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: none;
+}
 .nk-price__unit {
   font-size: var(--nk-text-sm);
   color: var(--nk-color-text-secondary);
@@ -2067,11 +2080,15 @@ a.nk-types__item:hover {
   color: var(--nk-color-text-secondary);
 }
 /* Filter dropdowns (Mos 20 Nov 2026): the name, a button with what is chosen, the choices open right below. */
+/* Same space between every filter in the panel and the sheet. */
+.nk-filters {
+  gap: var(--nk-space-5);
+}
 .nk-filter-dd {
-  padding: var(--nk-space-2) 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--nk-space-1);
+  gap: var(--nk-space-2);
 }
 fieldset.nk-filter-dd {
   margin: 0;
@@ -2079,15 +2096,25 @@ fieldset.nk-filter-dd {
   min-width: 0;
 }
 .nk-filter-dd--open {
-  padding: var(--nk-space-3) 0;
+  padding: 0;
+}
+.nk-filter-dd .nk-filters__legend {
+  margin-bottom: 0;
 }
 .nk-price-field__select {
   width: 100%;
+  padding-right: 40px;
+  appearance: none;
+  background: var(--nk-color-surface) no-repeat right 12px center / 18px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23211E1E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   cursor: pointer;
+}
+.nk-price-field__select:hover {
+  border-color: var(--nk-color-ink);
 }
 .nk-filter-dd__button {
   width: 100%;
-  min-height: var(--nk-tap);
+  min-height: 48px;
   padding: 0 var(--nk-space-3);
   box-sizing: border-box;
   display: flex;
@@ -2105,9 +2132,10 @@ fieldset.nk-filter-dd {
 .nk-filter-dd__button:hover {
   border-color: var(--nk-color-ink);
 }
+/* Open: the button and its choices read as one box (Mos 20 Nov 2026): one ink edge, square corners where they meet. */
 .nk-filter-dd__button[aria-expanded='true'] {
   border-color: var(--nk-color-ink);
-  box-shadow: 0 0 0 1px var(--nk-color-ink);
+  border-radius: var(--nk-radius-md) var(--nk-radius-md) 0 0;
 }
 .nk-filter-dd__value {
   min-width: 0;
@@ -2123,15 +2151,55 @@ fieldset.nk-filter-dd {
   transform: rotate(180deg);
 }
 .nk-filter-dd__panel {
-  margin-top: var(--nk-space-1);
-  padding: var(--nk-space-2) var(--nk-space-3);
-  border: 1px solid var(--nk-color-border);
-  border-radius: var(--nk-radius-md);
+  margin-top: calc(-1 * var(--nk-space-2) - 1px);
+  padding: var(--nk-space-1);
+  border: 1px solid var(--nk-color-ink);
+  border-top-color: var(--nk-color-border);
+  border-radius: 0 0 var(--nk-radius-md) var(--nk-radius-md);
   background: var(--nk-color-surface);
-  box-shadow: var(--nk-shadow-pop);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .nk-filter-dd__panel > .nk-check {
   min-height: 40px;
+  padding: 0 var(--nk-space-2);
+  border-radius: var(--nk-radius-sm);
+}
+.nk-filter-dd__panel > .nk-check:hover {
+  background: var(--nk-color-neutral-bg);
+}
+/* A chosen row is bold with a thin ✓ at the right, no tint (Mos 20 Nov 2026: no boxes, like a menu). The real
+   checkbox / radio stays underneath for the keyboard and screen readers. */
+.nk-filter-dd__panel > .nk-check {
+  position: relative;
+  padding-right: var(--nk-space-8);
+}
+.nk-filter-dd__panel > .nk-check input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.nk-filter-dd__panel > .nk-check:has(input:checked) {
+  font-weight: 600;
+}
+.nk-filter-dd__panel > .nk-check:has(input:checked)::after {
+  content: '';
+  position: absolute;
+  right: var(--nk-space-3);
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  background: no-repeat center / contain
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23211E1E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+.nk-filter-dd__panel > .nk-check:has(input:focus-visible) {
+  outline: 2px solid var(--nk-color-focus);
+  outline-offset: -2px;
 }
 @media (prefers-reduced-motion: reduce) {
   .nk-filter-dd__chevron {
@@ -2200,12 +2268,25 @@ fieldset.nk-filter-dd {
 .nk-search-page[data-pending] .nk-search-results {
   opacity: 0.55;
 }
+/* Results toolbar (Mos 20 Nov 2026): one fixed row (filters, count … sort, card/list, list/map), and the filter chips
+   with "ล้างทั้งหมด" on the row below, so the switch never drops down when filters are on. */
 .nk-search-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-search-toolbar__row {
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--nk-space-3);
+}
+.nk-search-toolbar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2) var(--nk-space-3);
 }
 .nk-search-toolbar__count {
   margin: 0;
@@ -2215,7 +2296,7 @@ fieldset.nk-filter-dd {
 .nk-search-toolbar__lead {
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--nk-space-2) var(--nk-space-3);
 }
@@ -2411,6 +2492,9 @@ fieldset.nk-filter-dd {
 @media (max-width: 960px) {
   .nk-search-toolbar .nk-view-switch {
     display: none;
+  }
+  .nk-search-toolbar__row {
+    flex-wrap: wrap;
   }
 }
 
@@ -3912,6 +3996,10 @@ fieldset.nk-filter-dd {
   .nk-rp-bar__term {
     font-size: var(--nk-text-xs);
     color: var(--nk-color-text-secondary);
+  }
+  /* Room for the yellow line under the price. */
+  .nk-rp-bar__term {
+    margin-top: var(--nk-space-2);
   }
   .nk-btn.nk-rp-viewing.nk-rp-bar__cta {
     width: auto;

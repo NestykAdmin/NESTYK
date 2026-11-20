@@ -170,3 +170,33 @@ test('the rent range mixes the slider with a dropdown of ready ranges in the fil
   assert.match(field, /value=\{presetIndex >= 0 \? String\(presetIndex\) : 'custom'\}/);
   assert.match(read('app/components/guest/SearchFilterFields.tsx'), /<PriceRangeField[^\n]*presets="select" \/>/);
 });
+
+// Mos 20 Nov 2026: one fixed toolbar row (filters, count … sort, card/list, list/map), the chips on a second row
+// with "ล้างทั้งหมด", so the switch never drops down. Clearing there removes only what the chips show.
+test('the toolbar keeps one row and puts the chips on the next row with clear-all', () => {
+  for (const file of ['app/components/guest/SearchResults.tsx', 'app/components/guest/SearchMap.tsx']) {
+    const src = read(file);
+    assert.match(src, /className="nk-search-toolbar__row"/, file);
+    assert.ok(src.indexOf('nk-search-toolbar__row') < src.indexOf('<SearchFilterChips'), `${file}: chips below the row`);
+  }
+  const parts = read('app/components/guest/SearchToolbarParts.tsx');
+  assert.match(parts, /className="nk-search-toolbar__chips"/);
+  assert.match(parts, /data-testid="searchPage\.clearChips"/);
+  assert.match(parts, /update\(CHIP_FILTERS_OFF\)/);
+  const css = read('app/[locale]/guest.css');
+  assert.match(css, /\.nk-search-toolbar__row \{[^}]*flex-wrap: nowrap;/);
+});
+
+// Mos 20 Nov 2026: "ค้นหาเมื่อเลื่อนแผนที่" is an on/off switch (a checkbox with role="switch"), not a tick box.
+test('search-as-move is a switch after its words', () => {
+  const view = read('app/components/guest/SearchMap.tsx');
+  assert.match(view, /\{copy\.map\.searchAsMove\}\s*<input\s+type="checkbox"\s+role="switch"\s+className="nk-switch"/);
+  assert.match(read('app/[locale]/guest-map.css'), /\.nk-switch:checked \{/);
+});
+
+// Mos 20 Nov 2026: the fold button sits with the other map tools (top left, beside the search-as-move switch).
+test('the list fold button sits beside the search-as-move switch', () => {
+  const view = read('app/components/guest/SearchMap.tsx');
+  assert.match(view, /<div className="nk-map-tools">\s*\{leading\}/);
+  assert.match(view, /leading=\{foldButton\}/);
+});

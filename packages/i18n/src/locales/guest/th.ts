@@ -180,7 +180,7 @@ export const guestTh: GuestCopy = {
   },
   map: {
     label: 'แผนที่ห้องเช่า',
-    searchAsMove: 'ค้นหาเมื่อเลื่อนแผนที่',
+    searchAsMove: 'อัปเดตตามแผนที่',
     myLocation: 'หาตำแหน่งของฉัน',
     zoomIn: 'ซูมเข้า',
     zoomOut: 'ซูมออก',

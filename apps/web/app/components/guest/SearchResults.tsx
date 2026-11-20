@@ -93,30 +93,32 @@ export function SearchResults({
   return (
     <div className="nk-search-results" aria-busy={pending || loading} data-testid="searchResults">
       <div className="nk-search-toolbar">
-        <div className="nk-search-toolbar__lead">
-          <SearchFiltersToggle criteria={criteria} />
-          <p className="nk-search-toolbar__count" role="status" data-testid="searchResults.count">
-            {fillTemplate(copy.results.found, { count: total.toLocaleString('en-US') })}
-          </p>
-          <SearchFilterChips chips={chips} locale={locale} />
-        </div>
-        <div className="nk-search-toolbar__actions">
-          <SearchSort criteria={criteria} testId="searchResults.sort" />
-          <div className="nk-view-toggle" role="group" aria-label={copy.results.viewLabel}>
-            <button type="button" className="nk-icon-btn" aria-pressed={view === 'grid'} aria-label={copy.results.viewGrid} onClick={() => setView('grid')} data-testid="searchResults.viewGrid">
-              <GridIcon size={20} />
-            </button>
-            <button type="button" className="nk-icon-btn" aria-pressed={view === 'list'} aria-label={copy.results.viewList} onClick={() => setView('list')} data-testid="searchResults.viewList">
-              <ListIcon size={20} />
+        <div className="nk-search-toolbar__row">
+          <div className="nk-search-toolbar__lead">
+            <SearchFiltersToggle criteria={criteria} />
+            <p className="nk-search-toolbar__count" role="status" data-testid="searchResults.count">
+              {fillTemplate(copy.results.found, { count: total.toLocaleString('en-US') })}
+            </p>
+          </div>
+          <div className="nk-search-toolbar__actions">
+            <SearchSort criteria={criteria} testId="searchResults.sort" />
+            <div className="nk-view-toggle" role="group" aria-label={copy.results.viewLabel}>
+              <button type="button" className="nk-icon-btn" aria-pressed={view === 'grid'} aria-label={copy.results.viewGrid} onClick={() => setView('grid')} data-testid="searchResults.viewGrid">
+                <GridIcon size={20} />
+              </button>
+              <button type="button" className="nk-icon-btn" aria-pressed={view === 'list'} aria-label={copy.results.viewList} onClick={() => setView('list')} data-testid="searchResults.viewList">
+                <ListIcon size={20} />
+              </button>
+            </div>
+            <SearchViewSwitch view="list" />
+            {/* Phones: the bottom-centre button, where the map's "แสดงรายการ" sits too. */}
+            <button type="button" className="nk-btn nk-btn--outline nk-search-map-btn" onClick={() => update({ view: 'map' })} data-testid="searchResults.map">
+              <MapIcon size={18} />
+              {copy.results.showMap}
             </button>
           </div>
-          <SearchViewSwitch view="list" />
-          {/* Phones: the bottom-centre button, where the map's "แสดงรายการ" sits too. */}
-          <button type="button" className="nk-btn nk-btn--outline nk-search-map-btn" onClick={() => update({ view: 'map' })} data-testid="searchResults.map">
-            <MapIcon size={18} />
-            {copy.results.showMap}
-          </button>
         </div>
+        <SearchFilterChips chips={chips} locale={locale} />
       </div>
 
       {total === 0 ? (

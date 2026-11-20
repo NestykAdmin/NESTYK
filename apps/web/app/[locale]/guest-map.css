@@ -201,25 +201,19 @@
 .nk-map-view.is-full .nk-map-stage {
   grid-column: 1 / -1;
 }
-/* The fold button on the map's left edge. */
+/* The fold button: with the map tools, beside the search-as-move switch (Mos 20 Nov 2026). */
 .nk-map-fold {
-  position: absolute;
-  z-index: 3;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 56px;
-  display: flex;
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  flex: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 1px solid var(--nk-color-border);
-  border-left: 0;
-  border-radius: 0 var(--nk-radius-md) var(--nk-radius-md) 0;
+  border-radius: var(--nk-radius-md);
   background: var(--nk-color-surface);
   color: var(--nk-color-ink);
-  box-shadow: var(--nk-shadow-pop);
   cursor: pointer;
 }
 .nk-map-fold:hover {
@@ -390,7 +384,7 @@
 }
 .nk-map-toggle {
   min-height: var(--nk-tap);
-  padding: 0 var(--nk-space-3);
+  padding: 0 var(--nk-space-3) 0 var(--nk-space-4);
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -402,11 +396,46 @@
   font: 600 var(--nk-text-sm) var(--nk-font-body);
   cursor: pointer;
 }
-.nk-map-toggle input {
-  width: 18px;
-  height: 18px;
+/* On/off switch: grey track when off, ink when on, a white knob that slides. */
+.nk-switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
   margin: 0;
-  accent-color: var(--nk-color-ink);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-placeholder);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.nk-switch::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--nk-color-surface);
+  box-shadow: 0 1px 2px rgba(33, 30, 30, 0.3);
+  transition: transform 150ms ease;
+}
+.nk-switch:checked {
+  background: var(--nk-color-ink);
+}
+.nk-switch:checked::before {
+  transform: translateX(16px);
+}
+.nk-switch:focus-visible {
+  outline: 2px solid var(--nk-color-focus);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nk-switch,
+  .nk-switch::before {
+    transition: none;
+  }
 }
 .nk-map-search-here {
   min-height: var(--nk-tap);
@@ -523,6 +552,8 @@
   gap: 2px;
 }
 .nk-map-peek__price {
+  /* Room for the yellow line under the price (guest.css). */
+  padding-bottom: var(--nk-space-1);
   font-size: var(--nk-text-sm);
   color: var(--nk-color-ink);
 }

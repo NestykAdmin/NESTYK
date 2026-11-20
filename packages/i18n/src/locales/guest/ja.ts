@@ -180,7 +180,7 @@ export const guestJa: GuestCopy = {
   },
   map: {
     label: '賃貸物件の地図',
-    searchAsMove: '地図を動かしたら検索',
+    searchAsMove: '地図に合わせて更新',
     myLocation: '現在地を表示',
     zoomIn: 'ズームイン',
     zoomOut: 'ズームアウト',
