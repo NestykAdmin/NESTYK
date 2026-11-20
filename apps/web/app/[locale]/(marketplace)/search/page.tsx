@@ -43,7 +43,8 @@ export default async function SearchPage({ params, searchParams }: Props) {
   const t = getTranslations(locale as SupportedLocale).guest;
   const criteria = normalizeSearchCriteria(criteriaFromSearchParams(await searchParams));
   const today = bangkokToday();
-  const title = searchTitle(criteria, { ...t.results, propertyType: t.propertyType });
+  const areaNames = t.areaNames as Record<string, string>;
+  const title = searchTitle(criteria, { ...t.results, propertyType: t.propertyType, areaTitle: t.areaPage.title, areaNames });
   const chips = activeFilterChips(criteria, {
     propertyType: t.propertyType,
     quick: t.quick,
@@ -61,6 +62,8 @@ export default async function SearchPage({ params, searchParams }: Props) {
       '90d': t.results.availabilityWithin3Months,
     },
     durationChip: t.results.durationChip,
+    areaChip: t.areaPage.filterChip,
+    areaNames,
   });
 
   const load = firstLoad(criteria);

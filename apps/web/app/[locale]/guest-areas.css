@@ -1,0 +1,346 @@
+/*
+ * SEO-1 area pages: /rent/<slug> (design A "AreaAWeb / AreaAPhone") and /areas ("AreasListWeb / AreasListPhone"),
+ * canvas page "area", Mos 20 Nov 2026. Tokens come from guest.css (:root). Imported by the two pages only.
+ */
+
+/* .nk-main is a flex box: both pages take its full width. */
+.nk-ap {
+  width: 100%;
+}
+
+/* Area page: ink hero like the home page */
+.nk-ap-hero {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+}
+.nk-ap-hero__inner {
+  max-width: var(--nk-content-width);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--nk-space-6) var(--nk-space-6) var(--nk-space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-5);
+}
+.nk-ap-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-divider);
+}
+.nk-ap-crumbs a {
+  min-height: var(--nk-tap);
+  display: inline-flex;
+  align-items: center;
+  color: var(--nk-color-divider);
+}
+.nk-ap-crumbs a:hover {
+  color: var(--nk-color-brand);
+}
+.nk-ap-crumbs [aria-current='page'] {
+  color: var(--nk-color-surface);
+}
+.nk-ap-hero__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--nk-space-6) var(--nk-space-12);
+}
+.nk-ap-hero__text {
+  flex: 1 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-ap-hero__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nk-ap-title {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: 40px;
+  line-height: 1.35;
+  color: var(--nk-color-surface);
+}
+.nk-ap-places {
+  margin: 0;
+  font-size: var(--nk-text-lg);
+  font-weight: 600;
+  color: var(--nk-color-brand);
+}
+.nk-ap-highlight {
+  margin: 0;
+  max-width: 620px;
+  color: var(--nk-color-divider);
+}
+.nk-ap-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+}
+.nk-ap-lines li {
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 0 var(--nk-space-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-dark-raised);
+  border: 1px solid var(--nk-color-dark-line);
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+}
+.nk-ap-lines svg {
+  color: var(--nk-color-brand);
+}
+.nk-ap-stats {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-1) var(--nk-space-10);
+}
+.nk-ap-stats > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--nk-space-1);
+}
+.nk-ap-stats dt {
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-divider);
+}
+.nk-ap-stats dd {
+  margin: 0;
+  font-family: var(--nk-font-brand);
+  font-weight: 700;
+  font-size: 36px;
+  line-height: 1.1;
+  color: var(--nk-color-surface);
+}
+.nk-ap-stats dd.nk-ap-stats__price {
+  color: var(--nk-color-brand);
+}
+.nk-btn.nk-ap-cta {
+  align-self: flex-start;
+  min-height: 52px;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-lg);
+}
+
+/* Area page body */
+.nk-ap-body {
+  max-width: var(--nk-content-width);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--nk-space-8) var(--nk-space-6) var(--nk-space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-12);
+}
+.nk-ap-fit {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nk-space-4);
+  padding: var(--nk-space-5) var(--nk-space-6);
+  background: var(--nk-color-surface);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+}
+.nk-ap-fit__icon {
+  flex: none;
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nk-ap-fit__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-1);
+}
+.nk-ap-fit__title {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: var(--nk-text-xl);
+  color: var(--nk-color-ink);
+}
+.nk-ap-fit__text p {
+  margin: 0;
+  color: var(--nk-color-heading);
+}
+.nk-ap-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
+.nk-ap-section .nk-section__title {
+  font-size: var(--nk-text-2xl);
+}
+.nk-btn.nk-ap-more {
+  align-self: center;
+}
+
+/* Area list /areas */
+.nk-al {
+  width: 100%;
+  max-width: var(--nk-content-width);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--nk-space-8) var(--nk-space-6) var(--nk-space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-10);
+}
+.nk-al-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-1);
+}
+.nk-al-title {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: var(--nk-text-3xl);
+  line-height: 1.4;
+  color: var(--nk-color-ink);
+}
+.nk-al-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
+.nk-al-group__title {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: var(--nk-text-2xl);
+  color: var(--nk-color-ink);
+}
+.nk-al-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--nk-space-6);
+}
+
+/* Province zone card: small photo beside the text */
+.nk-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--nk-space-4);
+}
+.nk-zone {
+  position: relative;
+  display: flex;
+  gap: var(--nk-space-3);
+  overflow: hidden;
+  background: var(--nk-color-surface);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+}
+.nk-zone__media {
+  position: relative;
+  flex: 0 0 96px;
+  min-height: 96px;
+  background: var(--nk-color-track);
+}
+.nk-zone__media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nk-zone__body {
+  flex: 1;
+  min-width: 0;
+  padding: var(--nk-space-3) var(--nk-space-3) var(--nk-space-3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nk-zone__name {
+  margin: 0;
+  font-size: var(--nk-text-md);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-zone__name a {
+  color: inherit;
+  text-decoration: none;
+}
+.nk-zone__places,
+.nk-zone__facts {
+  margin: 0;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-zone__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--nk-space-2);
+}
+
+@media (max-width: 960px) {
+  .nk-ap-hero__inner {
+    padding: var(--nk-space-4) var(--nk-space-4) var(--nk-space-8);
+    gap: var(--nk-space-4);
+  }
+  .nk-ap-title {
+    font-size: 28px;
+  }
+  .nk-ap-hero__text {
+    flex-basis: 100%;
+  }
+  .nk-ap-stats dd {
+    font-size: 30px;
+  }
+  .nk-btn.nk-ap-cta {
+    align-self: stretch;
+  }
+  .nk-ap-body,
+  .nk-al {
+    padding: var(--nk-space-6) var(--nk-space-4) var(--nk-space-12);
+    gap: var(--nk-space-8);
+  }
+  .nk-ap-fit {
+    padding: var(--nk-space-4);
+  }
+  /* Phone design: rooms stack (the search list), other areas scroll sideways, "see all" is full width. */
+  .nk-btn.nk-ap-more {
+    align-self: stretch;
+  }
+  .nk-ap-others {
+    display: flex;
+    overflow-x: auto;
+    gap: var(--nk-space-3);
+    margin: 0 calc(-1 * var(--nk-space-4));
+    padding: 0 var(--nk-space-4) var(--nk-space-1);
+    scrollbar-width: none;
+  }
+  .nk-ap-others::-webkit-scrollbar {
+    display: none;
+  }
+  .nk-ap-others > .nk-area {
+    flex: 0 0 240px;
+  }
+  .nk-al-grid {
+    grid-template-columns: repeat(auto-fill, minmax(264px, 1fr));
+  }
+  .nk-al-title {
+    font-size: var(--nk-text-2xl);
+  }
+}

@@ -26,7 +26,7 @@ export type GuestPageKey =
 const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
   home: true,
   search: true,
-  areas: false,
+  areas: true,
   commute: false,
   articles: false,
   about: false,
@@ -36,7 +36,7 @@ const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
   viewingRequests: false,
   theme: false,
   rooms: true,
-  rent: false,
+  rent: true,
 };
 
 export function isGuestPageReady(key: GuestPageKey): boolean {
@@ -48,7 +48,7 @@ export type GuestNavKey = 'search' | 'areas' | 'commute' | 'articles' | 'about';
 /** Header menu: all 5 items are always shown (Mos 11 Nov 2026). */
 export const GUEST_NAV: readonly { key: GuestNavKey; href: string }[] = [
   { key: 'search', href: '/search' },
-  { key: 'areas', href: '/#areas' },
+  { key: 'areas', href: '/areas' },
   { key: 'commute', href: '/commute' },
   { key: 'articles', href: '/articles' },
   { key: 'about', href: '/about' },

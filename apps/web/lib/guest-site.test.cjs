@@ -64,9 +64,9 @@ test('the header menu has the 5 items of design v2.3 in order, and pages not bui
     assert.equal(typeof item.href, 'string');
     assert.ok(item.href.startsWith('/'), `${item.key} href is an in-site path`);
   }
-  // The search page is built (S4.2, 12 Nov 2026); areas, commute, articles and about are not there yet.
-  assert.equal(site.isGuestPageReady('search'), true);
-  for (const key of ['areas', 'commute', 'articles', 'about']) assert.equal(site.isGuestPageReady(key), false, key);
+  // Search is built (S4.2, 12 Nov 2026) and the area list (SEO-1, 20 Nov 2026); commute, articles and about are not there yet.
+  for (const key of ['search', 'areas']) assert.equal(site.isGuestPageReady(key), true, key);
+  for (const key of ['commute', 'articles', 'about']) assert.equal(site.isGuestPageReady(key), false, key);
 });
 
 test('the tab bar has 4 tabs like the app, and every ready tab opens a page that exists', () => {

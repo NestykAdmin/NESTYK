@@ -86,6 +86,14 @@ export const UserIcon = (props: IconProps) => (
   </Line>
 );
 
+/** "เหมาะกับใคร" on an area page (SEO-1). */
+export const UsersIcon = (props: IconProps) => (
+  <Line {...props}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6" />
+  </Line>
+);
+
 export const BriefcaseIcon = (props: IconProps) => (
   <Line {...props}>
     <rect x="3" y="7" width="18" height="13" rx="2" />

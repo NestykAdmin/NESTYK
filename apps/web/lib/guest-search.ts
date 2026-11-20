@@ -70,11 +70,20 @@ export interface SearchTitleLabels {
   titleTypeNearTransit: string;
   titleKeyword: string;
   propertyType: Record<PropertyType, string>;
+  /** "ห้องเช่า {name}" when the search is one area (SEO-1 area pages). */
+  areaTitle?: string;
+  areaNames?: Record<string, string>;
+}
+
+/** Name of an area slug in the reader's language; an unknown slug (an old link) shows as it is. */
+function areaName(slug: string, names: Record<string, string> | undefined): string {
+  return names?.[slug] ?? slug;
 }
 
 /** Page heading from the filters: the keyword, else one property type, plus "near transit" when that chip is on. */
 export function searchTitle(criteria: GuestSearchCriteria, labels: SearchTitleLabels): string {
   if (criteria.keyword) return fill(labels.titleKeyword, { keyword: criteria.keyword });
+  if (criteria.area && labels.areaTitle) return fill(labels.areaTitle, { name: areaName(criteria.area, labels.areaNames) });
   const nearTransit = criteria.quick.includes('nearTransit');
   const types = criteria.propertyType ?? [];
   if (types.length === 1) {
@@ -95,6 +104,9 @@ export interface FilterChipLabels {
   threePlus: string;
   moveIn: Record<PublicMoveIn, string>;
   durationChip: string;
+  /** "ทำเล: {name}" (SEO-1 area pages). */
+  areaChip?: string;
+  areaNames?: Record<string, string>;
 }
 
 export interface FilterChip {
@@ -129,6 +141,10 @@ export function activeFilterChips(criteria: GuestSearchCriteria, labels: FilterC
     return rest.length ? rest : undefined;
   };
 
+  if (criteria.area) {
+    const name = areaName(criteria.area, labels.areaNames);
+    add('area', labels.areaChip ? fill(labels.areaChip, { name }) : name, { area: undefined });
+  }
   if (criteria.keyword) add('keyword', criteria.keyword, { keyword: undefined });
   for (const type of criteria.propertyType ?? []) {
     add(`type-${type}`, labels.propertyType[type], { propertyType: without(criteria.propertyType, type) });
@@ -179,6 +195,7 @@ export function toPublicQuery(criteria: GuestSearchCriteria, page: number, limit
   return {
     mode: criteria.mode,
     keyword: criteria.keyword,
+    area: criteria.area,
     propertyType: criteria.propertyType,
     minPrice: criteria.minPrice,
     maxPrice: criteria.maxPrice,
@@ -204,6 +221,7 @@ export function publicSearchUrl(query: PublicRoomSearchQuery): string {
 export function clearedFilters(criteria: GuestSearchCriteria, options: { keyword?: boolean } = {}): GuestSearchCriteria {
   return withFilters(criteria, {
     keyword: options.keyword ? undefined : criteria.keyword,
+    area: undefined,
     propertyType: undefined,
     minPrice: undefined,
     maxPrice: undefined,

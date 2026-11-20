@@ -94,7 +94,7 @@ test('the API query carries every filter, the page and the size', () => {
   const c = parse('q=อโศก&type=condo&min=10000&beds=3&movein=30d&quick=petFriendly&sort=price_asc');
   const query = search.toPublicQuery(c, 2, 12);
   assert.deepEqual(query, {
-    mode: 'rent', keyword: 'อโศก', propertyType: ['condo'], minPrice: 10000, maxPrice: undefined, bedrooms: [3],
+    mode: 'rent', keyword: 'อโศก', area: undefined, propertyType: ['condo'], minPrice: 10000, maxPrice: undefined, bedrooms: [3],
     stationType: undefined, stationName: undefined, nearGps: undefined, durationMonths: undefined, moveIn: '30d',
     quick: ['petFriendly'], sortBy: 'price_asc', page: 2, limit: 12,
   });
@@ -169,4 +169,20 @@ test('the price button on the home search shows the chosen range, or "any price"
   assert.equal(search.priceButtonText(undefined, undefined, words), 'ทุกช่วงราคา');
   assert.equal(search.priceButtonText(12000, 30000, words), '฿12,000–฿30,000');
   assert.equal(search.priceButtonText(12000, undefined, words), 'ตั้งแต่ ฿12,000');
+});
+
+// SEO-1 area pages (Mos 20 Nov 2026) and review R3: "see all rooms" on an area page opens /search?area=<slug>.
+// The area reaches the API, shows as a removable chip and in the title, and "clear filters" drops it.
+test('area: sent to the API, shown as a chip and in the title, cleared with the other filters', () => {
+  const areaLabels = { ...labels, areaChip: 'ทำเล: {name}', areaTitle: 'ห้องเช่า {name}', areaNames: { sukhumvit: 'สุขุมวิท' } };
+  const c = parse('area=sukhumvit&type=condo');
+  assert.equal(search.toPublicQuery(c, 1, 12).area, 'sukhumvit');
+  const chips = search.activeFilterChips(c, areaLabels);
+  assert.equal(chips[0].label, 'ทำเล: สุขุมวิท');
+  assert.equal(chips[0].href, '/search?type=condo');
+  assert.equal(search.searchTitle(parse('area=sukhumvit'), areaLabels), 'ห้องเช่า สุขุมวิท');
+  assert.equal(search.searchTitle(parse('area=sukhumvit&q=อโศก'), areaLabels), 'ผลการค้นหา “อโศก”', 'a keyword still wins');
+  assert.equal(search.searchHref(search.clearedFilters(c)), '/search');
+  // An unknown slug keeps its own text rather than an empty chip.
+  assert.equal(search.activeFilterChips(parse('area=old-area'), areaLabels)[0].label, 'ทำเล: old-area');
 });
