@@ -43,3 +43,13 @@ test('dark header: the avatar is a white circle and the "soon" items are mid gre
   assert.match(css, /\.nk-header\[data-tone='dark'\] \.nk-account__chip \.nk-avatar-initials \{[^}]*background: var\(--nk-color-surface\);[^}]*color: var\(--nk-color-ink\)/);
   assert.match(css, /\.nk-header\[data-tone='dark'\] \.nk-nav__item--soon \{[^}]*color: var\(--nk-color-placeholder\)/);
 });
+
+// Mos 20 Nov 2026: the logo's letters sit on the menu's middle line. The SVG (618 x 219) has its letters at y 41-142
+// with the smile below, so the centred image moves down 8% of its height (18 / 219) to put the letters' middle there.
+test('the header logo is centred on its letters, not pinned to the top', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'app/[locale]/guest.css'), 'utf8');
+  const rule = css.match(/\.nk-header__brand \.nk-logo \{([^}]*)\}/);
+  assert.ok(rule, 'a header-only logo rule (the footer logo keeps its own)');
+  assert.match(rule[1], /align-self: center;/);
+  assert.match(rule[1], /transform: translateY\(8%\);/);
+});

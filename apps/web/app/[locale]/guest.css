@@ -161,6 +161,12 @@ body {
   align-self: flex-start;
   width: auto;
 }
+/* Mos 20 Nov 2026: the letters sit on the menu's middle line. They span y 41-142 of the 219-high SVG (the smile hangs
+   below), so the centred image moves down 8% of its height (18 / 219). */
+.nk-header__brand .nk-logo {
+  align-self: center;
+  transform: translateY(8%);
+}
 .nk-nav {
   flex: 1;
   min-width: 0;
