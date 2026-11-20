@@ -11,6 +11,7 @@ import {
   OTHER_FILTERS,
   SEARCH_PROPERTY_TYPES,
 } from '../../../lib/guest-search';
+import { shownQuickFilters } from '../../../lib/guest-site';
 import { PriceRangeField } from './PriceRangeField';
 
 export type FilterChange = (patch: Partial<GuestSearchCriteria>, options?: { debounce?: boolean }) => void;
@@ -125,7 +126,7 @@ export function SearchFilterFields({ value, onChange, idPrefix }: { value: Guest
 
       <fieldset className="nk-filters__group">
         <legend className="nk-filters__legend">{copy.results.more}</legend>
-        {OTHER_FILTERS.map((code) => (
+        {shownQuickFilters(OTHER_FILTERS).map((code) => (
           <label key={code} className="nk-check">
             <input
               type="checkbox"

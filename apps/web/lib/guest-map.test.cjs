@@ -118,3 +118,32 @@ test('the list can fold away for a full-width map, and come back', () => {
   assert.match(css, /\.nk-map-view\.is-full \.nk-map-list \{\s*display: none;/);
   assert.match(css, /\.nk-map-view\.is-full \.nk-map-stage \{\s*grid-column: 1 \/ -1;/);
 });
+
+// Mos 20 Nov 2026 (card view, wide screens): the filter panel stays put while the rooms scroll (its own scroll when
+// taller than the screen), and a "ตัวกรอง" button at the left of the toolbar folds it away and back.
+test('the filter panel stays in view and folds away from a toolbar button', () => {
+  const nav = read('app/components/guest/SearchNavigation.tsx');
+  assert.match(nav, /const \[filtersOpen, setFiltersOpen\] = useState\(true\);/);
+  assert.match(nav, /data-filters=\{filtersOpen \? 'open' : 'closed'\}/);
+  const parts = read('app/components/guest/SearchToolbarParts.tsx');
+  assert.match(parts, /export function SearchFiltersToggle/);
+  assert.match(parts, /aria-expanded=\{filtersOpen\}/);
+  assert.match(parts, /aria-controls=\{SEARCH_FILTERS_ID\}/);
+  assert.match(read('app/components/guest/SearchResults.tsx'), /<SearchFiltersToggle criteria=\{criteria\} \/>/);
+  assert.match(read('app/[locale]/(marketplace)/search/page.tsx'), /<aside id=\{SEARCH_FILTERS_ID\} className="nk-search-aside"/);
+  const css = read('app/[locale]/guest.css');
+  assert.match(css, /\.nk-search-page\[data-filters='closed'\] \.nk-search-aside \{\s*display: none;/);
+  assert.match(css, /\.nk-search-aside__panel \{[^}]*max-height: calc\(100dvh/);
+});
+
+// Mos 20 Nov 2026: "ใกล้ BTS/MRT" hides until rooms carry their nearest station (every room has none yet, so it always
+// found 0). One switch hides it on the side panel, the search bar chips, the home search and the home rail tab.
+test('"near BTS/MRT" stays hidden until rooms have station data, everywhere it shows', () => {
+  const site = read('lib/guest-site.ts');
+  assert.match(site, /export const NEAR_TRANSIT_READY = false;/);
+  assert.match(site, /export function shownQuickFilters/);
+  assert.match(read('app/components/guest/SearchFilterFields.tsx'), /shownQuickFilters\(OTHER_FILTERS\)\.map/);
+  assert.match(read('app/components/guest/SearchKeywordBar.tsx'), /shownQuickFilters\(QUICK_CHIPS\)\.map/);
+  assert.match(read('app/components/guest/SearchPanel.tsx'), /shownQuickFilters\(GUEST_QUICK_FILTERS\)\.map/);
+  assert.match(read('app/[locale]/(marketplace)/page.tsx'), /HOME_RAILS\.filter\(\(rail\) => NEAR_TRANSIT_READY \|\| rail !== 'near_transit'\)/);
+});

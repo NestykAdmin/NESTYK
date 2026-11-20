@@ -16,7 +16,7 @@ import { bangkokToday, HOME_RAILS, searchHrefIfReady } from '../../../lib/guest-
 import { homeAreaGroups } from '../../../lib/guest-areas';
 import { loadHomeData } from '../../../lib/guest-rooms';
 import { guestPageMetadata } from '../../../lib/guest-seo';
-import { isGuestPageReady, localePath } from '../../../lib/guest-site';
+import { isGuestPageReady, localePath, NEAR_TRANSIT_READY } from '../../../lib/guest-site';
 import '../guest-areas.css';
 
 type Props = { params: Promise<{ locale: string }> };
@@ -154,7 +154,7 @@ export default async function HomePage({ params }: Props) {
             <ListingTabs
               label={copy.home.featuredTitle}
               testId="guestHome.rails"
-              tabs={HOME_RAILS.map((rail) => ({
+              tabs={HOME_RAILS.filter((rail) => NEAR_TRANSIT_READY || rail !== 'near_transit').map((rail) => ({
                 id: rail,
                 label: railLabel[rail],
                 panel: rails[rail].length ? (

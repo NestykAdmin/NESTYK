@@ -141,3 +141,9 @@ test('S7.3: the room page is open; viewing requests wait for their API (shown as
   assert.equal(site.isGuestPageReady('rooms'), true);
   assert.equal(site.isGuestPageReady('viewingRequests'), false);
 });
+
+test('shownQuickFilters leaves out "near BTS/MRT" while rooms have no station data, and keeps the order', () => {
+  assert.equal(site.NEAR_TRANSIT_READY, false);
+  assert.deepEqual(site.shownQuickFilters(['nearTransit', 'moveInReady', 'petFriendly', 'shortTerm']), ['moveInReady', 'petFriendly', 'shortTerm']);
+  assert.deepEqual(site.shownQuickFilters(['petFriendly', 'shortTerm']), ['petFriendly', 'shortTerm']);
+});

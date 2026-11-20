@@ -7,6 +7,7 @@ import { EmptyState, ErrorState } from '../../../components/guest/GuestStates';
 import { SearchFilters } from '../../../components/guest/SearchFilters';
 import { SearchKeywordBar } from '../../../components/guest/SearchKeywordBar';
 import { SearchMap } from '../../../components/guest/SearchMap';
+import { SEARCH_FILTERS_ID } from '../../../components/guest/SearchToolbarParts';
 import { SearchNavigation } from '../../../components/guest/SearchNavigation';
 import { SearchResults } from '../../../components/guest/SearchResults';
 import { bangkokToday } from '../../../../lib/guest-home';
@@ -137,7 +138,7 @@ export default async function SearchPage({ params, searchParams }: Props) {
       </div>
       <div className={`nk-search-layout${onMap ? ' nk-search-layout--map' : ''}`}>
         {onMap ? null : (
-          <aside className="nk-search-aside" aria-label={t.results.filtersTitle}>
+          <aside id={SEARCH_FILTERS_ID} className="nk-search-aside" aria-label={t.results.filtersTitle}>
             <SearchFilters criteria={criteria} />
           </aside>
         )}

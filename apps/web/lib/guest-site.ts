@@ -43,6 +43,18 @@ export function isGuestPageReady(key: GuestPageKey): boolean {
   return GUEST_PAGE_READY[key] === true;
 }
 
+/**
+ * "ใกล้ BTS/MRT" (quick=nearTransit, home rail near_transit) needs each room's nearest station, which no room has yet,
+ * so it always found nothing (Mos 20 Nov 2026: hide it for now). Turn on once rooms carry station data. A shared
+ * link with quick=nearTransit still works and shows its removable chip.
+ */
+export const NEAR_TRANSIT_READY = false;
+
+/** The quick filters to offer: "ใกล้ BTS/MRT" only once NEAR_TRANSIT_READY. */
+export function shownQuickFilters<T extends string>(codes: readonly T[]): T[] {
+  return codes.filter((code) => NEAR_TRANSIT_READY || code !== 'nearTransit');
+}
+
 export type GuestNavKey = 'search' | 'areas' | 'commute' | 'articles' | 'about';
 
 /** Header menu: all 5 items are always shown (Mos 11 Nov 2026). */

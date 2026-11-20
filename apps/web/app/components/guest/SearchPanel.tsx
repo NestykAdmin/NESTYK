@@ -6,7 +6,7 @@ import { GUEST_QUICK_FILTERS } from '@nestyk/feature-search';
 import { useRouter } from '../../../i18n/navigation';
 import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, searchHrefIfReady, type HomeSearchInput } from '../../../lib/guest-home';
 import { locationPatch, type LocationChoice } from '../../../lib/guest-location';
-import { isGuestPageReady } from '../../../lib/guest-site';
+import { isGuestPageReady, shownQuickFilters } from '../../../lib/guest-site';
 import { SearchIcon } from './GuestIcons';
 import { LocationCombobox } from './LocationCombobox';
 import { PricePopover } from './PricePopover';
@@ -150,7 +150,7 @@ export function SearchPanel() {
       </div>
       <div className="nk-search__quick">
         <span className="nk-search__quick-label">{copy.search.popularFilters}</span>
-        {GUEST_QUICK_FILTERS.map((code) => (
+        {shownQuickFilters(GUEST_QUICK_FILTERS).map((code) => (
           <button
             key={code}
             type="button"

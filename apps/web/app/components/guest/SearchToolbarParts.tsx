@@ -4,12 +4,15 @@ import React, { useId } from 'react';
 import Link from 'next/link';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import type { GuestSearchCriteria } from '@nestyk/feature-search';
-import { SEARCH_SORT_OPTIONS, type FilterChip } from '../../../lib/guest-search';
+import { SEARCH_SORT_OPTIONS, activeFilterCount, type FilterChip } from '../../../lib/guest-search';
 import { localePath } from '../../../lib/guest-site';
-import { CloseIcon } from './GuestIcons';
+import { CloseIcon, SlidersIcon } from './GuestIcons';
 import { useSearchNavigation } from './SearchNavigation';
 
 type SortOption = (typeof SEARCH_SORT_OPTIONS)[number];
+
+/** id of the filter panel beside the cards, for the toggle's aria-controls. */
+export const SEARCH_FILTERS_ID = 'search-filters';
 
 /** "เรียงตาม" of the results toolbar, shared by the card and map views (S4.2 / S4.3). */
 export function SearchSort({ criteria, testId }: { criteria: GuestSearchCriteria; testId: string }) {
@@ -79,5 +82,29 @@ export function SearchFilterChips({ chips, locale }: { chips: readonly FilterChi
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * "ตัวกรอง" at the left of the card view's toolbar (Mos 20 Nov 2026, wide screens): folds the filter panel away so
+ * the cards take the full width, and brings it back. Shows how many filters are on. Phones use the filter sheet.
+ */
+export function SearchFiltersToggle({ criteria }: { criteria: GuestSearchCriteria }) {
+  const { t } = useLocale();
+  const { filtersOpen, setFiltersOpen } = useSearchNavigation();
+  const count = activeFilterCount(criteria);
+  return (
+    <button
+      type="button"
+      className="nk-btn nk-btn--outline nk-filters-toggle"
+      aria-expanded={filtersOpen}
+      aria-controls={SEARCH_FILTERS_ID}
+      onClick={() => setFiltersOpen(!filtersOpen)}
+      data-testid="searchResults.filtersToggle"
+    >
+      <SlidersIcon size={18} />
+      {t.guest.results.filtersTitle}
+      {count ? <span className="nk-filters-toggle__count">{count}</span> : null}
+    </button>
   );
 }

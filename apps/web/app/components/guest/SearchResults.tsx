@@ -16,7 +16,7 @@ import {
 import { CardSkeleton, EmptyState } from './GuestStates';
 import { GridIcon, ListIcon, MapIcon } from './GuestIcons';
 import { RoomCard } from './RoomCard';
-import { SearchFilterChips, SearchSort, SearchViewSwitch } from './SearchToolbarParts';
+import { SearchFilterChips, SearchFiltersToggle, SearchSort, SearchViewSwitch } from './SearchToolbarParts';
 import { useSearchNavigation } from './SearchNavigation';
 
 const LOAD_MORE_SKELETONS = 3;
@@ -94,6 +94,7 @@ export function SearchResults({
     <div className="nk-search-results" aria-busy={pending || loading} data-testid="searchResults">
       <div className="nk-search-toolbar">
         <div className="nk-search-toolbar__lead">
+          <SearchFiltersToggle criteria={criteria} />
           <p className="nk-search-toolbar__count" role="status" data-testid="searchResults.count">
             {fillTemplate(copy.results.found, { count: total.toLocaleString('en-US') })}
           </p>

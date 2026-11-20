@@ -4,6 +4,7 @@ import React, { useEffect, useId, useMemo, useState } from 'react';
 import { useLocale } from '@nestyk/i18n';
 import type { GuestSearchCriteria } from '@nestyk/feature-search';
 import { locationLabel, locationPatch, type LocationChoice, type LocationLabelKind } from '../../../lib/guest-location';
+import { shownQuickFilters } from '../../../lib/guest-site';
 import { ChevronRightIcon, CloseIcon, LocateIcon, MapIcon, PinIcon, SearchIcon, TrainIcon } from './GuestIcons';
 import { LocationCombobox } from './LocationCombobox';
 import { SearchFilterSheet } from './SearchFilterSheet';
@@ -124,7 +125,7 @@ export function SearchKeywordBar({
         <div className="nk-search-bar__chips">
           <SearchFilterSheet criteria={criteria} total={total} />
           <div className="nk-search-bar__quick" role="group" aria-label={copy.search.popularFilters}>
-            {QUICK_CHIPS.map((code) => (
+            {shownQuickFilters(QUICK_CHIPS).map((code) => (
               <button
                 key={code}
                 type="button"

@@ -21,6 +21,9 @@ interface SearchNavigationValue {
   waiting: () => boolean;
   view: ResultsView;
   setView: (view: ResultsView) => void;
+  /** Wide screens: the filter panel beside the cards is shown (Mos 20 Nov 2026: it folds away). Kept across searches. */
+  filtersOpen: boolean;
+  setFiltersOpen: (open: boolean) => void;
 }
 
 const noop = () => undefined;
@@ -36,6 +39,7 @@ export function SearchNavigation({ criteria, children }: { criteria: GuestSearch
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [view, setView] = useState<ResultsView>('grid');
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const latestRef = useRef(criteria);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const key = searchHref(criteria);
@@ -84,13 +88,28 @@ export function SearchNavigation({ criteria, children }: { criteria: GuestSearch
     [push],
   );
   const value = useMemo<SearchNavigationValue>(
-    () => ({ pending, update, replace, latest: () => latestRef.current, waiting: () => timer.current !== null, view, setView }),
-    [pending, update, replace, view],
+    () => ({
+      pending,
+      update,
+      replace,
+      latest: () => latestRef.current,
+      waiting: () => timer.current !== null,
+      view,
+      setView,
+      filtersOpen,
+      setFiltersOpen,
+    }),
+    [pending, update, replace, view, filtersOpen],
   );
 
   return (
     <SearchNavigationContext.Provider value={value}>
-      <div className="nk-search-page" data-pending={pending ? 'true' : undefined} data-testid="searchPage">
+      <div
+        className="nk-search-page"
+        data-pending={pending ? 'true' : undefined}
+        data-filters={filtersOpen ? 'open' : 'closed'}
+        data-testid="searchPage"
+      >
         {children}
       </div>
     </SearchNavigationContext.Provider>
@@ -101,5 +120,15 @@ export function useSearchNavigation(): SearchNavigationValue {
   const value = useContext(SearchNavigationContext);
   if (value) return value;
   // Outside the search page (for example the UI kit): controls render but change nothing.
-  return { pending: false, update: (patch) => patch as GuestSearchCriteria, replace: noop, latest: () => ({}) as GuestSearchCriteria, waiting: () => false, view: 'grid', setView: noop };
+  return {
+    pending: false,
+    update: (patch) => patch as GuestSearchCriteria,
+    replace: noop,
+    latest: () => ({}) as GuestSearchCriteria,
+    waiting: () => false,
+    view: 'grid',
+    setView: noop,
+    filtersOpen: true,
+    setFiltersOpen: noop,
+  };
 }

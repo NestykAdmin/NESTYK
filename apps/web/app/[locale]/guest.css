@@ -1974,6 +1974,11 @@ a.nk-types__item:hover {
   top: calc(72px + var(--nk-space-6));
 }
 .nk-search-aside__panel {
+  /* Stays in view while the rooms scroll (Mos 20 Nov 2026): a panel taller than the screen scrolls inside. */
+  max-height: calc(100dvh - 72px - var(--nk-space-6) - var(--nk-space-6));
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--nk-space-5);
   background: var(--nk-color-surface);
   border: 1px solid var(--nk-color-border);
@@ -2177,6 +2182,45 @@ a.nk-types__item:hover {
   border-color: var(--nk-color-ink);
   background: var(--nk-color-ink);
   color: var(--nk-color-surface);
+}
+/* Filter panel folded away (Mos 20 Nov 2026): the cards take the full width. */
+.nk-search-page[data-filters='closed'] .nk-search-aside {
+  display: none;
+}
+.nk-search-page[data-filters='closed'] .nk-search-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.nk-filters-toggle {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-3);
+  gap: var(--nk-space-2);
+  border-color: var(--nk-color-border);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-filters-toggle[aria-expanded='true'] {
+  border-color: var(--nk-color-ink);
+}
+.nk-filters-toggle__count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-brand);
+  color: var(--nk-color-ink);
+  font-size: var(--nk-text-xs);
+}
+/* Phones use the filter sheet, not the side panel. */
+@media (max-width: 960px) {
+  .nk-filters-toggle {
+    display: none;
+  }
 }
 /* "การ์ด | แผนที่" (S4.3, Mos 20 Nov 2026): the last item of the results toolbar in both views. */
 .nk-view-switch {
