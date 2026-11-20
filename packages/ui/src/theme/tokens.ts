@@ -94,8 +94,10 @@ export const tokens = {
 
     // 💎 Role identity (Mos 17-18 Nov 2026, design "admin profile" จ2): warm luxury jewel + metal pairs, used ONLY
     // where the UI names a role (role tile, the badge on the own avatar, the ring around it, the role picker).
-    // `roles` / `rolesOnDark` above stay the accent colours of each role's screens. deep = dark tile and light-mode
-    // icon/ring, light = dark-mode icon/ring, soft = light-mode tile. Admin (NESTYK itself) keeps ink + gold in both modes.
+    // `roles` / `rolesOnDark` above stay the accent colours of each role's screens. Since 20 Nov 2026 (Mos: easy to
+    // use and luxury, like admin) both modes use the deep tile with the light (metal) icon: deep = tile and the
+    // light-mode ring, light = icon and the dark-mode ring. soft = the light-mode tile of 17-19 Nov, no longer used
+    // by roleTileColors. Admin (NESTYK itself) keeps ink + gold with a gold ring in both modes.
     roleIdentity: {
       guest: { deep: '#854D0E', light: '#FEF3C7', soft: '#FEF3C7' },
       tenant: { deep: '#4C1D6E', light: '#E9D5FF', soft: '#F3E8FF' },
@@ -185,14 +187,14 @@ export function roleOnDark(color: string, isDark: boolean): string {
 type RoleIdentityKey = keyof typeof tokens.colors.roleIdentity;
 
 /**
- * Colours of a role tile (and the ring around the own avatar): light mode = soft tile, deep icon and ring;
- * dark mode = deep tile, light icon and ring. Admin is the one exception: ink tile, gold icon and ring in both modes.
- * Unknown roles fall back to the services (neutral) set.
+ * Colours of a role tile (and the ring around the own avatar), the same on the web and in the app. Both modes: deep
+ * jewel tile with the light (metal) icon (Mos 20 Nov 2026). The ring is the tile's own deep tone in light mode (no
+ * separate edge on a tile, a signet ring around the avatar) and the light tone in dark mode, where the deep tile
+ * needs an edge. Admin is the one exception: gold ring in both modes. Unknown roles fall back to the services set.
  */
 export function roleTileColors(role: string, isDark: boolean): { bg: string; fg: string; ring: string } {
   const set = tokens.colors.roleIdentity[(role in tokens.colors.roleIdentity ? role : 'services') as RoleIdentityKey];
-  if (isDark || role === 'admin') return { bg: set.deep, fg: set.light, ring: set.light };
-  return { bg: set.soft, fg: set.deep, ring: set.deep };
+  return { bg: set.deep, fg: set.light, ring: isDark || role === 'admin' ? set.light : set.deep };
 }
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
