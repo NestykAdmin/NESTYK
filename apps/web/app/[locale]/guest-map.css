@@ -117,26 +117,46 @@
 .nk-map-list__rooms .nk-room__specs li svg {
   display: none;
 }
+/* The dot between parts is spaced with padding: a leading space would vanish at the start of the column. */
 .nk-map-list__rooms .nk-room__specs li::before {
-  content: ' · ';
-}
-.nk-map-list__rooms .nk-room__meta + .nk-room__specs li:first-child::before {
-  content: ' · ';
+  content: '·';
+  padding: 0 6px;
 }
 .nk-map-list__rooms .nk-room__title + .nk-room__specs li:first-child::before {
-  content: '';
+  content: none;
+}
+/* Price first (Mos 20 Nov 2026): the number is the largest thing on the card; "เริ่มต้น" and "ต่อเดือน" step back,
+   and the name drops to the body font so the eye lands on the price. */
+.nk-map-list__rooms .nk-price {
+  align-items: baseline;
+  column-gap: 4px;
 }
 .nk-map-list__rooms .nk-price__value {
-  font-size: var(--nk-text-xl);
+  font-size: var(--nk-text-2xl);
+  line-height: 1.15;
+}
+.nk-map-list__rooms .nk-price__currency {
+  font-size: var(--nk-text-lg);
+  font-weight: 700;
+}
+.nk-map-list__rooms .nk-price__from,
+.nk-map-list__rooms .nk-price__unit {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
 }
 .nk-map-list__rooms .nk-room__title {
-  font-size: var(--nk-text-md);
+  font-family: var(--nk-font-body);
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.45;
+  color: var(--nk-color-heading);
 }
+/* Readable at a glance (Mos 20 Nov 2026): 14px, between the small and body sizes, still fits beside the photo. */
 .nk-map-list__rooms .nk-room__meta,
-.nk-map-list__rooms .nk-room__specs,
-.nk-map-list__rooms .nk-room__availability {
-  font-size: var(--nk-text-xs);
+.nk-map-list__rooms .nk-room__specs {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--nk-color-text-secondary);
 }
 .nk-map-list__rooms .nk-room__availability {
   display: none;
