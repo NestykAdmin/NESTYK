@@ -73,3 +73,48 @@ test('the map view: cookie gate first, one map across searches, a moved map sear
   assert.match(results, /onClick=\{\(\) => update\(\{ view: 'map' \}\)\}/);
   assert.doesNotMatch(results, /comingSoon/, 'the map button is no longer "เร็ว ๆ นี้"');
 });
+
+// Mos 20 Nov 2026: the card / map switch sits in the same place in both views (right end of the results toolbar),
+// beside the same sort. Phones keep the bottom-centre button ("ดูบนแผนที่" / "แสดงรายการ").
+test('one view switch and one sort, at the right end of the toolbar in both views', () => {
+  const parts = read('app/components/guest/SearchToolbarParts.tsx');
+  assert.match(parts, /export function SearchViewSwitch/);
+  assert.match(parts, /export function SearchSort/);
+  assert.match(parts, /update\(\{ view: target \}\)/);
+  for (const file of ['app/components/guest/SearchResults.tsx', 'app/components/guest/SearchMap.tsx']) {
+    const src = read(file);
+    assert.match(src, /className="nk-search-toolbar"/, file);
+    assert.match(src, /<SearchSort /, file);
+    assert.ok(src.indexOf('<SearchSort ') < src.indexOf('<SearchViewSwitch '), `${file}: the switch comes last`);
+  }
+  assert.match(read('app/components/guest/SearchResults.tsx'), /<SearchViewSwitch view="list"/);
+  assert.match(read('app/components/guest/SearchMap.tsx'), /<SearchViewSwitch view="map"/);
+});
+
+// Mos 20 Nov 2026: no visible heading on the search page (screen readers still get it), and the filter chips sit
+// after the count in the toolbar. Place, area and keyword are in the search box with its own ✕, so no chip repeats them.
+test('the heading is for screen readers only and the chips sit in the toolbar, without the box\'s place or keyword', () => {
+  const page = read('app/[locale]/(marketplace)/search/page.tsx');
+  assert.match(page, /<h1 id="search-title" className="nk-sr-only" data-testid="searchPage\.title">/);
+  assert.match(page, /const BOX_CHIPS = new Set\(\['near', 'area', 'keyword'\]\);/);
+  assert.match(page, /chips\.filter\(\(chip\) => !BOX_CHIPS\.has\(chip\.key\)\)/);
+  assert.doesNotMatch(page, /filters=\{/, 'no server-made JSX passed into the client lists');
+  for (const file of ['app/components/guest/SearchResults.tsx', 'app/components/guest/SearchMap.tsx']) {
+    const src = read(file);
+    assert.match(src, /className="nk-search-toolbar__lead"/, file);
+    // Chips go across as data, drawn here: JSX made by the server page and passed in a prop lost its keys (React warning).
+    assert.match(src, /<SearchFilterChips chips=\{chips\} locale=\{locale\} \/>/, file);
+  }
+});
+
+// Mos 20 Nov 2026: a button on the map's left edge folds the list away so the map takes the full width, and brings it back.
+test('the list can fold away for a full-width map, and come back', () => {
+  const view = read('app/components/guest/SearchMap.tsx');
+  assert.match(view, /const \[listHidden, setListHidden\] = useState\(false\);/);
+  assert.match(view, /className=\{`nk-map-view\$\{listHidden \? ' is-full' : ''\}`\}/);
+  assert.match(view, /aria-expanded=\{!listHidden\}/);
+  assert.match(view, /aria-label=\{listHidden \? copy\.map\.showListPanel : copy\.map\.hideListPanel\}/);
+  const css = read('app/[locale]/guest-map.css');
+  assert.match(css, /\.nk-map-view\.is-full \.nk-map-list \{\s*display: none;/);
+  assert.match(css, /\.nk-map-view\.is-full \.nk-map-stage \{\s*grid-column: 1 \/ -1;/);
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import type { GuestSearchCriteria } from '@nestyk/feature-search';
 import type { PublicRoomCard, PublicRoomSearchResult } from '@nestyk/types';
@@ -32,10 +32,11 @@ import {
   type RoomPin,
 } from '../../../lib/guest-map';
 import { isGuestPageReady, localePath } from '../../../lib/guest-site';
-import { publicSearchUrl, searchHref, toPublicQuery, withFilters } from '../../../lib/guest-search';
-import { CloseIcon, LocateIcon, MinusIcon, PhotoIcon, PinIcon, PlusIcon, RefreshIcon, TrainIcon } from './GuestIcons';
+import { publicSearchUrl, searchHref, toPublicQuery, withFilters, type FilterChip } from '../../../lib/guest-search';
+import { ChevronRightIcon, CloseIcon, LocateIcon, MinusIcon, PhotoIcon, PinIcon, PlusIcon, RefreshIcon, TrainIcon } from './GuestIcons';
 import { RoomCard } from './RoomCard';
 import { SearchKeywordBar } from './SearchKeywordBar';
+import { SearchFilterChips, SearchSort, SearchViewSwitch } from './SearchToolbarParts';
 import { useSearchNavigation } from './SearchNavigation';
 import '../../[locale]/guest-map.css';
 
@@ -82,12 +83,15 @@ export function SearchMap({
   total: initialTotal,
   today,
   locale,
+  chips = [],
 }: {
   criteria: GuestSearchCriteria;
   initialItems: PublicRoomCard[];
   total: number;
   today: string;
   locale: string;
+  /** Filters in use (activeFilterChips), shown after the count. */
+  chips?: readonly FilterChip[];
 }) {
   const { t } = useLocale();
   const copy = t.guest;
@@ -98,6 +102,9 @@ export function SearchMap({
   const [bounds, setBounds] = useState<MapBounds | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  // Wide screens: the list folds away for a full-width map (Mos 20 Nov 2026).
+  const [listHidden, setListHidden] = useState(false);
+  const listId = useId();
   const criteriaRef = useRef(criteria);
   criteriaRef.current = criteria;
 
@@ -152,25 +159,32 @@ export function SearchMap({
   const capped = total > items.length && items.length >= MAP_ROOM_LIMIT;
 
   return (
-    <div className="nk-map-view" aria-busy={pending} data-testid="searchMap">
-      <section className="nk-map-list" aria-label={copy.results.listLabel} data-testid="searchMap.list">
-        <div className="nk-map-list__head">
-          <p className="nk-map-list__count" role="status" data-testid="searchMap.count">
+    <div className={`nk-map-view${listHidden ? ' is-full' : ''}`} aria-busy={pending} data-testid="searchMap">
+      <div className="nk-search-toolbar">
+        <div className="nk-search-toolbar__lead">
+          <p className="nk-search-toolbar__count" role="status" data-testid="searchMap.count">
             {countText}
           </p>
-          <ViewSwitch copy={copy} onCards={toCards} />
+          <SearchFilterChips chips={chips} locale={locale} />
         </div>
+        <div className="nk-search-toolbar__actions">
+          <SearchSort criteria={criteria} testId="searchMap.sort" />
+          <SearchViewSwitch view="map" />
+        </div>
+      </div>
+      <section id={listId} className="nk-map-list" aria-label={copy.results.listLabel} data-testid="searchMap.list">
         {capped ? <p className="nk-map-note">{fillTemplate(copy.map.capped, { shown: items.length.toLocaleString('en-US'), total: total.toLocaleString('en-US') })}</p> : null}
         {items.length && !pins.length ? <p className="nk-map-note">{copy.map.noPins}</p> : null}
         {visible.length ? (
           <div className="nk-search-list nk-search-list--list nk-map-list__rooms">
             {visible.map((card) => {
               const pinId = pinOfRoom.get(card.id) ?? null;
-              const on = pinId !== null && (pinId === selected || pinId === hovered);
+              // Hover lifts the card (CSS); the room of the pin picked on the map is marked yellow (Mos 20 Nov 2026).
+              const picked = pinId !== null && pinId === selected;
               return (
                 <div
                   key={card.id}
-                  className={`nk-map-list__room${on ? ' is-on' : ''}`}
+                  className={`nk-map-list__room${picked ? ' is-selected' : ''}`}
                   data-map-room={card.id}
                   onMouseEnter={() => setHovered(pinId)}
                   onMouseLeave={() => setHovered(null)}
@@ -186,6 +200,18 @@ export function SearchMap({
       </section>
 
       <section className="nk-map-stage" aria-label={copy.map.label} data-testid="searchMap.stage">
+        <button
+          type="button"
+          className="nk-map-fold"
+          aria-expanded={!listHidden}
+          aria-controls={listId}
+          aria-label={listHidden ? copy.map.showListPanel : copy.map.hideListPanel}
+          title={listHidden ? copy.map.showListPanel : copy.map.hideListPanel}
+          onClick={() => setListHidden((hidden) => !hidden)}
+          data-testid="searchMap.fold"
+        >
+          <ChevronRightIcon size={18} className={listHidden ? undefined : 'nk-map-fold__left'} />
+        </button>
         <div className="nk-map-top">
           <SearchKeywordBar criteria={criteria} total={total} variant="map" onBack={toCards} />
         </div>
@@ -225,19 +251,6 @@ export function SearchMap({
           {fillTemplate(copy.map.showList, { count: count.toLocaleString('en-US') })}
         </button>
       </section>
-    </div>
-  );
-}
-
-function ViewSwitch({ copy, onCards }: { copy: Copy; onCards: () => void }) {
-  return (
-    <div className="nk-view-switch" role="group" aria-label={copy.results.viewLabel}>
-      <button type="button" aria-pressed={false} onClick={onCards} data-testid="searchMap.viewCards">
-        {copy.map.viewCards}
-      </button>
-      <button type="button" aria-pressed={true} data-testid="searchMap.viewMap">
-        {copy.map.viewMap}
-      </button>
     </div>
   );
 }

@@ -1,11 +1,9 @@
 import React from 'react';
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { fillTemplate, getTranslations, type SupportedLocale } from '@nestyk/i18n';
+import { getTranslations, type SupportedLocale } from '@nestyk/i18n';
 import { criteriaFromSearchParams } from '@nestyk/feature-search';
 import type { PublicRoomSearchResult } from '@nestyk/types';
 import { EmptyState, ErrorState } from '../../../components/guest/GuestStates';
-import { CloseIcon } from '../../../components/guest/GuestIcons';
 import { SearchFilters } from '../../../components/guest/SearchFilters';
 import { SearchKeywordBar } from '../../../components/guest/SearchKeywordBar';
 import { SearchMap } from '../../../components/guest/SearchMap';
@@ -27,6 +25,8 @@ import { guestPageMetadata } from '../../../../lib/guest-seo';
 import { localePath } from '../../../../lib/guest-site';
 
 type SearchParams = Record<string, string | string[] | undefined>;
+/** The search box shows these with its own ✕ (location search), so no chip repeats them (Mos 20 Nov 2026). */
+const BOX_CHIPS = new Set(['near', 'area', 'keyword']);
 type Props = { params: Promise<{ locale: string }>; searchParams: Promise<SearchParams> };
 
 /** Search pages are not indexed: endless filter combinations would crowd out the area pages (SEO plan). */
@@ -79,6 +79,8 @@ export default async function SearchPage({ params, searchParams }: Props) {
     mapAreaChip: t.location.mapArea,
   });
 
+  const toolbarChips = chips.filter((chip) => !BOX_CHIPS.has(chip.key));
+
   // The map (S4.3) starts with the API's largest page and loads up to 3 more in the browser.
   const onMap = criteria.view === 'map';
   const load = onMap ? { page: 1, limit: MAP_PAGE_SIZE, loadedPages: 1 } : firstLoad(criteria);
@@ -110,7 +112,7 @@ export default async function SearchPage({ params, searchParams }: Props) {
     );
   } else if (onMap) {
     // One key for every map search: the map stays put while it is moved and searched again.
-    body = <SearchMap key="map" criteria={criteria} initialItems={result.items} total={result.total} today={today} locale={locale} />;
+    body = <SearchMap key="map" criteria={criteria} initialItems={result.items} total={result.total} today={today} locale={locale} chips={toolbarChips} />;
   } else {
     body = (
       <SearchResults
@@ -121,6 +123,7 @@ export default async function SearchPage({ params, searchParams }: Props) {
         loadedPages={load.loadedPages}
         today={today}
         locale={locale}
+        chips={toolbarChips}
       />
     );
   }
@@ -139,27 +142,10 @@ export default async function SearchPage({ params, searchParams }: Props) {
           </aside>
         )}
         <section className="nk-search-main" aria-labelledby="search-title">
-          <h1 id="search-title" className="nk-search-title" data-testid="searchPage.title">
+          {/* Mos 20 Nov 2026: no heading on screen (more room for the map); screen readers still get it. */}
+          <h1 id="search-title" className="nk-sr-only" data-testid="searchPage.title">
             {title}
           </h1>
-          {chips.length ? (
-            <ul className="nk-search-chips" aria-label={t.results.activeFilters} data-testid="searchPage.activeFilters">
-              {chips.map((chip) => (
-                <li key={chip.key}>
-                  <Link
-                    href={localePath(locale, chip.href)}
-                    scroll={false}
-                    className="nk-filter-chip"
-                    aria-label={fillTemplate(t.results.removeFilter, { label: chip.label })}
-                    data-testid={`searchPage.removeFilter.${chip.key}`}
-                  >
-                    {chip.label}
-                    <CloseIcon size={14} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : null}
           {body}
         </section>
       </div>

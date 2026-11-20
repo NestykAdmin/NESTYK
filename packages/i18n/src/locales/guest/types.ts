@@ -204,6 +204,8 @@ export interface GuestCopy {
     unavailable: string;
     noPins: string;
     roomsHere: string;
+    hideListPanel: string;
+    showListPanel: string;
   };
   states: {
     emptyTitle: string;

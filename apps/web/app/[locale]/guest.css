@@ -2135,6 +2135,13 @@ a.nk-types__item:hover {
   font-weight: 600;
   color: var(--nk-color-heading);
 }
+.nk-search-toolbar__lead {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2) var(--nk-space-3);
+}
 .nk-search-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
@@ -2171,7 +2178,29 @@ a.nk-types__item:hover {
   background: var(--nk-color-ink);
   color: var(--nk-color-surface);
 }
-/* "ดูบนแผนที่" opens the map view (S4.3). */
+/* "การ์ด | แผนที่" (S4.3, Mos 20 Nov 2026): the last item of the results toolbar in both views. */
+.nk-view-switch {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  overflow: hidden;
+}
+.nk-view-switch > button {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  border: 0;
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-view-switch > button[aria-pressed='true'] {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+  cursor: default;
+}
+/* Phones: "ดูบนแผนที่" at the bottom centre opens the map view (S4.3); wide screens use the switch. */
 .nk-search-map-btn {
   min-height: var(--nk-tap);
   padding: 0 var(--nk-space-4);
@@ -2258,7 +2287,13 @@ a.nk-types__item:hover {
 }
 
 @media (min-width: 961px) {
-  .nk-search-sheet-btn {
+  .nk-search-sheet-btn,
+  .nk-search-map-btn {
+    display: none;
+  }
+}
+@media (max-width: 960px) {
+  .nk-search-toolbar .nk-view-switch {
     display: none;
   }
 }
