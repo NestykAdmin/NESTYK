@@ -28,6 +28,15 @@ export function splitByRegion(areas: readonly PublicAreaSummary[]): { bangkok: P
   };
 }
 
+/** Areas of each group on the home page (canvas HomeZonesWeb, Mos 20 Nov 2026). */
+export const HOME_GROUP_LIMIT = 6;
+
+/** Home page: the first Bangkok areas and the first province zones, in the API order. */
+export function homeAreaGroups(areas: readonly PublicAreaSummary[]): { bangkok: PublicAreaSummary[]; province: PublicAreaSummary[] } {
+  const { bangkok, province } = splitByRegion(areas);
+  return { bangkok: bangkok.slice(0, HOME_GROUP_LIMIT), province: province.slice(0, HOME_GROUP_LIMIT) };
+}
+
 /** Same region as this area (its own region when it has no rooms and so is not in the list), up to four. */
 export function otherAreas(
   areas: readonly PublicAreaSummary[],

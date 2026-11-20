@@ -1,20 +1,17 @@
 import React from 'react';
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { fillTemplate, getTranslations, type SupportedLocale, type TranslationSchema } from '@nestyk/i18n';
+import { getTranslations, type SupportedLocale } from '@nestyk/i18n';
 import type { PublicAreaSummary } from '@nestyk/types';
-import { formatPublicPrice } from '@nestyk/feature-listing/public';
 import { AreaCard } from '../../../components/guest/AreaCard';
+import { ZoneCard } from '../../../components/guest/ZoneCard';
 import { EmptyState } from '../../../components/guest/GuestStates';
-import { PhotoIcon } from '../../../components/guest/GuestIcons';
 import { loadAreas } from '../../../../lib/guest-area-data';
-import { areaPagePath, splitByRegion } from '../../../../lib/guest-areas';
+import { splitByRegion } from '../../../../lib/guest-areas';
 import { guestPageMetadata } from '../../../../lib/guest-seo';
 import { localePath } from '../../../../lib/guest-site';
 import '../../guest-areas.css';
 
 type Props = { params: Promise<{ locale: string }> };
-type GuestCopy = TranslationSchema['guest'];
 
 /** Kept for 5 minutes like the home page (AREA_DATA_REVALIDATE_SECONDS in lib/guest-area-data.ts). */
 export const revalidate = 300;
@@ -23,39 +20,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   const copy = getTranslations(locale as SupportedLocale).guest.areaPage;
   return guestPageMetadata({ locale, path: '/areas', title: `${copy.listTitle} · NESTYK`, description: copy.listMeta });
-}
-
-/** Province zone: a small photo, the name, its places and the facts (canvas AreasListWeb, Mos 20 Nov 2026). */
-function ZoneCard({ area, copy, locale }: { area: PublicAreaSummary; copy: GuestCopy; locale: string }) {
-  const name = (copy.areaNames as Record<string, string>)[area.slug] ?? area.name;
-  const places = copy.areaInfo[area.slug as keyof typeof copy.areaInfo]?.places;
-  const price = formatPublicPrice(area.priceFrom);
-  return (
-    <article className="nk-zone" data-testid="zoneCard">
-      <div className="nk-zone__media">
-        {area.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={area.coverImageUrl} alt={fillTemplate(copy.area.photoAlt, { name })} loading="lazy" decoding="async" />
-        ) : (
-          <span className="nk-area__placeholder" aria-hidden="true">
-            <PhotoIcon size={22} />
-          </span>
-        )}
-      </div>
-      <div className="nk-zone__body">
-        <h3 className="nk-zone__name">
-          <Link href={localePath(locale, areaPagePath(area.slug))} className="nk-stretch">
-            {name}
-          </Link>
-        </h3>
-        {places ? <p className="nk-zone__places">{places}</p> : null}
-        <p className="nk-zone__facts">
-          <span>{fillTemplate(copy.area.roomsReady, { count: area.roomCount })}</span>
-          {price ? <span>{fillTemplate(copy.area.priceFrom, { price })}</span> : null}
-        </p>
-      </div>
-    </article>
-  );
 }
 
 /**

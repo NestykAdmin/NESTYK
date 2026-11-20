@@ -12,7 +12,8 @@ import { collectRoomIds } from './guest-room-seo';
 export const PUBLIC_DATA_REVALIDATE_SECONDS = 300;
 /** Search results change with every filter: kept for 30 seconds, like the API's own cache header (plan A3). */
 export const SEARCH_REVALIDATE_SECONDS = 30;
-export const HOME_AREA_LIMIT = 6;
+/** Every area (the API caps at its 20): the home page splits them into Bangkok areas and province zones. */
+export const HOME_AREA_LIMIT = 20;
 
 let warnedApiUrl = false;
 

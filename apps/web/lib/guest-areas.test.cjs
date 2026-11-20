@@ -48,3 +48,16 @@ test('area breadcrumb JSON-LD: home, popular areas, this area; none without a si
   ]);
   assert.equal(areas.areaJsonLd({ origin: '', locale: 'th', slug: 'x', name: 'x', homeName: 'h', listName: 'l' }), null);
 });
+
+// Mos 20 Nov 2026 (canvas HomeZonesWeb): the home page shows up to 6 Bangkok areas and up to 6 province zones.
+test('the home page takes up to 6 areas of each group, in the API order', () => {
+  const list = [
+    ...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((slug) => summary(slug)),
+    ...['p1', 'p2'].map((slug) => summary(slug, 'province')),
+  ];
+  const groups = areas.homeAreaGroups(list);
+  assert.deepEqual(groups.bangkok.map((area) => area.slug), ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.deepEqual(groups.province.map((area) => area.slug), ['p1', 'p2']);
+  assert.equal(areas.HOME_GROUP_LIMIT, 6);
+  assert.deepEqual(areas.homeAreaGroups([]), { bangkok: [], province: [] });
+});

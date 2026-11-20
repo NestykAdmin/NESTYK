@@ -5,6 +5,7 @@ import { getTranslations, type SupportedLocale } from '@nestyk/i18n';
 import type { PublicFeaturedRail } from '@nestyk/types';
 import logoOnBlack from '@nestyk/ui/assets/nestyk/svg/logo-nestyk-onBlack.svg';
 import { AreaCard } from '../../components/guest/AreaCard';
+import { ZoneCard } from '../../components/guest/ZoneCard';
 import { EmptyState, ErrorState } from '../../components/guest/GuestStates';
 import { CalendarIcon, ShieldCheckIcon, SignIcon, SparkIcon, TrainIcon } from '../../components/guest/GuestIcons';
 import { ListingTabs } from '../../components/guest/ListingTabs';
@@ -12,9 +13,11 @@ import { PropertyTypeTiles } from '../../components/guest/PropertyTypeTiles';
 import { RoomCard } from '../../components/guest/RoomCard';
 import { SearchPanel } from '../../components/guest/SearchPanel';
 import { bangkokToday, HOME_RAILS, searchHrefIfReady } from '../../../lib/guest-home';
+import { homeAreaGroups } from '../../../lib/guest-areas';
 import { loadHomeData } from '../../../lib/guest-rooms';
 import { guestPageMetadata } from '../../../lib/guest-seo';
 import { isGuestPageReady, localePath } from '../../../lib/guest-site';
+import '../guest-areas.css';
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -72,6 +75,8 @@ export default async function HomePage({ params }: Props) {
   const { locale } = await params;
   const copy = getTranslations(locale as SupportedLocale).guest;
   const { rails, areas } = await loadHomeData();
+  const { bangkok, province } = homeAreaGroups(areas ?? []);
+  const areasHref = localePath(locale, '/areas');
   const today = bangkokToday();
   const searchPath = searchHrefIfReady({}, isGuestPageReady('search'));
   const searchHref = searchPath ? localePath(locale, searchPath) : null;
@@ -175,20 +180,28 @@ export default async function HomePage({ params }: Props) {
             <h2 className="nk-section__title">{copy.home.typesTitle}</h2>
             <PropertyTypeTiles copy={copy} locale={locale} variant="tiles" />
           </div>
+          {/* Mos 20 Nov 2026 (canvas HomeZonesWeb): Bangkok areas with "ดูทุกทำเล", then the province zones. */}
           <div className="nk-areas" data-testid="guestHome.areas">
-            <div className="nk-section__head nk-section__head--stack">
-              <h2 className="nk-section__title">{copy.home.areasTitle}</h2>
-              <p className="nk-section__subtitle">{copy.home.areasSubtitle}</p>
+            <div className="nk-home-areas__head">
+              <div className="nk-section__head nk-section__head--stack">
+                <h2 className="nk-section__title">{copy.home.areasTitle}</h2>
+                <p className="nk-section__subtitle">{copy.areaPage.groupBangkok}</p>
+              </div>
+              {areas !== null && areas.length ? (
+                <Link href={areasHref} className="nk-link-more">
+                  {copy.areaPage.seeAllAreas}
+                </Link>
+              ) : null}
             </div>
             {areas === null ? (
               <ErrorState title={copy.states.errorTitle} body={copy.states.errorBody} retry={retry} />
-            ) : areas.length ? (
-              <div className="nk-area-grid">
-                {areas.map((area) => (
+            ) : bangkok.length ? (
+              <div className="nk-area-grid nk-home-areas__grid">
+                {bangkok.map((area) => (
                   <AreaCard key={area.slug} area={area} copy={copy} locale={locale} />
                 ))}
               </div>
-            ) : (
+            ) : province.length ? null : (
               <EmptyState title={copy.home.listingsEmpty} />
             )}
             <SearchLink href={searchHref} className="nk-link-more nk-areas__station" soon={soon}>
@@ -196,6 +209,24 @@ export default async function HomePage({ params }: Props) {
               {copy.home.searchByStation}
             </SearchLink>
           </div>
+          {province.length ? (
+            <div className="nk-areas" data-testid="guestHome.zones">
+              <div className="nk-home-areas__head">
+                <div className="nk-section__head nk-section__head--stack">
+                  <h2 className="nk-section__title nk-home-zones__title">{copy.areaPage.groupProvince}</h2>
+                  <p className="nk-section__subtitle">{copy.areaPage.provinceSubtitle}</p>
+                </div>
+                <Link href={areasHref} className="nk-link-more">
+                  {copy.areaPage.seeAllZones}
+                </Link>
+              </div>
+              <div className="nk-zone-grid nk-home-zones">
+                {province.map((area) => (
+                  <ZoneCard key={area.slug} area={area} copy={copy} locale={locale} />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 

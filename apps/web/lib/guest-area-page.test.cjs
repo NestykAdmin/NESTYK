@@ -60,3 +60,24 @@ test('the header menu opens /areas, and the area pages are turned on', () => {
   assert.match(site, /rent: true,/);
   assert.match(site, /\{ key: 'areas', href: '\/areas' \}/);
 });
+
+// Mos 20 Nov 2026 (canvas HomeZonesWeb): home "ทำเลยอดนิยม" is the Bangkok group with "ดูทุกทำเล"; the province zones
+// get their own row with "ดูทุกโซน", hidden when no zone has rooms. The home loads every area to split them.
+test('the home page splits Bangkok areas and province zones and links to /areas', () => {
+  const home = read('app/[locale]/(marketplace)/page.tsx');
+  assert.match(home, /homeAreaGroups\(/);
+  assert.match(home, /copy\.areaPage\.seeAllAreas/);
+  assert.match(home, /copy\.areaPage\.seeAllZones/);
+  assert.match(home, /province\.length \?/);
+  assert.match(home, /<ZoneCard/);
+  assert.match(read('app/[locale]/(marketplace)/areas/page.tsx'), /<ZoneCard/);
+  assert.match(read('lib/guest-rooms.ts'), /HOME_AREA_LIMIT = 20;/);
+});
+
+// SEO-1 (Mos 20 Nov 2026): /areas and the area pages that have rooms are in the sitemap in all 4 languages.
+test('the sitemap adds /areas and the area pages with rooms, every language, and survives an API failure', () => {
+  const sitemap = read('app/sitemap.ts');
+  assert.match(sitemap, /areaSitemapPaths\(/);
+  assert.match(sitemap, /sitemapEntries\(origin, indexable, areaPaths\)/);
+  assert.match(sitemap, /\[sitemap\] public areas failed/);
+});

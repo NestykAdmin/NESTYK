@@ -294,6 +294,24 @@
   gap: 0 var(--nk-space-2);
 }
 
+/* Home page groups (canvas HomeZonesWeb): title on the left, "see all" on the right */
+.nk-home-areas__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--nk-space-2) var(--nk-space-4);
+}
+/* Six areas: three across, two rows (canvas HomeZonesWeb). guest.css stacks them below 960px. */
+@media (min-width: 961px) {
+  .nk-area-grid.nk-home-areas__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.nk-section__title.nk-home-zones__title {
+  font-size: var(--nk-text-2xl);
+}
+
 @media (max-width: 960px) {
   .nk-ap-hero__inner {
     padding: var(--nk-space-4) var(--nk-space-4) var(--nk-space-8);
@@ -336,6 +354,29 @@
   }
   .nk-ap-others > .nk-area {
     flex: 0 0 240px;
+    flex-direction: column;
+  }
+  .nk-ap-others .nk-area__media {
+    width: auto;
+    aspect-ratio: 16 / 10;
+  }
+  /* Home province zones scroll sideways (Mos 20 Nov 2026), so the home page stays short. */
+  .nk-home-zones {
+    display: flex;
+    overflow-x: auto;
+    gap: var(--nk-space-3);
+    margin: 0 calc(-1 * var(--nk-space-4));
+    padding: 0 var(--nk-space-4) var(--nk-space-1);
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .nk-home-zones::-webkit-scrollbar {
+    display: none;
+  }
+  .nk-home-zones > .nk-zone {
+    flex: 0 0 76%;
+    max-width: 300px;
+    scroll-snap-align: start;
   }
   .nk-al-grid {
     grid-template-columns: repeat(auto-fill, minmax(264px, 1fr));
