@@ -579,6 +579,18 @@ a.nk-nav__item:hover {
   flex-direction: column;
   gap: var(--nk-space-4);
 }
+/* Saved rooms (Mos 20 Nov 2026): as wide as the header's inner box (border-box, same side padding on desktop), so
+   the title and cards line up with the logo. */
+.nk-page--wide {
+  max-width: var(--nk-content-width);
+}
+/* The sign-in and empty cards stay the readable 640px, centred. */
+.nk-page--wide > .nk-card {
+  width: 100%;
+  max-width: 640px;
+  box-sizing: border-box;
+  align-self: center;
+}
 .nk-card {
   background: var(--nk-color-surface);
   border: 1px solid var(--nk-color-border);
@@ -779,6 +791,15 @@ summary.nk-row:hover {
   }
   .nk-page {
     padding-bottom: var(--nk-space-16);
+  }
+  .nk-page-head--wide {
+    max-width: var(--nk-content-width);
+    padding-left: var(--nk-space-6);
+    padding-right: var(--nk-space-6);
+  }
+  .nk-page--wide {
+    padding-left: var(--nk-space-6);
+    padding-right: var(--nk-space-6);
   }
   .nk-page__mobile-only {
     display: none;

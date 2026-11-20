@@ -70,3 +70,17 @@ test('header controls share a light border and turn ink only when chosen', () =>
   assert.match(css, /\.nk-header\[data-tone='dark'\] \.nk-account__chip \{[^}]*border-color: var\(--nk-color-dark-line\)/);
   assert.match(css, /\.nk-header\[data-tone='dark'\] :is\(\.nk-icon-btn, \.nk-lang__button, \.nk-account__chip\):hover,[^{]*\{[^}]*border-color: var\(--nk-color-surface\)/);
 });
+
+// Mos 20 Nov 2026 09:57: the saved page used the 640px profile column (2 cards, empty sides). It now uses the header's
+// width so the title and cards line up with the logo; the sign-in and empty cards stay 640px and centred.
+test('the saved page is as wide as the header; its single cards stay a readable width', () => {
+  const page = read('app/[locale]/(marketplace)/saved/page.tsx');
+  assert.match(page, /className="nk-page-head nk-page-head--wide"/);
+  assert.match(page, /className="nk-page nk-page--wide"/);
+  const css = read('app/[locale]/guest.css');
+  assert.match(css, /\.nk-page--wide \{[^}]*max-width: var\(--nk-content-width\);/);
+  assert.match(css, /\.nk-page--wide > \.nk-card \{[^}]*max-width: 640px/);
+  assert.match(css, /\.nk-page-head--wide \{[^}]*max-width: var\(--nk-content-width\);/);
+  // The profile page keeps its 640px column.
+  assert.doesNotMatch(read('app/[locale]/(marketplace)/profile/page.tsx'), /nk-page--wide/);
+});
