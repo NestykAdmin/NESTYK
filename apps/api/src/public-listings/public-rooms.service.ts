@@ -297,6 +297,7 @@ export class PublicRoomsService {
         return {
           slug: area.slug,
           name: area.nameTh,
+          region: area.region,
           transitLines: [...area.transitLines],
           roomCount: group.count,
           priceFrom: group.priceFrom,

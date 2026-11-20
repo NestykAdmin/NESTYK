@@ -272,3 +272,39 @@ test('station name ignores letter case, like the API', async () => {
   const source = make([room({ id: 'a', nearestStation: { type: 'BTS', name: 'Asok', distanceMeters: 200 } })]);
   assert.deepEqual(ids(await source.search(query({ stationName: 'asok' }))), ['a']);
 });
+
+// SEO-1 area pages (Mos 20 Nov 2026): the API source sends the area slug as `area`.
+test('the API source sends area=<slug> to the search, and nothing when there is no area', () => {
+  const { publicSearchParams } = require('../src/public-rooms-source.ts');
+  assert.equal(publicSearchParams({ mode: 'rent', quick: [], sortBy: 'recommended', page: 1, limit: 8, area: 'sukhumvit-asok' }).get('area'), 'sukhumvit-asok');
+  assert.equal(publicSearchParams({ mode: 'rent', quick: [], sortBy: 'recommended', page: 1, limit: 8 }).has('area'), false);
+});
+
+// Mos 20 Nov 2026: areas carry their region; the sample data uses the API's new slugs.
+test('sample areas: region on every summary (bangkok unless the meta says province), API slugs', async () => {
+  const { SAMPLE_AREA_META } = require('../src/public-rooms-source.ts');
+  for (const slug of Object.keys(SAMPLE_AREA_META)) {
+    assert.ok(['sukhumvit', 'ari-phayathai', 'ladprao-chatuchak', 'bangna-udomsuk'].includes(slug), slug);
+  }
+  const source = make([room({ district: 'ศรีราชา', priceFrom: 6000 }), room({ district: 'อโศก', priceFrom: 9000 })], {
+    areaMeta: {
+      sukhumvit: { name: 'สุขุมวิท', districts: ['อโศก'], transitLines: [] },
+      chonburi: { name: 'ชลบุรี', region: 'province', districts: ['ศรีราชา'], transitLines: [] },
+    },
+  });
+  const regions = Object.fromEntries((await source.areas()).map((a) => [a.slug, a.region]));
+  assert.deepEqual(regions, { sukhumvit: 'bangkok', chonburi: 'province' });
+});
+
+// Review R1 (20 Nov 2026): the in-memory source follows the API rule for area too (dev and sample mode).
+test('in-memory search: area keeps the rooms whose district belongs to that area', async () => {
+  const meta = {
+    sukhumvit: { name: 'สุขุมวิท', districts: ['อโศก', 'ทองหล่อ'], transitLines: [] },
+    'ari-phayathai': { name: 'อารีย์ – พญาไท', districts: ['อารีย์'], transitLines: [] },
+  };
+  const source = make([room({ id: 'a', district: 'อโศก' }), room({ id: 'b', district: 'อารีย์' }), room({ id: 'c', district: 'ทองหล่อ' })], { areaMeta: meta });
+  const base = { mode: 'rent', quick: [], sortBy: 'newest', page: 1, limit: 12 };
+  assert.deepEqual((await source.search({ ...base, area: 'sukhumvit' })).items.map((r) => r.id).sort(), ['a', 'c']);
+  assert.equal((await source.search({ ...base, area: 'unknown' })).total, 0, 'an unknown area has no rooms');
+  assert.equal((await source.search(base)).total, 3);
+});

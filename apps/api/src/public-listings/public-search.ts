@@ -8,6 +8,7 @@ import type {
   PublicRoomStationType,
 } from '@nestyk/types';
 import { nearestRailStation, publicPosition } from './public-room-mapper';
+import { areaOfDistrict, PUBLIC_AREAS } from './public-areas';
 
 /**
  * Guest search (S6): reading the query and the rules that pick and order rooms.
@@ -87,6 +88,10 @@ export function parsePublicSearch(raw: RawSearchQuery = {}): PublicRoomSearchQue
 
   const keyword = first(raw, 'q')?.trim().slice(0, SEARCH_KEYWORD_MAX).trim();
   if (keyword) query.keyword = keyword;
+
+  // SEO-1 area pages (Mos 20 Nov 2026): only a slug from the areas table; anything else is dropped.
+  const area = first(raw, 'area')?.trim();
+  if (area && PUBLIC_AREAS.some((item) => item.slug === area)) query.area = area;
 
   const types = list(first(raw, 'type'));
   const propertyType = PROPERTY_TYPES.filter((type) => types.includes(type));
@@ -170,6 +175,8 @@ export interface SearchCandidate {
   petFriendly: boolean;
   shortTerm: boolean;
   hasCover: boolean;
+  /** Area of the building's district (the table GET /public/areas counts with), or null. */
+  areaSlug: string | null;
   /** Lower-case text a keyword is matched against. */
   text: string[];
 }
@@ -204,6 +211,7 @@ export function toSearchCandidate(row: SearchCandidateRow): SearchCandidate {
     petFriendly: row.pet_friendly === true,
     shortTerm: row.short_term === true,
     hasCover: row.has_cover === true,
+    areaSlug: areaOfDistrict(row.district)?.slug ?? null,
     text: [row.project_name, row.district, row.subdistrict, row.promo_title, station?.name]
       .filter((item): item is string => typeof item === 'string' && item.trim() !== '')
       .map((item) => item.toLowerCase()),
@@ -250,6 +258,7 @@ function matchesBedrooms(bedrooms: number | null, wanted: number[]): boolean {
 function matches(room: SearchCandidate, query: PublicRoomSearchQuery, today: string): boolean {
   if (query.propertyType?.length && !query.propertyType.includes(room.propertyType as PropertyType)) return false;
   if (query.durationMonths && !room.durations.includes(query.durationMonths)) return false;
+  if (query.area && room.areaSlug !== query.area) return false;
   if (query.keyword) {
     const needle = query.keyword.toLowerCase();
     if (!room.text.some((text) => text.includes(needle))) return false;

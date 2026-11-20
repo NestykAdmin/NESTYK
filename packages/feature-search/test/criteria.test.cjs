@@ -104,3 +104,13 @@ test('move-in accepts now, 30 days or 90 days', () => {
   for (const value of ['now', '30d', '90d']) assert.equal(parse(`movein=${value}`).moveIn, value);
   assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), moveIn: 'now' }).toString(), 'movein=now');
 });
+
+// SEO-1 area pages (Mos 20 Nov 2026): /search?area=<slug> from "see all rooms" on an area page.
+test('area survives the URL; a value that is not a slug is dropped', () => {
+  assert.equal(parse('area=sukhumvit-asok').area, 'sukhumvit-asok');
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), area: 'silom-sathorn' }).toString(), 'area=silom-sathorn');
+  for (const bad of ['Asok', 'a b', '-x', 'x-', '../etc', 'a'.repeat(41)]) {
+    assert.equal(parse(`area=${encodeURIComponent(bad)}`).area, undefined, bad);
+  }
+  assert.equal('area' in parse(''), false);
+});

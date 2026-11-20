@@ -19,7 +19,7 @@ const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 618) / 219);
 
 const PROPERTY_TYPES = ['condo', 'apartment', 'house', 'townhome'] as const;
 /** Footer areas, by the same English slugs as the API (apps/api/src/public-listings/public-areas.ts). */
-const AREAS = ['sukhumvit-asok', 'onnut-udomsuk', 'silom-sathorn', 'nonthaburi-chaengwattana'] as const;
+const AREAS = ['sukhumvit', 'ratchada-rama9', 'silom-sathorn', 'ladprao-chatuchak'] as const;
 
 type Item = { key: string; label: string; href?: string; external?: boolean; soon?: boolean };
 

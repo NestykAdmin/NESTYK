@@ -92,12 +92,12 @@ export function UiKitLanguageCheck() {
         />
         <div className="nk-area-grid">
           <AreaCard
-            area={{ slug: 'sukhumvit-asok', name: 'สุขุมวิท อโศก', transitLines: ['bts_sukhumvit', 'mrt_blue'], roomCount: 12, priceFrom: 9000, coverImageUrl: null }}
+            area={{ slug: 'sukhumvit', name: 'สุขุมวิท', region: 'bangkok', transitLines: ['bts_sukhumvit', 'mrt_blue'], roomCount: 12, priceFrom: 9000, coverImageUrl: null }}
             copy={copy}
             locale={locale}
           />
           <AreaCard
-            area={{ slug: 'unknown-area', name: 'ชื่อสำรองจาก API', transitLines: [], roomCount: 1, priceFrom: null, coverImageUrl: null }}
+            area={{ slug: 'unknown-area', name: 'ชื่อสำรองจาก API', region: 'bangkok', transitLines: [], roomCount: 1, priceFrom: null, coverImageUrl: null }}
             copy={copy}
             locale={locale}
           />

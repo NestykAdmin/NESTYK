@@ -119,3 +119,25 @@ test('features that need an account explain it in a prompt, not by sending the g
   assert.doesNotMatch(copies.th.saved.emptyBody, /กด/);
   assert.doesNotMatch(copies.en.saved.emptyBody, /\btap\b/i);
 });
+
+// Mos 20 Nov 2026: area pages show Mos's notes for each area (places, what it is known for, who rents there), in
+// every language, plus the page copy.
+test('area pages: every API area has places, a highlight and a tenants text in every language', () => {
+  const api = require('node:fs').readFileSync(path.join(__dirname, '../../../apps/api/src/public-listings/public-areas.ts'), 'utf8');
+  const slugs = [...api.matchAll(/slug: '([a-z0-9-]+)'/g)].map((m) => m[1]);
+  assert.equal(slugs.length, 20);
+  for (const [code, copy] of Object.entries(copies)) {
+    for (const slug of slugs) {
+      for (const key of ['places', 'highlight', 'tenants']) {
+        assert.ok(copy.areaInfo?.[slug]?.[key]?.trim(), `${code} areaInfo.${slug}.${key}`);
+      }
+    }
+    for (const key of ['title', 'linesLabel', 'statRooms', 'statPrice', 'searchCta', 'fitTitle', 'roomsTitle', 'seeAllRooms', 'otherAreas', 'seeAllAreas', 'emptyTitle', 'emptyBody', 'metaDescription', 'listTitle', 'listMeta', 'listSubtitle', 'groupBangkok', 'groupProvince', 'provinceSubtitle', 'seeAllZones', 'filterChip']) {
+      assert.ok(copy.areaPage?.[key]?.trim(), `${code} areaPage.${key}`);
+    }
+    assert.match(copy.areaPage.title, /\{name\}/, `${code} areaPage.title`);
+    assert.match(copy.areaPage.seeAllRooms, /\{count\}/, `${code} areaPage.seeAllRooms`);
+    assert.match(copy.areaPage.filterChip, /\{name\}/, `${code} areaPage.filterChip`);
+    assert.match(copy.areaPage.metaDescription, /\{name\}/, `${code} areaPage.metaDescription`);
+  }
+});

@@ -173,9 +173,9 @@ test('the nearest station is the closest BTS or MRT, never a bus stop or another
 test('popular areas have English slugs and match the district names stored for buildings', () => {
   for (const area of PUBLIC_AREAS) assert.match(area.slug, /^[a-z0-9-]+$/, area.slug);
   assert.equal(new Set(PUBLIC_AREAS.map((area) => area.slug)).size, PUBLIC_AREAS.length);
-  assert.equal(areaOfDistrict('วัฒนา')?.slug, 'sukhumvit-asok');
-  assert.equal(areaOfDistrict(' เขตวัฒนา ')?.slug, 'sukhumvit-asok');
-  assert.equal(areaOfDistrict('Watthana')?.slug, 'sukhumvit-asok');
+  assert.equal(areaOfDistrict('วัฒนา')?.slug, 'sukhumvit');
+  assert.equal(areaOfDistrict(' เขตวัฒนา ')?.slug, 'sukhumvit');
+  assert.equal(areaOfDistrict('Watthana')?.slug, 'sukhumvit');
   assert.equal(areaOfDistrict('ที่ไม่มีในรายการ'), null);
   assert.equal(areaOfDistrict(null), null);
 });
@@ -271,7 +271,7 @@ test('areas count rooms and the lowest price per popular area from one summary q
   ];
   const { calls, finds, repo } = fakeRepo([], { raw });
   const areas = await new PublicRoomsService(repo, () => NOW).areas(6);
-  assert.deepEqual(areas.map((area) => area.slug), ['sukhumvit-asok', 'silom-sathorn']);
+  assert.deepEqual(areas.map((area) => area.slug), ['sukhumvit', 'silom-sathorn']);
   assert.equal(areas[0].roomCount, 2);
   assert.equal(areas[0].priceFrom, 12000);
   assert.equal(areas[0].coverImageUrl, 'https://cdn/x/cover.jpg');
@@ -596,4 +596,85 @@ test('search route: no sign-in, a short cache, declared before :id so "search" i
   assert.ok(headers.some((h) => h.name === 'Cache-Control' && h.value === SEARCH_CACHE_CONTROL));
   const order = Object.getOwnPropertyNames(proto);
   assert.ok(order.indexOf('search') < order.indexOf('detail'));
+});
+
+// SEO-1 area pages (Mos 20 Nov 2026, freeze exception: read only, no DB change). GET /public/rooms/search?area=<slug>
+// keeps the rooms whose building district belongs to that area: the same table GET /public/areas counts with.
+test('search params: area keeps only a known area slug; anything else is dropped like other junk', () => {
+  assert.equal(q({ area: 'sukhumvit' }).area, 'sukhumvit');
+  assert.equal(q({ area: '  silom-sathorn  ' }).area, 'silom-sathorn');
+  for (const bad of ['', 'asok', 'Sukhumvit-Asok', '../x', 'sukhumvit-asok,silom-sathorn']) {
+    assert.equal(q({ area: bad }).area, undefined, bad);
+  }
+  assert.equal('area' in q(), false, 'no area: the query is exactly as before');
+});
+
+test('search filter: area matches the building district through the areas table (Thai or English, with "เขต")', () => {
+  const rows = [
+    candidateRow({ id: 1, district: 'วัฒนา' }),
+    candidateRow({ id: 2, district: 'เขตคลองเตย' }),
+    candidateRow({ id: 3, district: 'Khlong Toei District' }),
+    candidateRow({ id: 4, district: 'บางรัก' }),
+    candidateRow({ id: 5, district: null }),
+    candidateRow({ id: 6, district: 'ดอนเมือง' }),
+  ];
+  assert.deepEqual(ids(rows, { area: 'sukhumvit', sort: 'newest' }).sort(), [1, 2, 3]);
+  assert.deepEqual(ids(rows, { area: 'silom-sathorn' }), [4]);
+  assert.equal(ids(rows, {}).length, 6, 'without area every room is still a candidate');
+  // The count on an area card and the search total use the same rule.
+  for (const row of rows) {
+    const inAsok = ids([row], { area: 'sukhumvit' }).length === 1;
+    assert.equal(inAsok, areaOfDistrict(row.district)?.slug === 'sukhumvit', String(row.district));
+  }
+});
+
+test('search filter: area combines with the other filters', () => {
+  const rows = [
+    candidateRow({ id: 1, district: 'วัฒนา', bedroom_layout: '0', bedroom_count: 0 }),
+    candidateRow({ id: 2, district: 'วัฒนา', bedroom_layout: '1', bedroom_count: 1 }),
+    candidateRow({ id: 3, district: 'บางรัก', bedroom_layout: '0', bedroom_count: 0 }),
+  ];
+  assert.deepEqual(ids(rows, { area: 'sukhumvit', beds: '0' }), [1]);
+});
+
+// Mos 20 Nov 2026: the areas table follows Mos's list of areas people look for: 10 in Bangkok and nearby, 10 provinces
+// (shown as "โซนต่างจังหวัด"). Each district belongs to one area only, or the counts would double.
+test('areas table: 10 Bangkok areas and 10 province zones, each district in one area only', () => {
+  const regions = PUBLIC_AREAS.map((area) => area.region);
+  assert.equal(regions.filter((r) => r === 'bangkok').length, 10);
+  assert.equal(regions.filter((r) => r === 'province').length, 10);
+  assert.ok(regions.every((r) => r === 'bangkok' || r === 'province'));
+  const seen = new Map();
+  for (const area of PUBLIC_AREAS) {
+    for (const district of area.districts) {
+      const key = district.trim().toLowerCase();
+      assert.equal(seen.get(key), undefined, `${district} is in ${seen.get(key)} and ${area.slug}`);
+      seen.set(key, area.slug);
+    }
+  }
+  assert.equal(areaOfDistrict('ห้วยขวาง')?.slug, 'ratchada-rama9');
+  assert.equal(areaOfDistrict('อำเภอศรีราชา')?.slug, 'chonburi');
+  assert.equal(areaOfDistrict('Hat Yai')?.slug, 'hatyai');
+  assert.equal(areaOfDistrict('บางนา')?.slug, 'bangna-udomsuk');
+});
+
+test('areas: each summary says its region, so the web can show province zones apart', async () => {
+  const raw = [
+    { id: 1, district: 'วัฒนา', price_from: '15000.00', cover: null },
+    { id: 2, district: 'ศรีราชา', price_from: '6000.00', cover: null },
+  ];
+  const { repo } = fakeRepo([], { raw });
+  const areas = await new PublicRoomsService(repo, () => NOW).areas(20);
+  assert.deepEqual(areas.map((area) => [area.slug, area.region]), [['sukhumvit', 'bangkok'], ['chonburi', 'province']]);
+});
+
+// Review R4/R5 (20 Nov 2026): every listed district, read the way buildings are matched, lands in its own area;
+// common English spellings land too; and an area only shows train lines that run today (the Orange Line is not open).
+test('areas table: every district matches its own area through areaOfDistrict, other spellings included', () => {
+  for (const area of PUBLIC_AREAS) {
+    for (const district of area.districts) assert.equal(areaOfDistrict(district)?.slug, area.slug, district);
+    assert.ok(!area.transitLines.includes('mrt_orange'), `${area.slug}: the Orange Line is not running yet`);
+  }
+  const spellings = { Pathumwan: 'silom-sathorn', Phayathai: 'ari-phayathai', Ladprao: 'ladprao-chatuchak', Bangkapi: 'ramkhamhaeng-bangkapi', 'Huay Kwang': 'ratchada-rama9', 'Mueang Chonburi': 'chonburi', 'Khlong Tan Nuea': undefined };
+  for (const [name, slug] of Object.entries(spellings)) assert.equal(areaOfDistrict(name)?.slug, slug, name);
 });

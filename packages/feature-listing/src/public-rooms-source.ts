@@ -1,4 +1,5 @@
 import type {
+  PublicAreaRegion,
   PublicAreaSummary,
   PublicFeaturedRail,
   PublicRoomCard,
@@ -45,15 +46,15 @@ const EARTH_RADIUS_KM = 6371;
 /** Popular areas keyed by English slug (the same slugs as the API, apps/api/src/public-listings/public-areas.ts). */
 export type PublicAreaMeta = Record<
   string,
-  { name: string; districts: readonly string[]; transitLines: readonly PublicTransitLineCode[] }
+  { name: string; region?: PublicAreaRegion; districts: readonly string[]; transitLines: readonly PublicTransitLineCode[] }
 >;
 
 /** Popular areas of the sample data. `districts` are the district names used in SAMPLE_PUBLIC_ROOMS. */
 export const SAMPLE_AREA_META: PublicAreaMeta = {
-  'sukhumvit-asok': { name: 'สุขุมวิท อโศก', districts: ['อโศก', 'ทองหล่อ'], transitLines: ['bts_sukhumvit', 'mrt_blue'] },
-  'ari-phayathai': { name: 'อารีย์ พญาไท', districts: ['อารีย์'], transitLines: ['bts_sukhumvit'] },
-  'ladprao-chatuchak': { name: 'ลาดพร้าว จตุจักร', districts: ['ลาดพร้าว'], transitLines: ['mrt_blue'] },
-  'onnut-udomsuk': { name: 'อ่อนนุช อุดมสุข', districts: ['อ่อนนุช', 'บางนา'], transitLines: ['bts_sukhumvit'] },
+  sukhumvit: { name: 'สุขุมวิท', districts: ['อโศก', 'ทองหล่อ', 'อ่อนนุช'], transitLines: ['bts_sukhumvit', 'mrt_blue'] },
+  'ari-phayathai': { name: 'อารีย์ – พญาไท', districts: ['อารีย์'], transitLines: ['bts_sukhumvit', 'arl'] },
+  'ladprao-chatuchak': { name: 'ลาดพร้าว – จตุจักร', districts: ['ลาดพร้าว'], transitLines: ['bts_sukhumvit', 'mrt_blue'] },
+  'bangna-udomsuk': { name: 'บางนา – อุดมสุข', districts: ['บางนา'], transitLines: ['bts_sukhumvit', 'mrt_yellow'] },
 };
 
 /** Picks one home-page list from rooms in their given order (newest first). Same rules as the API. */
@@ -137,8 +138,11 @@ export function createInMemoryPublicRoomsSource(
 
       const todayValue = today();
       const hasPriceBound = query.minPrice != null || query.maxPrice != null;
+      const areaDistricts = query.area ? areaMeta[query.area]?.districts ?? [] : null;
       let matches = rooms.filter((room) => {
         if (query.keyword && !matchesKeyword(room, query.keyword)) return false;
+        // Same rule as the API: the room's district belongs to the area (review R1, 20 Nov 2026).
+        if (areaDistricts && (!room.district || !areaDistricts.includes(room.district))) return false;
         if (query.propertyType?.length && (room.propertyType == null || !query.propertyType.includes(room.propertyType))) return false;
         if (hasPriceBound) {
           if (room.priceFrom == null) return false;
@@ -207,6 +211,7 @@ export function createInMemoryPublicRoomsSource(
         return {
           slug,
           name: areaMeta[slug].name,
+          region: areaMeta[slug].region ?? 'bangkok',
           transitLines: [...areaMeta[slug].transitLines],
           roomCount: list.length,
           priceFrom: prices.length ? Math.min(...prices) : null,
@@ -234,6 +239,7 @@ export function publicSearchParams(query: PublicRoomSearchQuery): URLSearchParam
   };
   set('mode', query.mode);
   set('q', query.keyword?.trim());
+  set('area', query.area);
   if (query.propertyType?.length) set('type', query.propertyType.join(','));
   set('min', query.minPrice);
   set('max', query.maxPrice);

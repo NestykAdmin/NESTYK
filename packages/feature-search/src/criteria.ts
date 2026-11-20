@@ -21,6 +21,8 @@ export interface GuestSearchCriteria extends SearchFilterParams {
   page: number;
   limit: number;
   sortBy: NonNullable<SearchFilterParams['sortBy']>;
+  /** Area slug from an area page (/rent/<slug>, SEO-1). The API keeps only slugs it knows. */
+  area?: string;
 }
 
 export const GUEST_PAGE_SIZE_DEFAULT = 12;
@@ -37,6 +39,9 @@ const DURATIONS = [1, 3, 6, 12] as const;
 const SORTS = ['recommended', 'price_asc', 'price_desc', 'newest', 'distance'] as const;
 const MOVE_INS = ['now', '30d', '90d'] as const;
 const MAX_BEDROOMS = 10;
+/** Lower-case words joined by single hyphens, as the area slugs are (sukhumvit-asok). */
+const AREA_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const AREA_SLUG_MAX_LENGTH = 40;
 
 export type GuestSearchParamsInput =
   | URLSearchParams
@@ -94,6 +99,9 @@ export function criteriaFromSearchParams(input: GuestSearchParamsInput): GuestSe
   const keyword = get('q')?.trim().slice(0, GUEST_KEYWORD_MAX_LENGTH).trim();
   if (keyword) criteria.keyword = keyword;
 
+  const area = get('area')?.trim();
+  if (area && area.length <= AREA_SLUG_MAX_LENGTH && AREA_SLUG.test(area)) criteria.area = area;
+
   const types = toList(get('type')).filter((t): t is PropertyType => PROPERTY_TYPES.includes(t as PropertyType));
   if (types.length) criteria.propertyType = PROPERTY_TYPES.filter((t) => types.includes(t));
 
@@ -142,6 +150,7 @@ export function criteriaToSearchParams(criteria: Partial<GuestSearchCriteria>): 
   if (criteria.mode && criteria.mode !== defaults.mode) set('mode', criteria.mode);
   if (criteria.view && criteria.view !== defaults.view) set('view', criteria.view);
   set('q', criteria.keyword?.trim());
+  set('area', criteria.area);
   if (criteria.propertyType?.length) set('type', criteria.propertyType.join(','));
   set('min', criteria.minPrice);
   set('max', criteria.maxPrice);

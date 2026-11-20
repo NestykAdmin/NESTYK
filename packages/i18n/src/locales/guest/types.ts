@@ -374,12 +374,73 @@ export interface GuestCopy {
     metaDescription: string;
   };
   areaNames: {
-    'sukhumvit-asok': string;
-    'silom-sathorn': string;
-    'onnut-udomsuk': string;
-    'ari-phayathai': string;
+    'ratchada-rama9': string;
+    sukhumvit: string;
     'ladprao-chatuchak': string;
+    'bangna-udomsuk': string;
+    'rangsit-khlongluang': string;
+    'ari-phayathai': string;
     'nonthaburi-chaengwattana': string;
+    'bangkhae-thapra': string;
+    'silom-sathorn': string;
+    'ramkhamhaeng-bangkapi': string;
+    chonburi: string;
+    chiangmai: string;
+    phuket: string;
+    rayong: string;
+    khonkaen: string;
+    korat: string;
+    ayutthaya: string;
+    hatyai: string;
+    huahin: string;
+    udonthani: string;
+  };
+  /** Mos's notes per area (20 Nov 2026): neighbourhoods, what it is known for, who rents there. */
+  areaInfo: {
+    'ratchada-rama9': AreaInfoCopy;
+    sukhumvit: AreaInfoCopy;
+    'ladprao-chatuchak': AreaInfoCopy;
+    'bangna-udomsuk': AreaInfoCopy;
+    'rangsit-khlongluang': AreaInfoCopy;
+    'ari-phayathai': AreaInfoCopy;
+    'nonthaburi-chaengwattana': AreaInfoCopy;
+    'bangkhae-thapra': AreaInfoCopy;
+    'silom-sathorn': AreaInfoCopy;
+    'ramkhamhaeng-bangkapi': AreaInfoCopy;
+    chonburi: AreaInfoCopy;
+    chiangmai: AreaInfoCopy;
+    phuket: AreaInfoCopy;
+    rayong: AreaInfoCopy;
+    khonkaen: AreaInfoCopy;
+    korat: AreaInfoCopy;
+    ayutthaya: AreaInfoCopy;
+    hatyai: AreaInfoCopy;
+    huahin: AreaInfoCopy;
+    udonthani: AreaInfoCopy;
+  };
+  /** Area pages /rent/<slug> and the area list /areas (SEO-1). */
+  areaPage: {
+    title: string;
+    linesLabel: string;
+    statRooms: string;
+    statPrice: string;
+    searchCta: string;
+    fitTitle: string;
+    roomsTitle: string;
+    seeAllRooms: string;
+    otherAreas: string;
+    seeAllAreas: string;
+    emptyTitle: string;
+    emptyBody: string;
+    metaDescription: string;
+    listTitle: string;
+    listSubtitle: string;
+    listMeta: string;
+    groupBangkok: string;
+    groupProvince: string;
+    provinceSubtitle: string;
+    seeAllZones: string;
+    filterChip: string;
   };
   transitLines: {
     bts_sukhumvit: string;
@@ -387,6 +448,14 @@ export interface GuestCopy {
     mrt_blue: string;
     mrt_purple: string;
     mrt_pink: string;
+    mrt_yellow: string;
+    mrt_orange: string;
     arl: string;
   };
+}
+
+export interface AreaInfoCopy {
+  places: string;
+  highlight: string;
+  tenants: string;
 }
