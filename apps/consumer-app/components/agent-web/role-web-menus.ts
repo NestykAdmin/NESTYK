@@ -54,7 +54,14 @@ export function adminWebNavSections(copy: RoleWebMenuCopy, overviewActive: boole
   ];
 }
 
-export function selfOwnerWebNavSections(copy: RoleWebMenuCopy, overviewActive: boolean, onOverview: () => void): WorkspaceNavSection[] {
+/** Self owner tabs that have a page (19 Nov 2026: overview and rooms and listings; the rest is still "coming soon"). */
+export type SelfOwnerWebTab = "dashboard" | "listingRoom";
+
+export function selfOwnerWebNavSections(
+  copy: RoleWebMenuCopy,
+  activeTab: string,
+  onSelect: (tab: SelfOwnerWebTab) => void,
+): WorkspaceNavSection[] {
   const s = copy.comingSoon;
   const o = copy.selfOwner;
   return [
@@ -62,8 +69,8 @@ export function selfOwnerWebNavSections(copy: RoleWebMenuCopy, overviewActive: b
       id: "main",
       caption: o.main,
       items: [
-        overview(copy, overviewActive, onOverview),
-        soon("listings", "buildings", o.listings, s),
+        overview(copy, activeTab === "dashboard", () => onSelect("dashboard")),
+        { id: "listings", icon: "buildings", label: o.listings, active: activeTab === "listingRoom", onPress: () => onSelect("listingRoom") },
         soon("interested", "clipboard", o.interested, s),
         soon("viewings", "calendar", o.viewings, s),
       ],

@@ -6,18 +6,20 @@ const path = require('node:path');
 const ts = require('typescript');
 
 const file = path.join(__dirname, '../lib/self-owner-dashboard.ts');
-function load() {
+function loadFile(target) {
   const module = { exports: {} };
   const localRequire = (name) => {
     if (name === 'react') return { useMemo: (fn) => fn() };
+    if (name.startsWith('.')) return loadFile(`${path.resolve(path.dirname(target), name)}.ts`);
     return require(name);
   };
-  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+  const source = ts.transpileModule(fs.readFileSync(target, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
   new Function('require', 'module', 'exports', source)(localRequire, module, module.exports);
   return module.exports;
 }
+const load = () => loadFile(file);
 const now = new Date('2026-11-19T04:00:00Z');
 const bangkokDay = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date(iso));
 

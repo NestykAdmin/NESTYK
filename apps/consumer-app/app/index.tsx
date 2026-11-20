@@ -40,10 +40,13 @@ import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import { AgentOverview } from '../components/agent-web/AgentOverview';
 import { SelfOwnerOverview } from '../components/self-owner/SelfOwnerOverview';
 import { MobileSelfOwnerDashboardBody } from '../components/self-owner/MobileSelfOwnerDashboardBody';
+import { SelfOwnerRoomsPage } from '../components/self-owner/SelfOwnerRoomsPage';
+import { MobileSelfOwnerRoomsScreen } from '../components/self-owner/MobileSelfOwnerRoomsScreen';
 import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
+import { useSelfOwnerRooms } from '../lib/self-owner-rooms';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
 import { AgentLeadDetailBody } from '../components/AgentLeadDetailBody';
@@ -1058,6 +1061,7 @@ export function AppHomeScreen() {
     greetingName: dashboardGreetingName,
     locale,
   });
+  const selfOwnerRooms = useSelfOwnerRooms();
 
   const calendarViewings = useAgentCalendarViewings({
     enabled: activeRole === 'agent' && activeTab === 'calendar' && isAuthenticated,
@@ -1172,11 +1176,28 @@ export function AppHomeScreen() {
       );
     }
     if (activeRole === 'self_owner') {
+      // First load: the brand loader, like the agent dashboard (sections then load on their own).
+      if (selfOwnerDashboardSnapshot.rooms.status === 'loading') {
+        return (
+          <View style={styles.bodyContainer}>
+            <MobileBrandLoader fill size="md" />
+          </View>
+        );
+      }
       return isSelfOwnerWeb ? (
-        <SelfOwnerOverview snapshot={selfOwnerDashboardSnapshot} deletionScheduledFor={deletionScheduledFor} />
+        <SelfOwnerOverview
+          snapshot={selfOwnerDashboardSnapshot}
+          deletionScheduledFor={deletionScheduledFor}
+          onOpenRooms={() => handleTabPress('listingRoom')}
+        />
       ) : (
         <View style={styles.bodyContainer}>
-          <MobileSelfOwnerDashboardBody snapshot={selfOwnerDashboardSnapshot} initials={profileInitials} deletionScheduledFor={deletionScheduledFor} />
+          <MobileSelfOwnerDashboardBody
+            snapshot={selfOwnerDashboardSnapshot}
+            initials={profileInitials}
+            deletionScheduledFor={deletionScheduledFor}
+            onOpenRooms={() => handleTabPress('listingRoom')}
+          />
         </View>
       );
     }
@@ -1511,6 +1532,17 @@ export function AppHomeScreen() {
       );
     }
 
+    if (activeRole === 'self_owner' && activeTab === 'listingRoom') {
+      // Self owner rooms and listings (UI round, 19 Nov 2026): demo rooms until the self owner API exists.
+      return isSelfOwnerWeb ? (
+        <SelfOwnerRoomsPage rooms={selfOwnerRooms.rooms} status={selfOwnerRooms.status} isDemoPreview={selfOwnerRooms.isDemoPreview} />
+      ) : (
+        <View style={styles.bodyContainer}>
+          <MobileSelfOwnerRoomsScreen rooms={selfOwnerRooms.rooms} status={selfOwnerRooms.status} isDemoPreview={selfOwnerRooms.isDemoPreview} />
+        </View>
+      );
+    }
+
     if (activeTab === 'listingRoom') {
       // Desktop web (plan step 4): table / card grid page; phone and phone-width web keep the app screen.
       if (isAgentWeb) {
@@ -1811,7 +1843,7 @@ export function AppHomeScreen() {
       : isAdminWeb
         ? adminWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
         : isSelfOwnerWeb
-          ? selfOwnerWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
+          ? selfOwnerWebNavSections(roleMenuCopy, activeTab, (tab) => handleTabPress(tab))
           : undefined;
   const workspaceRole: UserRole = isDesktopWeb && !isAgentWeb ? activeRole : 'agent';
   const workspaceCopy = isLandlordWeb

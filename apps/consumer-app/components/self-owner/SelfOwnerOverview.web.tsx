@@ -3,7 +3,7 @@ import { useLocale } from "@nestyk/i18n";
 import { MobileIcon, tokens, useMobileTheme } from "@nestyk/ui/native";
 import { interpolate, type DashboardSectionStatus } from "@nestyk/feature-listing";
 import { WebContentContainer } from "@nestyk/ui/web-content";
-import { WebState } from "../agent-web/ui/WebState";
+import { WebSkeleton, WebState } from "../agent-web/ui/WebState";
 import {
   SELF_OWNER_LOCALE_TAG,
   SELF_OWNER_PREVIEW,
@@ -35,7 +35,7 @@ function Section({ title, aside, className = "", children }: { title: string; as
  * (--aw-* tokens, Mitr headings), laid out around the owner's own rooms. Pages it would link to do not exist yet,
  * so it has no navigation; the one action is shown disabled as "coming soon".
  */
-export function SelfOwnerOverview({ snapshot, deletionScheduledFor }: SelfOwnerOverviewProps) {
+export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms }: SelfOwnerOverviewProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerDashboard;
@@ -60,11 +60,12 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor }: SelfOwnerO
 
   const ready = (status: DashboardSectionStatus, content: React.ReactNode) => {
     if (status === "error") return <WebState kind="error" compact title={copy.sectionError} />;
-    if (status === "loading") return <p className="sov-muted" aria-busy="true">…</p>;
+    if (status === "loading") return <WebSkeleton rows={3} columns={3} />;
     if (status === "not_configured") return <p className="sov-muted">{copy.comingSoon}</p>;
     return content;
   };
 
+  const isReady = (status: DashboardSectionStatus) => status === "available" || status === "demo";
   const rooms = summarizeRooms(snapshot.rooms.items);
   const rent = summarizeRent(snapshot.rent.items);
   const receivedShare = rent.total > 0 ? Math.round((rent.received / rent.total) * 100) : 0;
@@ -73,11 +74,16 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor }: SelfOwnerO
   );
   const viewings = [...snapshot.viewings.items].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   // Pages these lead to do not exist yet: same place as the agent's "view all" links, disabled as coming soon.
-  const viewAll = (label: string) => (
-    <button type="button" className="sov-link" disabled aria-disabled="true" title={copy.comingSoon}>
-      {label}
-    </button>
-  );
+  const viewAll = (label: string, onOpen?: () => void) =>
+    onOpen ? (
+      <button type="button" className="sov-link" onClick={onOpen}>
+        {label}
+      </button>
+    ) : (
+      <button type="button" className="sov-link" disabled aria-disabled="true" title={copy.comingSoon}>
+        {label}
+      </button>
+    );
   const more = (total: number, shown: number) =>
     total > shown ? <p className="sov-more">{interpolate(copy.moreItems, { n: total - shown })}</p> : null;
 
@@ -145,14 +151,14 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor }: SelfOwnerO
             className="sov-rooms"
             aside={
               <div className="sov-head-aside">
-                {snapshot.rooms.status === "error" ? null : (
+                {!isReady(snapshot.rooms.status) ? null : (
                   <p className="sov-counts">
                     <span>{interpolate(copy.roomCount, { n: rooms.total })}</span>
                     <span className="sov-count-occupied">{interpolate(copy.occupiedCount, { n: rooms.occupied })}</span>
                     <span>{interpolate(copy.vacantCount, { n: rooms.vacant })}</span>
                   </p>
                 )}
-                {viewAll(copy.viewAllRooms)}
+                {viewAll(copy.viewAllRooms, onOpenRooms)}
               </div>
             }
           >

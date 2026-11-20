@@ -550,6 +550,21 @@ export const th: TranslationSchema = {
     viewCalendar: 'ดูปฏิทินนัด',
     moreItems: 'และอีก {n} รายการ',
   },
+  selfOwnerRooms: {
+    title: 'ห้องและประกาศ',
+    searchPlaceholder: 'ค้นหาชื่อห้อง โครงการ หรือผู้เช่า',
+    filterLabel: 'สถานะ',
+    filterAll: 'ทั้งหมด',
+    colDetail: 'รายละเอียด',
+    sizeValue: '{beds} ห้องนอน · {sqm} ตร.ม.',
+    studioSize: 'สตูดิโอ · {sqm} ตร.ม.',
+    noMatch: 'ไม่พบห้องที่ตรงกับเงื่อนไข',
+    clearFilters: 'ล้างตัวกรอง',
+    pageOf: 'หน้า {page} จาก {pages}',
+    prev: 'ก่อนหน้า',
+    next: 'ถัดไป',
+    resultCount: '{n} ห้อง',
+  },
   agent: {
     calendar: {
       liveNotice: 'นัดดูห้องจากลีดของคุณ',

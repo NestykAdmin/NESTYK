@@ -1,26 +1,16 @@
 import { useMemo } from 'react';
 import type { DashboardSectionStatus } from '@nestyk/feature-listing';
+import { createSelfOwnerRoomsDemo, type SelfOwnerRoom } from './self-owner-rooms';
+
+export type { SelfOwnerRoom, SelfOwnerRoomState } from './self-owner-rooms';
 
 /**
  * Self owner Dashboard data (UI round, 19 Nov 2026, ClickUp z8rcteng6b).
  * No self owner API exists yet (docs/ROLE-CHANGE-PLAN.md 5.1), so the hook returns a demo snapshot.
  * When the API lands, only `useSelfOwnerDashboard` changes; the screens read this shape.
  */
-export type SelfOwnerRoomState = 'occupied' | 'listed' | 'unlisted';
 export type SelfOwnerRentState = 'paid' | 'due' | 'overdue';
 export type SelfOwnerWorkKind = 'overdue_rent' | 'new_interest' | 'awaiting_signature' | 'renewal';
-
-export type SelfOwnerRoom = {
-  id: string;
-  title: string;
-  project: string;
-  monthlyRent: number;
-  state: SelfOwnerRoomState;
-  tenantName?: string;
-  /** ISO date (YYYY-MM-DD) */
-  leaseEndsAt?: string;
-  interestCount?: number;
-};
 
 export type SelfOwnerRent = {
   id: string;
@@ -84,23 +74,29 @@ export function createSelfOwnerDashboardDemoFixture(input: {
   const today = bangkokYmd(now);
   const [year, month] = today.split('-').map(Number);
   const ym = `${year}-${String(month).padStart(2, '0')}`;
-  const nextYear = year + 1;
 
-  const rooms: SelfOwnerRoom[] = [
-    { id: 'r1', title: 'ห้อง 1204', project: 'Ideo Q สยาม-ราชเทวี', monthlyRent: 18000, state: 'occupied', tenantName: 'ณัฐวุฒิ ใจดี', leaseEndsAt: `${nextYear}-03-31` },
-    { id: 'r2', title: 'ห้อง 805', project: 'Life One Wireless', monthlyRent: 25000, state: 'occupied', tenantName: 'Emily Carter', leaseEndsAt: `${year}-12-31` },
-    { id: 'r3', title: 'เพนต์เฮาส์ชั้น 32 วิวแม่น้ำเจ้าพระยา ห้องมุม 3 ห้องนอน', project: 'Four Seasons Private Residences', monthlyRent: 185000, state: 'occupied', tenantName: 'สมศักดิ์ วงศ์ทอง', leaseEndsAt: `${nextYear}-08-15` },
-    { id: 'r4', title: 'ห้อง 417', project: 'The Base พระราม 9', monthlyRent: 15500, state: 'occupied', tenantName: 'ปิยะนุช แสงทอง', leaseEndsAt: `${nextYear}-05-31` },
-    { id: 'r5', title: 'ห้อง 2101', project: 'Noble Ploenchit', monthlyRent: 42000, state: 'listed', interestCount: 3 },
-    { id: 'r6', title: 'ห้อง 309', project: 'Aspire สาทร-ท่าพระ', monthlyRent: 12000, state: 'unlisted' },
-  ];
-
-  const rent: SelfOwnerRent[] = [
-    { id: 'p1', roomTitle: 'ห้อง 1204', tenantName: 'ณัฐวุฒิ ใจดี', amount: 18000, state: 'paid', dueDate: `${ym}-05` },
-    { id: 'p2', roomTitle: 'ห้อง 805', tenantName: 'Emily Carter', amount: 25000, state: 'overdue', dueDate: `${ym}-01`, overdueDays: 3 },
-    { id: 'p3', roomTitle: 'เพนต์เฮาส์ชั้น 32 วิวแม่น้ำเจ้าพระยา ห้องมุม 3 ห้องนอน', tenantName: 'สมศักดิ์ วงศ์ทอง', amount: 185000, state: 'paid', dueDate: `${ym}-01` },
-    { id: 'p4', roomTitle: 'ห้อง 417', tenantName: 'ปิยะนุช แสงทอง', amount: 15500, state: 'due', dueDate: `${ym}-25` },
-  ];
+  const rooms = createSelfOwnerRoomsDemo(now);
+  // Rent this month for every rented room; a few rooms are due later or overdue so each state shows.
+  const rentPlan: Record<string, { state: SelfOwnerRentState; day: string; overdueDays?: number }> = {
+    r2: { state: 'overdue', day: '01', overdueDays: 3 },
+    r11: { state: 'overdue', day: '10', overdueDays: 6 },
+    r4: { state: 'due', day: '25' },
+    r10: { state: 'due', day: '28' },
+  };
+  const rent: SelfOwnerRent[] = rooms
+    .filter((room) => room.state === 'occupied')
+    .map((room) => {
+      const plan = rentPlan[room.id] ?? { state: 'paid' as const, day: '05' };
+      return {
+        id: `p-${room.id}`,
+        roomTitle: room.title,
+        tenantName: room.tenantName ?? '',
+        amount: room.monthlyRent,
+        state: plan.state,
+        dueDate: `${ym}-${plan.day}`,
+        ...(plan.overdueDays ? { overdueDays: plan.overdueDays } : {}),
+      };
+    });
 
   const viewings: SelfOwnerViewing[] = [
     { id: 'v1', startsAt: `${today}T10:30:00+07:00`, roomTitle: 'ห้อง 2101', contactName: 'คุณกานต์' },

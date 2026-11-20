@@ -53,6 +53,8 @@ const TAB_MATRIX: Record<ExtendedTabRole, MobileTabConfig[]> = {
   // Owner who lists rooms without an agent (round 2, docs/ROLE-CHANGE-PLAN.md 5.1): sample menus only for now.
   self_owner: [
     { key: 'dashboard', icon: 'grid' },
+    // Rooms and listings (UI round, 19 Nov 2026, ClickUp z8rcteng6c)
+    { key: 'listingRoom', icon: 'buildings' },
     SERVICES_TAB,
     MENU_TAB,
   ],

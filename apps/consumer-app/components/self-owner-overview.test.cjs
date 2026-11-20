@@ -42,9 +42,9 @@ function nodes(element) {
   if (typeof element.type === 'function') return nodes(element.type(element.props));
   return [element, ...nodes(element.props.children)];
 }
-function render(snapshot = fixture()) {
+function render(snapshot = fixture(), extra = {}) {
   const { SelfOwnerOverview } = load(path.join(__dirname, 'self-owner/SelfOwnerOverview.web.tsx'));
-  return nodes(SelfOwnerOverview({ snapshot }));
+  return nodes(SelfOwnerOverview({ snapshot, ...extra }));
 }
 const byClass = (tree, name) => tree.filter(node => node?.props?.className?.split(' ').includes(name));
 const texts = (tree) => tree.filter(node => typeof node === 'string' || typeof node === 'number').map(String);
@@ -61,9 +61,10 @@ test('renders rooms, rent rows, to-dos and viewings from the snapshot', () => {
   assert.equal(tree.filter(node => node?.props?.role === 'note').length, 1);
   const all = texts(tree).join('\n');
   const copy = copyOf();
-  assert.ok(all.includes(copy.roomCount.replace('{n}', '6')));
-  assert.ok(all.includes(copy.occupiedCount.replace('{n}', '4')));
-  assert.ok(all.includes(copy.vacantCount.replace('{n}', '2')));
+  const sum = lib().summarizeRooms(snapshot.rooms.items);
+  assert.ok(all.includes(copy.roomCount.replace('{n}', String(sum.total))));
+  assert.ok(all.includes(copy.occupiedCount.replace('{n}', String(sum.occupied))));
+  assert.ok(all.includes(copy.vacantCount.replace('{n}', String(sum.vacant))));
   assert.ok(all.includes(copy.rentState.overdue.replace('{days}', '3')));
 });
 
@@ -130,4 +131,29 @@ test('every locale renders without missing copy', () => {
     assert.doesNotMatch(all, /undefined|\{(n|name|amount|date|days|period|received|total)\}/, l);
   }
   locale = 'th';
+});
+
+test('with onOpenRooms the "view all rooms" link works; the others stay coming soon', () => {
+  locale = 'th';
+  const copy = copyOf();
+  let opened = 0;
+  const buttons = render(fixture(), { onOpenRooms: () => { opened += 1; } }).filter(node => node?.type === 'button');
+  const rooms = buttons.find(button => texts(nodes(button.props.children)).join('').includes(copy.viewAllRooms));
+  assert.equal(rooms.props.disabled, undefined);
+  rooms.props.onClick();
+  assert.equal(opened, 1);
+  assert.equal(buttons.filter(button => button.props.disabled === true).length, 3);
+});
+
+test('loading sections show a skeleton, never stale rows or counts', () => {
+  locale = 'th';
+  const copy = copyOf();
+  const snapshot = fixture();
+  for (const key of ['rooms', 'rent', 'todo', 'viewings']) snapshot[key].status = 'loading';
+  const tree = render(snapshot);
+  assert.equal(tree.filter(node => node?.props?.className === 'awu-skeleton').length, 4);
+  for (const name of ['sov-room', 'sov-rent-row', 'sov-todo-row', 'sov-viewing', 'sov-counts']) assert.equal(byClass(tree, name).length, 0, name);
+  assert.ok(!texts(tree).some(text => text === '…'));
+  const all = texts(tree).join('\n');
+  assert.doesNotMatch(all, new RegExp(copy.roomCount.replace('{n}', '\\d+')));
 });

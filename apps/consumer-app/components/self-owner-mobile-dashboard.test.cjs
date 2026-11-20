@@ -17,7 +17,7 @@ function load(filename) {
   cache.set(filename, module);
   const localRequire = (name) => {
     if (name === 'react') return { ...React, useMemo: fn => fn() };
-    if (name === 'react-native') return { View: 'View', Text: 'Text', StyleSheet: { create: value => value, hairlineWidth: 1 } };
+    if (name === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
     if (name === '@nestyk/ui/native') return {
       useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileButton: 'MobileButton', MobileProfileAvatar: 'Avatar',
@@ -112,4 +112,29 @@ test('native fallback of SelfOwnerOverview renders the phone body', () => {
   const { SelfOwnerOverview } = load(path.join(__dirname, 'self-owner/SelfOwnerOverview.tsx'));
   const element = SelfOwnerOverview({ snapshot: fixture() });
   assert.equal(element.type, body().MobileSelfOwnerDashboardBody);
+});
+
+test('with onOpenRooms the phone "view all rooms" row works', () => {
+  locale = 'th';
+  let opened = 0;
+  const tree = nodes(body().MobileSelfOwnerDashboardBody({ snapshot: fixture(), initials: 'J', onOpenRooms: () => { opened += 1; } }));
+  const rooms = byTestId(tree, 'so-link-rooms')[0];
+  assert.equal(rooms.props.accessibilityState.disabled, false);
+  rooms.props.onPress();
+  assert.equal(opened, 1);
+  assert.equal(byTestId(tree, 'so-link-rent')[0].props.accessibilityState.disabled, true);
+});
+
+test('loading sections show a spinner, never stale rows or counts', () => {
+  locale = 'th';
+  const copy = copyOf();
+  const snapshot = fixture();
+  for (const key of ['rooms', 'rent', 'todo', 'viewings']) snapshot[key].status = 'loading';
+  const tree = nodes(body().MobileSelfOwnerDashboardBody({ snapshot, initials: 'J' }));
+  const spinners = tree.filter(node => node?.type === 'ActivityIndicator');
+  assert.equal(spinners.length, 4);
+  assert.ok(spinners.every(s => s.props.accessibilityLabel === load(`${root}/packages/i18n/src/locales/th.ts`).th.common.loading));
+  for (const prefix of ['so-room-', 'so-rent-', 'so-todo-', 'so-viewing-']) assert.equal(byTestId(tree, prefix).length, 0, prefix);
+  assert.ok(!texts(tree).some(text => text === '…'));
+  assert.doesNotMatch(texts(tree).join('\n'), new RegExp(copy.roomCount.replace('{n}', '\\d+')));
 });

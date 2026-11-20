@@ -344,6 +344,8 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
   // Self owner (round 2): sample home plus the settings page.
   self_owner: [
     { path: [], state: { tab: 'dashboard' } },
+    // Rooms and listings (UI round, 19 Nov 2026, ClickUp z8rcteng6c)
+    { path: ['rooms'], state: { tab: 'listingRoom' } },
     { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
     { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
     { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },

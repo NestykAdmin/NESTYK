@@ -550,6 +550,21 @@ export const ja: TranslationSchema = {
     viewCalendar: 'カレンダーを開く',
     moreItems: 'ほか {n} 件',
   },
+  selfOwnerRooms: {
+    title: '部屋と掲載',
+    searchPlaceholder: '部屋名・物件・入居者で検索',
+    filterLabel: 'ステータス',
+    filterAll: 'すべて',
+    colDetail: '詳細',
+    sizeValue: '{beds}ベッドルーム · {sqm}㎡',
+    studioSize: 'ワンルーム · {sqm}㎡',
+    noMatch: '条件に合う部屋がありません',
+    clearFilters: 'フィルターをクリア',
+    pageOf: '{pages}ページ中 {page}ページ',
+    prev: '前へ',
+    next: '次へ',
+    resultCount: '{n}室',
+  },
   agent: {
     calendar: {
       liveNotice: '見込み客から登録された内見予約',

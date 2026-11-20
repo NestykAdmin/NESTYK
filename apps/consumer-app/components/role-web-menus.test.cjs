@@ -37,10 +37,25 @@ test('admin sidebar: overview, users, tickets, services, then System: audit log 
   assert.deepEqual(calls, ['dashboard']);
 });
 
-test('self owner sidebar (round 2 sample menus): my rooms, then tenants and money', () => {
-  const sections = selfOwnerWebNavSections(copy, false, () => {});
-  check(sections, ['My rooms', 'Tenants and money'], ['dashboard', 'listings', 'interested', 'viewings', 'tenants', 'contracts', 'billsIncome', 'repairs']);
-  assert.equal(sections[0].items[0].active, false);
+test('self owner sidebar: my rooms (overview and rooms work, 19 Nov 2026), then tenants and money', () => {
+  const calls = [];
+  const sections = selfOwnerWebNavSections(copy, 'listingRoom', (tab) => calls.push(tab));
+  assert.deepEqual(sections.map((s) => s.caption), ['My rooms', 'Tenants and money']);
+  const items = sections.flatMap((s) => s.items);
+  assert.deepEqual(items.map((i) => i.id), ['dashboard', 'listings', 'interested', 'viewings', 'tenants', 'contracts', 'billsIncome', 'repairs']);
+  const [overview, listings, ...rest] = items;
+  for (const item of [overview, listings]) assert.equal(item.disabled, undefined, item.id);
+  assert.equal(overview.active, false);
+  assert.equal(listings.active, true);
+  assert.equal(listings.label, 'Rooms and listings');
+  overview.onPress();
+  listings.onPress();
+  assert.deepEqual(calls, ['dashboard', 'listingRoom']);
+  for (const item of rest) {
+    assert.equal(item.disabled, true, item.id);
+    assert.equal(item.title, `${item.label} · Coming soon`);
+  }
+  assert.equal(selfOwnerWebNavSections(copy, 'dashboard', () => {})[0].items[0].active, true);
 });
 
 test('admin and self owner on the web shell get no phone header (profile picture and bell are already in the shell)', () => {

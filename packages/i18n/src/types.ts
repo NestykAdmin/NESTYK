@@ -548,6 +548,22 @@ export interface TranslationSchema {
     viewCalendar: string;
     moreItems: string;
   };
+  /** Self owner rooms page (UI round, 19 Nov 2026, ClickUp z8rcteng6c). */
+  selfOwnerRooms: {
+    title: string;
+    searchPlaceholder: string;
+    filterLabel: string;
+    filterAll: string;
+    colDetail: string;
+    sizeValue: string;
+    studioSize: string;
+    noMatch: string;
+    clearFilters: string;
+    pageOf: string;
+    prev: string;
+    next: string;
+    resultCount: string;
+  };
   agent: {
     calendar: {
       demoNotice: string;

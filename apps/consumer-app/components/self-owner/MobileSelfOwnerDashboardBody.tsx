@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import {
   AccountDeletionNotice,
@@ -17,9 +17,9 @@ import {
   summarizeRent,
   summarizeRooms,
   type SelfOwnerDashboardSnapshot,
-  type SelfOwnerRoom,
   type SelfOwnerWorkKind,
 } from '../../lib/self-owner-dashboard';
+import { MobileSelfOwnerRoomCard } from './MobileSelfOwnerRoomCard';
 
 const TODO_ORDER: SelfOwnerWorkKind[] = ['overdue_rent', 'new_interest', 'awaiting_signature', 'renewal'];
 const { subtle } = tokens.colors;
@@ -28,13 +28,15 @@ export type MobileSelfOwnerDashboardBodyProps = {
   snapshot: SelfOwnerDashboardSnapshot;
   initials?: string;
   deletionScheduledFor?: string | null;
+  /** Opens the rooms list; without it "view all rooms" stays "coming soon". */
+  onOpenRooms?: () => void;
 };
 
 /**
  * Self owner phone Dashboard (UI round, 19 Nov 2026, ClickUp z8rcteng6b). Same sections and order as the web page:
  * my rooms → rent this month → to do → today's viewings. No navigation yet; the one action is disabled.
  */
-export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletionScheduledFor }: MobileSelfOwnerDashboardBodyProps) {
+export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletionScheduledFor, onOpenRooms }: MobileSelfOwnerDashboardBodyProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerDashboard;
@@ -43,11 +45,6 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
   const ink = theme.screenTitle;
   const muted = theme.textSecondary;
   const accent = isDark ? tokens.colors.rolesOnDark.self_owner : tokens.colors.roles.self_owner;
-  const stateColor: Record<SelfOwnerRoom['state'], string> = {
-    occupied: accent,
-    listed: tokens.colors.icon.brand,
-    unlisted: theme.border,
-  };
 
   const money = (amount: number) =>
     new Intl.NumberFormat(tag, { style: 'currency', currency: snapshot.currency, maximumFractionDigits: 0 }).format(amount);
@@ -75,24 +72,27 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
 
   const card = [styles.card, getCardElevation(1), { backgroundColor: theme.surface, borderColor: theme.border }];
   const mutedText = [styles.small, { color: muted }];
+  const isReady = (status: DashboardSectionStatus) => status === 'available' || status === 'demo';
   const ready = (status: DashboardSectionStatus, content: React.ReactNode) => {
     if (status === 'error') return <Text style={[styles.small, { color: subtle.dangerFg }]}>{copy.sectionError}</Text>;
-    if (status === 'loading') return <Text style={mutedText}>…</Text>;
+    if (status === 'loading') return <ActivityIndicator color={theme.spinner} accessibilityLabel={t.common.loading} />;
     if (status === 'not_configured') return <Text style={mutedText}>{copy.comingSoon}</Text>;
     return content;
   };
   const Title = ({ children }: { children: string }) => <Text style={[styles.sectionTitle, { color: ink }]}>{children}</Text>;
   // Same place as the agent's "view all" rows; disabled as coming soon until the pages exist.
-  const ViewAll = ({ id, label }: { id: string; label: string }) => (
-    <View
+  const ViewAll = ({ id, label, onOpen }: { id: string; label: string; onOpen?: () => void }) => (
+    <Pressable
       testID={`so-link-${id}`}
       accessibilityRole="button"
-      accessibilityState={{ disabled: true }}
+      accessibilityState={{ disabled: !onOpen }}
+      disabled={!onOpen}
+      onPress={onOpen}
       style={[styles.linkRow, { borderTopColor: theme.border }]}
     >
-      <Text style={[styles.small, styles.flex, { color: muted }]}>{label}</Text>
-      <Text style={[styles.caption, { color: muted }]}>{copy.comingSoon}</Text>
-    </View>
+      <Text style={[styles.small, styles.flex, { color: onOpen ? ink : muted }]}>{label}</Text>
+      {onOpen ? <MobileIcon name="chevron-right" size={14} color={muted} /> : <Text style={[styles.caption, { color: muted }]}>{copy.comingSoon}</Text>}
+    </Pressable>
   );
   const More = ({ total, shown }: { total: number; shown: number }) =>
     total > shown ? <Text style={[styles.caption, { color: muted }]}>{interpolate(copy.moreItems, { n: total - shown })}</Text> : null;
@@ -124,7 +124,7 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
 
       <View style={card}>
         <Title>{copy.myRooms}</Title>
-        {snapshot.rooms.status === 'error' ? null : (
+        {!isReady(snapshot.rooms.status) ? null : (
           <View style={styles.counts}>
             <Text style={mutedText}>{interpolate(copy.roomCount, { n: rooms.total })}</Text>
             <Text style={[styles.small, { color: accent }]}>{interpolate(copy.occupiedCount, { n: rooms.occupied })}</Text>
@@ -137,27 +137,12 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
             <Text style={mutedText}>{copy.noRooms}</Text>
           ) : (
             snapshot.rooms.items.slice(0, SELF_OWNER_PREVIEW.rooms).map((room) => (
-              <View key={room.id} testID={`so-room-${room.id}`} style={[styles.room, { borderColor: theme.border, borderLeftColor: stateColor[room.state] }]}>
-                <View style={styles.rowBetween}>
-                  <Text style={[styles.roomTitle, styles.flex, { color: ink }]} numberOfLines={1}>{room.title}</Text>
-                  <Text style={[styles.caption, { color: muted }]}>{copy.roomState[room.state]}</Text>
-                </View>
-                <Text style={[styles.caption, { color: muted }]} numberOfLines={1}>{room.project}</Text>
-                <Text style={[styles.rent, { color: ink }]}>{interpolate(copy.perMonth, { amount: money(room.monthlyRent) })}</Text>
-                {room.state === 'occupied' ? (
-                  <Text style={[styles.caption, { color: muted }]} numberOfLines={2}>
-                    {interpolate(copy.tenantLine, { name: room.tenantName ?? '' })}
-                    {room.leaseEndsAt ? `  ${interpolate(copy.leaseEnds, { date: day(room.leaseEndsAt, true) })}` : ''}
-                  </Text>
-                ) : room.state === 'listed' ? (
-                  <Text style={[styles.caption, { color: muted }]}>{interpolate(copy.interests, { n: room.interestCount ?? 0 })}</Text>
-                ) : null}
-              </View>
+              <MobileSelfOwnerRoomCard key={room.id} room={room} testID={`so-room-${room.id}`} />
             ))
           ),
         )}
-        <More total={snapshot.rooms.items.length} shown={SELF_OWNER_PREVIEW.rooms} />
-        <ViewAll id="rooms" label={copy.viewAllRooms} />
+        {isReady(snapshot.rooms.status) ? <More total={snapshot.rooms.items.length} shown={SELF_OWNER_PREVIEW.rooms} /> : null}
+        <ViewAll id="rooms" label={copy.viewAllRooms} onOpen={onOpenRooms} />
       </View>
 
       <View style={card}>
@@ -254,7 +239,7 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
             ))
           ),
         )}
-        <More total={viewings.length} shown={SELF_OWNER_PREVIEW.viewings} />
+        {isReady(snapshot.viewings.status) ? <More total={viewings.length} shown={SELF_OWNER_PREVIEW.viewings} /> : null}
         <ViewAll id="calendar" label={copy.viewCalendar} />
       </View>
     </View>
@@ -271,10 +256,6 @@ const styles = StyleSheet.create({
   card: { borderRadius: 14, borderWidth: 1, padding: 12, gap: 8, overflow: 'hidden' },
   sectionTitle: { fontFamily: tokens.typography.native.headingTh, fontSize: 16, lineHeight: 24, fontWeight: '500' },
   counts: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  room: { borderWidth: 1, borderLeftWidth: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  roomTitle: { fontFamily: tokens.typography.native.headingTh, fontSize: 15, lineHeight: 22, fontWeight: '500' },
-  rent: { fontFamily: tokens.typography.native.headingTh, fontSize: 18, lineHeight: 26, fontWeight: '500', marginTop: 4 },
   body: { fontFamily: tokens.typography.native.body, fontSize: 14, lineHeight: 21 },
   small: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 19 },
   caption: { fontFamily: tokens.typography.native.body, fontSize: 12, lineHeight: 18 },

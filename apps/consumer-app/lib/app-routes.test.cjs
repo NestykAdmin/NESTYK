@@ -235,5 +235,10 @@ test('self owner (round 2, Mos 18 Nov 2026) lives at /self-owner; the old /owner
   assert.equal(home.state.role, 'self_owner');
   assert.equal(home.href, '/self-owner');
   assert.equal(stateToRoute({ role: 'self_owner', tab: 'dashboard' }), '/self-owner');
+  // Rooms and listings (UI round, 19 Nov 2026, ClickUp z8rcteng6c)
+  const rooms = routeToState('/self-owner/rooms');
+  assert.equal(rooms.state.role, 'self_owner');
+  assert.equal(rooms.state.tab, 'listingRoom');
+  assert.equal(stateToRoute({ role: 'self_owner', tab: 'listingRoom' }), '/self-owner/rooms');
   assert.deepEqual(parseAppPath('/owner/contracts'), { kind: 'redirect', to: '/landlord/contracts' });
 });

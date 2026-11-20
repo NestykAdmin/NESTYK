@@ -549,6 +549,21 @@ export const zh: TranslationSchema = {
     viewCalendar: '打开日历',
     moreItems: '还有 {n} 项',
   },
+  selfOwnerRooms: {
+    title: '房间与房源',
+    searchPlaceholder: '搜索房间、项目或租客',
+    filterLabel: '状态',
+    filterAll: '全部',
+    colDetail: '详情',
+    sizeValue: '{beds} 卧室 · {sqm} 平方米',
+    studioSize: '开间 · {sqm} 平方米',
+    noMatch: '没有符合条件的房间',
+    clearFilters: '清除筛选',
+    pageOf: '第 {page} 页，共 {pages} 页',
+    prev: '上一页',
+    next: '下一页',
+    resultCount: '{n} 间',
+  },
   agent: {
     calendar: {
       liveNotice: '来自您客户线索的看房预约',

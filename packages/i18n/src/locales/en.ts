@@ -550,6 +550,21 @@ export const en: TranslationSchema = {
     viewCalendar: 'Open calendar',
     moreItems: '{n} more',
   },
+  selfOwnerRooms: {
+    title: 'Rooms and listings',
+    searchPlaceholder: 'Search room, project or tenant',
+    filterLabel: 'Status',
+    filterAll: 'All',
+    colDetail: 'Details',
+    sizeValue: '{beds} bed · {sqm} sq m',
+    studioSize: 'Studio · {sqm} sq m',
+    noMatch: 'No rooms match these filters',
+    clearFilters: 'Clear filters',
+    pageOf: 'Page {page} of {pages}',
+    prev: 'Previous',
+    next: 'Next',
+    resultCount: '{n} rooms',
+  },
   agent: {
     calendar: {
       liveNotice: 'Viewings scheduled from your leads',
