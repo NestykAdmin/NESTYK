@@ -140,6 +140,7 @@ body {
   z-index: 50;
   background: var(--nk-color-surface);
   border-bottom: 1px solid var(--nk-color-border);
+  transition: background-color 200ms ease, border-color 200ms ease;
 }
 .nk-header__inner {
   max-width: var(--nk-content-width);
@@ -221,7 +222,10 @@ a.nk-nav__item:hover {
 }
 .nk-icon-btn[aria-current="page"] {
   border-color: var(--nk-color-ink);
-  background: var(--nk-color-brand-soft);
+}
+/* "You are here" on the saved button: a filled heart, like a saved room (Mos 20 Nov 2026: no yellow fill). */
+.nk-icon-btn[aria-current="page"] svg {
+  fill: currentColor;
 }
 .nk-signin {
   min-height: var(--nk-tap);
@@ -238,6 +242,86 @@ a.nk-nav__item:hover {
 }
 .nk-signin:hover {
   background: var(--nk-color-neutral-bg);
+}
+/* Mos 20 Nov 2026: the header controls share a light border; ink only when chosen (hover, open, current page). */
+.nk-header :is(.nk-icon-btn, .nk-lang__button):hover {
+  border-color: var(--nk-color-ink);
+}
+
+/* Header once the page has scrolled past it (Mos 20 Nov 2026): ink with white text, the footer's on-dark look.
+   Only the header's own controls change; the language and account menus that open from it stay light. */
+.nk-logo--on-dark {
+  display: none;
+}
+.nk-header[data-tone='dark'] {
+  background: var(--nk-color-ink);
+  border-bottom-color: var(--nk-color-dark-line);
+}
+.nk-header[data-tone='dark'] .nk-logo--standard {
+  display: none;
+}
+.nk-header[data-tone='dark'] .nk-logo--on-dark {
+  display: block;
+}
+.nk-header :is(.nk-nav__item, .nk-icon-btn, .nk-signin, .nk-lang__button, .nk-account__chip) {
+  transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+}
+.nk-header[data-tone='dark'] .nk-nav__item {
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-nav__item--soon {
+  /* Mid grey, so the open item (white) stands out as it does on the white header. */
+  color: var(--nk-color-placeholder);
+}
+/* The ink avatar would vanish into the ink bar: a white circle with ink letters instead. */
+.nk-header[data-tone='dark'] .nk-account__chip .nk-avatar-initials {
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+}
+.nk-header[data-tone='dark'] .nk-nav .nk-soon {
+  border-color: var(--nk-color-text-secondary);
+  background: transparent;
+  color: var(--nk-color-divider);
+}
+.nk-header[data-tone='dark'] .nk-icon-btn,
+.nk-header[data-tone='dark'] .nk-lang__button {
+  border-color: var(--nk-color-dark-line);
+  background: transparent;
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-icon-btn[aria-current="page"] {
+  border-color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-lang__button[aria-expanded="true"] {
+  border-color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-signin {
+  border-color: var(--nk-color-surface);
+  background: transparent;
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-account__chip {
+  border-color: var(--nk-color-dark-line);
+  background: transparent;
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] :is(.nk-icon-btn, .nk-lang__button, .nk-signin, .nk-account__chip):hover,
+.nk-header[data-tone='dark'] .nk-account__chip[aria-expanded="true"] {
+  background: var(--nk-color-dark-raised);
+}
+.nk-header[data-tone='dark'] :is(.nk-icon-btn, .nk-lang__button, .nk-account__chip):hover,
+.nk-header[data-tone='dark'] .nk-account__chip[aria-expanded="true"] {
+  border-color: var(--nk-color-surface);
+}
+/* The blue ring has too little contrast on ink. */
+.nk-header[data-tone='dark'] :is(.nk-header__brand, .nk-nav__item, .nk-icon-btn, .nk-signin, .nk-lang__button, .nk-account__chip):focus-visible {
+  outline-color: var(--nk-color-brand);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nk-header,
+  .nk-header :is(.nk-nav__item, .nk-icon-btn, .nk-signin, .nk-lang__button, .nk-account__chip) {
+    transition: none;
+  }
 }
 
 /* Language menu: one button that opens the list */
@@ -2037,6 +2121,11 @@ a.nk-types__item:hover {
   font-size: var(--nk-text-sm);
   color: var(--nk-color-text-secondary);
 }
+.nk-saved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
 .nk-search-toolbar__select {
   width: auto;
   height: var(--nk-tap);
@@ -2453,8 +2542,8 @@ a.nk-types__item:hover {
   display: flex;
   align-items: center;
   gap: var(--nk-space-2);
-  padding: 0 10px 0 4px;
-  border: 1px solid var(--nk-color-ink);
+  padding: 0 10px 0 6px;
+  border: 1px solid var(--nk-color-border);
   border-radius: var(--nk-radius-pill);
   background: var(--nk-color-surface);
   color: var(--nk-color-ink);
@@ -2463,8 +2552,14 @@ a.nk-types__item:hover {
   font-weight: 600;
   cursor: pointer;
 }
+.nk-account__chip:is(:hover, :focus-visible, [aria-expanded="true"]) .nk-avatar-initials {
+  /* Mos 20 Nov 2026: a brand ring, like the profile picture on /profile, only when the chip is chosen (always on
+     was too loud). Same on the dark header. */
+  box-shadow: 0 0 0 2px var(--nk-color-brand);
+}
 .nk-account__chip:hover,
 .nk-account__chip[aria-expanded="true"] {
+  border-color: var(--nk-color-ink);
   background: var(--nk-color-neutral-bg);
 }
 .nk-account__name {

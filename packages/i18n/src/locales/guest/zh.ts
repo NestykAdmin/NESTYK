@@ -234,6 +234,8 @@ export const guestZh: GuestCopy = {
     gateTitle: '登录后查看收藏',
     gateBody: '你收藏的房源会显示在这里，任何设备都能查看。',
     errorTitle: '无法加载收藏',
+    count: '已收藏 {count} 间',
+    sortSaved: '最近收藏',
     toastSaved: '已收藏',
     toastRemoved: '已移出收藏',
     toastFailed: '收藏失败，请重试',

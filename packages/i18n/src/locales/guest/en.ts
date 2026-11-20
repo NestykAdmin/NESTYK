@@ -234,6 +234,8 @@ export const guestEn: GuestCopy = {
     gateTitle: 'Sign in to see your saved rooms',
     gateBody: 'Rooms you save will be here, on any device.',
     errorTitle: 'Could not load your saved rooms',
+    count: '{count} saved',
+    sortSaved: 'Recently saved',
     toastSaved: 'Saved',
     toastRemoved: 'Removed from saved',
     toastFailed: 'Could not save. Try again.',

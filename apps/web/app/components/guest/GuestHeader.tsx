@@ -1,8 +1,9 @@
 'use client';
 
-import React, { Suspense, useLayoutEffect, useRef } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import logo from '@nestyk/ui/assets/nestyk/svg/logo-nestyk-standard.svg';
+import logoOnBlack from '@nestyk/ui/assets/nestyk/svg/logo-nestyk-onBlack.svg';
 import { Link, usePathname } from '../../../i18n/navigation';
 import { GUEST_NAV, isGuestPageReady } from '../../../lib/guest-site';
 import { AccountMenu } from './AccountMenu';
@@ -12,6 +13,8 @@ import { GuestLanguageButtonStatic, GuestLanguageMenu } from './GuestLanguageMen
 /** The logo SVG is 618 × 219 (CI, 12 Nov 2026). */
 const LOGO_HEIGHT = 32;
 const LOGO_WIDTH = Math.round((LOGO_HEIGHT * 618) / 219);
+/** Mos 20 Nov 2026: white at the top of the page, ink once the page has scrolled past the header (its height). */
+const DARK_AFTER_PX = 72;
 
 function isCurrent(pathname: string, href: string): boolean {
   const path = href.split('#')[0];
@@ -29,6 +32,25 @@ export function GuestHeader() {
   const copy = t.guest.nav;
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
+  const [dark, setDark] = useState(false);
+
+  // Checked on load too: a page opened with "back" can start half way down.
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      setDark(window.scrollY > DARK_AFTER_PX);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   // Long languages, or many "coming soon" items, can make the menu wider than the header (e.g. English with all
   // 5 items soon, or any language between 961 and ~1100px). Then the pills are hidden; the items stay dimmed and
@@ -47,10 +69,12 @@ export function GuestHeader() {
   }, [copy]);
 
   return (
-    <header className="nk-header" data-testid="guest.header">
+    <header className="nk-header" data-tone={dark ? 'dark' : undefined} data-testid="guest.header">
       <div className="nk-header__inner">
         <Link href="/" aria-label={copy.home} className="nk-header__brand">
-          <img src={logo.src} alt="NESTYK" width={LOGO_WIDTH} height={LOGO_HEIGHT} className="nk-logo" />
+          <img src={logo.src} alt="NESTYK" width={LOGO_WIDTH} height={LOGO_HEIGHT} className="nk-logo nk-logo--standard" />
+          {/* Both logos load with the page; CSS shows the one for the header's tone. This one is not read out. */}
+          <img src={logoOnBlack.src} alt="" width={LOGO_WIDTH} height={LOGO_HEIGHT} className="nk-logo nk-logo--on-dark" />
         </Link>
         <nav ref={navRef} className="nk-nav" aria-label={copy.mainMenu}>
           {GUEST_NAV.map((item) => {

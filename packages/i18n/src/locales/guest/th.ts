@@ -234,6 +234,8 @@ export const guestTh: GuestCopy = {
     gateTitle: 'เข้าสู่ระบบเพื่อดูรายการโปรด',
     gateBody: 'ห้องที่คุณบันทึกไว้จะอยู่ที่นี่ ดูต่อได้ทุกอุปกรณ์',
     errorTitle: 'โหลดรายการโปรดไม่สำเร็จ',
+    count: 'บันทึกไว้ {count} ห้อง',
+    sortSaved: 'บันทึกล่าสุด',
     toastSaved: 'บันทึกแล้ว',
     toastRemoved: 'เอาออกจากรายการโปรดแล้ว',
     toastFailed: 'บันทึกไม่สำเร็จ ลองอีกครั้ง',

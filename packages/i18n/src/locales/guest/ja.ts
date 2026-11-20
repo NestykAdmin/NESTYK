@@ -234,6 +234,8 @@ export const guestJa: GuestCopy = {
     gateTitle: 'ログインしてお気に入りを見る',
     gateBody: '保存した物件はここに表示され、どの端末からでも見られます。',
     errorTitle: 'お気に入りを読み込めませんでした',
+    count: '保存済み {count} 件',
+    sortSaved: '保存が新しい順',
     toastSaved: '保存しました',
     toastRemoved: 'お気に入りから外しました',
     toastFailed: '保存できませんでした。もう一度お試しください',

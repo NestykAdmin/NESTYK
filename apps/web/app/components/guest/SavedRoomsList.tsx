@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useLocale } from '@nestyk/i18n';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { fillTemplate, useLocale } from '@nestyk/i18n';
 import type { PublicRoomCard } from '@nestyk/types';
 import { Link } from '../../../i18n/navigation';
 import { bangkokToday } from '../../../lib/guest-home';
 import { fetchSavedRooms } from '../../../lib/guest-saved';
+import { isSavedSort, SAVED_SORT_OPTIONS, sortSavedCards, type SavedSort } from '../../../lib/guest-saved-sort';
 import { guestSessionToken } from '../../../lib/guest-supabase';
 import { localePath } from '../../../lib/guest-site';
 import { AccountLink } from './AccountLink';
@@ -30,6 +31,10 @@ export function SavedRoomsList({ locale }: { locale: string }) {
   const session = useGuestSession();
   const userId = session.status === 'signedIn' ? session.profile.userId : null;
   const [list, setList] = useState<ListState>({ status: 'loading' });
+  const [sort, setSort] = useState<SavedSort>('saved');
+  const sortId = useId();
+  // Sorted in the browser: every saved room is already here (layout A, Mos 20 Nov 2026).
+  const cards = useMemo(() => (list.status === 'ready' ? sortSavedCards(list.cards, sort) : []), [list, sort]);
 
   useEffect(() => {
     if (!userId) return;
@@ -109,11 +114,38 @@ export function SavedRoomsList({ locale }: { locale: string }) {
     );
   }
 
+  // The count is of the rooms loaded with the page: a room unsaved here keeps its card (undo) until the page is left.
+  const sortLabel = (option: SavedSort) => (option === 'saved' ? copy.saved.sortSaved : copy.results.sort[option]);
   return (
-    <section className="nk-room-grid nk-search-list nk-search-list--card" aria-label={copy.saved.subtitle} data-testid="saved.list">
-      {list.cards.map((card) => (
-        <RoomCard key={card.id} card={card} copy={copy} locale={locale} today={list.today} />
-      ))}
-    </section>
+    <div className="nk-saved">
+      <div className="nk-search-toolbar nk-saved-toolbar">
+        <p className="nk-search-toolbar__count" data-testid="saved.count">
+          {fillTemplate(copy.saved.count, { count: list.cards.length.toLocaleString('en-US') })}
+        </p>
+        <label htmlFor={sortId} className="nk-search-toolbar__sort">
+          <span className="nk-search-toolbar__sort-label">{copy.results.sortLabel}</span>
+          <select
+            id={sortId}
+            className="nk-input nk-search-toolbar__select"
+            value={sort}
+            onChange={(event) => {
+              if (isSavedSort(event.target.value)) setSort(event.target.value);
+            }}
+            data-testid="saved.sort"
+          >
+            {SAVED_SORT_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {sortLabel(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <section className="nk-room-grid nk-search-list nk-search-list--card" aria-label={copy.saved.subtitle} data-testid="saved.list">
+        {cards.map((card) => (
+          <RoomCard key={card.id} card={card} copy={copy} locale={locale} today={list.today} />
+        ))}
+      </section>
+    </div>
   );
 }

@@ -244,6 +244,10 @@ export interface GuestCopy {
     gateBody: string;
     /** /saved could not load the list (AUTH-3). */
     errorTitle: string;
+    /** Toolbar of the saved page: how many rooms are saved. */
+    count: string;
+    /** Sort option: newest saved first (the price options reuse results.sort). */
+    sortSaved: string;
     /** Short notes after a heart press (AUTH-3, Mos 13 Nov 2026: a toast every time). */
     toastSaved: string;
     toastRemoved: string;
