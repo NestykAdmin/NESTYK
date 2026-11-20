@@ -117,6 +117,9 @@ test('the location box is an Ariakit combobox shared by the home and search page
     assert.match(box, new RegExp(`<Ariakit\\.${part}[\\s>]`), part);
   }
   assert.match(box, /fitViewport/, 'the list never runs off the screen');
+  // type="search" lets Chrome empty the box on Escape while the search still has its place; our ✕ clears instead.
+  assert.doesNotMatch(box, /type="search"/);
+  assert.match(box, /enterKeyHint="search"/);
   assert.match(box, /PHONE_QUERY = '\(max-width: 960px\)'/);
   assert.match(box, /locationSuggestions\(/);
   assert.match(box, /navigator\.geolocation\.getCurrentPosition/);
@@ -145,4 +148,32 @@ test('the box asks the site routes for places, ends the session on a pick and sh
   const page = read('app/[locale]/(marketplace)/search/page.tsx');
   assert.match(page, /nearPlaceTitle: t\.location\.nearPlaceTitle/);
   assert.match(page, /nearPlaceChip: t\.location\.nearPlaceChip/);
+});
+
+// The search page keeps the chosen place in the box (Mos 20 Nov 2026): a station, a Google place, "near me", an area
+// or the keyword, with the matching icon.
+test('locationLabel names what the search is about, in the same order as the page heading', () => {
+  const labels = { nearMe: 'ใกล้ตำแหน่งของฉัน', areaNames: NAMES };
+  const near = { latitude: 13.7, longitude: 100.5, radiusKm: 1.5 };
+  assert.deepEqual(loc.locationLabel({ keyword: 'ideo' }, labels), { kind: 'keyword', text: 'ideo' });
+  assert.deepEqual(loc.locationLabel({ nearGps: near, placeName: 'MRT ไฟฉาย' }, labels), { kind: 'station', text: 'MRT ไฟฉาย' });
+  assert.deepEqual(loc.locationLabel({ nearGps: near, placeName: 'BTS Asok' }, labels), { kind: 'station', text: 'BTS Asok' });
+  assert.deepEqual(loc.locationLabel({ nearGps: near, placeName: 'สยามพารากอน' }, labels), { kind: 'place', text: 'สยามพารากอน' });
+  assert.deepEqual(loc.locationLabel({ nearGps: near }, labels), { kind: 'nearMe', text: 'ใกล้ตำแหน่งของฉัน' });
+  assert.deepEqual(loc.locationLabel({ area: 'ratchada-rama9' }, labels), { kind: 'area', text: 'รัชดาฯ – พระราม 9' });
+  assert.deepEqual(loc.locationLabel({ area: 'old-slug' }, labels), { kind: 'area', text: 'old-slug' }, 'an old link shows its slug');
+  assert.deepEqual(loc.locationLabel({}, labels), { kind: 'none', text: '' });
+});
+
+test('the search bar shows the label, its icon and a clear button that drops the place too', () => {
+  const bar = read('app/components/guest/SearchKeywordBar.tsx');
+  assert.match(bar, /locationLabel\(criteria,/);
+  assert.match(bar, /data-testid="searchPage\.clear"/);
+  assert.match(bar, /update\(\{ keyword: undefined, \.\.\.NO_PLACE \}\)/);
+  // Submitting the label unchanged keeps the place search instead of turning it into a keyword.
+  assert.match(bar, /if \(text === label\.text\) return;/);
+  // New text in the box replaces the place it showed (typed and submitted, or the "ค้นหา “…”" row).
+  assert.match(bar, /const NO_PLACE = \{ area: undefined, nearGps: undefined, placeName: undefined \} as const;/);
+  assert.match(bar, /update\(\{ \.\.\.locationPatch\(\{ kind: 'keyword', text \}\), \.\.\.NO_PLACE \}\)/);
+  assert.match(bar, /choice\.kind === 'keyword' \? \{ \.\.\.locationPatch\(choice\), \.\.\.NO_PLACE \} : locationPatch\(choice\)/);
 });

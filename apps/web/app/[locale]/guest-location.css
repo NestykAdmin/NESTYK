@@ -142,6 +142,36 @@
   flex: 3 1 360px;
 }
 
+/* Search page box: our clear button (it also drops the picked place) replaces the browser's own one. */
+.nk-input--clearable {
+  padding-right: calc(var(--nk-tap) + var(--nk-space-1));
+}
+.nk-input--clearable::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  display: none;
+}
+.nk-search-bar__clear {
+  position: absolute;
+  z-index: 1;
+  right: var(--nk-space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--nk-color-text-secondary);
+  cursor: pointer;
+}
+.nk-search-bar__clear:hover {
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-ink);
+}
+
 /* Two columns need more room than the suggestion list. */
 .nk-loc__list[data-view='lines'] {
   width: max(var(--popover-anchor-width, 0px), 560px);

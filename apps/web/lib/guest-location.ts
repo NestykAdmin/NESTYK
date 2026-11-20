@@ -1,4 +1,4 @@
-import type { GuestSearchCriteria } from '@nestyk/feature-search';
+import { RAIL_LINES, railStationName, type GuestSearchCriteria } from '@nestyk/feature-search';
 
 /**
  * Location search (Mos 20 Nov 2026): the keyword box on the home page and the search page suggests "near me", the
@@ -111,4 +111,32 @@ export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchC
     };
   }
   return { keyword: choice.text.trim().slice(0, 100) || undefined };
+}
+
+export type LocationLabelKind = 'station' | 'place' | 'nearMe' | 'area' | 'keyword' | 'none';
+
+// "BTS อโศก" and "BTS Asok": names a station pick puts in the URL (railStationName in Thai, English for other pages).
+let railNames: Set<string> | null = null;
+function isRailPlaceName(name: string): boolean {
+  railNames ??= new Set(
+    RAIL_LINES.flatMap((line) => line.stations.flatMap((station) => [railStationName(line, station, 'th'), railStationName(line, station, 'en')])),
+  );
+  return railNames.has(name);
+}
+
+/**
+ * What the search page keeps in its box (Mos 20 Nov 2026), in the same order as the heading: the keyword, else the
+ * picked place (a station of our list or a Google place), else "near me", else the area.
+ */
+export function locationLabel(
+  criteria: Partial<Pick<GuestSearchCriteria, 'keyword' | 'area' | 'nearGps' | 'placeName'>>,
+  labels: { nearMe: string; areaNames: Record<string, string> },
+): { kind: LocationLabelKind; text: string } {
+  if (criteria.keyword) return { kind: 'keyword', text: criteria.keyword };
+  if (criteria.nearGps && criteria.placeName) {
+    return { kind: isRailPlaceName(criteria.placeName) ? 'station' : 'place', text: criteria.placeName };
+  }
+  if (criteria.nearGps) return { kind: 'nearMe', text: labels.nearMe };
+  if (criteria.area) return { kind: 'area', text: labels.areaNames[criteria.area] ?? criteria.area };
+  return { kind: 'none', text: '' };
 }

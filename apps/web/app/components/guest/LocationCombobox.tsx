@@ -85,7 +85,10 @@ export function LocationCombobox(props: Props) {
       <input
         id={props.inputId}
         name={props.name}
-        type="search"
+        type="text"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
         readOnly
         value={props.value}
         placeholder={props.placeholder}
@@ -433,7 +436,10 @@ function LocationBox({
     <Ariakit.Combobox
       id={inputId}
       name={name}
-      type="search"
+      type="text"
+      inputMode="search"
+      enterKeyHint="search"
+      autoComplete="off"
       autoSelect={false}
       placeholder={placeholder}
       className={inputClassName}
