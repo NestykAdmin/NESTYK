@@ -149,7 +149,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   // Icons in the role colour: light step in dark mode (colour system v1.1).
   const roleIcon = roleOnDark(roleColor, isDark);
   // Role identity (Mos 20 Nov 2026, same as the web): the current-role box, the role list, the own avatar and its
-  // rings use the role's tile colours (soft tile, deep icon and ring; deep tile, light icon and ring in dark mode).
+  // rings use the role's tile colours (deep tile, light icon; the ring is deep in light mode and light in dark mode).
   const roleTile = roleTileColors(activeRole, isDark);
   // The hero is the role's deep tone; guest keeps brand yellow. Admin is ink, which vanishes on the ink page in
   // dark mode, so it lifts to grey there (D1, v1.2 B+C).
@@ -159,6 +159,10 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
       : isDark && activeRole === 'admin'
         ? tokens.colors.lift
         : tokens.colors.roleIdentity[activeRole].deep;
+  // Dark mode: the deep tones sit close to the ink page (landlord 1.13:1), so the hero gets the role's light ring,
+  // like a role tile in dark mode (review R1, option ก, Mos 20 Nov 2026). The edge is always there, in the hero's
+  // own colour when it is not needed, so the hero keeps one height when the theme changes.
+  const heroEdge = { borderWidth: 1.5, borderColor: isDark && activeRole !== 'guest' ? roleTile.ring : heroFill };
   const mutedIcon = theme.textSecondary;
   const brandSoft = brandSoftFill(isDark);
   // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
@@ -433,7 +437,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                   showsVerticalScrollIndicator={false}
                   scrollEnabled={settingsView === 'main'}
                 >
-            <View style={[styles.heroCard, { backgroundColor: heroFill }]}>
+            <View style={[styles.heroCard, { backgroundColor: heroFill }, heroEdge]}>
               <TouchableOpacity
                 style={[styles.headerActionBtn, { backgroundColor: headerBtnBg }]}
                 onPress={onClose}
