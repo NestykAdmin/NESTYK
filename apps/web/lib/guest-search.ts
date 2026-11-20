@@ -36,14 +36,13 @@ function fill(template: string, values: Record<string, string | number>): string
 
 /**
  * One way to say each filter: the home "พร้อมเข้าอยู่" chip (quick=moveInReady) becomes move-in "now", and bedroom
- * counts above 3 fold into "3+". A location (lat/lng) is dropped: the page cannot show or remove it until the map
- * search (S4.3), so it would be a hidden filter (review L3).
+ * counts above 3 fold into "3+". A location (lat/lng, "near me") is kept: the page names it in the heading and shows a
+ * chip that removes it (location search, Mos 20 Nov 2026; it was dropped before, review L3).
  */
 export function normalizeSearchCriteria(criteria: GuestSearchCriteria): GuestSearchCriteria {
   const next: GuestSearchCriteria = {
     ...criteria,
     quick: criteria.quick.filter((code) => code !== 'moveInReady'),
-    nearGps: undefined,
   };
   if (criteria.quick.includes('moveInReady')) next.moveIn = 'now';
   if (criteria.bedrooms?.length) {
@@ -73,6 +72,10 @@ export interface SearchTitleLabels {
   /** "ห้องเช่า {name}" when the search is one area (SEO-1 area pages). */
   areaTitle?: string;
   areaNames?: Record<string, string>;
+  /** "ห้องเช่าใกล้ตำแหน่งของคุณ" for a "near me" search. */
+  nearMeTitle?: string;
+  /** "ห้องเช่าใกล้ {place}" for a place picked in the keyword box. */
+  nearPlaceTitle?: string;
 }
 
 /** Name of an area slug in the reader's language; an unknown slug (an old link) shows as it is. */
@@ -84,6 +87,8 @@ function areaName(slug: string, names: Record<string, string> | undefined): stri
 export function searchTitle(criteria: GuestSearchCriteria, labels: SearchTitleLabels): string {
   if (criteria.keyword) return fill(labels.titleKeyword, { keyword: criteria.keyword });
   if (criteria.area && labels.areaTitle) return fill(labels.areaTitle, { name: areaName(criteria.area, labels.areaNames) });
+  if (criteria.nearGps && criteria.placeName && labels.nearPlaceTitle) return fill(labels.nearPlaceTitle, { place: criteria.placeName });
+  if (criteria.nearGps && labels.nearMeTitle) return labels.nearMeTitle;
   const nearTransit = criteria.quick.includes('nearTransit');
   const types = criteria.propertyType ?? [];
   if (types.length === 1) {
@@ -107,6 +112,10 @@ export interface FilterChipLabels {
   /** "ทำเล: {name}" (SEO-1 area pages). */
   areaChip?: string;
   areaNames?: Record<string, string>;
+  /** "ใกล้ตำแหน่งของฉัน" for a "near me" search. */
+  nearMeChip?: string;
+  /** "ใกล้ {place} · {km} กม." for a place picked in the keyword box. */
+  nearPlaceChip?: string;
 }
 
 export interface FilterChip {
@@ -141,6 +150,13 @@ export function activeFilterChips(criteria: GuestSearchCriteria, labels: FilterC
     return rest.length ? rest : undefined;
   };
 
+  if (criteria.nearGps) {
+    const label =
+      criteria.placeName && labels.nearPlaceChip
+        ? fill(labels.nearPlaceChip, { place: criteria.placeName, km: criteria.nearGps.radiusKm })
+        : labels.nearMeChip;
+    if (label) add('near', label, { nearGps: undefined, placeName: undefined });
+  }
   if (criteria.area) {
     const name = areaName(criteria.area, labels.areaNames);
     add('area', labels.areaChip ? fill(labels.areaChip, { name }) : name, { area: undefined });
@@ -231,6 +247,7 @@ export function clearedFilters(criteria: GuestSearchCriteria, options: { keyword
     stationType: undefined,
     stationName: undefined,
     nearGps: undefined,
+    placeName: undefined,
     durationMonths: undefined,
   });
 }

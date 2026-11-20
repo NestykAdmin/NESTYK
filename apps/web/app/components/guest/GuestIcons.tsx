@@ -238,6 +238,15 @@ export function SocialIcon({ id }: { id: SocialId }) {
   }
 }
 
+/** "Near my location" in the location box (location search). */
+export const LocateIcon = (props: IconProps) => (
+  <Line {...props}>
+    <circle cx="12" cy="12" r="3" />
+    <circle cx="12" cy="12" r="7" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+  </Line>
+);
+
 export const PinIcon = (props: IconProps) => (
   <Line {...props}>
     <path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" />

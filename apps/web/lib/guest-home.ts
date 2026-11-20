@@ -28,6 +28,12 @@ export interface HomeSearchInput {
   maxPrice?: number;
   bedrooms?: string;
   quick?: readonly string[];
+  /** Area slug picked in the keyword box (location search, Mos 20 Nov 2026). */
+  area?: string;
+  /** "Near me" or a picked place: the position and radius (lib/guest-location.ts). */
+  nearGps?: { latitude: number; longitude: number; radiusKm: number };
+  /** Name of a picked place, for the heading and chip on /search. */
+  placeName?: string;
 }
 
 /** "/search?…" for the home search box. Values outside the lists above are dropped. */
@@ -46,6 +52,9 @@ export function homeSearchHref(input: HomeSearchInput): string {
     maxPrice: bound(input.maxPrice),
     bedrooms: bedrooms?.beds,
     quick,
+    area: input.area || undefined,
+    nearGps: input.nearGps,
+    placeName: input.placeName,
   });
   const query = params.toString();
   return query ? `/search?${query}` : '/search';

@@ -1,0 +1,349 @@
+/*
+ * Location search box (Mos 20 Nov 2026): suggestion list under the keyword box on the home page and /search.
+ * Tokens come from guest.css (:root). Imported by LocationCombobox.
+ */
+/* Ariakit places the popover (portal) under the box and sets --popover-anchor-width and --popover-available-height,
+   so the list keeps to the screen and scrolls inside. */
+.nk-loc__list {
+  z-index: 70;
+  width: max(var(--popover-anchor-width, 0px), 380px);
+  max-width: calc(100vw - 2 * var(--nk-space-3));
+  max-height: min(480px, var(--popover-available-height, 480px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--nk-space-2);
+  list-style: none;
+  background: var(--nk-color-surface);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  box-shadow: var(--nk-shadow-pop);
+  text-align: left;
+}
+.nk-loc__heading {
+  padding: var(--nk-space-2) var(--nk-space-3) var(--nk-space-1);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+}
+.nk-loc__option {
+  min-height: var(--nk-tap);
+  padding: var(--nk-space-2) var(--nk-space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  border-radius: var(--nk-radius-md);
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-loc__option[data-active-item],
+.nk-loc__option:hover {
+  background: var(--nk-color-neutral-bg);
+}
+.nk-loc__option[aria-busy='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.nk-loc__icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nk-radius-sm);
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nk-loc__icon--ink {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
+}
+.nk-loc__icon--area {
+  background: #fff0c4;
+  color: #7a5600;
+}
+.nk-loc__icon--place {
+  background: #e7eefb;
+  color: #1e4a9e;
+}
+.nk-loc__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nk-loc__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nk-loc__sub {
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-loc__sub--clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nk-loc__sub--row {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  min-width: 0;
+}
+.nk-loc__sub--row > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Station code in the line colour (text colour picked for at least 4.5:1, railLinePalette). */
+.nk-loc__code {
+  flex: none;
+  min-width: 34px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: var(--nk-text-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.nk-loc__chevron {
+  flex: none;
+  color: var(--nk-color-text-secondary);
+}
+.nk-loc__group + .nk-loc__group,
+.nk-loc__group + .nk-loc__option {
+  margin-top: var(--nk-space-1);
+  border-top: 1px solid var(--nk-color-border);
+  padding-top: var(--nk-space-1);
+}
+.nk-loc__credit {
+  padding: var(--nk-space-1) var(--nk-space-3) var(--nk-space-2);
+  font-family: Roboto, Arial, sans-serif;
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+  text-align: right;
+}
+.nk-loc__sub.is-error {
+  color: var(--nk-color-danger);
+}
+/* The box sits in its own positioned wrapper: keep the search icon above it. */
+.nk-field__control > .nk-field__icon {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.nk-search__row > .nk-field--keyword {
+  flex: 3 1 360px;
+}
+
+/* Two columns need more room than the suggestion list. */
+.nk-loc__list[data-view='lines'] {
+  width: max(var(--popover-anchor-width, 0px), 560px);
+  overflow: hidden;
+}
+/* "เลือกจากสายรถไฟฟ้า": lines on the left, stations of the chosen line on the right, inside the same list. */
+.nk-loc-lines__head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: var(--nk-space-2);
+  padding: var(--nk-space-1) var(--nk-space-1) var(--nk-space-2);
+  border-bottom: 1px solid var(--nk-color-border);
+}
+.nk-loc-lines__back {
+  grid-row: span 2;
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nk-space-1);
+  border-radius: var(--nk-radius-md);
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-loc-lines__back[data-active-item],
+.nk-loc-lines__back:hover {
+  background: var(--nk-color-neutral-bg);
+}
+.nk-loc-lines__back-icon {
+  transform: scaleX(-1);
+}
+.nk-loc-lines__title {
+  margin: 0;
+  font-weight: 700;
+}
+.nk-loc-lines__hint {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-loc-lines__body {
+  display: grid;
+  grid-template-columns: minmax(150px, 2fr) 3fr;
+  gap: var(--nk-space-2);
+  padding-top: var(--nk-space-2);
+  height: min(360px, calc(var(--popover-available-height, 480px) - 96px));
+  min-height: 200px;
+}
+.nk-loc-lines__lines,
+.nk-loc-lines__stations {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.nk-loc-lines__lines {
+  border-right: 1px solid var(--nk-color-border);
+  padding-right: var(--nk-space-2);
+}
+.nk-loc-lines__line,
+.nk-loc-lines__station {
+  min-height: 40px;
+  padding: var(--nk-space-1) var(--nk-space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  border-radius: var(--nk-radius-md);
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-loc-lines__line[data-active-item],
+.nk-loc-lines__station[data-active-item],
+.nk-loc-lines__line:hover,
+.nk-loc-lines__station:hover {
+  background: var(--nk-color-neutral-bg);
+}
+.nk-loc-lines__line.is-on {
+  background: var(--nk-color-neutral-bg);
+  font-weight: 700;
+}
+.nk-loc-lines__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Phones and tablets (≤960px): the box opens a full-screen search (design LocPhoneType / LocPhoneLines). */
+.nk-loc-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--nk-color-surface);
+  display: flex;
+  flex-direction: column;
+}
+.nk-loc-sheet__inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nk-loc-sheet__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  padding: var(--nk-space-2) var(--nk-space-3);
+  padding-top: max(var(--nk-space-2), env(safe-area-inset-top));
+  border-bottom: 1px solid var(--nk-color-border);
+}
+.nk-loc-sheet__close,
+.nk-loc-sheet__clear {
+  flex: none;
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-loc-sheet__field {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.nk-loc-sheet__field > input {
+  flex: 1;
+  min-width: 0;
+  padding-right: calc(var(--nk-tap) + var(--nk-space-1));
+  font-size: 16px; /* no zoom on iOS */
+}
+/* Our clear button replaces the browser's own one. */
+.nk-loc-sheet__field > input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  display: none;
+}
+.nk-loc-sheet__clear {
+  position: absolute;
+  right: 0;
+}
+.nk-loc-sheet__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--nk-space-2) var(--nk-space-2) max(var(--nk-space-4), env(safe-area-inset-bottom));
+}
+/* In the sheet the lines become a row of chips and the stations a full-width list. */
+.nk-loc-sheet .nk-loc-lines__head {
+  grid-template-columns: 1fr;
+  row-gap: 2px;
+}
+.nk-loc-sheet .nk-loc-lines__back {
+  grid-row: auto;
+  justify-self: start;
+  padding-left: var(--nk-space-1);
+}
+.nk-loc-sheet .nk-loc-lines__body {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+}
+.nk-loc-sheet .nk-loc-lines__lines {
+  display: flex;
+  gap: var(--nk-space-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-right: 0;
+  padding: 0 0 var(--nk-space-2);
+  scrollbar-width: none;
+}
+.nk-loc-sheet .nk-loc-lines__line {
+  flex: none;
+  min-height: 36px;
+  padding: 0 var(--nk-space-3);
+  border: 1px solid var(--nk-color-border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.nk-loc-sheet .nk-loc-lines__line.is-on {
+  border-color: var(--nk-color-ink);
+}
+.nk-loc-sheet .nk-loc-lines__stations {
+  overflow: visible;
+}
+.nk-loc-sheet .nk-loc-lines__station {
+  min-height: var(--nk-tap);
+  font-size: var(--nk-text-md, 1rem);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nk-loc__list {
+    transition: opacity 120ms ease;
+  }
+}

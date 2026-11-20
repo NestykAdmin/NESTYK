@@ -114,3 +114,15 @@ test('area survives the URL; a value that is not a slug is dropped', () => {
   }
   assert.equal('area' in parse(''), false);
 });
+
+// Place search (Mos 20 Nov 2026): a place picked in the keyword box keeps its name for the heading and the chip.
+// The name only means something with a position, so it is dropped without one.
+test('a place name rides with lat/lng, is trimmed to 80 characters and dropped without a position', () => {
+  const c = parse('lat=13.7466&lng=100.5393&r=3&place=%20Central%20World%20');
+  assert.equal(c.placeName, 'Central World');
+  assert.deepEqual(c.nearGps, { latitude: 13.7466, longitude: 100.5393, radiusKm: 3 });
+  assert.equal(criteriaToSearchParams(c).toString(), 'lat=13.7466&lng=100.5393&r=3&place=Central+World');
+  assert.equal(parse(`lat=13.7&lng=100.5&place=${'x'.repeat(120)}`).placeName.length, 80);
+  assert.equal(parse('place=Central%20World').placeName, undefined);
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), placeName: 'Central World' }).toString(), '', 'no position: no name');
+});

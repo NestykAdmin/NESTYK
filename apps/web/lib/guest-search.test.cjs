@@ -127,9 +127,30 @@ test('townhome stays off the filters until rooms of that type exist, as on the h
   assert.deepEqual([...search.SEARCH_PROPERTY_TYPES], ['condo', 'apartment', 'house']);
 });
 
-test('a location in the URL is dropped: the page has no way to show or remove it yet (S4.3)', () => {
-  assert.equal(parse('lat=13.7&lng=100.5&r=2').nearGps, undefined);
-  assert.equal(search.searchHref(parse('lat=13.7&lng=100.5&type=condo')), '/search?type=condo');
+// Location search (Mos 20 Nov 2026): "near me" puts the position in the URL; the page shows it as a heading and a
+// chip that removes it (until then it was dropped, review L3).
+test('a location in the URL is kept, titled "near you" and shown as a chip that removes it', () => {
+  const c = parse('lat=13.737&lng=100.56&type=condo');
+  assert.deepEqual(c.nearGps, { latitude: 13.737, longitude: 100.56, radiusKm: 5 });
+  assert.equal(search.searchHref(c), '/search?type=condo&lat=13.737&lng=100.56');
+  assert.equal(search.toPublicQuery(c, 1, 12).nearGps.radiusKm, 5);
+  const titles = { ...labels, nearMeTitle: 'ห้องเช่าใกล้ตำแหน่งของคุณ' };
+  assert.equal(search.searchTitle(c, titles), 'ห้องเช่าใกล้ตำแหน่งของคุณ');
+  assert.equal(search.searchTitle(parse('lat=13.737&lng=100.56&q=Ideo'), titles), 'ผลการค้นหา “Ideo”', 'a keyword still names the search');
+  const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ตำแหน่งของฉัน' });
+  assert.equal(chips[0].key, 'near');
+  assert.equal(chips[0].label, 'ใกล้ตำแหน่งของฉัน');
+  assert.equal(chips[0].href, '/search?type=condo');
+});
+
+test('a picked place is named in the heading and chip; removing the chip drops the place and its name', () => {
+  const c = parse('lat=13.7466&lng=100.5393&r=3&place=Central%20World&type=condo');
+  const titles = { ...labels, nearMeTitle: 'ใกล้คุณ', nearPlaceTitle: 'ห้องเช่าใกล้ {place}' };
+  assert.equal(search.searchTitle(c, titles), 'ห้องเช่าใกล้ Central World');
+  const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ฉัน', nearPlaceChip: 'ใกล้ {place} · {km} กม.' });
+  assert.equal(chips[0].label, 'ใกล้ Central World · 3 กม.');
+  assert.equal(chips[0].href, '/search?type=condo');
+  assert.equal(search.searchHref(search.clearedFilters(c)), '/search');
 });
 
 test('price slider runs 0 – 100,000 in steps of 1,000; the far ends mean "no limit"', () => {

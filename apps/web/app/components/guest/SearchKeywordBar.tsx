@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useId } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useLocale } from '@nestyk/i18n';
 import type { GuestSearchCriteria } from '@nestyk/feature-search';
+import { locationPatch, type LocationChoice } from '../../../lib/guest-location';
 import { SearchIcon } from './GuestIcons';
+import { LocationCombobox } from './LocationCombobox';
 import { SearchFilterSheet } from './SearchFilterSheet';
 import { useSearchNavigation } from './SearchNavigation';
 
@@ -31,11 +33,15 @@ export function SearchKeywordBar({ criteria, total }: { criteria: GuestSearchCri
       quick: current.quick.includes(code) ? current.quick.filter((item) => item !== code) : [...current.quick, code],
     }));
   };
+  const [text, setText] = useState(criteria.keyword ?? '');
+  // A new search from elsewhere (a chip, Back) shows its own keyword.
+  useEffect(() => setText(criteria.keyword ?? ''), [criteria.keyword]);
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const keyword = String(new FormData(event.currentTarget).get('q') ?? '').trim().slice(0, 100);
-    update({ keyword: keyword || undefined });
+    update(locationPatch({ kind: 'keyword', text }));
   };
+  // An area or "near me" replaces the place and shows as a chip; a keyword narrows the search (location search).
+  const pickLocation = (choice: LocationChoice) => update(locationPatch(choice));
 
   return (
     <div className="nk-search-bar" data-testid="searchPage.bar">
@@ -45,16 +51,15 @@ export function SearchKeywordBar({ criteria, total }: { criteria: GuestSearchCri
         </label>
         <div className="nk-field__control nk-search-bar__field">
           <SearchIcon size={18} className="nk-field__icon" />
-          <input
-            key={criteria.keyword ?? ''}
-            id={`${id}-q`}
+          <LocationCombobox
+            inputId={`${id}-q`}
             name="q"
-            type="search"
-            defaultValue={criteria.keyword ?? ''}
-            maxLength={100}
+            value={text}
+            onValueChange={setText}
+            onPick={pickLocation}
             placeholder={copy.search.keywordPlaceholder}
-            className="nk-input nk-input--icon"
-            data-testid="searchPage.keyword"
+            inputClassName="nk-input nk-input--icon"
+            testId="searchPage.keyword"
           />
         </div>
         <button type="submit" className="nk-btn nk-btn--primary nk-search-bar__submit" data-testid="searchPage.submit">

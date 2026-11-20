@@ -442,6 +442,48 @@ export interface GuestCopy {
     seeAllZones: string;
     filterChip: string;
   };
+  /** Location search: suggestions in the keyword box and "near me" (Mos 20 Nov 2026). */
+  location: {
+    /** Accessible name of the suggestion list. */
+    listLabel: string;
+    nearMe: string;
+    /** "{km}": the search radius. */
+    nearMeHint: string;
+    locating: string;
+    denied: string;
+    unavailable: string;
+    areasHeading: string;
+    /** "{text}": what was typed, searched as a free keyword. */
+    searchFor: string;
+    searchForHint: string;
+    nearMeChip: string;
+    /** Results heading of a "near me" search. */
+    nearMeTitle: string;
+    /** Group heading of Google place suggestions; the group ends with the "Google Maps" credit Google asks for. */
+    placesHeading: string;
+    placeFailed: string;
+    /** "{place}": the picked place's name. */
+    nearPlaceTitle: string;
+    /** "{place}", "{km}": the search radius. */
+    nearPlaceChip: string;
+    stationsHeading: string;
+    interchange: string;
+    browseLines: string;
+    browseLinesHint: string;
+    clear: string;
+    back: string;
+  };
+  /** Rail picker beside the keyword box: line, then station (Mos 20 Nov 2026). */
+  transit: {
+    button: string;
+    title: string;
+    linesLabel: string;
+    stationsLabel: string;
+    back: string;
+    close: string;
+    /** "{km}": the search radius around a station. */
+    hint: string;
+  };
   transitLines: {
     bts_sukhumvit: string;
     bts_silom: string;
@@ -451,6 +493,10 @@ export interface GuestCopy {
     mrt_yellow: string;
     mrt_orange: string;
     arl: string;
+    /** Lines in the rail picker only (no area uses them). */
+    bts_gold: string;
+    srt_red_north: string;
+    srt_red_west: string;
   };
 }
 

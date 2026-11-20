@@ -44,7 +44,14 @@ export default async function SearchPage({ params, searchParams }: Props) {
   const criteria = normalizeSearchCriteria(criteriaFromSearchParams(await searchParams));
   const today = bangkokToday();
   const areaNames = t.areaNames as Record<string, string>;
-  const title = searchTitle(criteria, { ...t.results, propertyType: t.propertyType, areaTitle: t.areaPage.title, areaNames });
+  const title = searchTitle(criteria, {
+    ...t.results,
+    propertyType: t.propertyType,
+    areaTitle: t.areaPage.title,
+    areaNames,
+    nearMeTitle: t.location.nearMeTitle,
+    nearPlaceTitle: t.location.nearPlaceTitle,
+  });
   const chips = activeFilterChips(criteria, {
     propertyType: t.propertyType,
     quick: t.quick,
@@ -64,6 +71,8 @@ export default async function SearchPage({ params, searchParams }: Props) {
     durationChip: t.results.durationChip,
     areaChip: t.areaPage.filterChip,
     areaNames,
+    nearMeChip: t.location.nearMeChip,
+    nearPlaceChip: t.location.nearPlaceChip,
   });
 
   const load = firstLoad(criteria);
