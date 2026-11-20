@@ -68,7 +68,7 @@ test('header: sign-in button when signed out, design B chip + menu when signed i
   assert.match(menu, /'Escape'/);
   assert.match(menu, /onBlur=/, 'closes when focus leaves it');
   assert.match(menu, /onError=/, 'a picture that fails shows the initials (review R8)');
-  assert.match(menu, /roleSiteLinks\(/);
+  assert.match(menu, /guestRoleChoices\(/, 'role pages come from roleSiteLinks via guestRoleChoices');
   assert.match(menu, /data-testid="guest\.account"/);
   assert.match(menu, /data-testid="guest\.signOut"/);
   assert.match(menu, /t\.roles\[/, 'role names come from the shared role copy');
@@ -84,5 +84,37 @@ test('mobile: the profile tab shows the initials, the profile page shows the acc
   assert.match(card, /data-testid="profile\.signInCard"/);
   assert.match(card, /data-testid="profile\.accountCard"/);
   assert.match(card, /data-testid="profile\.signOut"/);
-  assert.match(card, /roleSiteLinks\(/);
+  assert.match(card, /guestRoleChoices\(/);
+});
+
+test('role switcher like the admin web (Mos 20 Nov 2026): role tiles, a current-role row, then a role list', () => {
+  const role = read(guest, 'GuestRole.tsx');
+  assert.match(role, /import \{ roleTileColors \} from '@nestyk\/ui'/, 'the same tile colours as the admin web and the app');
+  assert.match(role, /roleTileColors\(role, false\)/);
+  assert.match(role, /--nk-role-ring/);
+  assert.match(role, /export function RoleTile/);
+  assert.match(role, /export function RoleAvatar/);
+  assert.match(role, /export function RoleOption/);
+  assert.match(role, /roleDescriptions/);
+  assert.match(role, /aria-current=\{current \? 'true' : undefined\}/);
+  assert.match(role, /webSession\.otherSite/, 'other roles open on their own site, marked like the admin web');
+
+  const menu = read(guest, 'AccountMenu.tsx');
+  assert.match(menu, /guestRoleChoices\(/);
+  assert.match(menu, /<RoleAvatar /, 'the chip shows the role ring and badge');
+  assert.match(menu, /data-testid="guest\.roleRow"/);
+  assert.match(menu, /changeRole/);
+  assert.match(menu, /chooseRole/);
+  assert.match(menu, /roleHint/);
+  assert.match(menu, /togglePicker\(true\)/);
+  assert.match(menu, /togglePicker\(false\)/);
+  assert.match(menu, /testId=\{`guest\.role\.\$\{choice\.role\}`\}/);
+  assert.doesNotMatch(menu, /BriefcaseIcon/);
+
+  const card = read(guest, 'ProfileAccount.tsx');
+  assert.match(card, /guestRoleChoices\(/);
+  assert.match(card, /<RoleAvatar /);
+  assert.match(card, /<RoleOption/);
+  assert.match(card, /testId=\{`profile\.role\.\$\{choice\.role\}`\}/);
+  assert.doesNotMatch(card, /BriefcaseIcon/);
 });

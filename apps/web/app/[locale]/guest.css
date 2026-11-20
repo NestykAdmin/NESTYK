@@ -2920,6 +2920,141 @@ fieldset.nk-filter-dd {
   align-items: center;
   gap: var(--nk-space-3);
 }
+
+/* Role (Mos 20 Nov 2026, like the admin web). Colours come from GuestRole.tsx (roleTileColors) as --nk-role-*. */
+.nk-role-tile {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--nk-radius-sm);
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+  box-shadow: 0 0 0 1.5px var(--nk-role-ring);
+}
+.nk-role-avatar {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+/* The role's ring and colours, always on (they win over the brand ring the chip had on hover). */
+.nk-role-avatar .nk-avatar-initials,
+.nk-account__chip:is(:hover, :focus-visible, [aria-expanded="true"]) .nk-role-avatar .nk-avatar-initials,
+.nk-header[data-tone='dark'] .nk-account__chip .nk-role-avatar .nk-avatar-initials {
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+  box-shadow: 0 0 0 2px var(--nk-color-surface), 0 0 0 3.5px var(--nk-role-ring);
+}
+.nk-role-avatar__badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--nk-color-surface);
+  border-radius: 5px;
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+}
+.nk-avatar-initials--lg + .nk-role-avatar__badge {
+  right: -2px;
+  bottom: -2px;
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+  border-radius: 7px;
+}
+.nk-avatar-initials--lg + .nk-role-avatar__badge svg {
+  width: 13px;
+  height: 13px;
+}
+/* On the ink header the deep ring would vanish: the role's light tone instead (as in the admin web's dark mode). */
+.nk-header[data-tone='dark'] .nk-account__chip .nk-role-avatar .nk-avatar-initials {
+  box-shadow: 0 0 0 2px var(--nk-color-ink), 0 0 0 3.5px var(--nk-role-fg);
+}
+.nk-role-option__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.nk-role-option__name {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-role-option__line,
+.nk-role-row__label {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-option {
+  padding-top: var(--nk-space-2);
+  padding-bottom: var(--nk-space-2);
+}
+.nk-role-option__check {
+  flex: none;
+  color: var(--nk-color-ink);
+}
+.nk-role-option__badge {
+  flex: none;
+  padding: 2px var(--nk-space-2);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+  white-space: nowrap;
+}
+.nk-role-option.is-current {
+  background: var(--nk-color-bg);
+}
+.nk-role-row {
+  padding-top: var(--nk-space-2);
+  padding-bottom: var(--nk-space-2);
+}
+div.nk-role-row {
+  cursor: default;
+}
+div.nk-role-row:hover {
+  background: transparent;
+}
+.nk-role-row__change {
+  flex: none;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-picker__back {
+  font-weight: 600;
+}
+.nk-role-picker__hint,
+.nk-role-list__hint {
+  margin: 0;
+  padding: 0 var(--nk-space-4) var(--nk-space-2);
+  font-size: var(--nk-text-xs);
+  line-height: 1.5;
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-list__title {
+  margin: 0;
+  padding: var(--nk-space-3) var(--nk-space-4) var(--nk-space-1);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-list > .nk-role-list__title + *,
+.nk-role-list > .nk-role-list__hint {
+  border-top: 0;
+}
+.nk-role-list__hint {
+  padding-top: var(--nk-space-2);
+  padding-bottom: var(--nk-space-3);
+}
 .nk-signin-card--checking {
   visibility: hidden;
 }
