@@ -32,6 +32,7 @@ function load(filename) {
   const module = { exports: {} };
   cache.set(filename, module);
   const localRequire = (name) => {
+    if (name === 'expo-constants') return { __esModule: true, default: { expoConfig: { extra: {} } } }; // self-owner-maps-key.ts
     if (name.endsWith('.css')) return {};
     if (name === 'react') return fakeReact;
     if (name === 'react-native') return {

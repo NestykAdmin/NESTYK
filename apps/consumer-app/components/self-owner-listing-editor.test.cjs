@@ -18,6 +18,7 @@ function load(filename) {
   const module = { exports: {} };
   cache.set(filename, module);
   const localRequire = (name) => {
+    if (name === 'expo-constants') return { __esModule: true, default: { expoConfig: { extra: {} } } }; // self-owner-maps-key.ts
     if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useSyncExternalStore: (_s, get) => get() };
     if (name === 'react-native') return { Platform, useWindowDimensions: () => ({ width: windowWidth, height: 900 }) };
     if (name === 'expo-image-picker') return { launchImageLibraryAsync: async () => ({ canceled: true }), UIImagePickerPreferredAssetRepresentationMode: {} };

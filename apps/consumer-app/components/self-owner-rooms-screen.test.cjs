@@ -16,6 +16,7 @@ function load(filename) {
   const module = { exports: {} };
   cache.set(filename, module);
   const localRequire = (name) => {
+    if (name === 'expo-constants') return { __esModule: true, default: { expoConfig: { extra: {} } } }; // self-owner-maps-key.ts
     if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useRef: () => ({ current: null }), useSyncExternalStore: (_s, get) => get(), useEffect: () => {}, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
     if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 }, Platform: { OS: 'ios' }, Alert: { alert() {} } };
     // The room detail modal (Jom 20 Nov 2026) is closed in these tests.

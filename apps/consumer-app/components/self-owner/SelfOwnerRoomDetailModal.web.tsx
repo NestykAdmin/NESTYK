@@ -11,6 +11,7 @@ import { canToggleListing, selfOwnerRoomErrorCode, selfOwnerRoomStore, toggleLis
 import { useSelfOwnerRoomDetail } from "./useSelfOwnerRoomDetail";
 import { SelfOwnerListingEditor } from "./SelfOwnerListingEditor";
 import type { SelfOwnerRoomDetailModalProps } from "./SelfOwnerRoomDetailModal.types";
+import { selfOwnerMapsApiKey } from "./self-owner-maps-key";
 
 /**
  * Self owner room detail over the rooms page (Jom 20 Nov 2026), like the agent's AgentRoomDetailModal.web.tsx:
@@ -186,7 +187,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
               mode="agent"
               room={detail}
               ownerInternalCopy={ownerInternalCopy}
-              mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
+              mapsApiKey={selfOwnerMapsApiKey()}
             />
           )}
           <WebDialog

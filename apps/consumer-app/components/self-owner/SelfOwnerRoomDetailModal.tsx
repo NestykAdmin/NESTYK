@@ -8,6 +8,7 @@ import { canToggleListing, selfOwnerRoomErrorCode, selfOwnerRoomStore, toggleLis
 import { useSelfOwnerRoomDetail } from './useSelfOwnerRoomDetail';
 import { SelfOwnerListingEditor } from './SelfOwnerListingEditor';
 import type { SelfOwnerRoomDetailModalProps } from './SelfOwnerRoomDetailModal.types';
+import { selfOwnerMapsApiKey } from './self-owner-maps-key';
 
 /**
  * Self owner room detail on the phone (Jom 20 Nov 2026), like the agent's AgentRoomDetailModal.tsx: full-screen,
@@ -114,7 +115,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
               />
             </View>
           ) : (
-            <MobileRoomDetailBody key={`${room.id}-${room.updatedAt}`} mode="agent" room={detail} ownerInternalCopy={ownerInternalCopy} mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY} />
+            <MobileRoomDetailBody key={`${room.id}-${room.updatedAt}`} mode="agent" room={detail} ownerInternalCopy={ownerInternalCopy} mapsApiKey={selfOwnerMapsApiKey()} />
           )}
         </SafeAreaView>
       </SafeAreaProvider>

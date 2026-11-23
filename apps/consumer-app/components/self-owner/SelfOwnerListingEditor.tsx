@@ -17,6 +17,7 @@ import {
   selfOwnerListingDrafts,
   wizardDataFromRoom,
 } from '../../lib/self-owner-listing';
+import { selfOwnerMapsApiKey } from './self-owner-maps-key';
 
 /**
  * Self owner "add / edit room" (UI round, 20 Nov 2026, ClickUp z8rcteng6c / z8rcteng6d): the agent listing wizard
@@ -156,7 +157,7 @@ export function SelfOwnerListingEditor({ room, onDone, onCancel, backHandlerRef,
       listContractTypes={async () => (await options()).contractTypes}
       listRoomTypes={async () => (await options()).roomTypes}
       listFacilities={async () => (await options()).facilities}
-      mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
+      mapsApiKey={selfOwnerMapsApiKey()}
       onSubmitListing={save}
     />
   );
