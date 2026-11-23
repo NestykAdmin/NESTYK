@@ -5,6 +5,7 @@ import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { Link, usePathname } from '../../../i18n/navigation';
 import { activeTabKey, GUEST_TABS, isGuestPageReady, showsTabBar, type GuestTabKey } from '../../../lib/guest-site';
 import { HeartIcon, HomeIcon, SearchIcon, UserIcon } from './GuestIcons';
+import { roleStyle } from './GuestRole';
 import { useGuestSession } from './GuestSession';
 
 const ICONS: Record<GuestTabKey, React.ComponentType<{ size?: number }>> = {
@@ -37,7 +38,7 @@ export function GuestTabBar() {
           <>
             <span className="nk-tab__icon">
               {tab.key === 'profile' && initials ? (
-                <span className="nk-tab__avatar" aria-hidden="true">
+                <span className="nk-tab__avatar" style={roleStyle('guest')} aria-hidden="true">
                   {initials}
                 </span>
               ) : (

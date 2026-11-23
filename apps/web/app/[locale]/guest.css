@@ -2972,9 +2972,9 @@ fieldset.nk-filter-dd {
   width: 13px;
   height: 13px;
 }
-/* On the ink header the deep ring would vanish: the role's light tone instead (as in the admin web's dark mode). */
+/* On the ink header the gap around the picture is ink too; Guest's yellow ring shows on it (roleTileColors). */
 .nk-header[data-tone='dark'] .nk-account__chip .nk-role-avatar .nk-avatar-initials {
-  box-shadow: 0 0 0 2px var(--nk-color-ink), 0 0 0 3.5px var(--nk-role-fg);
+  box-shadow: 0 0 0 2px var(--nk-color-ink), 0 0 0 3.5px var(--nk-role-ring);
 }
 .nk-role-option__text {
   flex: 1;
@@ -3076,8 +3076,10 @@ div.nk-role-row:hover {
   width: 24px;
   height: 24px;
   border-radius: var(--nk-radius-pill);
-  background: var(--nk-color-ink);
-  color: var(--nk-color-surface);
+  /* Guest's role colours (Mos 23 Nov 2026: brand yellow, ink letters), set by GuestTabBar from roleTileColors. */
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+  box-shadow: 0 0 0 1px var(--nk-color-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3327,6 +3329,10 @@ div.nk-role-row:hover {
 }
 
 /* Gallery: one large photo + four (design A) */
+/* Gallery + the phone overlay beside it (the overlay is placed over the photo on phones). */
+.nk-rp-media {
+  position: relative;
+}
 .nk-rp-gallery {
   position: relative;
   display: grid;
@@ -3933,8 +3939,10 @@ div.nk-role-row:hover {
     display: none;
   }
   /* Design B on phones: a tall photo, then the details as a sheet over its bottom edge. */
-  .nk-rp-gallery {
+  .nk-rp-media {
     order: -1;
+  }
+  .nk-rp-gallery {
     display: block;
     height: 400px;
     border-radius: 0;

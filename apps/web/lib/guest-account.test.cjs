@@ -118,3 +118,10 @@ test('role switcher like the admin web (Mos 20 Nov 2026): role tiles, a current-
   assert.match(card, /testId=\{`profile\.role\.\$\{choice\.role\}`\}/);
   assert.doesNotMatch(card, /BriefcaseIcon/);
 });
+
+test('the phone tab bar shows the own initials in the Guest role colours (brand yellow, ink letters, Mos 23 Nov 2026)', () => {
+  const tabs = read(guest, 'GuestTabBar.tsx');
+  assert.match(tabs, /roleStyle\('guest'\)/);
+  const css = read(web, 'app', '[locale]', 'guest.css');
+  assert.match(css, /\.nk-tab__avatar \{[^}]*background: var\(--nk-role-bg\);[^}]*color: var\(--nk-role-fg\);/);
+});
