@@ -134,7 +134,7 @@ export function postLoginPath(next: unknown, roles: readonly string[] | null | u
 /** Language prefixes of the guest web (Thai has none). Kept in step with apps/web/i18n/routing.ts by a test. */
 export const GUEST_WEB_LOCALES = ['en', 'ja', 'zh'] as const;
 /** One-segment guest web pages. */
-export const GUEST_WEB_PAGES = ['search', 'saved', 'profile', 'areas'] as const;
+export const GUEST_WEB_PAGES = ['search', 'saved', 'profile', 'areas', 'viewing-requests'] as const;
 /** Guest web pages with one id below them: /rooms/<id>, /rent/<area>. */
 export const GUEST_WEB_TREES = ['rooms', 'rent'] as const;
 

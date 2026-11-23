@@ -126,6 +126,8 @@ export default async function RoomPage({ params }: Props) {
   );
   const resultsHref = localePath(locale, '/search');
   const saveRoom = { title, priceText: lowest ? `${lowest} ${t.card.perMonthLong}` : null, coverImageUrl: room.coverImageUrl };
+  // The room in the viewing request form (plain data: the buttons are client components).
+  const viewingRoom = { ...saveRoom, id: room.id };
   // SEO-1: what the page says, for search engines (no position). Left out when the site address is not set.
   const jsonLd = roomJsonLd({ origin: guestSiteOrigin(), locale, path: roomPagePath(room.id), title, homeName: t.tabs.home, room });
 
@@ -302,7 +304,7 @@ export default async function RoomPage({ params }: Props) {
             </section>
           </div>
 
-          <RoomViewingCard moveIn={moveIn} />
+          <RoomViewingCard moveIn={moveIn} room={viewingRoom} />
         </div>
       </RoomTermProvider>
 
@@ -330,9 +332,9 @@ export default async function RoomPage({ params }: Props) {
             <h2 id="rp-closing" className="nk-rp-closing__title">
               {copy.closingTitle}
             </h2>
-            <p className="nk-rp-closing__text">{copy.viewingSoonNote}</p>
+            <p className="nk-rp-closing__text">{copy.viewingNote}</p>
           </div>
-          <RoomViewingButton />
+          <RoomViewingButton room={viewingRoom} />
         </div>
       </section>
 
@@ -346,7 +348,7 @@ export default async function RoomPage({ params }: Props) {
           ) : null}
           {initial ? <span className="nk-rp-bar__term">{fillTemplate(copy.contractMonths, { count: initial.durationMonths })}</span> : null}
         </p>
-        <RoomViewingButton className="nk-rp-bar__cta" />
+        <RoomViewingButton room={viewingRoom} className="nk-rp-bar__cta" />
       </div>
     </article>
   );

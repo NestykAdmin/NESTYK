@@ -85,7 +85,11 @@ export default async function ProfilePage({ params }: Props) {
             <span className="nk-row__label">{copy.saved}</span>
             <Chevron />
           </Link>
-          {isGuestPageReady('viewingRequests') ? null : <SoonRow icon={CalendarIcon} label={copy.viewingRequests} soon={soon} />}
+          <Link href={localePath(locale, '/viewing-requests')} className="nk-row" data-testid="profile.viewingRequests">
+            <CalendarIcon className="nk-row__icon" />
+            <span className="nk-row__label">{copy.viewingRequests}</span>
+            <Chevron />
+          </Link>
         </section>
 
         <section aria-label={copy.settingsLabel} className="nk-card nk-list">

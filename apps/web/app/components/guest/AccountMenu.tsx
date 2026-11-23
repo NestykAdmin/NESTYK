@@ -188,11 +188,10 @@ export function AccountMenu() {
                   <HeartIcon className="nk-account__icon" />
                   {copy.saved}
                 </Link>
-                <span aria-disabled="true" className="nk-account__item nk-account__item--soon">
+                <Link href="/viewing-requests" className="nk-account__item" onClick={close} data-testid="guest.viewingRequests">
                   <CalendarIcon className="nk-account__icon" />
-                  <span className="nk-account__text">{copy.viewingRequests}</span>
-                  <span className="nk-soon">{t.guest.nav.comingSoon}</span>
-                </span>
+                  {copy.viewingRequests}
+                </Link>
               </div>
             </>
           )}

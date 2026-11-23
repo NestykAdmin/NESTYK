@@ -137,9 +137,9 @@ test('links built on the server carry the language prefix of the URL rules (Thai
   assert.equal(site.localePath('en', '/?tab=new'), '/en?tab=new');
 });
 
-test('S7.3: the room page is open; viewing requests wait for their API (shown as coming soon)', () => {
+test('S7.3: the room page is open; viewing requests are open since their API (plan 23 Nov 2026, step 2)', () => {
   assert.equal(site.isGuestPageReady('rooms'), true);
-  assert.equal(site.isGuestPageReady('viewingRequests'), false);
+  assert.equal(site.isGuestPageReady('viewingRequests'), true);
 });
 
 test('shownQuickFilters leaves out "near BTS/MRT" while rooms have no station data, and keeps the order', () => {

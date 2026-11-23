@@ -33,7 +33,7 @@ const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
   saved: true,
   profile: true,
   help: false,
-  viewingRequests: false,
+  viewingRequests: true,
   theme: false,
   rooms: true,
   rent: true,

@@ -1,9 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { formatPublicPrice, type PriceOptionView } from '@nestyk/feature-listing/public';
 import { CalendarIcon } from '../GuestIcons';
+import { useGuestSession } from '../GuestSession';
+import { SignInPrompt } from '../SignInPrompt';
+import { ViewingRequestDialog, type ViewingRequestRoom } from '../ViewingRequestDialog';
 
 type TermState = { options: PriceOptionView[]; months: number | null; choose: (months: number) => void };
 
@@ -58,27 +61,39 @@ export function RoomPriceCards() {
   );
 }
 
-/** "ขอนัดดูห้อง" while viewing requests have no API yet (Mos 19 Nov 2026): shown, cannot be pressed, "เร็ว ๆ นี้". */
-export function RoomViewingButton({ className = '' }: { className?: string }) {
+/**
+ * "ขอนัดดูห้อง" (viewing requests, plan 23 Nov 2026). Signed in: opens the request form. Signed out or still checking:
+ * the sign-in prompt in place, worded for a viewing (as the heart does for saving).
+ */
+export function RoomViewingButton({ room, className = '' }: { room: ViewingRequestRoom; className?: string }) {
   const { t } = useLocale();
   const copy = t.guest.room;
+  const session = useGuestSession();
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
   return (
-    <button
-      type="button"
-      className={`nk-btn nk-btn--primary is-soon nk-rp-viewing ${className}`.trim()}
-      disabled
-      aria-disabled="true"
-      data-testid="roomPage.viewing"
-    >
-      <CalendarIcon size={20} />
-      {copy.viewingCta}
-      <span className="nk-soon">{t.guest.nav.comingSoon}</span>
-    </button>
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`nk-btn nk-btn--primary nk-rp-viewing ${className}`.trim()}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        data-testid="roomPage.viewing"
+      >
+        <CalendarIcon size={20} />
+        {copy.viewingCta}
+      </button>
+      {open && session.status === 'signedIn' ? <ViewingRequestDialog room={room} onClose={close} returnFocus={buttonRef} /> : null}
+      {open && session.status !== 'signedIn' ? <SignInPrompt reason="viewing" room={room} onClose={close} returnFocus={buttonRef} /> : null}
+    </>
   );
 }
 
 /** Sticky card beside the content on wide screens (design A): contract switch, price, deposit, move-in, viewing. */
-export function RoomViewingCard({ moveIn }: { moveIn: string | null }) {
+export function RoomViewingCard({ moveIn, room }: { moveIn: string | null; room: ViewingRequestRoom }) {
   const { t } = useLocale();
   const copy = t.guest.room;
   const { options, months, choose } = useContext(TermContext);
@@ -124,10 +139,8 @@ export function RoomViewingCard({ moveIn }: { moveIn: string | null }) {
           </>
         ) : null}
       </dl>
-      <RoomViewingButton />
-      <p className="nk-rp-note nk-rp-note--center">
-        {copy.viewingSoonNote}
-      </p>
+      <RoomViewingButton room={room} />
+      <p className="nk-rp-note nk-rp-note--center">{copy.viewingNote}</p>
     </aside>
   );
 }
