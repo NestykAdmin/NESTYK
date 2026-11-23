@@ -200,21 +200,20 @@ export default async function RoomPage({ params }: Props) {
           </div>
         </header>
 
-        <RoomGallery
-          images={room.imageUrls}
-          title={title}
-          overlay={
-            <div className="nk-rp-overlay">
-              <RoomBackLink href={resultsHref} className="nk-rp-round" label={copy.backToResults}>
-                <ChevronRightIcon size={22} />
-              </RoomBackLink>
-              <span className="nk-rp-overlay__end">
-                <RoomShareButton title={title} variant="icon" />
-                <span className="nk-rp-fav">{favorite}</span>
-              </span>
-            </div>
-          }
-        />
+        {/* The phone overlay (back, share, heart) sits beside the gallery, not in a prop of the client gallery:
+            server JSX in a client prop lost its keys (Mos 23 Nov 2026). */}
+        <div className="nk-rp-media">
+          <RoomGallery images={room.imageUrls} title={title} />
+          <div className="nk-rp-overlay">
+            <RoomBackLink href={resultsHref} className="nk-rp-round" label={copy.backToResults}>
+              <ChevronRightIcon size={22} />
+            </RoomBackLink>
+            <span className="nk-rp-overlay__end">
+              <RoomShareButton title={title} variant="icon" />
+              <span className="nk-rp-fav">{favorite}</span>
+            </span>
+          </div>
+        </div>
       </div>
 
       <RoomSectionTabs

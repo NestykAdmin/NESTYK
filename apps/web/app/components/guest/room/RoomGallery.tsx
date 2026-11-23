@@ -9,7 +9,7 @@ import { ChevronRightIcon, CloseIcon, GridIcon, PhotoIcon } from '../GuestIcons'
  * Phones: the first photo across the top (guest.css hides the rest), with a counter. Any photo opens a full-screen
  * viewer (native <dialog>: Esc closes it, focus goes back to the button that opened it, arrow keys move).
  */
-export function RoomGallery({ images, title, overlay }: { images: string[]; title: string; overlay?: React.ReactNode }) {
+export function RoomGallery({ images, title }: { images: string[]; title: string }) {
   const { t } = useLocale();
   const copy = t.guest.room;
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -48,7 +48,6 @@ export function RoomGallery({ images, title, overlay }: { images: string[]; titl
           <PhotoIcon size={40} />
           {copy.noPhotos}
         </span>
-        {overlay}
       </section>
     );
   }
@@ -81,7 +80,6 @@ export function RoomGallery({ images, title, overlay }: { images: string[]; titl
       <span className="nk-rp-gallery__count" aria-hidden="true">
         {fillTemplate(copy.photoCounter, { index: 1, count })}
       </span>
-      {overlay}
 
       <dialog ref={dialogRef} className="nk-rp-viewer" aria-label={copy.galleryTitle} data-testid="roomPage.viewer">
         <div className="nk-rp-viewer__bar">

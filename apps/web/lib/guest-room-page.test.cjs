@@ -106,3 +106,16 @@ test('the room page writes its JSON-LD through the escaping helper and shares it
   // The only raw HTML on the page is the escaped JSON-LD.
   assert.equal((page.match(/dangerouslySetInnerHTML/g) || []).length, 1);
 });
+
+// Mos 23 Nov 2026: React warned "Each child in a list should have a unique key" (RoomGallery, child from RoomPage):
+// server JSX handed to a client component as a prop. The phone overlay (back, share, heart) now sits beside the
+// gallery in a positioned wrapper instead of going through a prop.
+test('the room page puts the phone overlay beside the gallery, not through a RoomGallery prop', () => {
+  const page = read(`${ROOM_DIR}/page.tsx`);
+  assert.match(page, /<div className="nk-rp-media">\s*<RoomGallery images=\{room\.imageUrls\} title=\{title\} \/>\s*<div className="nk-rp-overlay">/);
+  assert.doesNotMatch(page, /overlay=\{/);
+  const gallery = read('app/components/guest/room/RoomGallery.tsx');
+  assert.doesNotMatch(gallery, /overlay/);
+  const css = read('app/[locale]/guest.css');
+  assert.match(css, /\.nk-rp-media \{\s*position: relative;/);
+});
