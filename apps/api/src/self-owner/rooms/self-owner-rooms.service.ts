@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import type { NearbyPlace } from '@nestyk/types';
 import { distanceMeters, validCoordinates } from '../../agent/places/nearby-places';
+import { bangkokToday } from '../../billing/rent-schedule';
 import { PropertyEntity } from '../../entities/property.entity';
 import { MasterPropertyTypeEntity } from '../../entities/master-property-type.entity';
 import { MasterContractTypeEntity } from '../../entities/master-contract-type.entity';
@@ -32,6 +33,9 @@ const dash = (v: string | undefined) => v?.trim() || '-';
 const undash = (v: string | null | undefined) => (v && v !== '-' ? v : undefined);
 const num = (v: string | null | undefined) => (v == null ? null : Number(v));
 const amount = (v: number | null | undefined) => (v != null && Number(v) > 0 ? String(v) : null);
+
+/** Refusals the owner can act on; the app shows its own words for each (body `code`). */
+export type SelfOwnerRoomErrorCode = 'PUBLISH_NEEDS_PHOTOS' | 'ROOM_RENTED' | 'LISTED_ROOM_NEEDS_PHOTOS';
 
 /**
  * Rooms an owner lists without an agent (D4, 20 Nov 2026): kept in self_owner_* tables, apart from rent_rooms.
@@ -170,10 +174,14 @@ export class SelfOwnerRoomsService {
     return this.dataSource.transaction(async (m) => {
       const room = await this.ownRoom(m, owner, id, true);
       const statuses = await this.statusCodes(m);
-      if (statuses.get(room.room_status_id) === 'rented') throw new ConflictException('A rented room cannot be listed or unlisted');
+      if (statuses.get(room.room_status_id) === 'rented') {
+        throw new ConflictException({ code: 'ROOM_RENTED', message: 'A rented room cannot be listed or unlisted' });
+      }
       if (visibility === 'published') {
         const photos = await m.find(SelfOwnerRoomMediaEntity, { where: { room_id: room.id } });
-        if (photos.length < MIN_PUBLISHED_PHOTOS) throw new BadRequestException(`At least ${MIN_PUBLISHED_PHOTOS} room photos are needed to list a room`);
+        if (photos.length < MIN_PUBLISHED_PHOTOS) {
+          throw new BadRequestException({ code: 'PUBLISH_NEEDS_PHOTOS', message: `At least ${MIN_PUBLISHED_PHOTOS} room photos are needed to list a room` });
+        }
       }
       const saved = await m.save(SelfOwnerRoomEntity, { ...room, visibility });
       return { id: saved.id, visibility: saved.visibility, state: roomState(saved, statuses) };
@@ -193,7 +201,7 @@ export class SelfOwnerRoomsService {
       const oldUrls = new Set(existing ? (await m.find(SelfOwnerRoomMediaEntity, { where: { room_id: existing.id } })).map((md) => md.media_url) : []);
       await this.photos.validateRoomPhotos(owner.id, medias.filter((md) => !oldUrls.has(md.mediaUrl)), baseUrl);
       if (existing?.visibility === 'published' && medias.length < MIN_PUBLISHED_PHOTOS) {
-        throw new BadRequestException(`A listed room needs at least ${MIN_PUBLISHED_PHOTOS} photos; unlist it first`);
+        throw new BadRequestException({ code: 'LISTED_ROOM_NEEDS_PHOTOS', message: `A listed room needs at least ${MIN_PUBLISHED_PHOTOS} photos; unlist it first` });
       }
       const statuses = await this.statusCodes(m);
       const available = [...statuses].find(([, code]) => code === 'available')?.[0];
@@ -205,10 +213,12 @@ export class SelfOwnerRoomsService {
       if (unknownPrice) throw new BadRequestException(`Unknown contractTypeId: ${unknownPrice.contractTypeId}`);
       const facilityIds: number[] = [];
       for (const item of body.facilities ?? []) {
-        const facility = await m.findOne(MasterFacilityEntity, {
+        // Only the catalog groups the form offers (options()); the same code in another group does not count.
+        const facility = (await m.find(MasterFacilityEntity, {
           where: { code: item.code, ...(item.groupCode ? { group: { code: item.groupCode } } : {}) },
           relations: { group: true },
-        });
+          order: { id: 'ASC' },
+        })).find((f) => FACILITY_GROUPS.has(f.group?.code ?? ''));
         if (!facility) throw new BadRequestException(`Unknown facility code: ${item.code}`);
         if (!facilityIds.includes(facility.id)) facilityIds.push(facility.id);
       }
@@ -236,7 +246,8 @@ export class SelfOwnerRoomsService {
         size_sqm: layout.get('room_size') ? String(Number(layout.get('room_size'))) : null,
         floor: blankToNull(layout.get('floor')),
         building: blankToNull(layout.get('building')),
-        available_from_date: body.availableFromDate ?? existing?.available_from_date ?? new Date().toISOString().slice(0, 10),
+        // Today in Thailand: the database's CURRENT_DATE and toISOString are UTC (a day behind before 07:00).
+        available_from_date: body.availableFromDate ?? existing?.available_from_date ?? bangkokToday(),
         advance_rent_months: body.advanceRentMonths ?? 1,
         deposit_months: body.depositMonths ?? 2,
         water_rate_per_unit: amount(body.waterRatePerUnit),

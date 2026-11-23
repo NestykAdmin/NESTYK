@@ -13,8 +13,9 @@ export type SelfOwnerRoomDetailState = {
 
 /**
  * A room's detail for the self owner modal. On the demo it is built from the room (and what was saved in the form);
- * connected to the API it loads the room's form data once (kept in `selfOwnerListingDrafts`, which edit reads too)
- * and the API choices, so the detail names the real lease lengths and room types.
+ * connected to the API it reads the room's form data every time the room opens or changes (kept in
+ * `selfOwnerListingDrafts`, which edit reads too) and the API choices, so the detail names the real lease lengths
+ * and room types. Edit and publish wait for that read, so a save never sends an older copy over a newer one.
  */
 export function useSelfOwnerRoomDetail(room: SelfOwnerRoom | null): SelfOwnerRoomDetailState {
   const backend = selfOwnerRoomStore.backend();
@@ -23,11 +24,16 @@ export function useSelfOwnerRoomDetail(room: SelfOwnerRoom | null): SelfOwnerRoo
   const roomKey = room?.id ?? null;
 
   useEffect(() => {
-    if (!backend || roomKey == null) return;
+    if (roomKey == null) {
+      // Closed: the next open reads the room again.
+      setLoaded(null);
+      return;
+    }
+    if (!backend) return;
     let live = true;
-    const saved = selfOwnerListingDrafts.get(roomKey);
     setFailed(null);
-    Promise.all([saved ? Promise.resolve(saved) : backend.detail(roomKey), backend.options()]).then(
+    // Always read the room again when it opens or changes: it may have been edited on another device.
+    Promise.all([backend.detail(roomKey), backend.options()]).then(
       ([form, options]) => {
         if (!live) return;
         selfOwnerListingDrafts.set(roomKey, form);
@@ -40,7 +46,7 @@ export function useSelfOwnerRoomDetail(room: SelfOwnerRoom | null): SelfOwnerRoo
     return () => {
       live = false;
     };
-  }, [backend, roomKey]);
+  }, [backend, roomKey, room?.updatedAt]);
 
   return useMemo((): SelfOwnerRoomDetailState => {
     if (!room) return { status: 'ready', detail: null, photoCount: 0 };

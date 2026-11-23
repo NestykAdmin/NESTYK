@@ -165,3 +165,26 @@ test('connected, the Dashboard rooms section is the API rooms with their load st
   store.reset(now);
   assert.equal(dashboard.useSelfOwnerDashboard({ greetingName: 'Jom', locale: 'th' }).rooms.status, 'demo');
 });
+
+// Follow-up (23 Nov 2026): a room list that was already on its way must not undo a change made while it travelled.
+test('a list load that started before a toggle keeps the toggle; the next load takes the server again', async () => {
+  const store = rooms().selfOwnerRoomStore;
+  const room = (state) => ({ id: '7', title: 'a', project: 'p', monthlyRent: 1, state, bedrooms: 1, sizeSqm: 30, updatedAt: now.toISOString() });
+  let release;
+  const lists = [() => Promise.resolve([room('unlisted')])];
+  const backend = {
+    list: () => (lists.shift() ?? (() => Promise.resolve([room('unlisted')])))(),
+    setVisibility: async () => 'listed',
+  };
+  store.connect(backend, 'u');
+  await flush();
+  lists.push(() => new Promise((r) => { release = r; }));
+  const loading = store.refresh();
+  assert.deepEqual(await rooms().toggleListing('7', now), { ok: true });
+  assert.equal(store.get()[0].state, 'listed');
+  release([room('unlisted')]); // read before the toggle reached the server
+  await loading;
+  assert.equal(store.get()[0].state, 'listed', 'the toggle made during the load stays');
+  await store.refresh();
+  assert.equal(store.get()[0].state, 'unlisted', 'a load started afterwards is the server again');
+});

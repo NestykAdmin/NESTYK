@@ -10,11 +10,12 @@ import { AuthGuard } from './guards/auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { RecentAuthGuard } from './guards/recent-auth.guard';
 import { ProfileAvatarStorage } from './profile-avatar-storage.service';
+import { RoomPhotoStorageService } from '../agent/rooms/room-photo-storage.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserEntity, MasterRoleEntity, UserRoleEntity])],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard, RolesGuard, RecentAuthGuard, ProfileAvatarStorage, AccountDeletionScheduler],
+  providers: [AuthService, AuthGuard, RolesGuard, RecentAuthGuard, ProfileAvatarStorage, RoomPhotoStorageService, AccountDeletionScheduler],
   exports: [AuthService, AuthGuard, RolesGuard],
 })
 export class AuthModule {}

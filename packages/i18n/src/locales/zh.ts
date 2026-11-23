@@ -582,6 +582,7 @@ export const zh: TranslationSchema = {
     privateHint: '新房间尚未发布：在您发布之前只有您能看到。',
     saved: '房间已保存。',
     publishNeedsPhotos: '发布前房间至少需要 5 张照片。请编辑房间添加照片。',
+    listedNeedsPhotos: '已发布的房间至少需要 5 张照片。如需删减照片，请先取消发布。',
     toggleFailed: '无法更改发布状态，请重试。',
     detailLoadError: '无法加载此房间，请重试。',
   },

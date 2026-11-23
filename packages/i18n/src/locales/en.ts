@@ -583,6 +583,7 @@ export const en: TranslationSchema = {
     privateHint: 'A new room is not listed yet: only you see it until you publish it.',
     saved: 'Room saved.',
     publishNeedsPhotos: 'A room needs at least 5 photos before you publish it. Edit the room to add photos.',
+    listedNeedsPhotos: 'A listed room needs at least 5 photos. Unpublish it first to remove photos.',
     toggleFailed: 'Could not change the listing. Please try again.',
     detailLoadError: 'Could not load this room. Please try again.',
   },

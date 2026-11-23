@@ -9,7 +9,7 @@ import {
 } from '@nestyk/feature-listing';
 import { localizedError, useLocale } from '@nestyk/i18n';
 import { interpolate } from '@nestyk/feature-listing';
-import { selfOwnerRoomStore, type SelfOwnerRoom } from '../../lib/self-owner-rooms';
+import { selfOwnerRoomErrorCode, selfOwnerRoomStore, type SelfOwnerRoom } from '../../lib/self-owner-rooms';
 import {
   SELF_OWNER_DEMO_OPTIONS,
   nextSelfOwnerRoomId,
@@ -111,7 +111,9 @@ export function SelfOwnerListingEditor({ room, onDone, onCancel, backHandlerRef,
     if (backend) {
       try {
         id = await backend.save(room?.id, data);
-      } catch (err) {
+      } catch (caught) {
+        // A refusal with a reason code fails with the owner's own words (the wizard shows the error's message).
+        const err = selfOwnerRoomErrorCode(caught) === 'LISTED_ROOM_NEEDS_PHOTOS' ? new Error(copy.listedNeedsPhotos) : caught;
         // The wizard reports a failed save with Alert, which does nothing on react-native-web.
         if (Platform.OS === 'web' && typeof globalThis.alert === 'function') {
           globalThis.alert(`${cr.saveError}\n${localizedError(err, t.common.errorGeneric, locale)}`);

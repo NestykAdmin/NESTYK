@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
@@ -10,6 +10,7 @@ const IMAGE_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9
 
 @Injectable()
 export class RoomPhotoStorageService {
+  private readonly logger = new Logger(RoomPhotoStorageService.name);
   private client?: SupabaseClient;
   private readonly bucket = process.env.SUPABASE_BUCKET_PROPERTIES || 'property-images';
 
@@ -182,6 +183,28 @@ export class RoomPhotoStorageService {
       const { data, error } = await storage.exists(`${agentId}/${name}`);
       if (error) throw new ServiceUnavailableException('Unable to verify room photo; please try again');
       if (!data) throw new BadRequestException('Uploaded photo no longer exists; upload it again');
+    }
+  }
+
+  /**
+   * Removes photos this user uploaded (`<userId>/<uuid>.jpg` in this bucket); any other URL is skipped. Best effort for
+   * clean-ups such as account deletion: a storage error is logged and 0 returned, never thrown. Returns how many went.
+   */
+  async removeOwnedPhotos(userId: number, mediaUrls: string[]): Promise<number> {
+    if (!Number.isInteger(userId) || userId < 1 || !mediaUrls.length) return 0;
+    try {
+      const storage = this.storage();
+      const prefix = storage.getPublicUrl(`${userId}/`).data.publicUrl;
+      const paths = [...new Set(mediaUrls
+        .filter((url) => url.startsWith(prefix) && IMAGE_NAME.test(url.slice(prefix.length)))
+        .map((url) => `${userId}/${url.slice(prefix.length)}`))];
+      if (!paths.length) return 0;
+      const { error } = await storage.remove(paths);
+      if (error) throw error;
+      return paths.length;
+    } catch (error) {
+      this.logger.warn(`Could not remove room photos of user ${userId}: ${(error as Error)?.message ?? error}`);
+      return 0;
     }
   }
 }

@@ -190,6 +190,8 @@ function createRoomStore() {
   let backend: SelfOwnerRoomsBackend | null = null;
   let accountKey: string | null = null;
   let loadId = 0;
+  // Changes made while a load is on its way (a toggle, a save); laid over its result so it cannot undo them.
+  let changedDuringLoad: Map<string, Partial<SelfOwnerRoom>> | null = null;
   const listeners = new Set<() => void>();
   const set = (next: Partial<RoomStoreState>) => {
     state = { ...state, ...next };
@@ -199,11 +201,22 @@ function createRoomStore() {
     if (!backend) return;
     const id = ++loadId;
     const source = backend;
+    changedDuringLoad = new Map();
     try {
-      const rooms = await source.list();
-      if (id === loadId && backend === source) set({ status: 'available', rooms });
+      const loaded = await source.list();
+      if (id !== loadId || backend !== source) return;
+      const changed = changedDuringLoad ?? new Map<string, Partial<SelfOwnerRoom>>();
+      changedDuringLoad = null;
+      const rooms = loaded.map((room) => (changed.has(room.id) ? { ...room, ...changed.get(room.id), id: room.id } : room));
+      // A room added while loading that the list does not have yet.
+      for (const [roomId, patch] of changed) {
+        if (!rooms.some((room) => room.id === roomId) && 'title' in patch) rooms.push(patch as SelfOwnerRoom);
+      }
+      set({ status: 'available', rooms });
     } catch {
-      if (id === loadId && backend === source) set({ status: 'error' });
+      if (id !== loadId || backend !== source) return;
+      changedDuringLoad = null;
+      set({ status: 'error' });
     }
   };
   return {
@@ -215,9 +228,11 @@ function createRoomStore() {
       return () => listeners.delete(listener);
     },
     add(room: SelfOwnerRoom): void {
+      changedDuringLoad?.set(room.id, room);
       set({ rooms: [...state.rooms.filter((item) => item.id !== room.id), room] });
     },
     update(id: string, patch: Partial<SelfOwnerRoom>): void {
+      if (changedDuringLoad) changedDuringLoad.set(id, { ...changedDuringLoad.get(id), ...patch });
       set({ rooms: state.rooms.map((room) => (room.id === id ? { ...room, ...patch, id } : room)) });
     },
     /** Use the API for this account; the same account again is a no-op, another account loads its own rooms. */
@@ -235,6 +250,7 @@ function createRoomStore() {
       backend = null;
       accountKey = null;
       loadId++;
+      changedDuringLoad = null;
       set({ source: 'demo', status: 'demo', rooms: createSelfOwnerRoomsDemo(now) });
     },
     /** Back to the 14 demo rooms, not connected (tests). */
@@ -242,6 +258,7 @@ function createRoomStore() {
       backend = null;
       accountKey = null;
       loadId++;
+      changedDuringLoad = null;
       set({ source: 'demo', status: 'demo', rooms: createSelfOwnerRoomsDemo(now) });
     },
   };
@@ -252,6 +269,15 @@ export const selfOwnerRoomStore = createRoomStore();
 /** A rented room stays listed off the public site; only listed / unlisted rooms switch. */
 export function canToggleListing(room: SelfOwnerRoom): boolean {
   return room.state !== 'occupied';
+}
+
+/** Reasons the self owner API gives for a refusal the owner can act on (body `code`); the app words each itself. */
+export type SelfOwnerRoomErrorCode = 'PUBLISH_NEEDS_PHOTOS' | 'ROOM_RENTED' | 'LISTED_ROOM_NEEDS_PHOTOS';
+const ROOM_ERROR_CODES: readonly string[] = ['PUBLISH_NEEDS_PHOTOS', 'ROOM_RENTED', 'LISTED_ROOM_NEEDS_PHOTOS'];
+
+export function selfOwnerRoomErrorCode(error: unknown): SelfOwnerRoomErrorCode | null {
+  const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+  return typeof code === 'string' && ROOM_ERROR_CODES.includes(code) ? (code as SelfOwnerRoomErrorCode) : null;
 }
 
 export type ToggleListingResult = { ok: true } | { ok: false; error?: unknown };

@@ -587,6 +587,7 @@ export interface TranslationSchema {
     /** Saved through the self owner API. */
     saved: string;
     publishNeedsPhotos: string;
+    listedNeedsPhotos: string;
     toggleFailed: string;
     detailLoadError: string;
   };

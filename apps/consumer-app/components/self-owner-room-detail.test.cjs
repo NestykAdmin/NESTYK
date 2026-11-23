@@ -267,7 +267,8 @@ test('connected web: loads the form data, then shows the detail with the API lea
   const detail = tree.find((n) => n?.type === 'DesktopDetail');
   assert.equal(detail.props.room.prices[0].termMonths, 12);
   assert.equal(detail.props.room.roomTypeCode, 'one_bedroom');
-  assert.deepEqual(backend.seen, [['detail', '7']]);
+  // Read from the API (the harness runs effects on every render, so count is not checked; 23 Nov 2026: no session cache).
+  assert.ok(backend.seen.length >= 1 && backend.seen.every(([k, id]) => k === 'detail' && id === '7'));
 }));
 
 test('connected web: a failed load says so', () => withEffects(async () => {
@@ -339,4 +340,59 @@ test('connected: no publish switch while the room loads or after it failed to lo
   web({ roomId: '7' });
   await settle();
   assert.equal(byTestId(web({ roomId: '7' }), 'sord-toggle'), undefined);
+}));
+
+// Follow-up (23 Nov 2026): the API's reason codes become the owner's own words; a room rented meanwhile reloads the list.
+test('connected web: a refusal with a reason code says that reason', () => withEffects(async () => {
+  const so = th().selfOwnerRooms;
+  const refuse = (code) => async () => { throw Object.assign(new Error('english from the API'), { status: code === 'ROOM_RENTED' ? 409 : 400, code }); };
+  for (const [code, words] of [['ROOM_RENTED', so.occupiedNoToggle], ['PUBLISH_NEEDS_PHOTOS', so.publishNeedsPhotos]]) {
+    await settle();
+    hooks = [];
+    roomsLib().selfOwnerRoomStore.reset(now);
+    listingLib().selfOwnerListingDrafts.clear();
+    const backend = await connect({ photos: 5, visibility: refuse(code) });
+    let lists = 0;
+    backend.list = async () => { lists += 1; return [apiRoom()]; };
+    web({ roomId: '7' });
+    await settle();
+    byTestId(web({ roomId: '7' }), 'sord-toggle').props.onClick();
+    byTestId(web({ roomId: '7' }), 'sord-toggle-confirm').props.onClick();
+    await settle();
+    assert.ok(texts(web({ roomId: '7' })).includes(words), code);
+    assert.equal(lists, code === 'ROOM_RENTED' ? 1 : 0, `${code}: the list reloads only when the room changed meanwhile`);
+  }
+}));
+
+test('connected phone: a rented room refusal is said with an alert in the owner words', () => withEffects(async () => {
+  const so = th().selfOwnerRooms;
+  await connect({ photos: 5, visibility: async () => { throw Object.assign(new Error('x'), { code: 'ROOM_RENTED' }); } });
+  phone({ roomId: '7' });
+  await settle();
+  byTestId(phone({ roomId: '7' }), 'sord-toggle').props.onPress();
+  alerts[0][2].find((b) => b.style !== 'cancel').onPress();
+  await settle();
+  assert.equal(alerts[1][1], so.occupiedNoToggle);
+}));
+
+// Follow-up (23 Nov 2026): every time the room opens it is read again from the API (it may have been edited on
+// another device); edit waits for that, so a save never sends an older copy over a newer one.
+test('connected: reopening a room reads it again before edit is offered', () => withEffects(async () => {
+  let price = 19000;
+  const backend = await connect({
+    detail: async () => ({ ...apiForm(5), prices: [{ contractTypeId: 31, price }] }),
+  });
+  web({ roomId: '7' });
+  await settle();
+  assert.equal(web({ roomId: '7' }).find((n) => n?.type === 'DesktopDetail').props.room.prices[0].price, 19000);
+  web({ roomId: null }); // closed
+  price = 25000; // edited on another device
+  let tree = web({ roomId: '7' });
+  assert.equal(byTestId(tree, 'sord-edit'), undefined, 'no edit until the room is read again');
+  await settle();
+  tree = web({ roomId: '7' });
+  assert.equal(tree.find((n) => n?.type === 'DesktopDetail').props.room.prices[0].price, 25000);
+  byTestId(tree, 'sord-edit').props.onClick();
+  assert.equal(web({ roomId: '7' }).find((n) => n?.type === 'Wizard').props.initialData.prices[0].price, 25000);
+  assert.ok(backend);
 }));

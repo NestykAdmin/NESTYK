@@ -14,6 +14,7 @@ import { MasterRoleEntity, MasterRoleName } from '../entities/master-role.entity
 import { UserRoleEntity } from '../entities/user-role.entity';
 import { SavedRoomEntity } from '../entities/saved-room.entity';
 import { SelfOwnerRoomEntity } from '../entities/self-owner-room.entity';
+import { RoomPhotoStorageService } from '../agent/rooms/room-photo-storage.service';
 import { AuthRequestUser } from './decorators/current-user.decorator';
 import { JwtIdentity } from './guards/auth.guard';
 import { devRegistrationEnabled } from './guards/dev-registration.guard';
@@ -58,6 +59,7 @@ export class AuthService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly avatars?: ProfileAvatarStorage,
+    private readonly roomPhotos?: RoomPhotoStorageService,
   ) {}
 
   async registerForTesting(body: unknown): Promise<{ created: true }> {
@@ -376,6 +378,14 @@ export class AuthService {
       // AUTH-3: the users row stays (anonymized), so ON DELETE CASCADE never runs; the saved rooms go here.
       await manager.getRepository(SavedRoomEntity).delete({ user_id: userId });
       // A self owner's own rooms carry their name, phone and LINE; they go too (prices, photos, facilities cascade).
+      // Their photo files go from the bucket after the commit, except one an agent room (kept) also uses.
+      const roomPhotoUrls = ((await manager.query(
+        `SELECT DISTINCT m.media_url FROM public.self_owner_room_medias m
+           JOIN public.self_owner_rooms r ON r.id = m.room_id
+          WHERE r.owner_user_id = $1
+            AND NOT EXISTS (SELECT 1 FROM public.room_medias a WHERE a.media_url = m.media_url)`,
+        [userId],
+      )) as Array<{ media_url: string }>).map((row) => row.media_url);
       await manager.getRepository(SelfOwnerRoomEntity).delete({ owner_user_id: userId });
       await manager.getRepository(UserEntity).update(userId, {
         email: anonymizedAccountEmail(userId),
@@ -391,7 +401,7 @@ export class AuthService {
         deletion_requested_at: null,
         deletion_effective_at: null,
       });
-      return { email: user.email, avatarUrl: user.avatar_url };
+      return { email: user.email, avatarUrl: user.avatar_url, roomPhotoUrls };
     });
     if (done) {
       // QA A2/D3: tell the user only once the login and the profile are gone. A failure above sends nothing, so a
@@ -399,6 +409,8 @@ export class AuthService {
       await notifyAccountDeleted(done.email);
       // QA A8: the photo sits in a public bucket; it goes once the account is gone (a failed removal is only logged).
       if (done.avatarUrl && this.avatars) await this.avatars.removeOwned(userId, done.avatarUrl);
+      // Same for a self owner's room photos (a failed removal is only logged).
+      if (done.roomPhotoUrls.length && this.roomPhotos) await this.roomPhotos.removeOwnedPhotos(userId, done.roomPhotoUrls);
     }
     return { deleted: true };
   }

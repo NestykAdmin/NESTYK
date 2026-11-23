@@ -270,3 +270,58 @@ test('every save stamps the room as changed, even when only prices or photos cha
   assert.equal(stamps.length, 2);
   assert.ok(stamps.every((at) => at instanceof Date), 'updated_at is set by the service');
 });
+
+// Follow-up (23 Nov 2026): refusals the owner can act on carry a code, so the app can say why in the owner's language.
+test('refusals say why with a code: too few photos to list, a rented room, trimming photos of a listed room', async () => {
+  const { db, service } = setup();
+  const code = (e) => e.getResponse().code;
+  const few = await service.create(A, body(A));
+  await assert.rejects(service.setVisibility(A, few.id, 'published'), (e) => e instanceof BadRequestException && code(e) === 'PUBLISH_NEEDS_PHOTOS');
+  const five = [1, 2, 3, 4, 5].map((n) => ({ mediaUrl: OWN_PHOTO(A, n) }));
+  const listed = await service.create(A, body(A, { medias: five }));
+  await service.setVisibility(A, listed.id, 'published');
+  await assert.rejects(service.update(A, listed.id, body(A, { medias: five.slice(0, 2) })), (e) => e instanceof BadRequestException && code(e) === 'LISTED_ROOM_NEEDS_PHOTOS');
+  db.rows(E.SelfOwnerRoomEntity).find((r) => r.id === listed.id).room_status_id = 2;
+  await assert.rejects(service.setVisibility(A, listed.id, 'private'), (e) => e instanceof ConflictException && code(e) === 'ROOM_RENTED');
+});
+
+// Follow-up (23 Nov 2026): a room saved without a move-in date is available from today in Thailand, not in UTC.
+test('no move-in date: available from today in Bangkok (03:00 there is still yesterday in UTC)', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-23T20:00:00Z') });
+  const { db, service } = setup();
+  await service.create(A, body(A, { availableFromDate: undefined }));
+  assert.equal(db.rows(E.SelfOwnerRoomEntity)[0].available_from_date, '2026-11-24');
+});
+
+// Follow-up (23 Nov 2026): only the facilities the form offers (the six catalog groups of options()) can be saved.
+test('a facility outside the groups the form offers is refused', async () => {
+  const { db, service } = setup();
+  db.rows(E.MasterFacilityEntity).push({ id: 12, code: 'agent_commission', group_id: 9, group: { code: 'deal_terms' }, is_extra_charge: false });
+  assert.equal((await service.options()).facilities.some((f) => f.code === 'agent_commission'), false);
+  await assert.rejects(service.create(A, body(A, { facilities: [{ code: 'agent_commission' }] })), BadRequestException);
+  await assert.rejects(service.create(A, body(A, { facilities: [{ code: 'agent_commission', groupCode: 'deal_terms' }] })), BadRequestException);
+  assert.equal(db.rows(E.SelfOwnerRoomEntity).length, 0);
+});
+
+// Follow-up (23 Nov 2026): removing an owner's room photos from the bucket (account deletion) touches only that
+// owner's uploaded photos and never fails the caller.
+test('removeOwnedPhotos removes only the owner\'s uploaded photos and never throws', async () => {
+  const { RoomPhotoStorageService } = require('../src/agent/rooms/room-photo-storage.service.ts');
+  process.env.SUPABASE_URL ??= 'https://x.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'test-key';
+  const removed = [];
+  let fail = false;
+  const base = 'https://x.supabase.co/storage/v1/object/public/property-images/';
+  const svc = new RoomPhotoStorageService();
+  svc.client = { storage: { from: () => ({
+    getPublicUrl: (p) => ({ data: { publicUrl: base + p } }),
+    remove: async (paths) => { if (fail) return { error: new Error('down') }; removed.push(...paths); return { error: null }; },
+  }) } };
+  const own = '0f8fad5b-d9cb-469f-a165-70867728950e.jpg';
+  const urls = [base + `5/${own}`, base + `6/${own}`, base + '5/../6/x.jpg', 'https://evil.test/5/' + own, base + '5/not-a-photo.png'];
+  assert.equal(await svc.removeOwnedPhotos(5, urls), 1);
+  assert.deepEqual(removed, [`5/${own}`]);
+  assert.equal(await svc.removeOwnedPhotos(5, []), 0);
+  fail = true;
+  assert.equal(await svc.removeOwnedPhotos(5, [base + `5/${own}`]), 0, 'a storage error is logged, not thrown');
+});

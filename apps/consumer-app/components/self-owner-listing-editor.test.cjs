@@ -281,3 +281,19 @@ test('a form opened before the store connects switches to the API once it connec
   assert.deepEqual(await after.props.listContractTypes(), [{ id: 31, code: 'twelve_months', termMonths: 12 }]);
   assert.deepEqual(await before.props.listContractTypes(), [{ id: 31, code: 'twelve_months', termMonths: 12 }], 'a list asked later reads the connected store');
 });
+
+// Follow-up (23 Nov 2026): a save refused with a reason code fails with the owner's own words (the wizard shows them).
+test('connected: a listed room trimmed below 5 photos is refused in the owner words', async () => {
+  const backend = connectedBackend({ save: async () => { throw Object.assign(new Error('english'), { status: 400, code: 'LISTED_ROOM_NEEDS_PHOTOS' }); } });
+  roomsLib().selfOwnerRoomStore.connect(backend, 'u1');
+  await settle();
+  const previous = globalThis.alert;
+  globalThis.alert = () => {};
+  try {
+    const props = wizardProps();
+    const data = listingLib().wizardDataFromRoom({ id: 'x', title: 'ห้อง', project: 'p', monthlyRent: 1, state: 'listed', bedrooms: 1, sizeSqm: 30, updatedAt: now.toISOString() });
+    await assert.rejects(props.onSubmitListing(data), (e) => e.message === copyOf('th').selfOwnerRooms.listedNeedsPhotos);
+  } finally {
+    globalThis.alert = previous;
+  }
+});

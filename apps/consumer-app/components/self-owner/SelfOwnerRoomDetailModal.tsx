@@ -4,7 +4,7 @@ import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-nati
 import { MobileRoomDetailBody, interpolate } from '@nestyk/feature-listing';
 import { MobileSectionHeader, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { useLocale } from '@nestyk/i18n';
-import { canToggleListing, selfOwnerRoomStore, toggleListing, useSelfOwnerRooms } from '../../lib/self-owner-rooms';
+import { canToggleListing, selfOwnerRoomErrorCode, selfOwnerRoomStore, toggleListing, useSelfOwnerRooms } from '../../lib/self-owner-rooms';
 import { useSelfOwnerRoomDetail } from './useSelfOwnerRoomDetail';
 import { SelfOwnerListingEditor } from './SelfOwnerListingEditor';
 import type { SelfOwnerRoomDetailModalProps } from './SelfOwnerRoomDetailModal.types';
@@ -52,7 +52,10 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
           return;
         }
         void toggleListing(room.id).then((result) => {
-          if (!result.ok && selfOwnerRoomStore.backend()) Alert.alert(toggleLabel, so.toggleFailed);
+          if (result.ok || !selfOwnerRoomStore.backend()) return;
+          const code = selfOwnerRoomErrorCode(result.error);
+          if (code === 'ROOM_RENTED') void selfOwnerRoomStore.refresh();
+          Alert.alert(toggleLabel, code === 'ROOM_RENTED' ? so.occupiedNoToggle : code === 'PUBLISH_NEEDS_PHOTOS' ? so.publishNeedsPhotos : so.toggleFailed);
         });
       } },
     ]);

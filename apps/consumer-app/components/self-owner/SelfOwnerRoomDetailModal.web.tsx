@@ -6,7 +6,7 @@ import { MobileIcon, useMobileTheme } from "@nestyk/ui/native";
 import { useLocale } from "@nestyk/i18n";
 import "../agent-web/agent-room-detail.css";
 import { WebDialog } from "../agent-web/ui/WebDialog";
-import { canToggleListing, selfOwnerRoomStore, toggleListing, useSelfOwnerRooms } from "../../lib/self-owner-rooms";
+import { canToggleListing, selfOwnerRoomErrorCode, selfOwnerRoomStore, toggleListing, useSelfOwnerRooms } from "../../lib/self-owner-rooms";
 import { useSelfOwnerRoomDetail } from "./useSelfOwnerRoomDetail";
 import { SelfOwnerListingEditor } from "./SelfOwnerListingEditor";
 import type { SelfOwnerRoomDetailModalProps } from "./SelfOwnerRoomDetailModal.types";
@@ -79,8 +79,14 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
     setToggling(true);
     void toggleListing(room.id).then((result) => {
       setToggling(false);
-      if (result.ok) setConfirming(false);
-      else setToggleError(so.toggleFailed);
+      if (result.ok) {
+        setConfirming(false);
+        return;
+      }
+      const code = selfOwnerRoomErrorCode(result.error);
+      // Rented meanwhile (another device): load the rooms again so the switch goes away.
+      if (code === "ROOM_RENTED") void selfOwnerRoomStore.refresh();
+      setToggleError(code === "ROOM_RENTED" ? so.occupiedNoToggle : code === "PUBLISH_NEEDS_PHOTOS" ? so.publishNeedsPhotos : so.toggleFailed);
     });
   };
 

@@ -80,12 +80,13 @@ test('an unpaid bill and a bill whose slip waits for the agent are told apart', 
 
 // QA A2/D3: the "account deleted" email goes out only after the login and the profile are really gone.
 const emailModule = require('../src/auth/account-deleted-email.ts');
-function deletion({ loginError = null, failTransaction = false, avatar = null } = {}) {
+function deletion({ loginError = null, failTransaction = false, avatar = null, roomPhotoUrls = [] } = {}) {
   const events = [];
   const user = { id: 5, email: 'ann@example.test', supabase_user_id: 'sb-5', avatar_url: avatar };
   emailModule.notifyAccountDeleted = async (email) => { events.push(`email ${email}`); return true; };
   const counts = async (sql) => {
     events.push('check blockers');
+    if (/self_owner_room_medias/.test(sql)) { events.push(`read own room photos ${/room_medias a/.test(sql) ? 'not in agent rooms' : 'all'}`); return roomPhotoUrls.map((media_url) => ({ media_url })); }
     return /tenant_bills/.test(sql) ? [{ unpaid: 0, review: 0 }] : /contract_deposit_settlements/.test(sql) ? [{ n: 0 }] : [];
   };
   const db = {
@@ -110,7 +111,8 @@ function deletion({ loginError = null, failTransaction = false, avatar = null } 
     },
   };
   const avatars = { removeOwned: async (id, url) => { events.push(`remove photo ${id} ${url}`); return true; } };
-  const auth = new AuthService({}, {}, {}, db, avatars);
+  const roomPhotos = { removeOwnedPhotos: async (id, urls) => { events.push(`remove room photos ${id} ${urls.join(',')}`); return urls.length; } };
+  const auth = new AuthService({}, {}, {}, db, avatars, roomPhotos);
   auth.adminClient = () => ({ auth: { admin: { deleteUser: async () => { events.push('delete login'); return { error: loginError }; } } } });
   return { auth, events, user };
 }
@@ -120,7 +122,7 @@ function deletion({ loginError = null, failTransaction = false, avatar = null } 
 test('the deleted email is sent after the login and the profile are gone, and never when deleting fails', async () => {
   const ok = deletion();
   assert.deepEqual(await ok.auth.deleteAccount(5), { deleted: true });
-  assert.deepEqual(ok.events.filter((e) => !e.startsWith('check')), ['lock user pessimistic_write', 'delete login', 'remove roles', 'remove saved rooms 5', 'remove own rooms 5', 'anonymize user', 'email ann@example.test']);
+  assert.deepEqual(ok.events.filter((e) => !e.startsWith('check')), ['lock user pessimistic_write', 'delete login', 'remove roles', 'remove saved rooms 5', 'read own room photos not in agent rooms', 'remove own rooms 5', 'anonymize user', 'email ann@example.test']);
 
   const login = deletion({ loginError: { message: 'Supabase is down' } });
   await assert.rejects(() => login.auth.deleteAccount(5), (e) => e.getStatus() === 503);
@@ -155,6 +157,24 @@ test('the profile photo leaves the public bucket once the account is deleted, an
   const none = deletion();
   await none.auth.deleteAccount(5);
   assert.ok(!none.events.some((e) => e.startsWith('remove photo')));
+});
+
+// Follow-up (23 Nov 2026): a self owner's room photos sit in the public bucket too; they go once the account is gone,
+// except a photo an agent room (kept after deletion) also uses.
+test('the self owner room photos leave the bucket once the account is deleted, and only then', async () => {
+  const urls = ['https://x.supabase.co/storage/v1/object/public/property-images/5/a.jpg', 'https://x.supabase.co/storage/v1/object/public/property-images/5/b.jpg'];
+  const ok = deletion({ roomPhotoUrls: urls });
+  await ok.auth.deleteAccount(5);
+  assert.ok(ok.events.includes('read own room photos not in agent rooms'), 'photos also used by an agent room stay');
+  assert.ok(ok.events.indexOf('read own room photos not in agent rooms') < ok.events.indexOf('remove own rooms 5'), 'read before the rows go');
+  assert.equal(ok.events.at(-1), `remove room photos 5 ${urls.join(',')}`);
+  assert.ok(ok.events.indexOf('email ann@example.test') < ok.events.length - 1, 'after the account is gone');
+  const failed = deletion({ roomPhotoUrls: urls, failTransaction: true });
+  await assert.rejects(() => failed.auth.deleteAccount(5));
+  assert.ok(!failed.events.some((e) => e.startsWith('remove room photos')));
+  const none = deletion();
+  await none.auth.deleteAccount(5);
+  assert.ok(!none.events.some((e) => e.startsWith('remove room photos')));
 });
 
 test('the scheduled deletion job runs on one API instance at a time (advisory lock)', async () => {
