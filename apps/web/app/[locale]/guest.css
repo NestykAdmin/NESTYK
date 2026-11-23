@@ -3017,6 +3017,11 @@ fieldset.nk-filter-dd {
   padding-top: var(--nk-space-2);
   padding-bottom: var(--nk-space-2);
 }
+/* The menu and the role card cut off what sticks out (overflow hidden): the focus ring goes inside the row. */
+.nk-account__menu .nk-account__item:focus-visible,
+.nk-role-list .nk-row:focus-visible {
+  outline-offset: -3px;
+}
 div.nk-role-row {
   cursor: default;
 }
@@ -3035,7 +3040,7 @@ div.nk-role-row:hover {
 .nk-role-picker__hint,
 .nk-role-list__hint {
   margin: 0;
-  padding: 0 var(--nk-space-4) var(--nk-space-2);
+  padding: var(--nk-space-1) var(--nk-space-4) var(--nk-space-2);
   font-size: var(--nk-text-xs);
   line-height: 1.5;
   color: var(--nk-color-text-secondary);

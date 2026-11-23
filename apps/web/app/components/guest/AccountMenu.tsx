@@ -124,7 +124,9 @@ export function AccountMenu() {
       {open ? (
         <div ref={panelRef} id={panelId} className="nk-account__menu" data-testid="guest.accountMenu">
           <div className="nk-account__head">
-            <AccountAvatar profile={profile} />
+            <RoleAvatar role="guest">
+              <AccountAvatar profile={profile} />
+            </RoleAvatar>
             <div className="nk-account__who">
               <span className="nk-account__full">{profile.displayName}</span>
               <span className="nk-account__email">{profile.email}</span>
