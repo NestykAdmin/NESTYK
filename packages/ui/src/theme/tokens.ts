@@ -94,10 +94,14 @@ export const tokens = {
 
     // 💎 Role identity (Mos 17-18 Nov 2026, design "admin profile" จ2): warm luxury jewel + metal pairs, used ONLY
     // where the UI names a role (role tile, the badge on the own avatar, the ring around it, the role picker).
-    // `roles` / `rolesOnDark` above stay the accent colours of each role's screens. deep = dark tile and light-mode
-    // icon/ring, light = dark-mode icon/ring, soft = light-mode tile. Admin (NESTYK itself) keeps ink + gold in both modes.
+    // `roles` / `rolesOnDark` above stay the accent colours of each role's screens. Since 20 Nov 2026 (Mos: easy to
+    // use and luxury, like admin) both modes use the deep tile with the light (metal) icon: deep = tile and the
+    // light-mode ring, light = icon and the dark-mode ring. soft = the light-mode tile of 17-19 Nov, no longer used
+    // by roleTileColors. Admin (NESTYK itself) keeps ink + gold with a gold ring in both modes.
     roleIdentity: {
-      guest: { deep: '#854D0E', light: '#FEF3C7', soft: '#FEF3C7' },
+      // Guest is NESTYK's brand (Mos 23 Nov 2026): brand-yellow tile with ink icon and initials, yellow ring in both
+      // modes (was amber #854D0E with a cream icon).
+      guest: { deep: '#F8B615', light: '#211E1E', soft: '#FEF3C7' },
       tenant: { deep: '#4C1D6E', light: '#E9D5FF', soft: '#F3E8FF' },
       landlord: { deep: '#172554', light: '#E9D8A6', soft: '#E0E7FF' },
       agent: { deep: '#065F46', light: '#F6D68A', soft: '#D1FAE5' },
@@ -185,14 +189,18 @@ export function roleOnDark(color: string, isDark: boolean): string {
 type RoleIdentityKey = keyof typeof tokens.colors.roleIdentity;
 
 /**
- * Colours of a role tile (and the ring around the own avatar): light mode = soft tile, deep icon and ring;
- * dark mode = deep tile, light icon and ring. Admin is the one exception: ink tile, gold icon and ring in both modes.
- * Unknown roles fall back to the services (neutral) set.
+ * Colours of a role tile (and the ring around the own avatar), the same on the web and in the app. Both modes: deep
+ * jewel tile with the light (metal) icon (Mos 20 Nov 2026). The ring is the tile's own deep tone in light mode (no
+ * separate edge on a tile, a signet ring around the avatar) and the light tone in dark mode, where the deep tile
+ * needs an edge. Two exceptions: admin (ink tile, gold ring in both modes) and guest (brand-yellow tile, ink icon,
+ * yellow ring in both modes, Mos 23 Nov 2026). Unknown roles fall back to the services set.
  */
 export function roleTileColors(role: string, isDark: boolean): { bg: string; fg: string; ring: string } {
   const set = tokens.colors.roleIdentity[(role in tokens.colors.roleIdentity ? role : 'services') as RoleIdentityKey];
-  if (isDark || role === 'admin') return { bg: set.deep, fg: set.light, ring: set.light };
-  return { bg: set.soft, fg: set.deep, ring: set.deep };
+  if (role === 'admin') return { bg: set.deep, fg: set.light, ring: set.light };
+  // Guest's yellow tile is its own edge on the ink page too, so the ring stays yellow in dark mode.
+  if (role === 'guest') return { bg: set.deep, fg: set.light, ring: set.deep };
+  return { bg: set.deep, fg: set.light, ring: isDark ? set.light : set.deep };
 }
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';

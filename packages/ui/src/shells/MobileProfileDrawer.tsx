@@ -30,7 +30,7 @@ import { UserRole } from '@nestyk/types';
 import { MobileIcon } from '../icons/MobileIcon';
 import { SelectionCheck } from '../components/SelectionCheck';
 import { AppIconName } from '../icons/types';
-import { roleOnDark, tokens } from '../theme/tokens';
+import { roleOnDark, roleTileColors, tokens } from '../theme/tokens';
 import { getCardElevation } from '../theme/elevation';
 import { useMobileTheme } from '../theme/ThemeContext';
 import { MobileBottomSheet } from '../components/MobileBottomSheet';
@@ -99,12 +99,6 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
-/** Soft role-colored chip background — same hue, opacity tuned per mode. */
-function roleIconTint(role: UserRole, dark: boolean): string {
-  const hue = tokens.colors.roles[role] || BRAND_YELLOW;
-  return hexToRgba(hue, dark ? 0.2 : 0.12);
-}
-
 /** Brand yellow soft fill for selected rows. */
 function brandSoftFill(dark: boolean): string {
   return hexToRgba(BRAND_YELLOW, dark ? 0.16 : 0.14);
@@ -154,24 +148,27 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   const roleColor = tokens.colors.roles[activeRole] || tokens.colors.brand[500];
   // Icons in the role colour: light step in dark mode (colour system v1.1).
   const roleIcon = roleOnDark(roleColor, isDark);
-  // v1.2 (design B): the current-role box is the solid role colour (ink for agent) with a yellow / white icon,
-  // lifted grey with the light role step in dark mode.
-  const roleBoxFill = isDark ? tokens.colors.lift : roleColor;
-  // D1 (v1.2 B+C): the agent hero is ink, which vanishes on the ink page in dark mode, so it lifts to grey there.
-  const heroFill = isDark && activeRole === 'agent' ? tokens.colors.lift : roleColor;
-  const roleBoxIcon = isDark
-    ? roleOnDark(roleColor, true)
-    : activeRole === 'guest'
-      ? tokens.colors.primary
-      : activeRole === 'agent'
-        ? tokens.colors.brand[500]
-        : '#FFFFFF';
+  // Role identity (Mos 20 Nov 2026, same as the web): the current-role box, the role list, the own avatar and its
+  // rings use the role's tile colours (deep tile, light icon; the ring is deep in light mode and light in dark mode).
+  const roleTile = roleTileColors(activeRole, isDark);
+  // The hero is the role's deep tone; guest keeps brand yellow. Admin is ink, which vanishes on the ink page in
+  // dark mode, so it lifts to grey there (D1, v1.2 B+C).
+  const heroFill =
+    activeRole === 'guest'
+      ? roleColor
+      : isDark && activeRole === 'admin'
+        ? tokens.colors.lift
+        : tokens.colors.roleIdentity[activeRole].deep;
+  // Dark mode: the deep tones sit close to the ink page (landlord 1.13:1), so the hero gets the role's light ring,
+  // like a role tile in dark mode (review R1, option ก, Mos 20 Nov 2026). The edge is always there, in the hero's
+  // own colour when it is not needed, so the hero keeps one height when the theme changes.
+  const heroEdge = { borderWidth: 1.5, borderColor: isDark && activeRole !== 'guest' ? roleTile.ring : heroFill };
   const mutedIcon = theme.textSecondary;
   const brandSoft = brandSoftFill(isDark);
   // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
   const switchOn = isDark ? tokens.colors.brand[500] : tokens.colors.primary;
   const decorOpacity = isDark ? 0.2 : 0.35;
-  const decorRingColor = BRAND_YELLOW;
+  const decorRingColor = roleTile.ring;
   const [mounted, setMounted] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const [settingsView, setSettingsView] = useState<'main' | DrawerSubView>('main');
@@ -440,7 +437,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                   showsVerticalScrollIndicator={false}
                   scrollEnabled={settingsView === 'main'}
                 >
-            <View style={[styles.heroCard, { backgroundColor: heroFill }]}>
+            <View style={[styles.heroCard, { backgroundColor: heroFill }, heroEdge]}>
               <TouchableOpacity
                 style={[styles.headerActionBtn, { backgroundColor: headerBtnBg }]}
                 onPress={onClose}
@@ -473,7 +470,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                   <View style={[styles.profileDecorRing, styles.profileDecorRingMd, { borderColor: decorRingColor }]} />
                   <View style={[styles.profileDecorRing, styles.profileDecorRingSm, { borderColor: decorRingColor }]} />
                 </View>
-                <MobileProfileAvatar initials={initials} imageUri={avatarUri} size="md" />
+                <MobileProfileAvatar initials={initials} imageUri={avatarUri} size="md" role={activeRole} />
                 <View style={styles.profileText}>
                   <Text style={[styles.profileName, { color: theme.textHeading }]}>{userName}</Text>
                   <Text style={[styles.profileSub, { color: theme.textSecondary }]}>
@@ -500,11 +497,11 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                 accessibilityLabel={`${t.mobile.profile.role}: ${t.roles[activeRole]}`}
                 accessibilityState={{ expanded: rolePickerOpen, disabled: visibleRoleOptions.length < 2 }}
               >
-                <View style={[styles.roleIconBox, { backgroundColor: roleBoxFill }]}>
+                <View style={[styles.roleIconBox, { backgroundColor: roleTile.bg, borderColor: roleTile.ring }]}>
                   <MobileIcon
                     name={ROLE_OPTIONS.find((role) => role.key === activeRole)!.icon}
                     size={20}
-                    color={roleBoxIcon}
+                    color={roleTile.fg}
                   />
                 </View>
                 <View style={styles.profileText}>
@@ -601,6 +598,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                     email={userEmail}
                     phone={userPhone}
                     avatarUri={avatarUri}
+                    role={activeRole}
                     onSave={onSaveProfile}
                     onUploadAvatar={onUploadAvatar}
                     onRemoveAvatar={onRemoveAvatar}
@@ -616,6 +614,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                       email: userEmail,
                       phone: userPhone,
                       avatarUri,
+                      role: activeRole,
                     }}
                     onSaveProfile={onSaveProfile}
                     onUploadAvatar={onUploadAvatar}
@@ -697,7 +696,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
           <ScrollView contentContainerStyle={styles.roleList}>
             {visibleRoleOptions.map((role) => {
               const isActive = role.key === activeRole;
-              const optionColor = tokens.colors.roles[role.key] || tokens.colors.brand[500];
+              const tile = roleTileColors(role.key, isDark);
               return (
                 <View key={role.key} style={role.key === 'admin' ? [styles.adminRole, { borderTopColor: theme.border }] : undefined}>
                   <TouchableOpacity
@@ -718,11 +717,11 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
                     aria-checked={isActive}
                     accessibilityLabel={`${t.roles[role.key]}. ${t.mobile.profile.roleDescriptions[role.key]}`}
                   >
-                    <View style={[styles.roleIconBoxLg, { backgroundColor: roleIconTint(role.key, isDark) }]}>
+                    <View style={[styles.roleIconBoxLg, { backgroundColor: tile.bg, borderColor: tile.ring }]}>
                       <MobileIcon
                         name={role.icon}
                         size={22}
-                        color={role.key === 'admin' ? theme.textHeading : roleOnDark(optionColor, isDark)}
+                        color={tile.fg}
                       />
                     </View>
                     <View style={styles.profileText}>
@@ -892,6 +891,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -899,6 +899,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -11,11 +11,14 @@ const { accountWebUpstream, accountRewrites, accountDevFallback } = require('./l
 const ACCOUNT_WEB_UPSTREAM = accountWebUpstream(process.env.ACCOUNT_WEB_UPSTREAM);
 
 // Content-Security-Policy of the guest pages (AUTH-2.6): own scripts only, connections to this site and Supabase.
-const { guestCsp, GUEST_CSP_SOURCE } = require('./lib/guest-csp');
-const GUEST_CSP = guestCsp({
+const { guestCsp, GUEST_CSP_SOURCE, GUEST_ROOM_CSP_SOURCES, GUEST_SEARCH_CSP_SOURCES } = require('./lib/guest-csp');
+const CSP_INPUT = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL,
   dev: process.env.NODE_ENV === 'development',
-});
+};
+const GUEST_CSP = guestCsp(CSP_INPUT);
+/** Room pages (S7.3 plan D1) and the search page's map view (S4.3) may show a Google map. */
+const GUEST_ROOM_CSP = guestCsp({ ...CSP_INPUT, maps: true });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -27,6 +30,8 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
       process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
       '',
+    // Map ID for the price pins (Advanced Markers, S4.3). Unset: Google's DEMO_MAP_ID (local and dev only).
+    NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || '',
     // Supabase public URL and anon key: the same pair as the consumer-app (EXPO_PUBLIC_*), so both read one sign-in.
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
@@ -44,9 +49,12 @@ const nextConfig = {
   ],
   async headers() {
     const headers = [{ key: 'Content-Security-Policy', value: GUEST_CSP }];
+    const roomHeaders = [{ key: 'Content-Security-Policy', value: GUEST_ROOM_CSP }];
     return [
       { source: '/', headers },
       { source: GUEST_CSP_SOURCE, headers },
+      ...GUEST_ROOM_CSP_SOURCES.map((source) => ({ source, headers: roomHeaders })),
+      ...GUEST_SEARCH_CSP_SOURCES.map((source) => ({ source, headers: roomHeaders })),
     ];
   },
   async rewrites() {

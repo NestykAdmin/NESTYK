@@ -25,6 +25,8 @@ import { SelfOwnerRoomEntity } from "./self-owner-room.entity";
 import { SelfOwnerRoomPriceEntity } from "./self-owner-room-price.entity";
 import { SelfOwnerRoomMediaEntity } from "./self-owner-room-media.entity";
 import { SelfOwnerRoomFacilityEntity } from "./self-owner-room-facility.entity";
+import { ViewingRequestEntity } from "./viewing-request.entity";
+import { ViewingRequestEventEntity } from "./viewing-request-event.entity";
 export * from "./saved-room.entity";
 export * from "./self-owner-room.entity";
 export * from "./self-owner-room-price.entity";
@@ -117,6 +119,8 @@ export const ALL_ENTITIES = [
   RoomShareLinkEntity,
   SavedRoomEntity,
   SelfOwnerRoomEntity, SelfOwnerRoomPriceEntity, SelfOwnerRoomMediaEntity, SelfOwnerRoomFacilityEntity,
+  ViewingRequestEntity,
+  ViewingRequestEventEntity,
   MasterAgreementTypeEntity,
   UserEntity,
   MasterRoleEntity,

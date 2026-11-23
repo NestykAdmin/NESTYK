@@ -107,3 +107,13 @@ test('the account menu links to the role pages the account has (agent, landlord,
   assert.deepEqual(session.roleSiteLinks(['landlord', 'landlord', 'x']), [{ role: 'landlord', path: '/landlord' }]);
   assert.deepEqual(session.roleSiteLinks(undefined), []);
 });
+
+test('role switcher (Mos 20 Nov 2026, like admin): Guest first and current, then the role pages the account has', () => {
+  assert.deepEqual(session.guestRoleChoices(['tenant', 'agent']), [
+    { role: 'guest', current: true },
+    { role: 'agent', path: '/agent', current: false },
+    { role: 'tenant', path: '/tenant', current: false },
+  ]);
+  assert.deepEqual(session.guestRoleChoices(['admin']), [{ role: 'guest', current: true }]);
+  assert.deepEqual(session.guestRoleChoices(undefined), [{ role: 'guest', current: true }]);
+});

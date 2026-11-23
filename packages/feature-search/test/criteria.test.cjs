@@ -104,3 +104,41 @@ test('move-in accepts now, 30 days or 90 days', () => {
   for (const value of ['now', '30d', '90d']) assert.equal(parse(`movein=${value}`).moveIn, value);
   assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), moveIn: 'now' }).toString(), 'movein=now');
 });
+
+// SEO-1 area pages (Mos 20 Nov 2026): /search?area=<slug> from "see all rooms" on an area page.
+test('area survives the URL; a value that is not a slug is dropped', () => {
+  assert.equal(parse('area=sukhumvit-asok').area, 'sukhumvit-asok');
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), area: 'silom-sathorn' }).toString(), 'area=silom-sathorn');
+  for (const bad of ['Asok', 'a b', '-x', 'x-', '../etc', 'a'.repeat(41)]) {
+    assert.equal(parse(`area=${encodeURIComponent(bad)}`).area, undefined, bad);
+  }
+  assert.equal('area' in parse(''), false);
+});
+
+// Place search (Mos 20 Nov 2026): a place picked in the keyword box keeps its name for the heading and the chip.
+// The name only means something with a position, so it is dropped without one.
+test('a place name rides with lat/lng, is trimmed to 80 characters and dropped without a position', () => {
+  const c = parse('lat=13.7466&lng=100.5393&r=3&place=%20Central%20World%20');
+  assert.equal(c.placeName, 'Central World');
+  assert.deepEqual(c.nearGps, { latitude: 13.7466, longitude: 100.5393, radiusKm: 3 });
+  assert.equal(criteriaToSearchParams(c).toString(), 'lat=13.7466&lng=100.5393&r=3&place=Central+World');
+  assert.equal(parse(`lat=13.7&lng=100.5&place=${'x'.repeat(120)}`).placeName.length, 80);
+  assert.equal(parse('place=Central%20World').placeName, undefined);
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), placeName: 'Central World' }).toString(), '', 'no position: no name');
+});
+
+// Map search (S4.3, Mos 20 Nov 2026): an area the map was moved to rides as near=map, so the page says "บริเวณแผนที่"
+// and not "ใกล้ตำแหน่งของฉัน". A place name wins over it; without a position it means nothing.
+test('near=map marks a map area, needs a position and gives way to a place name', () => {
+  const c = parse('view=map&lat=13.74&lng=100.56&r=2.3&near=map');
+  assert.equal(c.view, 'map');
+  assert.equal(c.nearMap, true);
+  assert.deepEqual(c.nearGps, { latitude: 13.74, longitude: 100.56, radiusKm: 2.3 });
+  assert.equal(criteriaToSearchParams(c).toString(), 'view=map&lat=13.74&lng=100.56&r=2.3&near=map');
+  assert.equal(parse('near=map').nearMap, undefined, 'no position');
+  assert.equal(parse('lat=13.7&lng=100.5&near=x').nearMap, undefined);
+  const named = parse('lat=13.7&lng=100.5&place=BTS%20Asok&near=map');
+  assert.equal(named.placeName, 'BTS Asok');
+  assert.equal(named.nearMap, undefined, 'a picked place is not a map area');
+  assert.equal(criteriaToSearchParams({ ...defaultGuestCriteria(), nearMap: true }).toString(), '', 'no position: no flag');
+});

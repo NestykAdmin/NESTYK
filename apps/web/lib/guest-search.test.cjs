@@ -94,7 +94,7 @@ test('the API query carries every filter, the page and the size', () => {
   const c = parse('q=อโศก&type=condo&min=10000&beds=3&movein=30d&quick=petFriendly&sort=price_asc');
   const query = search.toPublicQuery(c, 2, 12);
   assert.deepEqual(query, {
-    mode: 'rent', keyword: 'อโศก', propertyType: ['condo'], minPrice: 10000, maxPrice: undefined, bedrooms: [3],
+    mode: 'rent', keyword: 'อโศก', area: undefined, propertyType: ['condo'], minPrice: 10000, maxPrice: undefined, bedrooms: [3],
     stationType: undefined, stationName: undefined, nearGps: undefined, durationMonths: undefined, moveIn: '30d',
     quick: ['petFriendly'], sortBy: 'price_asc', page: 2, limit: 12,
   });
@@ -127,9 +127,30 @@ test('townhome stays off the filters until rooms of that type exist, as on the h
   assert.deepEqual([...search.SEARCH_PROPERTY_TYPES], ['condo', 'apartment', 'house']);
 });
 
-test('a location in the URL is dropped: the page has no way to show or remove it yet (S4.3)', () => {
-  assert.equal(parse('lat=13.7&lng=100.5&r=2').nearGps, undefined);
-  assert.equal(search.searchHref(parse('lat=13.7&lng=100.5&type=condo')), '/search?type=condo');
+// Location search (Mos 20 Nov 2026): "near me" puts the position in the URL; the page shows it as a heading and a
+// chip that removes it (until then it was dropped, review L3).
+test('a location in the URL is kept, titled "near you" and shown as a chip that removes it', () => {
+  const c = parse('lat=13.737&lng=100.56&type=condo');
+  assert.deepEqual(c.nearGps, { latitude: 13.737, longitude: 100.56, radiusKm: 5 });
+  assert.equal(search.searchHref(c), '/search?type=condo&lat=13.737&lng=100.56');
+  assert.equal(search.toPublicQuery(c, 1, 12).nearGps.radiusKm, 5);
+  const titles = { ...labels, nearMeTitle: 'ห้องเช่าใกล้ตำแหน่งของคุณ' };
+  assert.equal(search.searchTitle(c, titles), 'ห้องเช่าใกล้ตำแหน่งของคุณ');
+  assert.equal(search.searchTitle(parse('lat=13.737&lng=100.56&q=Ideo'), titles), 'ผลการค้นหา “Ideo”', 'a keyword still names the search');
+  const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ตำแหน่งของฉัน' });
+  assert.equal(chips[0].key, 'near');
+  assert.equal(chips[0].label, 'ใกล้ตำแหน่งของฉัน');
+  assert.equal(chips[0].href, '/search?type=condo');
+});
+
+test('a picked place is named in the heading and chip; removing the chip drops the place and its name', () => {
+  const c = parse('lat=13.7466&lng=100.5393&r=3&place=Central%20World&type=condo');
+  const titles = { ...labels, nearMeTitle: 'ใกล้คุณ', nearPlaceTitle: 'ห้องเช่าใกล้ {place}' };
+  assert.equal(search.searchTitle(c, titles), 'ห้องเช่าใกล้ Central World');
+  const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ฉัน', nearPlaceChip: 'ใกล้ {place} · {km} กม.' });
+  assert.equal(chips[0].label, 'ใกล้ Central World · 3 กม.');
+  assert.equal(chips[0].href, '/search?type=condo');
+  assert.equal(search.searchHref(search.clearedFilters(c)), '/search');
 });
 
 test('price slider runs 0 – 100,000 in steps of 1,000; the far ends mean "no limit"', () => {
@@ -169,4 +190,57 @@ test('the price button on the home search shows the chosen range, or "any price"
   assert.equal(search.priceButtonText(undefined, undefined, words), 'ทุกช่วงราคา');
   assert.equal(search.priceButtonText(12000, 30000, words), '฿12,000–฿30,000');
   assert.equal(search.priceButtonText(12000, undefined, words), 'ตั้งแต่ ฿12,000');
+});
+
+// SEO-1 area pages (Mos 20 Nov 2026) and review R3: "see all rooms" on an area page opens /search?area=<slug>.
+// The area reaches the API, shows as a removable chip and in the title, and "clear filters" drops it.
+test('area: sent to the API, shown as a chip and in the title, cleared with the other filters', () => {
+  const areaLabels = { ...labels, areaChip: 'ทำเล: {name}', areaTitle: 'ห้องเช่า {name}', areaNames: { sukhumvit: 'สุขุมวิท' } };
+  const c = parse('area=sukhumvit&type=condo');
+  assert.equal(search.toPublicQuery(c, 1, 12).area, 'sukhumvit');
+  const chips = search.activeFilterChips(c, areaLabels);
+  assert.equal(chips[0].label, 'ทำเล: สุขุมวิท');
+  assert.equal(chips[0].href, '/search?type=condo');
+  assert.equal(search.searchTitle(parse('area=sukhumvit'), areaLabels), 'ห้องเช่า สุขุมวิท');
+  assert.equal(search.searchTitle(parse('area=sukhumvit&q=อโศก'), areaLabels), 'ผลการค้นหา “อโศก”', 'a keyword still wins');
+  assert.equal(search.searchHref(search.clearedFilters(c)), '/search');
+  // An unknown slug keeps its own text rather than an empty chip.
+  assert.equal(search.activeFilterChips(parse('area=old-area'), areaLabels)[0].label, 'ทำเล: old-area');
+});
+
+// Map search (S4.3, Mos 20 Nov 2026): the area the map was moved to is "บริเวณแผนที่" in the heading and the chip,
+// and the chip, "ล้างตัวกรอง" and the view switch treat it like any other place.
+test('a map area has its own heading and chip, and clearing removes it', () => {
+  const c = parse('view=map&lat=13.74&lng=100.56&r=2.3&near=map&type=condo');
+  const titles = { ...labels, nearMeTitle: 'ใกล้คุณ', nearPlaceTitle: 'ใกล้ {place}', mapAreaTitle: 'ห้องเช่าในบริเวณแผนที่' };
+  assert.equal(search.searchTitle(c, titles), 'ห้องเช่าในบริเวณแผนที่');
+  const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ฉัน', mapAreaChip: 'บริเวณแผนที่' });
+  assert.equal(chips[0].label, 'บริเวณแผนที่');
+  assert.equal(chips[0].href, '/search?view=map&type=condo');
+  assert.equal(search.searchHref(search.clearedFilters(c)), '/search?view=map');
+});
+
+// Mos 20 Nov 2026: each filter is a dropdown whose button shows what is chosen.
+test('filterSummaries gives the button text of each filter dropdown', () => {
+  const words = {
+    typeAll: 'ทั้งหมด',
+    propertyType: labels.propertyType,
+    price: { priceAny: 'ทุกช่วงราคา', priceUnder: 'ไม่เกิน {max}', priceBetween: '{min}–{max}', priceOver: 'ตั้งแต่ {min}' },
+    bedroomsAny: 'ทั้งหมด',
+    bedroom: { studio: 'สตูดิโอ', one: '{count} ห้องนอน', many: '{count} ห้องนอน', threePlus: '3 ห้องนอนขึ้นไป' },
+    moveInAny: 'ทุกช่วงเวลา',
+    moveIn: { now: 'เข้าอยู่ได้ทันที', '30d': 'ภายใน 1 เดือน', '90d': 'ภายใน 3 เดือน' },
+    quick: labels.quick,
+    moreNone: 'ไม่ระบุ',
+  };
+  const none = search.filterSummaries(parse(''), words);
+  assert.deepEqual(none, { type: 'ทั้งหมด', price: 'ทุกช่วงราคา', beds: 'ทั้งหมด', moveIn: 'ทุกช่วงเวลา', more: 'ไม่ระบุ' });
+  const some = search.filterSummaries(parse('type=condo,house&min=10000&max=20000&beds=0,3&movein=now&quick=petFriendly,shortTerm'), words);
+  assert.deepEqual(some, {
+    type: 'คอนโด, บ้าน',
+    price: '฿10,000–฿20,000',
+    beds: 'สตูดิโอ, 3 ห้องนอนขึ้นไป',
+    moveIn: 'เข้าอยู่ได้ทันที',
+    more: 'เลี้ยงสัตว์ได้, เช่าระยะสั้น',
+  });
 });

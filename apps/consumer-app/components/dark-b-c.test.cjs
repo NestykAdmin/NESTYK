@@ -132,10 +132,19 @@ test('overview: KPI chip is a yellow tint with a yellow icon; tone chips in dark
   }
 });
 
-test('D1: the agent hero in the drawer is lifted grey in dark mode (ink on the ink page vanished)', () => {
+test('D1: the drawer hero is the role identity deep tone; the ink one (admin since 20 Nov 2026) lifts to grey in dark mode (ink on the ink page vanished)', () => {
   const code = read(path.join(ui, 'shells/MobileProfileDrawer.tsx'));
-  assert.match(code, /const heroFill = isDark && activeRole === 'agent' \? tokens\.colors\.lift : roleColor;/);
-  assert.match(code, /styles\.heroCard, \{ backgroundColor: heroFill \}/);
+  assert.match(code, /const heroFill =\s+activeRole === 'guest'\s+\? roleColor\s+: isDark && activeRole === 'admin'\s+\? tokens\.colors\.lift\s+: tokens\.colors\.roleIdentity\[activeRole\]\.deep;/);
+  assert.match(code, /styles\.heroCard, \{ backgroundColor: heroFill \}, heroEdge\]/);
+  // Review R1: the deep tones are close to the ink page in dark mode, so the hero carries the role's light ring there.
+  // The edge keeps one width in both modes (the hero's own colour when not needed), so the hero does not change height.
+  assert.match(code, /const heroEdge = \{ borderWidth: 1\.5, borderColor: isDark && activeRole !== 'guest' \? roleTile\.ring : heroFill \};/);
+  const { roleTileColors } = load(path.join(ui, 'theme/tokens.ts'));
+  for (const role of ['tenant', 'landlord', 'agent', 'self_owner', 'admin']) {
+    assert.ok(contrast(roleTileColors(role, true).ring, '#211E1E') >= 3, `${role}: hero ring on the dark page`);
+    const fill = role === 'admin' ? tokens.colors.lift : tokens.colors.roleIdentity[role].deep;
+    assert.ok(contrast(roleTileColors(role, true).ring, fill) >= 3, `${role}: hero ring on the hero`);
+  }
 });
 
 test('D2: create-lead form tabs, care box and matching banner follow the theme in dark mode', () => {

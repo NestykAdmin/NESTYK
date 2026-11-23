@@ -63,4 +63,5 @@ export class SearchQueryBuilder {
 
 export * from './types';
 export * from './criteria';
+export * from './transit-stations';
 export * from './price-range';

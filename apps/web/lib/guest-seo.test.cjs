@@ -180,3 +180,57 @@ test('robots.txt and sitemap.xml exist and use the shared rules', () => {
   assert.match(fs.readFileSync(path.join(APP_DIR, 'robots.ts'), 'utf8'), /robotsRules\(/);
   assert.match(fs.readFileSync(path.join(APP_DIR, 'sitemap.ts'), 'utf8'), /sitemapEntries\(/);
 });
+
+// SEO plan (Mos 11 Nov 2026): room pages are indexed in Thai only for now; the other languages stay noindex.
+test('room pages: only the Thai page may be indexed', () => {
+  assert.equal(seo.roomPageIndex('th'), true);
+  for (const locale of ['en', 'ja', 'zh']) assert.equal(seo.roomPageIndex(locale), false, locale);
+  const thai = seo.pageSeo({ origin: SITE, indexable: true, locale: 'th', path: '/rooms/12', index: seo.roomPageIndex('th') });
+  assert.deepEqual(thai.robots, { index: true, follow: true });
+  assert.equal(thai.canonical, `${SITE}/rooms/12`);
+  const en = seo.pageSeo({ origin: SITE, indexable: true, locale: 'en', path: '/rooms/12', index: seo.roomPageIndex('en') });
+  assert.deepEqual(en.robots, { index: false, follow: true });
+  assert.equal(en.languages, null);
+});
+
+// SEO-1, room page part (Mos 19 Nov 2026).
+test('room pages list no hreflang until the other languages are translated (they are noindex)', () => {
+  const thai = seo.pageSeo({ origin: SITE, indexable: true, locale: 'th', path: '/rooms/12', index: true, hreflang: false });
+  assert.equal(thai.languages, null);
+  assert.equal(thai.canonical, `${SITE}/rooms/12`);
+  assert.deepEqual(thai.robots, { index: true, follow: true });
+  // Other pages keep the full set by default.
+  assert.ok(seo.pageSeo({ origin: SITE, indexable: true, locale: 'th', path: '/' }).languages);
+  const meta = seo.toMetadata(thai, { locale: 'th', title: 'T' });
+  assert.equal('languages' in meta.alternates, false);
+});
+
+test('a page with a picture shares it on Open Graph and as a large card', () => {
+  const data = seo.pageSeo({ origin: SITE, indexable: true, locale: 'th', path: '/rooms/12', hreflang: false });
+  const meta = seo.toMetadata(data, { locale: 'th', title: 'T', description: 'D', image: { url: 'https://cdn.example.com/a.jpg', alt: 'ห้อง' } });
+  assert.deepEqual(meta.openGraph.images, [{ url: 'https://cdn.example.com/a.jpg', alt: 'ห้อง' }]);
+  assert.deepEqual(meta.twitter, { card: 'summary_large_image', title: 'T', description: 'D', images: ['https://cdn.example.com/a.jpg'] });
+  const bare = seo.toMetadata(data, { locale: 'th', title: 'T' });
+  assert.equal('images' in bare.openGraph, false);
+  assert.equal('twitter' in bare, false);
+  // Only an https picture is shared.
+  const plain = seo.toMetadata(data, { locale: 'th', title: 'T', image: { url: 'http://x/a.jpg' } });
+  assert.equal('images' in plain.openGraph, false);
+});
+
+test('the sitemap lists room pages in Thai only, with no other languages', () => {
+  assert.deepEqual(seo.singleLanguageEntries(SITE, true, ['/rooms/12', '/rooms/31']), [
+    { url: `${SITE}/rooms/12` },
+    { url: `${SITE}/rooms/31` },
+  ]);
+  assert.deepEqual(seo.singleLanguageEntries(SITE, false, ['/rooms/12']), []);
+  assert.deepEqual(seo.singleLanguageEntries('', true, ['/rooms/12']), []);
+});
+
+test('sitemap.xml adds the public rooms, hourly, and never calls the API on a site that is not indexable', () => {
+  const src = fs.readFileSync(path.join(APP_DIR, 'sitemap.ts'), 'utf8');
+  assert.match(src, /export const revalidate = 3600;/);
+  assert.match(src, /singleLanguageEntries\(/);
+  assert.match(src, /loadRoomIdsForSitemap\(/);
+  assert.match(src, /if \(!indexable \|\| !origin\) return \[\];/);
+});

@@ -26,21 +26,33 @@ export type GuestPageKey =
 const GUEST_PAGE_READY: Record<GuestPageKey, boolean> = {
   home: true,
   search: true,
-  areas: false,
+  areas: true,
   commute: false,
   articles: false,
   about: false,
   saved: true,
   profile: true,
   help: false,
-  viewingRequests: false,
+  viewingRequests: true,
   theme: false,
-  rooms: false,
-  rent: false,
+  rooms: true,
+  rent: true,
 };
 
 export function isGuestPageReady(key: GuestPageKey): boolean {
   return GUEST_PAGE_READY[key] === true;
+}
+
+/**
+ * "ใกล้ BTS/MRT" (quick=nearTransit, home rail near_transit) needs each room's nearest station, which no room has yet,
+ * so it always found nothing (Mos 20 Nov 2026: hide it for now). Turn on once rooms carry station data. A shared
+ * link with quick=nearTransit still works and shows its removable chip.
+ */
+export const NEAR_TRANSIT_READY = false;
+
+/** The quick filters to offer: "ใกล้ BTS/MRT" only once NEAR_TRANSIT_READY. */
+export function shownQuickFilters<T extends string>(codes: readonly T[]): T[] {
+  return codes.filter((code) => NEAR_TRANSIT_READY || code !== 'nearTransit');
 }
 
 export type GuestNavKey = 'search' | 'areas' | 'commute' | 'articles' | 'about';
@@ -48,7 +60,7 @@ export type GuestNavKey = 'search' | 'areas' | 'commute' | 'articles' | 'about';
 /** Header menu: all 5 items are always shown (Mos 11 Nov 2026). */
 export const GUEST_NAV: readonly { key: GuestNavKey; href: string }[] = [
   { key: 'search', href: '/search' },
-  { key: 'areas', href: '/#areas' },
+  { key: 'areas', href: '/areas' },
   { key: 'commute', href: '/commute' },
   { key: 'articles', href: '/articles' },
   { key: 'about', href: '/about' },
@@ -69,6 +81,11 @@ export function activeTabKey(pathname: string): GuestTabKey | null {
   if (pathname === '/' || pathname === '') return 'home';
   const tab = GUEST_TABS.find((item) => item.href !== '/' && (pathname === item.href || pathname.startsWith(`${item.href}/`)));
   return tab ? tab.key : null;
+}
+
+/** The mobile tab bar shows on every guest page except the room page, which has its own price + viewing bar (S7.3). */
+export function showsTabBar(pathname: string): boolean {
+  return !/^\/rooms\//.test(pathname);
 }
 
 /** Default language of the URL rules (i18n/routing.ts: localePrefix "as-needed"): its paths have no prefix. */

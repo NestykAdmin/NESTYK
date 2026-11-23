@@ -22,11 +22,11 @@ export default async function SavedPage({ params }: Props) {
 
   return (
     <>
-      <div className="nk-page-head">
+      <div className="nk-page-head nk-page-head--wide">
         <h1 className="nk-page-head__title">{copy.title}</h1>
         <p className="nk-page-head__text">{copy.subtitle}</p>
       </div>
-      <div className="nk-page">
+      <div className="nk-page nk-page--wide">
         <SavedRoomsList locale={locale} />
       </div>
     </>

@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { GUEST_QUICK_FILTERS } from '@nestyk/feature-search';
 import { useRouter } from '../../../i18n/navigation';
-import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, searchHrefIfReady } from '../../../lib/guest-home';
-import { isGuestPageReady } from '../../../lib/guest-site';
+import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, searchHrefIfReady, type HomeSearchInput } from '../../../lib/guest-home';
+import { locationPatch, type LocationChoice } from '../../../lib/guest-location';
+import { isGuestPageReady, shownQuickFilters } from '../../../lib/guest-site';
 import { SearchIcon } from './GuestIcons';
+import { LocationCombobox } from './LocationCombobox';
 import { PricePopover } from './PricePopover';
 import type { Price } from './PriceRangeField';
 
@@ -21,6 +23,9 @@ export function SearchPanel() {
   const router = useRouter();
   const id = useId();
   const [keyword, setKeyword] = useState('');
+  // An area or "near me" picked in the keyword box; typing again turns the box back into a plain keyword.
+  const [place, setPlace] = useState<Exclude<LocationChoice, { kind: 'keyword' }> | null>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
   const [type, setType] = useState('');
   const [price, setPrice] = useState<Price>({ minPrice: undefined, maxPrice: undefined });
   const [bedrooms, setBedrooms] = useState('');
@@ -37,10 +42,34 @@ export function SearchPanel() {
 
   // Until the search page is built (S4.2) the button is off and says "เร็ว ๆ นี้" (R4, Mos 11 Nov 2026).
   const ready = isGuestPageReady('search');
+  const go = (location: Pick<HomeSearchInput, 'keyword' | 'area' | 'nearGps' | 'placeName'>) => {
+    const href = searchHrefIfReady({ ...location, type, minPrice: price.minPrice, maxPrice: price.maxPrice, bedrooms, quick }, ready);
+    if (href) router.push(href);
+  };
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const href = searchHrefIfReady({ keyword, type, minPrice: price.minPrice, maxPrice: price.maxPrice, bedrooms, quick }, ready);
-    if (href) router.push(href);
+    go(place ? locationPatch(place) : { keyword });
+  };
+  const pickLocation = (choice: LocationChoice) => {
+    if (choice.kind === 'keyword') {
+      setPlace(null);
+      go({ keyword: choice.text });
+      return;
+    }
+    // Phones show only the keyword row (no search button), so a picked place searches at once; on wider screens it
+    // fills the box and the other fields can still be set before "ค้นหา".
+    if (!submitRef.current || submitRef.current.offsetParent === null) {
+      go(locationPatch(choice));
+      return;
+    }
+    setPlace(choice);
+    setKeyword(
+      choice.kind === 'area'
+        ? (copy.areaNames as Record<string, string>)[choice.slug] ?? choice.slug
+        : choice.kind === 'place'
+          ? choice.name
+          : copy.location.nearMe,
+    );
   };
 
   return (
@@ -61,15 +90,17 @@ export function SearchPanel() {
           </label>
           <div className="nk-field__control">
             <SearchIcon size={18} className="nk-field__icon" />
-            <input
-              id={`${id}-q`}
-              type="search"
+            <LocationCombobox
+              inputId={`${id}-q`}
               value={keyword}
-              maxLength={100}
+              onValueChange={(text) => {
+                setKeyword(text);
+                setPlace(null);
+              }}
+              onPick={pickLocation}
               placeholder={copy.search.keywordPlaceholder}
-              onChange={(event) => setKeyword(event.target.value)}
-              className="nk-input nk-input--icon"
-              data-testid="guestHome.searchKeyword"
+              inputClassName="nk-input nk-input--icon"
+              testId="guestHome.searchKeyword"
             />
           </div>
         </div>
@@ -106,6 +137,7 @@ export function SearchPanel() {
           </select>
         </div>
         <button
+          ref={submitRef}
           type="submit"
           className="nk-btn nk-btn--primary nk-search__submit"
           disabled={!ready}
@@ -118,7 +150,7 @@ export function SearchPanel() {
       </div>
       <div className="nk-search__quick">
         <span className="nk-search__quick-label">{copy.search.popularFilters}</span>
-        {GUEST_QUICK_FILTERS.map((code) => (
+        {shownQuickFilters(GUEST_QUICK_FILTERS).map((code) => (
           <button
             key={code}
             type="button"

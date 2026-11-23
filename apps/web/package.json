@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ariakit/react": "^0.4.43",
     "@nestyk/config": "*",
     "@nestyk/feature-listing": "*",
     "@nestyk/feature-search": "*",

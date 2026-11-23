@@ -36,14 +36,13 @@ function fill(template: string, values: Record<string, string | number>): string
 
 /**
  * One way to say each filter: the home "พร้อมเข้าอยู่" chip (quick=moveInReady) becomes move-in "now", and bedroom
- * counts above 3 fold into "3+". A location (lat/lng) is dropped: the page cannot show or remove it until the map
- * search (S4.3), so it would be a hidden filter (review L3).
+ * counts above 3 fold into "3+". A location (lat/lng, "near me") is kept: the page names it in the heading and shows a
+ * chip that removes it (location search, Mos 20 Nov 2026; it was dropped before, review L3).
  */
 export function normalizeSearchCriteria(criteria: GuestSearchCriteria): GuestSearchCriteria {
   const next: GuestSearchCriteria = {
     ...criteria,
     quick: criteria.quick.filter((code) => code !== 'moveInReady'),
-    nearGps: undefined,
   };
   if (criteria.quick.includes('moveInReady')) next.moveIn = 'now';
   if (criteria.bedrooms?.length) {
@@ -70,11 +69,29 @@ export interface SearchTitleLabels {
   titleTypeNearTransit: string;
   titleKeyword: string;
   propertyType: Record<PropertyType, string>;
+  /** "ห้องเช่า {name}" when the search is one area (SEO-1 area pages). */
+  areaTitle?: string;
+  areaNames?: Record<string, string>;
+  /** "ห้องเช่าใกล้ตำแหน่งของคุณ" for a "near me" search. */
+  nearMeTitle?: string;
+  /** "ห้องเช่าใกล้ {place}" for a place picked in the keyword box. */
+  nearPlaceTitle?: string;
+  /** "ห้องเช่าในบริเวณแผนที่" after the map was moved (S4.3). */
+  mapAreaTitle?: string;
+}
+
+/** Name of an area slug in the reader's language; an unknown slug (an old link) shows as it is. */
+function areaName(slug: string, names: Record<string, string> | undefined): string {
+  return names?.[slug] ?? slug;
 }
 
 /** Page heading from the filters: the keyword, else one property type, plus "near transit" when that chip is on. */
 export function searchTitle(criteria: GuestSearchCriteria, labels: SearchTitleLabels): string {
   if (criteria.keyword) return fill(labels.titleKeyword, { keyword: criteria.keyword });
+  if (criteria.area && labels.areaTitle) return fill(labels.areaTitle, { name: areaName(criteria.area, labels.areaNames) });
+  if (criteria.nearGps && criteria.placeName && labels.nearPlaceTitle) return fill(labels.nearPlaceTitle, { place: criteria.placeName });
+  if (criteria.nearGps && criteria.nearMap && labels.mapAreaTitle) return labels.mapAreaTitle;
+  if (criteria.nearGps && labels.nearMeTitle) return labels.nearMeTitle;
   const nearTransit = criteria.quick.includes('nearTransit');
   const types = criteria.propertyType ?? [];
   if (types.length === 1) {
@@ -95,6 +112,15 @@ export interface FilterChipLabels {
   threePlus: string;
   moveIn: Record<PublicMoveIn, string>;
   durationChip: string;
+  /** "ทำเล: {name}" (SEO-1 area pages). */
+  areaChip?: string;
+  areaNames?: Record<string, string>;
+  /** "ใกล้ตำแหน่งของฉัน" for a "near me" search. */
+  nearMeChip?: string;
+  /** "ใกล้ {place} · {km} กม." for a place picked in the keyword box. */
+  nearPlaceChip?: string;
+  /** "บริเวณแผนที่" after the map was moved (S4.3). */
+  mapAreaChip?: string;
 }
 
 export interface FilterChip {
@@ -129,6 +155,19 @@ export function activeFilterChips(criteria: GuestSearchCriteria, labels: FilterC
     return rest.length ? rest : undefined;
   };
 
+  if (criteria.nearGps) {
+    const label =
+      criteria.placeName && labels.nearPlaceChip
+        ? fill(labels.nearPlaceChip, { place: criteria.placeName, km: criteria.nearGps.radiusKm })
+        : criteria.nearMap && labels.mapAreaChip
+          ? labels.mapAreaChip
+          : labels.nearMeChip;
+    if (label) add('near', label, { nearGps: undefined, placeName: undefined, nearMap: undefined });
+  }
+  if (criteria.area) {
+    const name = areaName(criteria.area, labels.areaNames);
+    add('area', labels.areaChip ? fill(labels.areaChip, { name }) : name, { area: undefined });
+  }
   if (criteria.keyword) add('keyword', criteria.keyword, { keyword: undefined });
   for (const type of criteria.propertyType ?? []) {
     add(`type-${type}`, labels.propertyType[type], { propertyType: without(criteria.propertyType, type) });
@@ -179,6 +218,7 @@ export function toPublicQuery(criteria: GuestSearchCriteria, page: number, limit
   return {
     mode: criteria.mode,
     keyword: criteria.keyword,
+    area: criteria.area,
     propertyType: criteria.propertyType,
     minPrice: criteria.minPrice,
     maxPrice: criteria.maxPrice,
@@ -204,6 +244,7 @@ export function publicSearchUrl(query: PublicRoomSearchQuery): string {
 export function clearedFilters(criteria: GuestSearchCriteria, options: { keyword?: boolean } = {}): GuestSearchCriteria {
   return withFilters(criteria, {
     keyword: options.keyword ? undefined : criteria.keyword,
+    area: undefined,
     propertyType: undefined,
     minPrice: undefined,
     maxPrice: undefined,
@@ -213,6 +254,8 @@ export function clearedFilters(criteria: GuestSearchCriteria, options: { keyword
     stationType: undefined,
     stationName: undefined,
     nearGps: undefined,
+    placeName: undefined,
+    nearMap: undefined,
     durationMonths: undefined,
   });
 }
@@ -288,4 +331,43 @@ export function sliderText(range: SliderRange, openMax: string): string {
 /** Spoken value of one handle. */
 export function sliderValueText(value: number, openMax: string): string {
   return value >= PRICE_SLIDER.max ? fill(openMax, { max: baht(PRICE_SLIDER.max) }) : baht(value);
+}
+
+export interface FilterSummaryWords {
+  typeAll: string;
+  propertyType: Record<PropertyType, string>;
+  price: PriceWords;
+  bedroomsAny: string;
+  bedroom: { studio: string; one: string; many: string; threePlus: string };
+  moveInAny: string;
+  moveIn: Record<PublicMoveIn, string>;
+  quick: Record<GuestQuickFilter, string>;
+  moreNone: string;
+}
+
+export interface FilterSummaries {
+  type: string;
+  price: string;
+  beds: string;
+  moveIn: string;
+  more: string;
+}
+
+/** Button text of each filter dropdown (Mos 20 Nov 2026): what is chosen, or "all" / "any". */
+export function filterSummaries(criteria: GuestSearchCriteria, words: FilterSummaryWords): FilterSummaries {
+  const types = criteria.propertyType ?? [];
+  const beds = criteria.bedrooms ?? [];
+  const bedText = (count: number) => {
+    if (count === 0) return words.bedroom.studio;
+    if (count >= BEDROOMS_OR_MORE) return words.bedroom.threePlus;
+    return fill(count === 1 ? words.bedroom.one : words.bedroom.many, { count });
+  };
+  const more = criteria.quick.filter((code) => code !== 'moveInReady');
+  return {
+    type: types.length ? types.map((type) => words.propertyType[type]).join(', ') : words.typeAll,
+    price: priceButtonText(criteria.minPrice, criteria.maxPrice, words.price),
+    beds: beds.length ? beds.map(bedText).join(', ') : words.bedroomsAny,
+    moveIn: criteria.moveIn ? words.moveIn[criteria.moveIn] : words.moveInAny,
+    more: more.length ? more.map((code) => words.quick[code]).join(', ') : words.moreNone,
+  };
 }

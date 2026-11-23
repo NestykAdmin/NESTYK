@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useLocale } from '@nestyk/i18n';
+import { UserRole } from '@nestyk/types';
 import { MobileIcon } from '../icons/MobileIcon';
 import { AppIconName } from '../icons/types';
 import { MobileProfileAvatar } from '../components/MobileProfileAvatar';
@@ -28,6 +29,8 @@ export interface MobileAccountProfile {
   email: string;
   phone?: string;
   avatarUri?: string | null;
+  /** Current role: colours of the avatar (role identity, as on the web). */
+  role?: UserRole;
 }
 
 export interface MobileAccountSettingsBodyProps {
@@ -222,6 +225,7 @@ export const MobileAccountSettingsBody = forwardRef<
               email={profile.email}
               phone={profile.phone}
               avatarUri={profile.avatarUri}
+              role={profile.role}
               onSave={onSaveProfile}
               onUploadAvatar={onUploadAvatar}
               onRemoveAvatar={onRemoveAvatar}
@@ -288,7 +292,7 @@ export const MobileAccountSettingsBody = forwardRef<
               scrollEnabled={settingsView === 'hub'}
             >
               <View style={[styles.profileHero, nativeElevation(1), cardStyle]}>
-                <MobileProfileAvatar initials={profile.initials} size="lg" style={styles.avatarSpacing} />
+                <MobileProfileAvatar initials={profile.initials} size="lg" role={profile.role} style={styles.avatarSpacing} />
                 <Text style={[styles.profileName, { color: theme.textHeading }]}>{profile.name}</Text>
                 <Text style={[styles.profileEmail, { color: theme.textSecondary }]}>{profile.email}</Text>
               </View>

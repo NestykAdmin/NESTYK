@@ -48,6 +48,12 @@ export const ChevronRightIcon = (props: IconProps) => (
   </Line>
 );
 
+export const ChevronLeftIcon = (props: IconProps) => (
+  <Line strokeWidth={2} {...props}>
+    <path d="m15 18-6-6 6-6" />
+  </Line>
+);
+
 export const CheckIcon = (props: IconProps) => (
   <Line strokeWidth={2.2} {...props}>
     <path d="m5 12 5 5 9-10" />
@@ -86,10 +92,34 @@ export const UserIcon = (props: IconProps) => (
   </Line>
 );
 
+/** "เหมาะกับใคร" on an area page (SEO-1). */
+export const UsersIcon = (props: IconProps) => (
+  <Line {...props}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6" />
+  </Line>
+);
+
 export const BriefcaseIcon = (props: IconProps) => (
   <Line {...props}>
     <rect x="3" y="7" width="18" height="13" rx="2" />
     <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18" />
+  </Line>
+);
+
+/** Role icons of the landlord (key) and the agent (handshake), the same as the admin web's role tiles. */
+export const KeyIcon = (props: IconProps) => (
+  <Line {...props}>
+    <circle cx="7.5" cy="15.5" r="5.5" />
+    <path d="m21 2-9.6 9.6M15.5 7.5l2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
+  </Line>
+);
+
+export const HandshakeIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="m11 17 2 2a1 1 0 1 0 3-3" />
+    <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
+    <path d="m21 3 1 11h-2M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3M3 4h8" />
   </Line>
 );
 
@@ -230,6 +260,15 @@ export function SocialIcon({ id }: { id: SocialId }) {
   }
 }
 
+/** "Near my location" in the location box (location search). */
+export const LocateIcon = (props: IconProps) => (
+  <Line {...props}>
+    <circle cx="12" cy="12" r="3" />
+    <circle cx="12" cy="12" r="7" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+  </Line>
+);
+
 export const PinIcon = (props: IconProps) => (
   <Line {...props}>
     <path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" />
@@ -339,5 +378,24 @@ export const MapIcon = (props: IconProps) => (
   <Line {...props}>
     <path d="m9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Z" />
     <path d="M9 4v14M15 6v14" />
+  </Line>
+);
+
+/** Map zoom buttons and "ค้นหาบริเวณนี้" (design SearchMapWebV23 / MapMobileV22). */
+export const PlusIcon = (props: IconProps) => (
+  <Line strokeWidth={2.2} {...props}>
+    <path d="M12 5v14M5 12h14" />
+  </Line>
+);
+
+export const MinusIcon = (props: IconProps) => (
+  <Line strokeWidth={2.2} {...props}>
+    <path d="M5 12h14" />
+  </Line>
+);
+
+export const RefreshIcon = (props: IconProps) => (
+  <Line strokeWidth={2} {...props}>
+    <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" />
   </Line>
 );

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, ViewStyle } from 'react-native';
-import { tokens } from '../theme/tokens';
+import { UserRole } from '@nestyk/types';
+import { roleTileColors, tokens } from '../theme/tokens';
 import { useMobileTheme } from '../theme/ThemeContext';
 
 export type MobileProfileAvatarSize = 'sm' | 'md' | 'lg';
@@ -18,22 +19,27 @@ export interface MobileProfileAvatarProps {
   initials: string;
   imageUri?: string | null;
   size?: MobileProfileAvatarSize;
+  /** The role the signed-in user is in: the avatar takes that role's identity colours, as on the web. */
+  role?: UserRole;
   style?: ViewStyle;
 }
 
-/** Brand-soft initials avatar — shared across header, drawer, profile detail, settings. */
+/** The signed-in user's own avatar — shared across header, drawer, profile detail, settings. */
 export const MobileProfileAvatar: React.FC<MobileProfileAvatarProps> = ({
   initials,
   imageUri,
   size = 'md',
+  role,
   style,
 }) => {
   const { isDark } = useMobileTheme();
   const dims = SIZE_MAP[size];
-  // v1.2 (12 Nov 2026, design B): the user's own avatar is ink with yellow initials (lifted grey in dark mode).
-  const fill = isDark ? tokens.colors.lift : tokens.colors.primary;
-  const ring = isDark ? 'rgba(248,182,21,0.65)' : '#F8B615';
-  const text = tokens.colors.brand[500];
+  // Role identity colours (Mos 20 Nov 2026, same as the web): tile fill, initials and ring of the current role;
+  // ink and gold now mean admin only. Without a role it keeps the v1.2 look (ink, yellow initials, lifted grey in dark).
+  const tile = role ? roleTileColors(role, isDark) : null;
+  const fill = tile ? tile.bg : isDark ? tokens.colors.lift : tokens.colors.primary;
+  const ring = tile ? tile.ring : isDark ? 'rgba(248,182,21,0.65)' : '#F8B615';
+  const text = tile ? tile.fg : tokens.colors.brand[500];
 
   return (
     <View

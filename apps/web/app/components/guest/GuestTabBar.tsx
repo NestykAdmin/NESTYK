@@ -3,8 +3,9 @@
 import React from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { Link, usePathname } from '../../../i18n/navigation';
-import { activeTabKey, GUEST_TABS, isGuestPageReady, type GuestTabKey } from '../../../lib/guest-site';
+import { activeTabKey, GUEST_TABS, isGuestPageReady, showsTabBar, type GuestTabKey } from '../../../lib/guest-site';
 import { HeartIcon, HomeIcon, SearchIcon, UserIcon } from './GuestIcons';
+import { roleStyle } from './GuestRole';
 import { useGuestSession } from './GuestSession';
 
 const ICONS: Record<GuestTabKey, React.ComponentType<{ size?: number }>> = {
@@ -21,10 +22,12 @@ const ICONS: Record<GuestTabKey, React.ComponentType<{ size?: number }>> = {
 export function GuestTabBar() {
   const { t } = useLocale();
   const copy = t.guest.tabs;
-  const active = activeTabKey(usePathname());
+  const pathname = usePathname();
+  const active = activeTabKey(pathname);
   // Signed in: the profile tab shows the account's initials (AUTH-2 design B).
   const session = useGuestSession();
   const initials = session.status === 'signedIn' ? session.profile.initials : null;
+  if (!showsTabBar(pathname)) return null;
 
   return (
     <nav className="nk-tabbar" aria-label={copy.label} data-testid="guest.tabBar">
@@ -35,7 +38,7 @@ export function GuestTabBar() {
           <>
             <span className="nk-tab__icon">
               {tab.key === 'profile' && initials ? (
-                <span className="nk-tab__avatar" aria-hidden="true">
+                <span className="nk-tab__avatar" style={roleStyle('guest')} aria-hidden="true">
                   {initials}
                 </span>
               ) : (

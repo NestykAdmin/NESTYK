@@ -69,12 +69,17 @@ export interface PageSeoInput {
   path: string;
   /** False for pages that must never be indexed (saved rooms, profile, developer pages). Default true. */
   index?: boolean;
+  /**
+   * False: no hreflang. Room pages until their text is translated: only the Thai page is indexed, and hreflang
+   * pointing at noindex pages gives search engines mixed signals (SEO-1, Mos 19 Nov 2026). Default true.
+   */
+  hreflang?: boolean;
 }
 
-export function pageSeo({ origin, indexable, locale, path, index = true }: PageSeoInput): PageSeo {
+export function pageSeo({ origin, indexable, locale, path, index = true, hreflang = true }: PageSeoInput): PageSeo {
   const canonical = origin ? `${origin}${localePath(locale, path)}` : null;
   // hreflang only for pages meant for search; also on dev and sit, so the real head can be checked there.
-  const languages = origin && index ? languageUrls(origin, path) : null;
+  const languages = origin && index && hreflang ? languageUrls(origin, path) : null;
   const robots = indexable ? { index, follow: true } : { index: false, follow: false };
   return { canonical, languages, robots };
 }
@@ -84,12 +89,15 @@ export interface PageMetaInput {
   /** Left out: the page keeps the title and description of the layout. */
   title?: string;
   description?: string;
+  /** Picture shown when the page is shared (a room's cover). Only an https address is used. */
+  image?: { url: string; alt?: string } | null;
 }
 
-export function toMetadata(seo: PageSeo, { locale, title, description }: PageMetaInput): Metadata {
+export function toMetadata(seo: PageSeo, { locale, title, description, image }: PageMetaInput): Metadata {
   const alternates = seo.canonical
     ? { canonical: seo.canonical, ...(seo.languages ? { languages: seo.languages } : {}) }
     : undefined;
+  const picture = image && /^https:\/\//i.test(image.url) ? image : null;
   return {
     ...(title ? { title } : {}),
     ...(description ? { description } : {}),
@@ -102,23 +110,40 @@ export function toMetadata(seo: PageSeo, { locale, title, description }: PageMet
       ...(seo.canonical ? { url: seo.canonical } : {}),
       ...(title ? { title } : {}),
       ...(description ? { description } : {}),
+      ...(picture ? { images: [{ url: picture.url, ...(picture.alt ? { alt: picture.alt } : {}) }] } : {}),
     },
+    ...(picture
+      ? {
+          twitter: {
+            card: 'summary_large_image' as const,
+            ...(title ? { title } : {}),
+            ...(description ? { description } : {}),
+            images: [picture.url],
+          },
+        }
+      : {}),
   };
 }
 
+/** Room pages are indexed in Thai only for now (SEO plan, Mos 11 Nov 2026); other languages are noindex. */
+export function roomPageIndex(locale: string): boolean {
+  return locale === DEFAULT_SEO_LOCALE;
+}
+
 /** Metadata of one guest page for this deploy. Every page under app/[locale] calls this (the test checks). */
-export function guestPageMetadata(input: PageMetaInput & { path: string; index?: boolean }): Metadata {
+export function guestPageMetadata(input: PageMetaInput & { path: string; index?: boolean; hreflang?: boolean }): Metadata {
   const seo = pageSeo({
     origin: guestSiteOrigin(),
     indexable: guestSiteIndexable(),
     locale: input.locale,
     path: input.path,
     index: input.index,
+    hreflang: input.hreflang,
   });
   return toMetadata(seo, input);
 }
 
-/** Pages that search engines should find, without the language prefix. Add /rent/<area> and rooms in SEO-1. */
+/** Pages that search engines should find in every language, without the language prefix. Add /rent/<area> in SEO-1. */
 export const INDEXABLE_PATHS: readonly string[] = ['/'];
 
 export function sitemapEntries(origin: string, indexable: boolean, paths: readonly string[]): MetadataRoute.Sitemap {
@@ -127,6 +152,15 @@ export function sitemapEntries(origin: string, indexable: boolean, paths: readon
     const languages = languageUrls(origin, path);
     return SEO_LOCALES.map((locale) => ({ url: languages[locale], alternates: { languages } }));
   });
+}
+
+/**
+ * Pages indexed in the default language only (room pages, SEO-1 D2): one entry each, no other languages, because
+ * those are noindex until translated. Empty on a deploy that is not indexable.
+ */
+export function singleLanguageEntries(origin: string, indexable: boolean, paths: readonly string[]): MetadataRoute.Sitemap {
+  if (!indexable || !origin) return [];
+  return paths.map((path) => ({ url: `${origin}${localePath(DEFAULT_SEO_LOCALE, path)}` }));
 }
 
 /**

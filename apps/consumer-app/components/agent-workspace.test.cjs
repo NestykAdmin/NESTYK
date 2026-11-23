@@ -568,13 +568,23 @@ test('account menu: an account with one role sees its role without a change acti
   assert.equal(tree.includes('Change'), false);
 });
 
-test('role identity colours: soft tile with a deep icon in light, deep tile with a light icon in dark; admin is ink and gold in both', () => {
+test('role identity colours (20 Nov 2026): deep tile with a light icon in both modes, deep ring in light and light ring in dark; admin is ink and gold in both', () => {
   const { roleTileColors, tokens } = load(`${root}/packages/ui/src/theme/tokens.ts`);
   const agent = tokens.colors.roleIdentity.agent;
-  assert.deepEqual(roleTileColors('agent', false), { bg: agent.soft, fg: agent.deep, ring: agent.deep });
+  assert.deepEqual(roleTileColors('agent', false), { bg: agent.deep, fg: agent.light, ring: agent.deep });
+  for (const role of Object.keys(tokens.colors.roleIdentity)) {
+    const set = tokens.colors.roleIdentity[role];
+    assert.equal(roleTileColors(role, false).bg, set.deep, `${role}: light mode is the deep tile too`);
+    assert.equal(roleTileColors(role, false).fg, set.light, role);
+    assert.equal(roleTileColors(role, false).ring, role === 'admin' ? set.light : set.deep, `${role}: light-mode ring`);
+    assert.equal(roleTileColors(role, true).ring, role === 'guest' ? set.deep : set.light, `${role}: dark-mode ring`);
+  }
   assert.deepEqual(roleTileColors('agent', true), { bg: agent.deep, fg: agent.light, ring: agent.light });
   assert.deepEqual(roleTileColors('admin', false), { bg: '#211E1E', fg: '#F8B615', ring: '#F8B615' });
   assert.deepEqual(roleTileColors('admin', true), { bg: '#211E1E', fg: '#F8B615', ring: '#F8B615' });
+  // Guest is NESTYK's brand (Mos 23 Nov 2026): yellow tile, ink icon and initials, a yellow ring in both modes.
+  assert.deepEqual(roleTileColors('guest', false), { bg: '#F8B615', fg: '#211E1E', ring: '#F8B615' });
+  assert.deepEqual(roleTileColors('guest', true), { bg: '#F8B615', fg: '#211E1E', ring: '#F8B615' });
   assert.deepEqual(roleTileColors('unknown', false), roleTileColors('services', false));
   // The role colours of the screens (accents, spinners) are not changed by the identity set.
   assert.equal(tokens.colors.roles.agent, '#211e1e');

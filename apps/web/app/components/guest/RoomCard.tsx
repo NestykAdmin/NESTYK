@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from 'next/link';
 import { fillTemplate, type TranslationSchema } from '@nestyk/i18n';
 import type { PublicRoomCard } from '@nestyk/types';
 import {
@@ -24,7 +23,7 @@ export interface RoomCardProps {
 
 /**
  * Room card, grid variant (S3.1, design v2.3 "roomCard"). No hooks: renders on the server and inside client pieces.
- * The card opens the room page once that page exists (S7); until then the title is plain text.
+ * The card opens the room page (S7.3) with a plain link, so the room page loads with its own CSP.
  */
 export function RoomCard({ card, copy, locale, today }: RoomCardProps) {
   const [bedrooms] = buildPublicRoomSpecs({ bedrooms: card.bedrooms, bathrooms: null, areaSqm: null }, copy.spec);
@@ -75,9 +74,11 @@ export function RoomCard({ card, copy, locale, today }: RoomCardProps) {
         ) : null}
         <h3 className="nk-room__title">
           {href ? (
-            <Link href={href} className="nk-stretch">
+            // A plain link on purpose (review R1, Mos 19 Nov 2026): the room page loads as a new document so it gets
+            // its own Content-Security-Policy (Google Maps); a client-side move would keep this page's policy.
+            <a href={href} className="nk-stretch">
               {title}
-            </Link>
+            </a>
           ) : (
             title
           )}

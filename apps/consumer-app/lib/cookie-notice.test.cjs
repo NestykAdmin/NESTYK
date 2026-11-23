@@ -212,7 +212,9 @@ test('consent: Google Maps (script or embed) loads only behind MapConsentGate', 
   const nearby = readRepo(`${dir}/NearbyPlacesMap.web.tsx`);
   const place = readRepo(`${dir}/PropertyPlaceMap.web.tsx`);
   const share = readRepo(`${dir}/PublicRoomDesktopBody.tsx`);
-  for (const [name, source] of [['nearby', nearby], ['place', place], ['share', share]]) {
+  // S7.3: the guest room page map (apps/web /rooms/<id>).
+  const area = readRepo(`${dir}/PublicRoomAreaMap.tsx`);
+  for (const [name, source] of [['nearby', nearby], ['place', place], ['share', share], ['area', area]]) {
     const providers = source.split('<APIProvider').length - 1;
     assert.ok(providers >= 1, name);
     assert.equal(source.match(/<MapConsentGate[^>]*>\s*<APIProvider/g)?.length, providers, `${name}: every map is gated`);
@@ -233,7 +235,7 @@ test('consent: Google Maps (script or embed) loads only behind MapConsentGate', 
   walk(path.join(repoRoot, 'packages/feature-listing/src'));
   walk(path.join(appRoot, 'components'));
   walk(path.join(appRoot, 'app'));
-  assert.deepEqual(hits.sort(), [`${dir}/NearbyPlacesMap.web.tsx`, `${dir}/PropertyPlaceMap.web.tsx`, `${dir}/PublicRoomDesktopBody.tsx`]);
+  assert.deepEqual(hits.sort(), [`${dir}/NearbyPlacesMap.web.tsx`, `${dir}/PropertyPlaceMap.web.tsx`, `${dir}/PublicRoomAreaMap.tsx`, `${dir}/PublicRoomDesktopBody.tsx`]);
   const gate = readRepo(`${dir}/MapConsentGate.tsx`);
   assert.match(gate, /cookieConsentAllows\('maps'\)/);
   assert.match(gate, /const show = \(\) => allowCookieCategory\('maps'\);/);

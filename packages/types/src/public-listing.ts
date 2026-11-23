@@ -15,7 +15,17 @@ export type PublicRoomMode = 'rent' | 'buy';
 /** Lists on the home page: recommended (photos first), near BTS/MRT, newest. */
 export type PublicFeaturedRail = 'recommended' | 'near_transit' | 'new';
 /** Transit lines an area is known for; labels come from i18n (guest.transitLines). */
-export type PublicTransitLineCode = 'bts_sukhumvit' | 'bts_silom' | 'mrt_blue' | 'mrt_purple' | 'mrt_pink' | 'arl';
+export type PublicTransitLineCode =
+  | 'bts_sukhumvit'
+  | 'bts_silom'
+  | 'mrt_blue'
+  | 'mrt_purple'
+  | 'mrt_pink'
+  | 'mrt_yellow'
+  | 'mrt_orange'
+  | 'arl';
+/** bangkok = Bangkok and nearby; province = a zone in another province ("โซนต่างจังหวัด"). */
+export type PublicAreaRegion = 'bangkok' | 'province';
 
 export interface PublicRoomStation {
   type: PublicRoomStationType;
@@ -67,6 +77,8 @@ export interface PublicRoomDetail extends PublicRoomCard {
 export interface PublicRoomSearchQuery {
   mode: PublicRoomMode;
   keyword?: string;
+  /** Area slug (PublicAreaSummary.slug): rooms whose building district belongs to that area (SEO-1 area pages). */
+  area?: string;
   propertyType?: PropertyType[];
   minPrice?: number;
   maxPrice?: number;
@@ -96,6 +108,7 @@ export interface PublicAreaSummary {
   slug: string;
   /** Fallback name (Thai). The web shows the name for the reader's language by slug (guest.areaNames). */
   name: string;
+  region: PublicAreaRegion;
   /** Transit lines the area is known for, as codes (labels in guest.transitLines). */
   transitLines: PublicTransitLineCode[];
   roomCount: number;

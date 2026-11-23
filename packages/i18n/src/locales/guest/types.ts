@@ -147,6 +147,7 @@ export interface GuestCopy {
     availabilityWithin1Month: string;
     availabilityWithin3Months: string;
     more: string;
+    moreNone: string;
     allFilters: string;
     found: string;
     foundInMap: string;
@@ -194,6 +195,18 @@ export interface GuestCopy {
     close: string;
     viewDetails: string;
     pinRooms: string;
+    viewCards: string;
+    viewMap: string;
+    searchHere: string;
+    foundInArea: string;
+    capped: string;
+    showList: string;
+    back: string;
+    unavailable: string;
+    noPins: string;
+    roomsHere: string;
+    hideListPanel: string;
+    showListPanel: string;
   };
   states: {
     emptyTitle: string;
@@ -244,6 +257,10 @@ export interface GuestCopy {
     gateBody: string;
     /** /saved could not load the list (AUTH-3). */
     errorTitle: string;
+    /** Toolbar of the saved page: how many rooms are saved. */
+    count: string;
+    /** Sort option: newest saved first (the price options reuse results.sort). */
+    sortSaved: string;
     /** Short notes after a heart press (AUTH-3, Mos 13 Nov 2026: a toast every time). */
     toastSaved: string;
     toastRemoved: string;
@@ -265,6 +282,77 @@ export interface GuestCopy {
     register: string;
     later: string;
     close: string;
+    viewingTitle: string;
+    viewingBody: string;
+  };
+  /** Viewing requests (form on the room page and the /viewing-requests page, plan 23 Nov 2026). */
+  viewing: {
+    formTitle: string;
+    datesLabel: string;
+    datesHint: string;
+    datesFull: string;
+    prevDays: string;
+    nextDays: string;
+    today: string;
+    slotLabel: string;
+    slotMorning: string;
+    slotAfternoon: string;
+    slotEvening: string;
+    slotAny: string;
+    slotMorningHint: string;
+    slotAfternoonHint: string;
+    slotEveningHint: string;
+    phoneLabel: string;
+    phonePlaceholder: string;
+    messageLabel: string;
+    messagePlaceholder: string;
+    teamNote: string;
+    submit: string;
+    sending: string;
+    close: string;
+    errorNeedDate: string;
+    errorNeedPhone: string;
+    errorBadPhone: string;
+    errorExists: string;
+    errorLimit: string;
+    errorOwnRoom: string;
+    errorGone: string;
+    errorSignedOut: string;
+    errorInvalid: string;
+    errorFailed: string;
+    doneTitle: string;
+    doneBody: string;
+    viewMine: string;
+    done: string;
+    title: string;
+    subtitle: string;
+    openTitle: string;
+    endedTitle: string;
+    emptyTitle: string;
+    emptyBody: string;
+    browse: string;
+    gateTitle: string;
+    gateBody: string;
+    errorTitle: string;
+    stageSent: string;
+    stageCoordinating: string;
+    stageScheduled: string;
+    stageViewed: string;
+    stageEnded: string;
+    stepSent: string;
+    stepCoordinating: string;
+    stepScheduled: string;
+    progressLabel: string;
+    preferred: string;
+    scheduledAt: string;
+    sentOn: string;
+    roomGone: string;
+    cancel: string;
+    cancelConfirm: string;
+    cancelYes: string;
+    cancelNo: string;
+    cancelFailed: string;
+    cancelClosed: string;
   };
   profile: {
     title: string;
@@ -302,13 +390,186 @@ export interface GuestCopy {
     signOut: string;
     checking: string;
   };
+  /** Room page /rooms/<id> (S7.3, project-docs/nestyk-guest-room-detail-s73-plan-20261119.md). */
+  room: {
+    backToResults: string;
+    breadcrumbLabel: string;
+    photosLabel: string;
+    openPhoto: string;
+    showAllPhotos: string;
+    galleryTitle: string;
+    previousPhoto: string;
+    nextPhoto: string;
+    closeGallery: string;
+    photoCounter: string;
+    noPhotos: string;
+    share: string;
+    shareLabel: string;
+    linkCopied: string;
+    copyFailed: string;
+    factsLabel: string;
+    bedrooms: string;
+    bathrooms: string;
+    size: string;
+    sizeValue: string;
+    floor: string;
+    floorValue: string;
+    studio: string;
+    sectionsLabel: string;
+    tabOverview: string;
+    tabPrice: string;
+    tabAmenities: string;
+    tabLocation: string;
+    tabNearby: string;
+    readMore: string;
+    readLess: string;
+    tagMoveInNow: string;
+    tagShortTerm: string;
+    tagNearTransit: string;
+    tagPetFriendly: string;
+    priceTitle: string;
+    contractMonths: string;
+    monthsShort: string;
+    deposit: string;
+    lowestPrice: string;
+    selectedNote: string;
+    otherCosts: string;
+    amenitiesTitle: string;
+    seeAllAmenities: string;
+    showFewerAmenities: string;
+    noAmenities: string;
+    locationTitle: string;
+    nearestStation: string;
+    district: string;
+    approxNote: string;
+    mapLabel: string;
+    noLocation: string;
+    nearbyTitle: string;
+    nearbyAll: string;
+    viewingCardLabel: string;
+    termLabel: string;
+    moveIn: string;
+    viewingCta: string;
+    viewingSoonNote: string;
+    viewingNote: string;
+    closingTitle: string;
+    notFoundTitle: string;
+    notFoundText: string;
+    notFoundCta: string;
+    metaDescription: string;
+  };
   areaNames: {
-    'sukhumvit-asok': string;
-    'silom-sathorn': string;
-    'onnut-udomsuk': string;
-    'ari-phayathai': string;
+    'ratchada-rama9': string;
+    sukhumvit: string;
     'ladprao-chatuchak': string;
+    'bangna-udomsuk': string;
+    'rangsit-khlongluang': string;
+    'ari-phayathai': string;
     'nonthaburi-chaengwattana': string;
+    'bangkhae-thapra': string;
+    'silom-sathorn': string;
+    'ramkhamhaeng-bangkapi': string;
+    chonburi: string;
+    chiangmai: string;
+    phuket: string;
+    rayong: string;
+    khonkaen: string;
+    korat: string;
+    ayutthaya: string;
+    hatyai: string;
+    huahin: string;
+    udonthani: string;
+  };
+  /** Mos's notes per area (20 Nov 2026): neighbourhoods, what it is known for, who rents there. */
+  areaInfo: {
+    'ratchada-rama9': AreaInfoCopy;
+    sukhumvit: AreaInfoCopy;
+    'ladprao-chatuchak': AreaInfoCopy;
+    'bangna-udomsuk': AreaInfoCopy;
+    'rangsit-khlongluang': AreaInfoCopy;
+    'ari-phayathai': AreaInfoCopy;
+    'nonthaburi-chaengwattana': AreaInfoCopy;
+    'bangkhae-thapra': AreaInfoCopy;
+    'silom-sathorn': AreaInfoCopy;
+    'ramkhamhaeng-bangkapi': AreaInfoCopy;
+    chonburi: AreaInfoCopy;
+    chiangmai: AreaInfoCopy;
+    phuket: AreaInfoCopy;
+    rayong: AreaInfoCopy;
+    khonkaen: AreaInfoCopy;
+    korat: AreaInfoCopy;
+    ayutthaya: AreaInfoCopy;
+    hatyai: AreaInfoCopy;
+    huahin: AreaInfoCopy;
+    udonthani: AreaInfoCopy;
+  };
+  /** Area pages /rent/<slug> and the area list /areas (SEO-1). */
+  areaPage: {
+    title: string;
+    linesLabel: string;
+    statRooms: string;
+    statPrice: string;
+    searchCta: string;
+    fitTitle: string;
+    roomsTitle: string;
+    seeAllRooms: string;
+    otherAreas: string;
+    seeAllAreas: string;
+    emptyTitle: string;
+    emptyBody: string;
+    metaDescription: string;
+    listTitle: string;
+    listSubtitle: string;
+    listMeta: string;
+    groupBangkok: string;
+    groupProvince: string;
+    provinceSubtitle: string;
+    seeAllZones: string;
+    filterChip: string;
+  };
+  /** Location search: suggestions in the keyword box and "near me" (Mos 20 Nov 2026). */
+  location: {
+    /** Accessible name of the suggestion list. */
+    listLabel: string;
+    nearMe: string;
+    /** "{km}": the search radius. */
+    nearMeHint: string;
+    locating: string;
+    denied: string;
+    unavailable: string;
+    areasHeading: string;
+    /** "{text}": what was typed, searched as a free keyword. */
+    searchFor: string;
+    searchForHint: string;
+    nearMeChip: string;
+    /** Results heading of a "near me" search. */
+    nearMeTitle: string;
+    /** Group heading of Google place suggestions; the group ends with the "Google Maps" credit Google asks for. */
+    placesHeading: string;
+    placeFailed: string;
+    /** "{place}": the picked place's name. */
+    nearPlaceTitle: string;
+    /** "{place}", "{km}": the search radius. */
+    nearPlaceChip: string;
+    mapArea: string;
+    mapAreaTitle: string;
+    stationsHeading: string;
+    interchange: string;
+    browseLines: string;
+    browseLinesHint: string;
+    clear: string;
+    back: string;
+  };
+  /** Rail picker beside the keyword box: line, then station (Mos 20 Nov 2026). */
+  transit: {
+    button: string;
+    title: string;
+    linesLabel: string;
+    stationsLabel: string;
+    back: string;
+    close: string;
+    /** "{km}": the search radius around a station. */
+    hint: string;
   };
   transitLines: {
     bts_sukhumvit: string;
@@ -316,6 +577,18 @@ export interface GuestCopy {
     mrt_blue: string;
     mrt_purple: string;
     mrt_pink: string;
+    mrt_yellow: string;
+    mrt_orange: string;
     arl: string;
+    /** Lines in the rail picker only (no area uses them). */
+    bts_gold: string;
+    srt_red_north: string;
+    srt_red_west: string;
   };
+}
+
+export interface AreaInfoCopy {
+  places: string;
+  highlight: string;
+  tenants: string;
 }

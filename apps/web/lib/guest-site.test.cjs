@@ -64,9 +64,9 @@ test('the header menu has the 5 items of design v2.3 in order, and pages not bui
     assert.equal(typeof item.href, 'string');
     assert.ok(item.href.startsWith('/'), `${item.key} href is an in-site path`);
   }
-  // The search page is built (S4.2, 12 Nov 2026); areas, commute, articles and about are not there yet.
-  assert.equal(site.isGuestPageReady('search'), true);
-  for (const key of ['areas', 'commute', 'articles', 'about']) assert.equal(site.isGuestPageReady(key), false, key);
+  // Search is built (S4.2, 12 Nov 2026) and the area list (SEO-1, 20 Nov 2026); commute, articles and about are not there yet.
+  for (const key of ['search', 'areas']) assert.equal(site.isGuestPageReady(key), true, key);
+  for (const key of ['commute', 'articles', 'about']) assert.equal(site.isGuestPageReady(key), false, key);
 });
 
 test('the tab bar has 4 tabs like the app, and every ready tab opens a page that exists', () => {
@@ -82,6 +82,9 @@ test('the active tab follows the path, and a deeper page keeps its section activ
   assert.equal(site.activeTabKey('/search'), 'search');
   assert.equal(site.activeTabKey('/search/map'), 'search');
   assert.equal(site.activeTabKey('/rooms/sample-asok-01'), null);
+  // S7.3: the room page has its own bottom bar (price + viewing request) instead of the tab bar.
+  assert.equal(site.showsTabBar('/rooms/sample-asok-01'), false);
+  for (const p of ['/', '/search', '/saved', '/profile', '/roomsx']) assert.equal(site.showsTabBar(p), true, p);
 });
 
 test('the 4 languages match the URL locales and use their own names', () => {
@@ -132,4 +135,15 @@ test('links built on the server carry the language prefix of the URL rules (Thai
   assert.equal(site.localePath('ja', '/search?type=condo'), '/ja/search?type=condo');
   assert.equal(site.localePath('zh', '/#areas'), '/zh#areas');
   assert.equal(site.localePath('en', '/?tab=new'), '/en?tab=new');
+});
+
+test('S7.3: the room page is open; viewing requests are open since their API (plan 23 Nov 2026, step 2)', () => {
+  assert.equal(site.isGuestPageReady('rooms'), true);
+  assert.equal(site.isGuestPageReady('viewingRequests'), true);
+});
+
+test('shownQuickFilters leaves out "near BTS/MRT" while rooms have no station data, and keeps the order', () => {
+  assert.equal(site.NEAR_TRANSIT_READY, false);
+  assert.deepEqual(site.shownQuickFilters(['nearTransit', 'moveInReady', 'petFriendly', 'shortTerm']), ['moveInReady', 'petFriendly', 'shortTerm']);
+  assert.deepEqual(site.shownQuickFilters(['petFriendly', 'shortTerm']), ['petFriendly', 'shortTerm']);
 });

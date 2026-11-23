@@ -2097,6 +2097,7 @@ export function AppHomeScreen() {
           ) : (
             <MobileHeaderActions
               initials={profileInitials}
+              role={activeRole}
               isAuthenticated={isAuthenticated}
               notificationCount={unreadCount}
               onAvatarPress={() => setDrawerOpen(true)}

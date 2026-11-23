@@ -2,16 +2,19 @@
 
 import React from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
-import { roleSiteLinks } from '../../../lib/guest-session';
+import { guestRoleChoices } from '../../../lib/guest-session';
 import { guestAccountOrigin } from '../../../lib/guest-site';
 import { AccountAvatar } from './AccountMenu';
 import { AccountLink } from './AccountLink';
-import { BriefcaseIcon, ExternalIcon, SignOutIcon, UserIcon } from './GuestIcons';
+import { SignOutIcon, UserIcon } from './GuestIcons';
+import { RoleAvatar, RoleOption } from './GuestRole';
 import { useGuestSession } from './GuestSession';
 
 /**
  * Top of the profile page (AUTH-2.4, design B mobile): the sign-in card when signed out, the account card and the
  * account's role pages when signed in. While checking, the sign-in card keeps its space but stays hidden.
+ * Roles (Mos 20 Nov 2026, like the admin web): the picture has the role's ring and badge, and the role card lists
+ * Guest (current) and the account's other roles with their tiles, each opening its own site.
  */
 export function ProfileAccount() {
   const { t } = useLocale();
@@ -21,34 +24,35 @@ export function ProfileAccount() {
 
   if (session.status === 'signedIn') {
     const { profile } = session;
-    const roleLinks = roleSiteLinks(profile.roles);
+    const choices = guestRoleChoices(profile.roles);
+    const roleCopy = t.agent.dashboard.webWorkspace;
     const origin = guestAccountOrigin();
     return (
       <>
         <section aria-label={account.title} className="nk-card nk-account-card" data-testid="profile.accountCard">
-          <AccountAvatar profile={profile} className="nk-avatar-initials--lg" />
+          <RoleAvatar role="guest">
+            <AccountAvatar profile={profile} className="nk-avatar-initials--lg" />
+          </RoleAvatar>
           <div className="nk-account__who">
             <h2 className="nk-card__title">{profile.displayName}</h2>
             <p className="nk-card__text nk-account__email">{profile.email}</p>
           </div>
         </section>
-        {roleLinks.length > 0 ? (
-          <section aria-label={account.workspace} className="nk-card nk-list" data-testid="profile.workspace">
-            {roleLinks.map((link) => (
-              <a
-                key={link.role}
-                href={`${origin}${link.path}`}
-                className="nk-row"
-                aria-label={fillTemplate(account.goToRole, { role: t.roles[link.role] })}
-                data-testid={`profile.role.${link.role}`}
-              >
-                <BriefcaseIcon className="nk-row__icon" />
-                <span className="nk-row__label">{t.roles[link.role]}</span>
-                <ExternalIcon size={18} className="nk-row__chevron" />
-              </a>
-            ))}
-          </section>
-        ) : null}
+        <section aria-label={roleCopy.chooseRole} className="nk-card nk-list nk-role-list" data-testid="profile.workspace">
+          <p className="nk-role-list__title">{t.mobile.profile.role}</p>
+          {choices.map((choice) => (
+            <RoleOption
+              key={choice.role}
+              role={choice.role}
+              current={choice.current}
+              href={choice.current ? undefined : `${origin}${choice.path}`}
+              ariaLabel={choice.current ? undefined : fillTemplate(account.goToRole, { role: t.roles[choice.role] })}
+              className="nk-row"
+              testId={`profile.role.${choice.role}`}
+            />
+          ))}
+          {choices.length > 1 ? <p className="nk-role-list__hint">{roleCopy.roleHint}</p> : null}
+        </section>
       </>
     );
   }

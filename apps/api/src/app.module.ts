@@ -9,9 +9,10 @@ import { BillingModule } from './billing/billing.module';
 import { PublicListingsModule } from './public-listings/public-listings.module';
 import { MeModule } from './me/me.module';
 import { SelfOwnerModule } from './self-owner/self-owner.module';
+import { ViewingRequestsModule } from './viewing-requests/viewing-requests.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), DatabaseModule, AuthModule, AgentModule, BillingModule, PublicListingsModule, MeModule, SelfOwnerModule],
+  imports: [ScheduleModule.forRoot(), DatabaseModule, AuthModule, AgentModule, BillingModule, PublicListingsModule, MeModule, SelfOwnerModule, ViewingRequestsModule],
   controllers: [AppController],
   providers: [AppService],
 })

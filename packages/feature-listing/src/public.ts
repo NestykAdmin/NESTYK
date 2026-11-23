@@ -5,3 +5,4 @@
 export * from './public-listing';
 export * from './public-rooms-source';
 export { SAMPLE_PUBLIC_ROOMS } from './public-rooms-sample';
+export * from './public-room-detail';

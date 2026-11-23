@@ -32,6 +32,10 @@ test('the search box sends the guest to /search with only the values that were c
   assert.equal(home.homeSearchHref({ minPrice: 40000, bedrooms: 'studio' }), '/search?min=40000&beds=0');
   // Values that are not in the lists (a tampered form) are dropped.
   assert.equal(home.homeSearchHref({ type: 'castle', minPrice: -5, maxPrice: Number.NaN, bedrooms: 'many', quick: ['hack'] }), '/search');
+  // Location search (Mos 20 Nov 2026): an area or "near me" picked in the keyword box.
+  assert.equal(home.homeSearchHref({ area: 'sukhumvit', type: 'condo' }), '/search?area=sukhumvit&type=condo');
+  assert.equal(home.homeSearchHref({ nearGps: { latitude: 13.737, longitude: 100.56, radiusKm: 5 } }), '/search?lat=13.737&lng=100.56');
+  assert.equal(home.homeSearchHref({ nearGps: { latitude: 13.7466, longitude: 100.5393, radiusKm: 3 }, placeName: 'Central World' }), '/search?lat=13.7466&lng=100.5393&r=3&place=Central+World');
 });
 
 test('price and bedroom choices match the design', () => {

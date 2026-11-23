@@ -110,3 +110,13 @@ export function roleSiteLinks(roles: readonly string[] | null | undefined): Role
   const have = new Set(roles ?? []);
   return ROLE_SITES.filter((site) => have.has(site.role)).map((site) => ({ role: site.role, path: site.path }));
 }
+
+export type GuestRoleChoice = { role: 'guest'; current: true } | (RoleSiteLink & { current: false });
+
+/**
+ * The role switcher of the guest web (Mos 20 Nov 2026, like the admin web): Guest first, the role of this site and
+ * so always current, then the role pages the account has, each on its own site.
+ */
+export function guestRoleChoices(roles: readonly string[] | null | undefined): GuestRoleChoice[] {
+  return [{ role: 'guest', current: true }, ...roleSiteLinks(roles).map((link) => ({ ...link, current: false as const }))];
+}

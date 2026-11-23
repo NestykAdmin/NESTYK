@@ -4,7 +4,7 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocale } from '@nestyk/i18n';
 import { AccountLink } from './AccountLink';
-import { CloseIcon, HeartIcon, PhotoIcon } from './GuestIcons';
+import { CalendarIcon, CloseIcon, HeartIcon, PhotoIcon } from './GuestIcons';
 
 /** The room the guest tried to save, shown in the prompt so it is clear what will be kept. */
 export interface SignInPromptRoom {
@@ -20,15 +20,18 @@ const FOCUSABLE = 'a[href], button:not([disabled])';
  * A centred dialog on wide screens and a bottom sheet at ≤ 960px (guest.css). Esc, the close button, "Not now" and
  * the backdrop close it; focus moves in, stays inside while open, and goes back to the button that opened it.
  * The guest web cannot see the account session yet (single sign-on comes later), so it always asks.
+ * `reason` picks the words and icon: saving a room (the heart) or asking to view it (plan 23 Nov 2026).
  */
 export function SignInPrompt({
   room,
   onClose,
   returnFocus,
+  reason = 'save',
 }: {
   room?: SignInPromptRoom;
   onClose: () => void;
   returnFocus?: React.RefObject<HTMLElement | null>;
+  reason?: 'save' | 'viewing';
 }) {
   const { t } = useLocale();
   const copy = t.guest.signInPrompt;
@@ -75,16 +78,16 @@ export function SignInPrompt({
         <span className="nk-prompt__handle" aria-hidden="true" />
         <div className="nk-prompt__top">
           <span className="nk-prompt__icon" aria-hidden="true">
-            <HeartIcon size={28} />
+            {reason === 'viewing' ? <CalendarIcon size={28} /> : <HeartIcon size={28} />}
           </span>
           <button type="button" className="nk-prompt__close" aria-label={copy.close} onClick={onClose} data-testid="signInPrompt.close">
             <CloseIcon size={20} />
           </button>
         </div>
         <h2 id={titleId} className="nk-prompt__title">
-          {copy.saveTitle}
+          {reason === 'viewing' ? copy.viewingTitle : copy.saveTitle}
         </h2>
-        <p className="nk-prompt__body">{copy.saveBody}</p>
+        <p className="nk-prompt__body">{reason === 'viewing' ? copy.viewingBody : copy.saveBody}</p>
         {room ? (
           <div className="nk-prompt__room">
             {room.coverImageUrl ? (

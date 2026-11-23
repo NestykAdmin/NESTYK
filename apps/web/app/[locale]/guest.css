@@ -140,6 +140,7 @@ body {
   z-index: 50;
   background: var(--nk-color-surface);
   border-bottom: 1px solid var(--nk-color-border);
+  transition: background-color 200ms ease, border-color 200ms ease;
 }
 .nk-header__inner {
   max-width: var(--nk-content-width);
@@ -159,6 +160,12 @@ body {
   display: block;
   align-self: flex-start;
   width: auto;
+}
+/* Mos 20 Nov 2026: the letters sit on the menu's middle line. They span y 41-142 of the 219-high SVG (the smile hangs
+   below), so the centred image moves down 8% of its height (18 / 219). */
+.nk-header__brand .nk-logo {
+  align-self: center;
+  transform: translateY(8%);
 }
 .nk-nav {
   flex: 1;
@@ -221,7 +228,10 @@ a.nk-nav__item:hover {
 }
 .nk-icon-btn[aria-current="page"] {
   border-color: var(--nk-color-ink);
-  background: var(--nk-color-brand-soft);
+}
+/* "You are here" on the saved button: a filled heart, like a saved room (Mos 20 Nov 2026: no yellow fill). */
+.nk-icon-btn[aria-current="page"] svg {
+  fill: currentColor;
 }
 .nk-signin {
   min-height: var(--nk-tap);
@@ -238,6 +248,86 @@ a.nk-nav__item:hover {
 }
 .nk-signin:hover {
   background: var(--nk-color-neutral-bg);
+}
+/* Mos 20 Nov 2026: the header controls share a light border; ink only when chosen (hover, open, current page). */
+.nk-header :is(.nk-icon-btn, .nk-lang__button):hover {
+  border-color: var(--nk-color-ink);
+}
+
+/* Header once the page has scrolled past it (Mos 20 Nov 2026): ink with white text, the footer's on-dark look.
+   Only the header's own controls change; the language and account menus that open from it stay light. */
+.nk-logo--on-dark {
+  display: none;
+}
+.nk-header[data-tone='dark'] {
+  background: var(--nk-color-ink);
+  border-bottom-color: var(--nk-color-dark-line);
+}
+.nk-header[data-tone='dark'] .nk-logo--standard {
+  display: none;
+}
+.nk-header[data-tone='dark'] .nk-logo--on-dark {
+  display: block;
+}
+.nk-header :is(.nk-nav__item, .nk-icon-btn, .nk-signin, .nk-lang__button, .nk-account__chip) {
+  transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+}
+.nk-header[data-tone='dark'] .nk-nav__item {
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-nav__item--soon {
+  /* Mid grey, so the open item (white) stands out as it does on the white header. */
+  color: var(--nk-color-placeholder);
+}
+/* The ink avatar would vanish into the ink bar: a white circle with ink letters instead. */
+.nk-header[data-tone='dark'] .nk-account__chip .nk-avatar-initials {
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+}
+.nk-header[data-tone='dark'] .nk-nav .nk-soon {
+  border-color: var(--nk-color-text-secondary);
+  background: transparent;
+  color: var(--nk-color-divider);
+}
+.nk-header[data-tone='dark'] .nk-icon-btn,
+.nk-header[data-tone='dark'] .nk-lang__button {
+  border-color: var(--nk-color-dark-line);
+  background: transparent;
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-icon-btn[aria-current="page"] {
+  border-color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-lang__button[aria-expanded="true"] {
+  border-color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-signin {
+  border-color: var(--nk-color-surface);
+  background: transparent;
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] .nk-account__chip {
+  border-color: var(--nk-color-dark-line);
+  background: transparent;
+  color: var(--nk-color-surface);
+}
+.nk-header[data-tone='dark'] :is(.nk-icon-btn, .nk-lang__button, .nk-signin, .nk-account__chip):hover,
+.nk-header[data-tone='dark'] .nk-account__chip[aria-expanded="true"] {
+  background: var(--nk-color-dark-raised);
+}
+.nk-header[data-tone='dark'] :is(.nk-icon-btn, .nk-lang__button, .nk-account__chip):hover,
+.nk-header[data-tone='dark'] .nk-account__chip[aria-expanded="true"] {
+  border-color: var(--nk-color-surface);
+}
+/* The blue ring has too little contrast on ink. */
+.nk-header[data-tone='dark'] :is(.nk-header__brand, .nk-nav__item, .nk-icon-btn, .nk-signin, .nk-lang__button, .nk-account__chip):focus-visible {
+  outline-color: var(--nk-color-brand);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nk-header,
+  .nk-header :is(.nk-nav__item, .nk-icon-btn, .nk-signin, .nk-lang__button, .nk-account__chip) {
+    transition: none;
+  }
 }
 
 /* Language menu: one button that opens the list */
@@ -495,6 +585,18 @@ a.nk-nav__item:hover {
   flex-direction: column;
   gap: var(--nk-space-4);
 }
+/* Saved rooms (Mos 20 Nov 2026): as wide as the header's inner box (border-box, same side padding on desktop), so
+   the title and cards line up with the logo. */
+.nk-page--wide {
+  max-width: var(--nk-content-width);
+}
+/* The sign-in and empty cards stay the readable 640px, centred. */
+.nk-page--wide > .nk-card {
+  width: 100%;
+  max-width: 640px;
+  box-sizing: border-box;
+  align-self: center;
+}
 .nk-card {
   background: var(--nk-color-surface);
   border: 1px solid var(--nk-color-border);
@@ -695,6 +797,15 @@ summary.nk-row:hover {
   }
   .nk-page {
     padding-bottom: var(--nk-space-16);
+  }
+  .nk-page-head--wide {
+    max-width: var(--nk-content-width);
+    padding-left: var(--nk-space-6);
+    padding-right: var(--nk-space-6);
+  }
+  .nk-page--wide {
+    padding-left: var(--nk-space-6);
+    padding-right: var(--nk-space-6);
   }
   .nk-page__mobile-only {
     display: none;
@@ -1147,6 +1258,19 @@ summary.nk-row:hover {
   font-weight: 700;
   font-size: var(--nk-text-2xl);
   line-height: 1.2;
+}
+/* The room's price, wherever it stands out (Mos 20 Nov 2026): room cards, the map's room card, the room page's price
+   card and its phone bar. A thick brand-yellow line under the number: the brand colour without yellow text, which
+   would be too faint on white (about 1.8:1). */
+.nk-room .nk-price__value,
+.nk-map-peek__price strong,
+.nk-rp-card__value,
+.nk-rp-bar__value {
+  text-decoration-line: underline;
+  text-decoration-color: var(--nk-color-brand);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: none;
 }
 .nk-price__unit {
   font-size: var(--nk-text-sm);
@@ -1798,6 +1922,439 @@ a.nk-types__item:hover {
   }
 }
 
+/* Viewing requests (plan 23 Nov 2026, step 2). Form: the sign-in prompt's dialog / bottom sheet, a wider panel. */
+.nk-vr__panel {
+  width: min(520px, 100%);
+}
+.nk-vr__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-3);
+}
+.nk-vr__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
+.nk-vr__field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+}
+.nk-vr__label {
+  padding: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-vr__hint {
+  font-weight: 400;
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr__days-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-1);
+}
+.nk-vr__scroll {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.nk-vr__days {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--nk-space-2);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.nk-vr__days::-webkit-scrollbar {
+  display: none;
+}
+.nk-vr__day {
+  flex: none;
+  width: 56px;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: var(--nk-space-1) 0;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  scroll-snap-align: start;
+  cursor: pointer;
+}
+.nk-vr__day:hover:not(:disabled) {
+  border-color: var(--nk-color-ink);
+}
+.nk-vr__day.is-on {
+  border-color: var(--nk-color-ink);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+}
+.nk-vr__day:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.nk-vr__day-week,
+.nk-vr__day-month {
+  font-size: var(--nk-text-xs);
+}
+.nk-vr__day-num {
+  font-weight: 700;
+  font-size: var(--nk-text-lg);
+  line-height: 1.1;
+}
+.nk-vr__slots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nk-space-2);
+}
+.nk-vr__slot {
+  position: relative;
+  min-height: var(--nk-tap);
+  box-sizing: border-box;
+  padding: var(--nk-space-1) var(--nk-space-2);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+}
+.nk-vr__slot input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.nk-vr__slot:has(input:focus-visible) {
+  outline: 3px solid var(--nk-color-focus);
+  outline-offset: 2px;
+}
+.nk-vr__slot.is-on {
+  border-color: var(--nk-color-ink);
+  background: var(--nk-color-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--nk-color-ink);
+}
+.nk-vr__slot-name {
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-vr__slot-hint {
+  font-size: 11px;
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr__message {
+  height: auto;
+  min-height: 72px;
+  padding-top: var(--nk-space-2);
+  padding-bottom: var(--nk-space-2);
+  resize: vertical;
+}
+.nk-vr__error {
+  margin: 0;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-danger);
+}
+.nk-vr__error a {
+  color: inherit;
+  font-weight: 600;
+}
+.nk-vr__note {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr__submit {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nk-vr__submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.nk-vr__done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nk-space-3);
+  text-align: center;
+}
+.nk-vr__done-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-brand-soft);
+  color: var(--nk-color-ink);
+  display: grid;
+  place-items: center;
+}
+.nk-vr__done .nk-prompt__actions {
+  align-self: stretch;
+}
+.nk-vr__done .nk-btn {
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+  .nk-vr__slots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .nk-vr__scroll {
+    display: none;
+  }
+}
+
+/* The /viewing-requests page (Mos picked "room card + 3-step bar"). */
+.nk-vr-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-6);
+}
+.nk-vr-list__title {
+  margin: 0 0 var(--nk-space-3);
+  font-size: var(--nk-text-md);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-vr-list__ended > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.nk-vr-list__ended > summary::-webkit-details-marker {
+  display: none;
+}
+.nk-vr-list__ended > summary::after {
+  content: ' ›';
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-list__ended[open] > summary::after {
+  content: ' ⌄';
+}
+.nk-vr-list__items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-vr-item {
+  padding: var(--nk-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-vr-item--skeleton {
+  height: 168px;
+  background: var(--nk-color-neutral-bg);
+}
+.nk-vr-item.is-ended {
+  opacity: 0.75;
+}
+.nk-vr-item__room {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+}
+.nk-vr-item__photo {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--nk-radius-md);
+  object-fit: cover;
+}
+.nk-vr-item__photo--empty {
+  display: grid;
+  place-items: center;
+  background: var(--nk-color-track);
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-item__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nk-vr-item__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  text-decoration: none;
+}
+a.nk-vr-item__title:hover {
+  text-decoration: underline;
+}
+.nk-vr-item__title.is-gone {
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-item__price {
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-item__stage {
+  flex: none;
+  padding: 2px var(--nk-space-2);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-neutral-bg);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  white-space: nowrap;
+}
+.nk-vr-item__stage.is-scheduled {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+}
+.nk-vr-item__stage.is-coordinating,
+.nk-vr-item__stage.is-sent {
+  background: var(--nk-color-brand-soft);
+}
+.nk-vr-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.nk-vr-steps li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nk-space-1);
+  text-align: center;
+}
+.nk-vr-steps li + li::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--nk-color-border);
+}
+.nk-vr-steps li.is-done + li.is-done::before {
+  background: var(--nk-color-ink);
+}
+.nk-vr-steps__dot {
+  position: relative;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 2px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  display: grid;
+  place-items: center;
+}
+.nk-vr-steps li.is-done .nk-vr-steps__dot {
+  border-color: var(--nk-color-ink);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
+}
+.nk-vr-steps__label {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-steps li[aria-current='step'] .nk-vr-steps__label {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-vr-item__when,
+.nk-vr-item__meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-ink);
+}
+.nk-vr-item__when {
+  font-weight: 600;
+}
+.nk-vr-item__meta > span:first-child {
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--nk-space-2);
+}
+.nk-vr-item__confirm {
+  margin-right: auto;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-ink);
+}
+.nk-vr-item__cancel {
+  min-height: 40px;
+  padding: 0 var(--nk-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--nk-color-danger);
+  font: inherit;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.nk-btn--sm {
+  min-height: 40px;
+  padding: 0 var(--nk-space-4);
+  font: inherit;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.nk-btn--danger {
+  border: 0;
+  background: var(--nk-color-danger);
+  color: var(--nk-color-surface);
+}
+
 /* Search page (S4.2, design v2.3 SearchWebV23; <= 960px SearchMobileV22 + SearchSheetV22) */
 .nk-search-top {
   background: var(--nk-color-surface);
@@ -1863,6 +2420,11 @@ a.nk-types__item:hover {
   top: calc(72px + var(--nk-space-6));
 }
 .nk-search-aside__panel {
+  /* Stays in view while the rooms scroll (Mos 20 Nov 2026): a panel taller than the screen scrolls inside. */
+  max-height: calc(100dvh - 72px - var(--nk-space-6) - var(--nk-space-6));
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--nk-space-5);
   background: var(--nk-color-surface);
   border: 1px solid var(--nk-color-border);
@@ -1950,6 +2512,133 @@ a.nk-types__item:hover {
   padding-bottom: var(--nk-space-3);
   color: var(--nk-color-text-secondary);
 }
+/* Filter dropdowns (Mos 20 Nov 2026): the name, a button with what is chosen, the choices open right below. */
+/* Same space between every filter in the panel and the sheet. */
+.nk-filters {
+  gap: var(--nk-space-5);
+}
+.nk-filter-dd {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+}
+fieldset.nk-filter-dd {
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.nk-filter-dd--open {
+  padding: 0;
+}
+.nk-filter-dd .nk-filters__legend {
+  margin-bottom: 0;
+}
+.nk-price-field__select {
+  width: 100%;
+  padding-right: 40px;
+  appearance: none;
+  background: var(--nk-color-surface) no-repeat right 12px center / 18px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23211E1E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  cursor: pointer;
+}
+.nk-price-field__select:hover {
+  border-color: var(--nk-color-ink);
+}
+.nk-filter-dd__button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--nk-space-3);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-2);
+  border: 1px solid var(--nk-color-placeholder);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 400 var(--nk-text-md) var(--nk-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.nk-filter-dd__button:hover {
+  border-color: var(--nk-color-ink);
+}
+/* Open: the button and its choices read as one box (Mos 20 Nov 2026): one ink edge, square corners where they meet. */
+.nk-filter-dd__button[aria-expanded='true'] {
+  border-color: var(--nk-color-ink);
+  border-radius: var(--nk-radius-md) var(--nk-radius-md) 0 0;
+}
+.nk-filter-dd__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nk-filter-dd__chevron {
+  flex: none;
+  transition: transform 150ms ease;
+}
+.nk-filter-dd__button[aria-expanded='true'] .nk-filter-dd__chevron {
+  transform: rotate(180deg);
+}
+.nk-filter-dd__panel {
+  margin-top: calc(-1 * var(--nk-space-2) - 1px);
+  padding: var(--nk-space-1);
+  border: 1px solid var(--nk-color-ink);
+  border-top-color: var(--nk-color-border);
+  border-radius: 0 0 var(--nk-radius-md) var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nk-filter-dd__panel > .nk-check {
+  min-height: 40px;
+  padding: 0 var(--nk-space-2);
+  border-radius: var(--nk-radius-sm);
+}
+.nk-filter-dd__panel > .nk-check:hover {
+  background: var(--nk-color-neutral-bg);
+}
+/* A chosen row is bold with a thin ✓ at the right, no tint (Mos 20 Nov 2026: no boxes, like a menu). The real
+   checkbox / radio stays underneath for the keyboard and screen readers. */
+.nk-filter-dd__panel > .nk-check {
+  position: relative;
+  padding-right: var(--nk-space-8);
+}
+.nk-filter-dd__panel > .nk-check input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.nk-filter-dd__panel > .nk-check:has(input:checked) {
+  font-weight: 600;
+}
+.nk-filter-dd__panel > .nk-check:has(input:checked)::after {
+  content: '';
+  position: absolute;
+  right: var(--nk-space-3);
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  background: no-repeat center / contain
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23211E1E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+.nk-filter-dd__panel > .nk-check:has(input:focus-visible) {
+  outline: 2px solid var(--nk-color-focus);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nk-filter-dd__chevron {
+    transition: none;
+  }
+}
 .nk-check {
   min-height: var(--nk-tap);
   display: flex;
@@ -2012,17 +2701,37 @@ a.nk-types__item:hover {
 .nk-search-page[data-pending] .nk-search-results {
   opacity: 0.55;
 }
+/* Results toolbar (Mos 20 Nov 2026): one fixed row (filters, count … sort, card/list, list/map), and the filter chips
+   with "ล้างทั้งหมด" on the row below, so the switch never drops down when filters are on. */
 .nk-search-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-search-toolbar__row {
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--nk-space-3);
+}
+.nk-search-toolbar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2) var(--nk-space-3);
 }
 .nk-search-toolbar__count {
   margin: 0;
   font-weight: 600;
   color: var(--nk-color-heading);
+}
+.nk-search-toolbar__lead {
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--nk-space-2) var(--nk-space-3);
 }
 .nk-search-toolbar__actions {
   display: flex;
@@ -2036,6 +2745,11 @@ a.nk-types__item:hover {
   gap: var(--nk-space-2);
   font-size: var(--nk-text-sm);
   color: var(--nk-color-text-secondary);
+}
+.nk-saved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
 }
 .nk-search-toolbar__select {
   width: auto;
@@ -2055,14 +2769,77 @@ a.nk-types__item:hover {
   background: var(--nk-color-ink);
   color: var(--nk-color-surface);
 }
+/* Filter panel folded away (Mos 20 Nov 2026): the cards take the full width. */
+.nk-search-page[data-filters='closed'] .nk-search-aside {
+  display: none;
+}
+.nk-search-page[data-filters='closed'] .nk-search-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.nk-filters-toggle {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-3);
+  gap: var(--nk-space-2);
+  border-color: var(--nk-color-border);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-filters-toggle[aria-expanded='true'] {
+  border-color: var(--nk-color-ink);
+}
+.nk-filters-toggle__count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-brand);
+  color: var(--nk-color-ink);
+  font-size: var(--nk-text-xs);
+}
+/* Phones use the filter sheet, not the side panel. */
+@media (max-width: 960px) {
+  .nk-filters-toggle {
+    display: none;
+  }
+}
+/* "การ์ด | แผนที่" (S4.3, Mos 20 Nov 2026): the last item of the results toolbar in both views. */
+.nk-view-switch {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  overflow: hidden;
+}
+.nk-view-switch > button {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  border: 0;
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-view-switch > button[aria-pressed='true'] {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+  cursor: default;
+}
+/* Phones: "ดูบนแผนที่" at the bottom centre opens the map view (S4.3); wide screens use the switch. */
 .nk-search-map-btn {
   min-height: var(--nk-tap);
   padding: 0 var(--nk-space-4);
   gap: var(--nk-space-2);
   border-color: var(--nk-color-border);
-  color: var(--nk-color-text-disabled);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
   font: 600 var(--nk-text-sm) var(--nk-font-body);
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 /* List view: photo beside the text. Phones always use it (design v2.2 row cards). */
@@ -2140,8 +2917,17 @@ a.nk-types__item:hover {
 }
 
 @media (min-width: 961px) {
-  .nk-search-sheet-btn {
+  .nk-search-sheet-btn,
+  .nk-search-map-btn {
     display: none;
+  }
+}
+@media (max-width: 960px) {
+  .nk-search-toolbar .nk-view-switch {
+    display: none;
+  }
+  .nk-search-toolbar__row {
+    flex-wrap: wrap;
   }
 }
 
@@ -2453,8 +3239,8 @@ a.nk-types__item:hover {
   display: flex;
   align-items: center;
   gap: var(--nk-space-2);
-  padding: 0 10px 0 4px;
-  border: 1px solid var(--nk-color-ink);
+  padding: 0 10px 0 6px;
+  border: 1px solid var(--nk-color-border);
   border-radius: var(--nk-radius-pill);
   background: var(--nk-color-surface);
   color: var(--nk-color-ink);
@@ -2463,8 +3249,14 @@ a.nk-types__item:hover {
   font-weight: 600;
   cursor: pointer;
 }
+.nk-account__chip:is(:hover, :focus-visible, [aria-expanded="true"]) .nk-avatar-initials {
+  /* Mos 20 Nov 2026: a brand ring, like the profile picture on /profile, only when the chip is chosen (always on
+     was too loud). Same on the dark header. */
+  box-shadow: 0 0 0 2px var(--nk-color-brand);
+}
 .nk-account__chip:hover,
 .nk-account__chip[aria-expanded="true"] {
+  border-color: var(--nk-color-ink);
   background: var(--nk-color-neutral-bg);
 }
 .nk-account__name {
@@ -2561,6 +3353,146 @@ a.nk-types__item:hover {
   align-items: center;
   gap: var(--nk-space-3);
 }
+
+/* Role (Mos 20 Nov 2026, like the admin web). Colours come from GuestRole.tsx (roleTileColors) as --nk-role-*. */
+.nk-role-tile {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--nk-radius-sm);
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+  box-shadow: 0 0 0 1.5px var(--nk-role-ring);
+}
+.nk-role-avatar {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+/* The role's ring and colours, always on (they win over the brand ring the chip had on hover). */
+.nk-role-avatar .nk-avatar-initials,
+.nk-account__chip:is(:hover, :focus-visible, [aria-expanded="true"]) .nk-role-avatar .nk-avatar-initials,
+.nk-header[data-tone='dark'] .nk-account__chip .nk-role-avatar .nk-avatar-initials {
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+  box-shadow: 0 0 0 2px var(--nk-color-surface), 0 0 0 3.5px var(--nk-role-ring);
+}
+.nk-role-avatar__badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--nk-color-surface);
+  border-radius: 5px;
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+}
+.nk-avatar-initials--lg + .nk-role-avatar__badge {
+  right: -2px;
+  bottom: -2px;
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+  border-radius: 7px;
+}
+.nk-avatar-initials--lg + .nk-role-avatar__badge svg {
+  width: 13px;
+  height: 13px;
+}
+/* On the ink header the gap around the picture is ink too; Guest's yellow ring shows on it (roleTileColors). */
+.nk-header[data-tone='dark'] .nk-account__chip .nk-role-avatar .nk-avatar-initials {
+  box-shadow: 0 0 0 2px var(--nk-color-ink), 0 0 0 3.5px var(--nk-role-ring);
+}
+.nk-role-option__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.nk-role-option__name {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-role-option__line,
+.nk-role-row__label {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-option {
+  padding-top: var(--nk-space-2);
+  padding-bottom: var(--nk-space-2);
+}
+.nk-role-option__check {
+  flex: none;
+  color: var(--nk-color-ink);
+}
+.nk-role-option__badge {
+  flex: none;
+  padding: 2px var(--nk-space-2);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+  white-space: nowrap;
+}
+.nk-role-option.is-current {
+  background: var(--nk-color-bg);
+}
+.nk-role-row {
+  padding-top: var(--nk-space-2);
+  padding-bottom: var(--nk-space-2);
+}
+/* The menu and the role card cut off what sticks out (overflow hidden): the focus ring goes inside the row. */
+.nk-account__menu .nk-account__item:focus-visible,
+.nk-role-list .nk-row:focus-visible {
+  outline-offset: -3px;
+}
+div.nk-role-row {
+  cursor: default;
+}
+div.nk-role-row:hover {
+  background: transparent;
+}
+.nk-role-row__change {
+  flex: none;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-picker__back {
+  font-weight: 600;
+}
+.nk-role-picker__hint,
+.nk-role-list__hint {
+  margin: 0;
+  padding: var(--nk-space-1) var(--nk-space-4) var(--nk-space-2);
+  font-size: var(--nk-text-xs);
+  line-height: 1.5;
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-list__title {
+  margin: 0;
+  padding: var(--nk-space-3) var(--nk-space-4) var(--nk-space-1);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+}
+.nk-role-list > .nk-role-list__title + *,
+.nk-role-list > .nk-role-list__hint {
+  border-top: 0;
+}
+.nk-role-list__hint {
+  padding-top: var(--nk-space-2);
+  padding-bottom: var(--nk-space-3);
+}
 .nk-signin-card--checking {
   visibility: hidden;
 }
@@ -2577,8 +3509,10 @@ a.nk-types__item:hover {
   width: 24px;
   height: 24px;
   border-radius: var(--nk-radius-pill);
-  background: var(--nk-color-ink);
-  color: var(--nk-color-surface);
+  /* Guest's role colours (Mos 23 Nov 2026: brand yellow, ink letters), set by GuestTabBar from roleTileColors. */
+  background: var(--nk-role-bg);
+  color: var(--nk-role-fg);
+  box-shadow: 0 0 0 1px var(--nk-color-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2671,5 +3605,986 @@ a.nk-types__item:hover {
 @media (prefers-reduced-motion: reduce) {
   .nk-toast {
     animation: none;
+  }
+}
+
+/* ===== Room page /rooms/<id> (S7.3, design "แบบผสม" RoomMixWeb / RoomMixPhone, Mos 19 Nov 2026) ===== */
+
+.nk-rp {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--nk-color-surface);
+}
+.nk-rp-top {
+  width: 100%;
+  max-width: var(--nk-content-width);
+  margin: 0 auto;
+  padding: var(--nk-space-4) var(--nk-space-6) 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-6);
+}
+.nk-rp-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-crumbs a {
+  color: inherit;
+}
+.nk-rp-crumbs__sep {
+  color: var(--nk-color-divider);
+}
+.nk-rp-crumbs [aria-current] {
+  color: var(--nk-color-heading);
+}
+.nk-rp-back {
+  min-height: var(--nk-tap);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nk-space-1);
+  font-weight: 600;
+  color: var(--nk-color-ink) !important;
+  text-decoration: none;
+}
+/* The chevron icon points right; "back" points left. */
+.nk-rp-back svg,
+.nk-rp-overlay > a svg,
+.nk-rp-viewer__prev svg {
+  transform: rotate(180deg);
+}
+.nk-rp-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-4);
+  align-items: flex-end;
+}
+.nk-rp-head__text {
+  flex: 1 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+}
+.nk-rp-badges {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+}
+.nk-rp-badge--plain {
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-heading);
+  border: 1px solid var(--nk-color-track);
+}
+.nk-rp-title {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: var(--nk-text-3xl);
+  line-height: 1.4;
+  color: var(--nk-color-ink);
+}
+.nk-rp-sub {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--nk-space-4);
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-sub span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nk-rp-head__actions {
+  position: relative;
+  display: flex;
+  gap: var(--nk-space-2);
+  align-items: center;
+}
+.nk-rp-action {
+  height: var(--nk-tap);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  padding: 0 var(--nk-space-4);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-rp-action:hover {
+  border-color: var(--nk-color-ink);
+}
+/* The heart keeps its own button; here it sits in the row instead of on a photo. */
+.nk-rp-fav {
+  position: relative;
+  display: inline-flex;
+}
+.nk-rp-fav .nk-fav {
+  position: static;
+  border: 1px solid var(--nk-color-border);
+}
+.nk-rp-round {
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  border: 0;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(33, 30, 30, 0.16);
+  cursor: pointer;
+}
+.nk-rp-share-status {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 6;
+  padding: 4px 10px;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Gallery: one large photo + four (design A) */
+/* Gallery + the phone overlay beside it (the overlay is placed over the photo on phones). */
+.nk-rp-media {
+  position: relative;
+}
+.nk-rp-gallery {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-rows: 220px 220px;
+  gap: var(--nk-space-2);
+  border-radius: var(--nk-radius-lg);
+  overflow: hidden;
+}
+.nk-rp-gallery__tile {
+  border: 0;
+  padding: 0;
+  background: var(--nk-color-track);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+.nk-rp-gallery__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.nk-rp-gallery__tile--main {
+  grid-row: 1 / span 2;
+}
+.nk-rp-gallery--1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 440px;
+}
+.nk-rp-gallery--1 .nk-rp-gallery__tile--main {
+  grid-row: auto;
+}
+.nk-rp-gallery--2 {
+  grid-template-columns: 2fr 1fr;
+}
+.nk-rp-gallery--2 .nk-rp-gallery__tile:nth-child(2) {
+  grid-row: 1 / span 2;
+}
+.nk-rp-gallery--3 {
+  grid-template-columns: 2fr 1fr;
+}
+.nk-rp-gallery--4 .nk-rp-gallery__tile:nth-child(4) {
+  grid-column: 2 / span 2;
+}
+.nk-rp-gallery__all {
+  position: absolute;
+  right: var(--nk-space-4);
+  bottom: var(--nk-space-4);
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-sm);
+  cursor: pointer;
+}
+.nk-rp-gallery__count,
+.nk-rp-overlay {
+  display: none;
+}
+.nk-rp-gallery--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 320px;
+  background: var(--nk-color-neutral-bg);
+}
+.nk-rp-gallery__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nk-space-2);
+  color: var(--nk-color-text-secondary);
+  font-size: var(--nk-text-sm);
+}
+
+/* Full-screen photo viewer */
+.nk-rp-viewer {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(33, 30, 30, 0.96);
+  color: var(--nk-color-surface);
+}
+.nk-rp-viewer::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+.nk-rp-viewer__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--nk-space-3) var(--nk-space-4);
+  font-weight: 600;
+}
+.nk-rp-viewer__stage {
+  margin: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nk-rp-viewer__stage img {
+  max-width: 100%;
+  max-height: calc(100vh - 128px);
+  object-fit: contain;
+}
+.nk-rp-viewer__icon {
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nk-rp-viewer__prev,
+.nk-rp-viewer__next {
+  position: absolute;
+  top: calc(50% - 24px);
+}
+.nk-rp-viewer__prev {
+  left: var(--nk-space-4);
+}
+.nk-rp-viewer__next {
+  right: var(--nk-space-4);
+}
+
+/* Section tabs (design B): stay under the header while scrolling */
+.nk-rp-tabs {
+  position: sticky;
+  top: 73px;
+  z-index: 5;
+  margin-top: var(--nk-space-4);
+  background: var(--nk-color-surface);
+  border-bottom: 1px solid var(--nk-color-border);
+}
+.nk-rp-tabs__inner {
+  max-width: var(--nk-content-width);
+  margin: 0 auto;
+  padding: 0 var(--nk-space-6);
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--nk-space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nk-rp-tabs a {
+  min-height: 48px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 3px var(--nk-space-3) 0;
+  border-bottom: 3px solid transparent;
+  color: var(--nk-color-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.nk-rp-tabs a:hover {
+  border-bottom-color: var(--nk-color-brand);
+}
+/* The tab of the section being read (scrollspy) */
+.nk-rp-tabs a[aria-current='location'] {
+  border-bottom-color: var(--nk-color-brand);
+  font-weight: 600;
+}
+
+/* Content + viewing card */
+.nk-rp-body {
+  width: 100%;
+  max-width: var(--nk-content-width);
+  margin: 0 auto;
+  padding: var(--nk-space-8) var(--nk-space-6) var(--nk-space-12);
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-10);
+  align-items: flex-start;
+}
+.nk-rp-main {
+  flex: 999 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-10);
+}
+.nk-rp-section {
+  scroll-margin-top: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
+.nk-rp-h2 {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: var(--nk-text-2xl);
+  color: var(--nk-color-ink);
+}
+.nk-rp-note {
+  margin: 0;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-note--center {
+  text-align: center;
+}
+.nk-rp-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--nk-space-3);
+}
+.nk-rp-facts li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+  padding: var(--nk-space-4);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+}
+.nk-rp-facts__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nk-rp-facts__value {
+  font-family: var(--nk-font-heading);
+  font-size: var(--nk-text-xl);
+  line-height: 1.3;
+  color: var(--nk-color-ink);
+}
+.nk-rp-facts__label {
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+}
+.nk-rp-tags li {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--nk-space-3);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+  box-sizing: border-box;
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+}
+/* Mos 19 Nov 2026: white tag + yellow brand tick (the grey fill blended into the page; brand-soft means "selected"). */
+.nk-rp-tags svg {
+  flex: none;
+  color: var(--nk-color-brand);
+  stroke-width: 2.75;
+}
+/* The agent's text, shown as plain text: line breaks kept, no HTML. */
+.nk-rp-desc {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.nk-rp-desc.is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nk-rp-more {
+  align-self: flex-start;
+  min-height: var(--nk-tap);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--nk-color-ink);
+  font: 600 var(--nk-text-md) var(--nk-font-body);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+/* Price cards (design B) */
+.nk-rp-prices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--nk-space-3);
+}
+.nk-rp-price {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+}
+.nk-rp-price.is-chosen {
+  padding: 17px;
+  border: 2px solid var(--nk-color-ink);
+}
+.nk-rp-price__term {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--nk-space-2);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-rp-price__badge {
+  padding: 2px var(--nk-space-2);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-ink);
+  color: var(--nk-color-brand);
+  font-size: var(--nk-text-xs);
+  white-space: nowrap;
+}
+.nk-rp-price__value {
+  font-family: var(--nk-font-brand), var(--nk-font-body);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--nk-color-ink);
+}
+.nk-rp-price__unit {
+  font-family: var(--nk-font-body);
+  font-weight: 400;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-price__deposit {
+  font-size: var(--nk-text-sm);
+  color: var(--nk-color-text-secondary);
+}
+
+/* Amenities by group (design A) */
+.nk-rp-amenities {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nk-space-5) var(--nk-space-8);
+}
+.nk-rp-amenities__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+}
+.nk-rp-amenities__title {
+  margin: 0;
+  font-size: var(--nk-text-md);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-rp-amenities__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.nk-rp-amenities__list li {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+}
+/* A group cut at PER_GROUP items: its last row fades out to show there is more (no count, Mos 19 Nov 2026). */
+.nk-rp-amenities__group--more .nk-rp-amenities__list {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), rgba(0, 0, 0, 0.2));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), rgba(0, 0, 0, 0.2));
+}
+.nk-rp-inline-btn {
+  align-self: flex-start;
+  gap: var(--nk-space-2);
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  font-size: var(--nk-text-sm);
+  cursor: pointer;
+}
+
+/* Location (design B): map + facts box */
+.nk-rp-location {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--nk-space-4);
+  align-items: start;
+}
+.nk-rp-location > :only-child {
+  grid-column: 1 / -1;
+}
+.nk-rp-location__facts {
+  list-style: none;
+  margin: 0;
+  padding: var(--nk-space-4);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+  font-size: var(--nk-text-sm);
+}
+.nk-rp-location__facts span {
+  display: block;
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-location__facts strong {
+  display: block;
+  font-size: var(--nk-text-md);
+  color: var(--nk-color-ink);
+}
+.nk-rp-map-empty,
+.nk-map__status {
+  margin: 0;
+  min-height: 200px;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--nk-space-4);
+  border-radius: var(--nk-radius-lg);
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-text-secondary);
+  font-size: var(--nk-text-sm);
+  text-align: center;
+}
+
+/* Viewing card (design A): sticky beside the content */
+.nk-rp-card {
+  flex: 1 1 320px;
+  max-width: 380px;
+  position: sticky;
+  top: 140px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+  padding: var(--nk-space-6);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  background: var(--nk-color-surface);
+  box-shadow: var(--nk-shadow-pop);
+}
+.nk-rp-terms {
+  display: flex;
+  gap: var(--nk-space-1);
+  padding: var(--nk-space-1);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-neutral-bg);
+}
+.nk-rp-term {
+  flex: 1;
+  min-height: var(--nk-tap);
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--nk-color-heading);
+  font: 600 var(--nk-text-sm) var(--nk-font-body);
+  cursor: pointer;
+}
+.nk-rp-term.is-on {
+  background: var(--nk-color-ink);
+  color: var(--nk-color-surface);
+}
+.nk-rp-card__price {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--nk-space-2);
+}
+.nk-rp-card__value {
+  font-family: var(--nk-font-brand), var(--nk-font-body);
+  font-weight: 700;
+  font-size: var(--nk-text-3xl);
+  line-height: 1.2;
+  color: var(--nk-color-ink);
+}
+.nk-rp-card__unit {
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-card__facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--nk-space-2) var(--nk-space-4);
+  font-size: var(--nk-text-sm);
+}
+.nk-rp-card__facts dt {
+  color: var(--nk-color-text-secondary);
+}
+.nk-rp-card__facts dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-btn.nk-rp-viewing {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  gap: var(--nk-space-2);
+  font-size: var(--nk-text-lg);
+}
+
+/* Nearby rooms */
+.nk-rp-nearby {
+  width: 100%;
+  max-width: var(--nk-content-width);
+  margin: 0 auto;
+  padding: 0 var(--nk-space-6) var(--nk-space-12);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+  scroll-margin-top: 140px;
+}
+.nk-rp-nearby__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--nk-space-4);
+}
+.nk-rp-nearby__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nk-space-5);
+}
+
+/* Closing band (design B), one step lighter than the ink footer */
+.nk-rp-closing {
+  background: var(--nk-color-dark-raised);
+  color: var(--nk-color-surface);
+}
+.nk-rp-closing__inner {
+  max-width: var(--nk-content-width);
+  margin: 0 auto;
+  padding: var(--nk-space-10) var(--nk-space-6);
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-4) var(--nk-space-6);
+}
+.nk-rp-closing__title {
+  margin: 0;
+  font-family: var(--nk-font-heading);
+  font-weight: 500;
+  font-size: var(--nk-text-2xl);
+  color: var(--nk-color-surface);
+}
+.nk-rp-closing__text {
+  margin: 0;
+  color: var(--nk-color-divider);
+}
+.nk-rp-closing .nk-btn.nk-rp-viewing {
+  width: auto;
+  padding: 0 var(--nk-space-6);
+}
+.nk-rp-closing .nk-soon {
+  border-color: var(--nk-color-text-secondary);
+}
+
+/* Phone bottom bar: price + viewing (replaces the tab bar on this page) */
+.nk-rp-bar {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .nk-rp-top {
+    padding: 0;
+    gap: 0;
+  }
+  .nk-rp-crumbs,
+  .nk-rp-head__actions,
+  .nk-rp-card,
+  .nk-rp-desk,
+  .nk-rp-closing {
+    display: none;
+  }
+  /* Design B on phones: a tall photo, then the details as a sheet over its bottom edge. */
+  .nk-rp-media {
+    order: -1;
+  }
+  .nk-rp-gallery {
+    display: block;
+    height: 400px;
+    border-radius: 0;
+  }
+  .nk-rp-gallery__tile,
+  .nk-rp-gallery__all {
+    display: none;
+  }
+  .nk-rp-gallery__tile--main {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .nk-rp-gallery__count {
+    display: block;
+    position: absolute;
+    right: var(--nk-space-3);
+    bottom: 32px;
+    padding: 2px 10px;
+    border-radius: var(--nk-radius-pill);
+    background: rgba(33, 30, 30, 0.72);
+    color: var(--nk-color-surface);
+    font-size: var(--nk-text-xs);
+    font-weight: 600;
+  }
+  .nk-rp-overlay {
+    display: flex;
+    position: absolute;
+    top: var(--nk-space-3);
+    left: var(--nk-space-3);
+    right: var(--nk-space-3);
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .nk-rp-overlay > *,
+  .nk-rp-overlay__end > * {
+    pointer-events: auto;
+  }
+  .nk-rp-overlay__end {
+    position: relative;
+    display: flex;
+    gap: var(--nk-space-2);
+  }
+  .nk-rp-overlay .nk-fav {
+    border: 0;
+    box-shadow: 0 2px 8px rgba(33, 30, 30, 0.16);
+  }
+  .nk-rp-head {
+    position: relative;
+    z-index: 1;
+    margin-top: -20px;
+    padding: var(--nk-space-5) var(--nk-space-5) 0;
+    border-radius: 24px 24px 0 0;
+    background: var(--nk-color-surface);
+  }
+  .nk-rp-head__text {
+    flex-basis: 100%;
+  }
+  .nk-rp-title {
+    font-size: 22px;
+    line-height: 1.45;
+  }
+  .nk-rp-sub {
+    font-size: var(--nk-text-sm);
+  }
+  .nk-rp-tabs {
+    top: 0;
+    margin-top: var(--nk-space-3);
+    border-top: 1px solid var(--nk-color-border);
+  }
+  .nk-rp-tabs__inner {
+    gap: var(--nk-space-2);
+    padding: var(--nk-space-2) var(--nk-space-5);
+  }
+  .nk-rp-tabs a {
+    min-height: var(--nk-tap);
+    padding: 0 14px;
+    border: 1px solid var(--nk-color-border);
+    border-radius: var(--nk-radius-pill);
+    font-size: var(--nk-text-sm);
+    font-weight: 600;
+  }
+  .nk-rp-tabs a[aria-current='location'] {
+    background: var(--nk-color-ink);
+    border-color: var(--nk-color-ink);
+    color: var(--nk-color-surface);
+  }
+  .nk-rp-section,
+  .nk-rp-nearby {
+    scroll-margin-top: 72px;
+  }
+  .nk-rp-body {
+    padding: var(--nk-space-5) var(--nk-space-5) var(--nk-space-8);
+  }
+  .nk-rp-main {
+    gap: var(--nk-space-8);
+  }
+  .nk-rp-h2 {
+    font-size: var(--nk-text-xl);
+  }
+  .nk-rp-facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--nk-space-2);
+  }
+  .nk-rp-facts li {
+    align-items: center;
+    gap: var(--nk-space-1);
+    padding: var(--nk-space-3) var(--nk-space-1);
+    border-radius: var(--nk-radius-md);
+    text-align: center;
+  }
+  .nk-rp-facts__icon {
+    width: 32px;
+    height: 32px;
+  }
+  .nk-rp-facts__value {
+    font-size: var(--nk-text-md);
+  }
+  .nk-rp-facts__label {
+    font-size: var(--nk-text-xs);
+  }
+  /* Price cards scroll sideways (design B) */
+  .nk-rp-prices {
+    display: flex;
+    overflow-x: auto;
+    margin: 0 calc(-1 * var(--nk-space-5));
+    padding: 0 var(--nk-space-5);
+    scrollbar-width: none;
+  }
+  .nk-rp-price {
+    flex: none;
+    width: 188px;
+    box-sizing: border-box;
+    padding: 14px;
+  }
+  .nk-rp-price.is-chosen {
+    padding: 13px;
+  }
+  .nk-rp-price__value {
+    font-size: var(--nk-text-2xl);
+  }
+  .nk-rp-amenities,
+  .nk-rp-location {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Design "แบบผสม" phone: items in two columns under each group. */
+  .nk-rp-amenities__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px var(--nk-space-4);
+  }
+  .nk-rp-nearby {
+    padding: 0 0 var(--nk-space-8);
+  }
+  .nk-rp-nearby__head {
+    padding: 0 var(--nk-space-5);
+  }
+  .nk-rp-nearby__grid {
+    display: flex;
+    overflow-x: auto;
+    gap: var(--nk-space-3);
+    padding: 0 var(--nk-space-5);
+    scrollbar-width: none;
+  }
+  .nk-rp-nearby__grid > .nk-room {
+    flex: none;
+    width: 240px;
+  }
+  .nk-rp-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    box-sizing: border-box;
+    min-height: var(--nk-tabbar-height);
+    padding: var(--nk-space-3) var(--nk-space-5) max(var(--nk-space-3), env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    gap: var(--nk-space-3);
+    background: var(--nk-color-surface);
+    border-top: 1px solid var(--nk-color-border);
+  }
+  .nk-rp-bar__price {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+  }
+  .nk-rp-bar__value {
+    font-family: var(--nk-font-brand), var(--nk-font-body);
+    font-weight: 700;
+    font-size: var(--nk-text-xl);
+    color: var(--nk-color-ink);
+  }
+  .nk-rp-bar__unit,
+  .nk-rp-bar__term {
+    font-size: var(--nk-text-xs);
+    color: var(--nk-color-text-secondary);
+  }
+  /* Room for the yellow line under the price. */
+  .nk-rp-bar__term {
+    margin-top: var(--nk-space-2);
+  }
+  .nk-btn.nk-rp-viewing.nk-rp-bar__cta {
+    width: auto;
+    padding: 0 var(--nk-space-4);
+    font-size: var(--nk-text-md);
   }
 }
