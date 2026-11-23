@@ -1769,6 +1769,8 @@ export const MobileCreateListingWizardBody: React.FC<
     if (current === 7) return promoTitle.trim().length > 0 || description.trim().length > 0;
     if (current === 8) {
       if (roomContacts.length > 0) return true;
+      // Self owner: the profile fills the name, so a name alone has started the section (the hub then asks for the phone).
+      if (ownerContact) return ownerName.trim().length > 0 || ownerPhone.trim().length > 0;
       return ownerName.trim().length > 0 && ownerPhone.trim().length > 0;
     }
     return true;

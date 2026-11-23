@@ -18,6 +18,14 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
   const { theme } = useMobileTheme();
   const copy = t.agent.listings;
   const so = t.selfOwnerRooms;
+  // The detail's internal card in the owner's words (no team, no share page; Jom 23 Nov 2026).
+  const ownerInternalCopy = {
+    hint: so.internalHint,
+    titleLabel: so.titleField,
+    visibilityLabel: so.internalVisibility,
+    publishedLabel: t.selfOwnerDashboard.roomState.listed,
+    privateLabel: t.selfOwnerDashboard.roomState.unlisted,
+  };
   const { rooms } = useSelfOwnerRooms();
   const room = roomId ? rooms.find((item) => item.id === roomId) ?? null : null;
   const { status, detail, photoCount } = useSelfOwnerRoomDetail(room);
@@ -106,7 +114,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
               />
             </View>
           ) : (
-            <MobileRoomDetailBody key={`${room.id}-${room.updatedAt}`} mode="agent" room={detail} mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY} />
+            <MobileRoomDetailBody key={`${room.id}-${room.updatedAt}`} mode="agent" room={detail} ownerInternalCopy={ownerInternalCopy} mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY} />
           )}
         </SafeAreaView>
       </SafeAreaProvider>

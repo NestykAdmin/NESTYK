@@ -396,3 +396,39 @@ test('connected: reopening a room reads it again before edit is offered', () => 
   assert.equal(web({ roomId: '7' }).find((n) => n?.type === 'Wizard').props.initialData.prices[0].price, 25000);
   assert.ok(backend);
 }));
+
+// Browser check 23 Nov 2026 (390 px wide): the header title broke into three lines beside the buttons. Under the web
+// shell width the buttons show only their icons (the label stays for screen readers) and the title keeps one line.
+test('web: on a narrow window the header buttons show icons only and the title stays on one line', () => {
+  const so = th().selfOwnerRooms;
+  const tree = web({ roomId: 'r5' });
+  assert.ok(byClass(tree, 'sord-header').length === 1);
+  for (const id of ['sord-toggle', 'sord-edit']) {
+    const button = byTestId(tree, id);
+    assert.equal(byClass(nodes(button.props.children), 'sord-btn-label').length, 1, id);
+    assert.ok(button.props['aria-label'], `${id} keeps a name when its label is hidden`);
+  }
+  assert.equal(byTestId(tree, 'sord-toggle').props['aria-label'], so.unpublish);
+  const css = fs.readFileSync(path.join(__dirname, 'self-owner/self-owner-rooms.css'), 'utf8');
+  const narrow = css.slice(css.indexOf('@media (max-width: 767px)'));
+  assert.ok(css.includes('@media (max-width: 767px)'));
+  assert.match(narrow, /\.sord-header \.sord-btn-label\s*\{[^}]*display:\s*none/);
+  assert.match(narrow, /\.sord-header \.ard-header-title h1\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(fs.readFileSync(path.join(__dirname, 'self-owner/SelfOwnerRoomDetailModal.web.tsx'), 'utf8'), /import ["']\.\/self-owner-rooms\.css["']/);
+});
+
+// Jom 23 Nov 2026: the room detail's internal card uses the owner's words (no team, no share page).
+test('web and phone: the detail gets the owner words for its internal card', () => {
+  const so = th().selfOwnerRooms;
+  const state = th().selfOwnerDashboard.roomState;
+  const expected = { hint: so.internalHint, titleLabel: so.titleField, visibilityLabel: so.internalVisibility, publishedLabel: state.listed, privateLabel: state.unlisted };
+  assert.equal(state.listed, 'ประกาศอยู่');
+  assert.equal(state.unlisted, 'ยังไม่ประกาศ');
+  assert.deepEqual(web({ roomId: 'r5' }).find((n) => n?.type === 'DesktopDetail').props.ownerInternalCopy, expected);
+  assert.deepEqual(phone({ roomId: 'r5' }).find((n) => n?.type === 'Detail').props.ownerInternalCopy, expected);
+  for (const l of ['en', 'ja', 'zh']) {
+    const copy = load(`${root}/packages/i18n/src/locales/${l}.ts`)[l].selfOwnerRooms;
+    assert.ok(copy.internalHint && copy.internalVisibility, l);
+  }
+  assert.doesNotMatch(so.internalHint, /ทีม|แชร์/);
+});

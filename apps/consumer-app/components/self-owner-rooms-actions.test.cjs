@@ -219,12 +219,17 @@ test('phone: tapping a card opens the room detail like the agent; cards have no 
 });
 
 // Final review fix (20 Nov 2026): the page's own surfaces were left as they were.
+// 23 Nov 2026: the page uses the agent rooms classes (awr-*, since 20 Nov) and the dead sor-* copies were removed,
+// so this checks the rules that style the page now.
 test('web css: the self owner page surfaces keep the shell surface colour', () => {
-  const css = fs.readFileSync(path.join(__dirname, 'self-owner/self-owner-rooms.css'), 'utf8');
-  const input = css.slice(css.indexOf('.sor-search input {'), css.indexOf('}', css.indexOf('.sor-search input {')));
-  assert.match(input, /background:\s*transparent/, 'the search input stays see-through inside its box');
-  assert.equal((css.match(/background:\s*transparent/g) ?? []).length, 1);
-  assert.ok((css.match(/background:\s*var\(--aw-surface\)/g) ?? []).length >= 4);
+  const page = fs.readFileSync(path.join(__dirname, 'self-owner/SelfOwnerRoomsPage.web.tsx'), 'utf8');
+  assert.match(page, /className="awr-search"/);
+  const css = fs.readFileSync(path.join(__dirname, 'agent-web/agent-rooms.css'), 'utf8');
+  const rule = (selector) => css.slice(css.indexOf(`${selector} {`), css.indexOf('}', css.indexOf(`${selector} {`)));
+  assert.match(rule('.awr-search'), /background:\s*var\(--aw-surface\)/);
+  assert.match(rule('.awr-search input'), /background:\s*transparent/, 'the search input stays see-through inside its box');
+  const own = fs.readFileSync(path.join(__dirname, 'self-owner/self-owner-rooms.css'), 'utf8');
+  assert.doesNotMatch(own, /background:\s*transparent/, 'no see-through surface of its own');
 });
 
 // Jom 20 Nov 2026: no dark focus ring on a row or card after a mouse click (the modal hands focus back on close).

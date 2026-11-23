@@ -176,7 +176,7 @@ export function SelfOwnerRoomsPage({
     },
     { key: "size", header: web.colSize, hideBelow: "lg", cell: (room) => <span className="awr-nowrap">{sizeText(room)}</span> },
     { key: "rent", header: web.colPrice, sortable: true, align: "end", cell: (room) => <span className="awr-price">{money(room.monthlyRent)}</span> },
-    { key: "state", header: web.colStatus, cell: statusBadge },
+    { key: "state", header: web.colStatus, cell: (room) => <span className="sor-status-cell">{statusBadge(room)}</span> },
     { key: "detail", header: copy.colDetail, hideBelow: "md", cell: detailText },
     { key: "updated", header: web.colUpdated, sortable: true, hideBelow: "md", cell: (room) => <span className="awr-muted">{day(room.updatedAt)}</span> },
   ];

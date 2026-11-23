@@ -5,6 +5,7 @@ import { AgentRoomDesktopBody, interpolate } from "@nestyk/feature-listing";
 import { MobileIcon, useMobileTheme } from "@nestyk/ui/native";
 import { useLocale } from "@nestyk/i18n";
 import "../agent-web/agent-room-detail.css";
+import "./self-owner-rooms.css";
 import { WebDialog } from "../agent-web/ui/WebDialog";
 import { canToggleListing, selfOwnerRoomErrorCode, selfOwnerRoomStore, toggleListing, useSelfOwnerRooms } from "../../lib/self-owner-rooms";
 import { useSelfOwnerRoomDetail } from "./useSelfOwnerRoomDetail";
@@ -21,6 +22,14 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
   const { theme } = useMobileTheme();
   const copy = t.agent.listings;
   const so = t.selfOwnerRooms;
+  // The detail's internal card in the owner's words (no team, no share page; Jom 23 Nov 2026).
+  const ownerInternalCopy = {
+    hint: so.internalHint,
+    titleLabel: so.titleField,
+    visibilityLabel: so.internalVisibility,
+    publishedLabel: t.selfOwnerDashboard.roomState.listed,
+    privateLabel: t.selfOwnerDashboard.roomState.unlisted,
+  };
   const { rooms } = useSelfOwnerRooms();
   const room = roomId ? rooms.find((item) => item.id === roomId) ?? null : null;
   const { status, detail, photoCount } = useSelfOwnerRoomDetail(room);
@@ -117,7 +126,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
             } as React.CSSProperties
           }
         >
-          <header className="ard-header">
+          <header className="ard-header sord-header">
             <WebContentContainer>
               <div className="ard-header-inner">
                 <button className="aw-icon-button" data-testid="sord-back" onClick={handleBack} aria-label={t.agent.createRoom.back}>
@@ -129,15 +138,15 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
                 </div>
                 <div className="ard-header-actions">
                   {room && !editing && status === "ready" && canToggleListing(room) ? (
-                    <button className="aw-button aw-button-secondary" data-testid="sord-toggle" onClick={() => setConfirming(true)}>
+                    <button className="aw-button aw-button-secondary" data-testid="sord-toggle" aria-label={toggleLabel} onClick={() => setConfirming(true)}>
                       <MobileIcon name="globe" size={17} color="currentColor" />
-                      {toggleLabel}
+                      <span className="sord-btn-label">{toggleLabel}</span>
                     </button>
                   ) : null}
                   {room && !editing && status === "ready" ? (
-                    <button className="aw-button aw-button-secondary" data-testid="sord-edit" onClick={() => setEditing(true)}>
+                    <button className="aw-button aw-button-secondary" data-testid="sord-edit" aria-label={copy.edit} onClick={() => setEditing(true)}>
                       <MobileIcon name="pencil" size={17} color="currentColor" />
-                      {copy.edit}
+                      <span className="sord-btn-label">{copy.edit}</span>
                     </button>
                   ) : null}
                   {!editing ? (
@@ -176,6 +185,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
               key={`${room.id}-${room.updatedAt}`}
               mode="agent"
               room={detail}
+              ownerInternalCopy={ownerInternalCopy}
               mapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
             />
           )}

@@ -10,6 +10,7 @@ import { WebContentContainer } from "@nestyk/ui/web-content";
 import type { AgentRoomDetail } from "../agent-room-detail";
 import { roomStatusLabel } from "../room-status-label";
 import type { RoomShareVisibility } from "../share-completeness";
+import type { RoomOwnerInternalCopy } from "./MobileRoomDetailBody";
 import type { NearbyMapProps } from "../nearby";
 import { DEFAULT_ROOM_SHARE_VISIBILITY } from "../share-completeness";
 import { formatBedroomSpec } from "../bedroom-label";
@@ -76,6 +77,8 @@ export type RoomDesktopBodyProps = {
   onShare?: () => void;
   onOpenShareCheck?: () => void;
   renderNearbyMap?: (props: NearbyMapProps) => React.ReactNode;
+  /** Self owner: the internal card speaks to the owner (no team, no share page). Agent: leave out. */
+  ownerInternalCopy?: RoomOwnerInternalCopy;
 };
 
 /** DOM-only presentation shared by the Agent preview and public share website. */
@@ -89,6 +92,7 @@ export function RoomDesktopBody({
   onShare,
   onOpenShareCheck,
   renderNearbyMap,
+  ownerInternalCopy,
 }: RoomDesktopBodyProps) {
   const { t, locale } = useLocale();
   const c = t.agent.listings,
@@ -294,8 +298,8 @@ export function RoomDesktopBody({
               {agent && (
                 <span className="ard-badge">
                   {room.visibility === "published"
-                    ? cr.visibilityPublished
-                    : cr.visibilityPrivate}
+                    ? ownerInternalCopy?.publishedLabel ?? cr.visibilityPublished
+                    : ownerInternalCopy?.privateLabel ?? cr.visibilityPrivate}
                 </span>
               )}
             </div>
@@ -586,12 +590,12 @@ export function RoomDesktopBody({
                       {rd.internalInfo}
                     </h3>
                   </div>
-                  <p className="ard-muted">{rd.internalOnlyHint}</p>
+                  <p className="ard-muted">{ownerInternalCopy?.hint ?? rd.internalOnlyHint}</p>
                   <dl className="ard-internal-fields">
-                    {[
-                      [cr.listingTitle, room.listingTitle],
+                    {([
+                      [ownerInternalCopy?.titleLabel ?? cr.listingTitle, room.listingTitle],
                       [cr.roomId, room.roomId],
-                      [
+                      ownerInternalCopy ? null : [
                         cr.sourceSection,
                         room.listingSourceCode === "owner"
                           ? cr.sourceOwner
@@ -599,27 +603,27 @@ export function RoomDesktopBody({
                             ? cr.sourceCoAgent
                             : null,
                       ],
-                      [
+                      ownerInternalCopy ? null : [
                         rd.internalProvider,
                         room.contacts.find((contact) => contact.isPrimary)
                           ?.name || room.contacts[0]?.name,
                       ],
                       [
-                        rd.internalVisibility,
+                        ownerInternalCopy?.visibilityLabel ?? rd.internalVisibility,
                         room.visibility === "published"
-                          ? cr.visibilityPublished
+                          ? ownerInternalCopy?.publishedLabel ?? cr.visibilityPublished
                           : room.visibility === "private"
-                            ? cr.visibilityPrivate
+                            ? ownerInternalCopy?.privateLabel ?? cr.visibilityPrivate
                             : null,
                       ],
-                      [
+                      ownerInternalCopy ? null : [
                         rd.internalNotes,
                         room.contacts
                           .map((contact) => contact.note?.trim())
                           .filter(Boolean)
                           .join(" · "),
                       ],
-                    ].map(([label, text]) => (
+                    ].filter(Boolean) as Array<[string, string | null | undefined]>).map(([label, text]) => (
                       <div key={label}>
                         <dt>{label}</dt>
                         <dd>{text || c.notSpecified}</dd>

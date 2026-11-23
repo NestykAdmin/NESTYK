@@ -17,7 +17,7 @@ function load(filename) {
   cache.set(filename, module);
   const localRequire = (name) => {
     if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useRef: () => ({ current: null }), useSyncExternalStore: (_s, get) => get(), useEffect: () => {}, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
-    if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 }, Platform: { OS: 'ios' }, Alert: { alert() {} } };
+    if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 }, Platform: { OS: 'ios' }, Alert: { alert() {} } };
     // The room detail modal (Jom 20 Nov 2026) is closed in these tests.
     if (name === 'react-native-safe-area-context') return { SafeAreaProvider: ({ children }) => children, SafeAreaView: ({ children }) => children, initialWindowMetrics: null };
     if (name === 'expo-image-picker') return {};
@@ -123,4 +123,39 @@ test('loading shows a spinner, chips without counts and no result count', () => 
   assert.ok(!texts(tree).some(text => text === '…' || text === '0'));
   assert.ok(!texts(tree).includes(all.selfOwnerRooms.resultCount.replace('{n}', '0')));
   assert.ok(!texts(tree).includes(all.selfOwnerDashboard.noRooms));
+});
+
+// Browser check 23 Nov 2026 (phone width): the web rows show the room's cover; the phone card shows it too.
+test('the phone card shows the cover photo when the room has one; demo rooms keep the text-only card', () => {
+  const { MobileSelfOwnerRoomCard } = load(path.join(__dirname, 'self-owner/MobileSelfOwnerRoomCard.tsx'));
+  const room = { ...demo()[5], id: '7', coverUrl: 'https://cdn/c.jpg' };
+  const withCover = nodes(MobileSelfOwnerRoomCard({ room }));
+  const image = withCover.find((n) => n?.type === 'Image');
+  assert.ok(image, 'cover shown');
+  assert.deepEqual(image.props.source, { uri: 'https://cdn/c.jpg' });
+  assert.equal(image.props.accessibilityIgnoresInvertColors, true);
+  assert.ok(withCover.some((n) => n === room.title || n?.props?.children === room.title));
+  assert.equal(nodes(MobileSelfOwnerRoomCard({ room: demo()[5] })).some((n) => n?.type === 'Image'), false);
+});
+
+// Jom 23 Nov 2026 (UI minor 5): pressing the phone card opens the room detail, so the screen reader label says so
+// (not "edit"), and the card dims while pressed so the press shows.
+test('phone card: the label says it opens the detail and the card dims while pressed', () => {
+  locale = 'th';
+  const { MobileSelfOwnerRoomCard } = load(path.join(__dirname, 'self-owner/MobileSelfOwnerRoomCard.tsx'));
+  const room = demo()[5];
+  const card = MobileSelfOwnerRoomCard({ room, onPress() {} });
+  const copy = copyOf().selfOwnerRooms;
+  assert.equal(copy.viewDetail, 'ดูรายละเอียด');
+  assert.equal(card.props.accessibilityLabel, `${copy.viewDetail} ${room.title}`);
+  assert.equal(typeof card.props.style, 'function', 'style reads the pressed state');
+  const flat = (s) => Object.assign({}, ...[s].flat(Infinity).filter(Boolean));
+  assert.equal(flat(card.props.style({ pressed: true })).opacity, 0.85);
+  assert.equal(flat(card.props.style({ pressed: false })).opacity, undefined);
+  assert.deepEqual(flat(card.props.style({ pressed: false })).borderColor, flat(card.props.style({ pressed: true })).borderColor);
+  for (const l of ['en', 'ja', 'zh']) assert.ok(copyOf(l).selfOwnerRooms.viewDetail, l);
+  // Without onPress (dashboard preview) the card stays a plain View with a plain style.
+  const still = MobileSelfOwnerRoomCard({ room });
+  assert.equal(still.type, 'View');
+  assert.notEqual(typeof still.props.style, 'function');
 });

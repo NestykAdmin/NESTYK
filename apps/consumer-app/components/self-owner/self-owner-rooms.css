@@ -1,8 +1,5 @@
-/* Self owner rooms page (UI round, 19 Nov 2026). Same layout and sizes as the agent rooms page (agent-rooms.css:
-   .awr-page, toolbar, table card, cells, pager), copied not imported because agent-rooms.css styles the whole agent page.
-   Tokens only (--aw-*, set by the workspace shell). */
-.sor-page { display: flex; flex-direction: column; gap: var(--aw-s4); min-width: 0; }
-:where(.sor-page) :where(p) { margin: 0; }
+/* Self owner rooms page. The page itself uses the agent rooms classes (agent-rooms.css awr-*, rebuilt 20 Nov 2026);
+   this file keeps only what the self owner screens add on top. Tokens only (--aw-*, set by the workspace shell). */
 
 .sor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--aw-s3); }
 .sor-demo {
@@ -13,6 +10,7 @@
   border: 1px solid var(--aw-brand-line);
   border-radius: var(--aw-r-sm);
   background: var(--aw-brand-soft);
+  margin: 0; /* a <p>: no browser paragraph margin */
   color: var(--aw-brand-text);
   font-size: var(--aw-t-small);
 }
@@ -37,112 +35,31 @@
   font-size: var(--aw-t-caption);
 }
 
-/* Toolbar: same sizes as the agent rooms page (agent-rooms.css .awr-toolbar / .awr-search / .awr-status-select).
-   Copied, not imported: agent-rooms.css styles the whole agent page. */
-.sor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--aw-s3); }
-.sor-search {
-  display: flex;
-  align-items: center;
-  gap: var(--aw-s2);
-  flex: 1 1 200px;
-  min-width: 180px;
-  max-width: 420px;
-  height: 40px;
-  padding: 0 var(--aw-s3);
-  border: 1px solid var(--aw-border);
-  border-radius: var(--aw-r-sm);
-  background: var(--aw-surface);
-}
-.sor-search:focus-within {
-  border-color: var(--aw-brand-text);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aw-brand) 13%, transparent);
-}
-.sor-search input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--aw-ink);
-  font: inherit;
-  font-size: var(--aw-t-body);
-}
-.aw-shell .sor-search input:focus { outline: none; box-shadow: none; }
-.sor-status-select { display: flex; width: 190px; }
-.sor-status-select select {
-  height: 40px;
-  padding: 0 var(--aw-s3);
-  border: 1px solid var(--aw-border);
-  border-radius: var(--aw-r-sm);
-  background: var(--aw-surface);
-  color: var(--aw-ink);
-  font: inherit;
-  font-size: var(--aw-t-body);
-}
-.sor-count { margin-left: auto; color: var(--aw-muted); font-size: var(--aw-t-small); white-space: nowrap; }
-@media (max-width: 1023px) {
-  .sor-search { max-width: none; }
-  .sor-count { margin-left: 0; order: 10; flex-basis: 100%; }
-}
-
-/* Table card and cells (agent-rooms.css .awr-table-card, .awr-thumb-row, .awr-room, .awr-price, .awr-muted, .awr-none) */
-.sor-table-card {
-  border: 1px solid var(--aw-border);
-  border-radius: var(--aw-r-md);
-  background: var(--aw-surface);
-  overflow: hidden;
-}
-.sor-table-card .awu-table td { padding-top: var(--aw-s2); padding-bottom: var(--aw-s2); }
-.sor-thumb {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  flex-shrink: 0;
-  width: 56px;
-  height: 42px;
-  border-radius: var(--aw-r-sm);
-  background: var(--aw-bg);
-}
-.sor-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.sor-room { display: flex; flex-direction: column; min-width: 180px; }
+/* Room table cells the self owner adds (detail column, status pill). */
 .sor-detail { display: flex; flex-direction: column; }
-.sor-room strong { font-family: "NotoSansThai_600SemiBold", sans-serif; font-weight: 600; }
-.sor-room small,
-.sor-detail small,
-.sor-muted { color: var(--aw-muted); font-size: var(--aw-t-small); }
-.sor-muted { white-space: nowrap; }
-.sor-price { font-family: "NotoSansThai_600SemiBold", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sor-none { color: var(--aw-muted); }
-.sor-nowrap { white-space: nowrap; }
-
-/* Pager (agent-rooms.css .awr-pager) */
-.sor-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--aw-s3); }
-.sor-pager-range { color: var(--aw-muted); font-size: var(--aw-t-small); }
-.sor-pager-buttons { display: inline-flex; align-items: center; gap: var(--aw-s1); }
-.sor-page-btn {
-  display: inline-grid;
-  place-items: center;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 var(--aw-s2);
-  border: 1px solid var(--aw-border);
-  border-radius: var(--aw-r-sm);
-  background: var(--aw-surface);
-  color: var(--aw-ink);
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.sor-page-btn:hover:not(:disabled) { border-color: var(--aw-brand-line); }
-.sor-page-btn:disabled { cursor: not-allowed; opacity: 0.5; }
-.sor-page-btn.is-current {
-  border-color: var(--aw-brand);
-  background: var(--aw-brand);
-  color: var(--aw-on-brand);
-  font-family: "NotoSansThai_600SemiBold", sans-serif;
-}
-.sor-page-gap { min-width: 24px; text-align: center; color: var(--aw-muted); }
+.sor-detail small { color: var(--aw-muted); font-size: var(--aw-t-small); }
+/* A table cell is not a flex parent, so the pill's alignSelf is ignored and it fills the cell; inline-flex makes it hug its text. */
+.sor-status-cell { display: inline-flex; }
 
 /* Publish / unpublish confirm text (room detail modal, 20 Nov 2026). */
 .sor-confirm { margin: 0; color: var(--aw-ink); line-height: 1.6; }
 .sor-confirm-error { margin: 12px 0 0; color: var(--aw-danger, #b42318); line-height: 1.5; }
+
+/* Room detail header under the web shell width (browser check 23 Nov 2026): icon-only buttons (each keeps its
+   aria-label) and a one-line title, so the title no longer breaks into three lines beside the buttons. */
+@media (max-width: 767px) {
+  .sord-header .sord-btn-label {
+    display: none;
+  }
+  .sord-header .aw-button {
+    padding-inline: 10px;
+  }
+  .sord-header .ard-header-title {
+    flex: 1;
+  }
+  .sord-header .ard-header-title h1 {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

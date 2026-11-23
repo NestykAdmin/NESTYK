@@ -164,3 +164,33 @@ test('loading shows the table skeleton and no counts', () => {
   const options = tree.filter(node => node?.type === 'option').map(label);
   assert.deepEqual(options, [`${all.selfOwnerRooms.filterLabel}: ${all.selfOwnerRooms.filterAll}`, ...['occupied', 'listed', 'unlisted'].map(key => all.selfOwnerDashboard.roomState[key])]);
 });
+
+// Jom 23 Nov 2026: the green pill was wider than its text. A table cell is not a flex parent, so the
+// pill's alignSelf did nothing and it filled the cell. The status cell wraps it in an inline-flex box.
+test('status pill in the table sits in an inline-flex box so it hugs its text', () => {
+  locale = 'th';
+  const tree = render({ initialFilter: 'listed' });
+  const cells = byClass(tree, 'sor-status-cell');
+  const counts = roomsLib().countSelfOwnerRooms(demo());
+  assert.equal(cells.length, counts.listed);
+  assert.ok(cells.every(cell => nodes(cell.props.children).some(node => node?.type === 'MobileStatusPill')));
+  const css = fs.readFileSync(path.join(__dirname, 'self-owner/self-owner-rooms.css'), 'utf8');
+  assert.match(css, /\.sor-status-cell\s*\{[^}]*display:\s*inline-flex/);
+});
+
+// Jom 23 Nov 2026 (UI minors 7–8): the rooms page moved to the agent awr-* classes on 20 Nov, so the old sor-*
+// rules were dead; one of them (`:where(.sor-page) p { margin: 0 }`) was what kept the demo note's <p> margin at 0.
+test('self-owner-rooms.css only keeps sor-* classes the self owner screens use', () => {
+  const dir = path.join(__dirname, 'self-owner');
+  const css = fs.readFileSync(path.join(dir, 'self-owner-rooms.css'), 'utf8');
+  const sources = fs.readdirSync(dir).filter(f => /\.tsx?$/.test(f)).map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+  const classes = [...new Set([...css.matchAll(/\.(sor-[a-z-]+)/g)].map(m => m[1]))];
+  // Only a className use counts (data-testid="sor-search" is not a class).
+  const unused = classes.filter(name => !new RegExp(`className=\\{?["'\`][^"'\`]*(?<![\\w-])${name}(?![\\w-])`).test(sources));
+  assert.deepEqual(unused, []);
+});
+
+test('the demo note has no browser paragraph margin', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'self-owner/self-owner-rooms.css'), 'utf8');
+  assert.match(css, /\.sor-demo\s*\{[^}]*\bmargin:\s*0;/);
+});

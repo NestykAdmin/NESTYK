@@ -149,3 +149,26 @@ test('self owner: page refresh reloads the rooms from the API and then stops spi
     assert.deepEqual(reloads, [], 'not the agent rooms');
   }
 });
+
+// Browser check 23 Nov 2026 (phone width): the self owner rooms page said "Room Listings" and its tab "Listing" in
+// Thai; it is "ห้องของฉัน" like the web sidebar. Other roles keep their words.
+test('self owner: the rooms page title and tab use the self owner words', () => {
+  const ts = require('typescript');
+  const source = fs.readFileSync(path.resolve(__dirname, '../app/index.tsx'), 'utf8');
+  const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let screenTitle;
+  (function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'screenTitle') screenTitle = node.initializer.getText(ast);
+    ts.forEachChild(node, visit);
+  })(ast);
+  const t = { selfOwnerWeb: { listingsView: 'ห้องของฉัน' } };
+  const title = (activeRole, activeTab) => new Function('activeRole', 'activeTab', 'partyInbox', 'isTenantWorkspace', 'getScreenTitle', 't', `return (${screenTitle});`)(
+    activeRole, activeTab, false, false, (tab) => `screen:${tab}`, t);
+  assert.equal(title('self_owner', 'listingRoom'), 'ห้องของฉัน');
+  assert.equal(title('self_owner', 'dashboard'), 'screen:dashboard');
+  assert.equal(title('landlord', 'listingRoom'), 'screen:listingRoom');
+  assert.match(source, /<MobileBottomTabBar[\s\S]{0,400}labels=\{activeRole === 'self_owner' \? \{ listingRoom: t\.selfOwnerWeb\.listingsView \} : undefined\}/);
+  const bar = fs.readFileSync(path.resolve(__dirname, '../../../packages/ui/src/components/MobileBottomTabBar.tsx'), 'utf8');
+  assert.match(bar, /labels\?: Partial<Record<MobileAppTab, string>>/);
+  assert.match(bar, /const label = labels\?\.\[tab\.key\] \?\? t\.mobile\.tabs\[tab\.key\];/);
+});

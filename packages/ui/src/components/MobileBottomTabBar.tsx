@@ -39,6 +39,8 @@ export type MobileAppTab =
 
 export interface MobileBottomTabBarProps {
   activeRole: ExtendedTabRole;
+  /** A role's own word for a tab (e.g. self owner "ห้องของฉัน" for listingRoom); others use `t.mobile.tabs`. */
+  labels?: Partial<Record<MobileAppTab, string>>;
   activeTab: MobileAppTab;
   onTabPress: (tab: MobileAppTab) => void;
   /** Active icon/label tint when `indicatorColor` is unset (legacy role-accent mode). */
@@ -126,6 +128,7 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
   activeRole,
   activeTab,
   onTabPress,
+  labels,
   accentColor = tokens.colors.accent,
   activeTintColor,
   indicatorColor,
@@ -151,7 +154,7 @@ export const MobileBottomTabBar: React.FC<MobileBottomTabBarProps> = ({
     >
       {tabs.map((tab) => {
         const isActive = activeTab === tab.key;
-        const label = t.mobile.tabs[tab.key];
+        const label = labels?.[tab.key] ?? t.mobile.tabs[tab.key];
         const isServices = tab.key === 'services';
         const soon = Boolean(tab.comingSoon);
         return (

@@ -47,8 +47,19 @@ import {
 
 export type RoomDetailMode = 'shared' | 'agent' | 'preview';
 
+/** Self owner (Jom 23 Nov 2026): the owner's words for the internal card; its source, provider and notes rows go. */
+export type RoomOwnerInternalCopy = {
+  hint: string;
+  titleLabel: string;
+  visibilityLabel: string;
+  publishedLabel: string;
+  privateLabel: string;
+};
+
 export type MobileRoomDetailBodyProps = {
   room: AgentRoomDetail;
+  /** Self owner: the internal card speaks to the owner (no team, no share page). Agent: leave out. */
+  ownerInternalCopy?: RoomOwnerInternalCopy;
   mode?: RoomDetailMode;
   mapsApiKey?: string;
   /** Optional share-readiness banner (agent). */
@@ -189,6 +200,7 @@ export function MobileRoomDetailBody({
   onClosePreview,
   onOpenShareCheck,
   hidePreviewBanner = false,
+  ownerInternalCopy,
 }: MobileRoomDetailBodyProps) {
   void _mapsApiKey;
   void _onInquire;
@@ -915,7 +927,7 @@ export function MobileRoomDetailBody({
               <View style={styles.internalHeaderCopy}>
                 <Text style={styles.internalTitle}>{rd.internalInfo}</Text>
                 <Text style={styles.internalHint} numberOfLines={2}>
-                  {rd.internalOnlyHint}
+                  {ownerInternalCopy?.hint ?? rd.internalOnlyHint}
                 </Text>
               </View>
               <MobileIcon
@@ -930,13 +942,13 @@ export function MobileRoomDetailBody({
                 {(
                   [
                     {
-                      label: cr.listingTitle,
+                      label: ownerInternalCopy?.titleLabel ?? cr.listingTitle,
                       value: room.listingTitle?.trim() || copy.notSpecified,
                     },
                     room.roomId?.trim()
                       ? { label: cr.roomId, value: room.roomId.trim() }
                       : null,
-                    {
+                    ownerInternalCopy ? null : {
                       label: cr.sourceSection,
                       value:
                         room.listingSourceCode === 'owner'
@@ -945,14 +957,14 @@ export function MobileRoomDetailBody({
                             ? cr.sourceCoAgent
                             : copy.notSpecified,
                     },
-                    {
+                    ownerInternalCopy ? null : {
                       label: rd.internalProvider,
                       value:
                         room.contacts.find((c) => c.isPrimary)?.name ||
                         room.contacts[0]?.name ||
                         copy.notSpecified,
                     },
-                    {
+                    ownerInternalCopy ? null : {
                       label: rd.internalNotes,
                       value: room.contacts.some((c) => c.note?.trim())
                         ? room.contacts
@@ -962,12 +974,12 @@ export function MobileRoomDetailBody({
                         : copy.notSpecified,
                     },
                     {
-                      label: rd.internalVisibility,
+                      label: ownerInternalCopy?.visibilityLabel ?? rd.internalVisibility,
                       value:
                         room.visibility === 'published'
-                          ? cr.visibilityPublished
+                          ? ownerInternalCopy?.publishedLabel ?? cr.visibilityPublished
                           : room.visibility === 'private'
-                            ? cr.visibilityPrivate
+                            ? ownerInternalCopy?.privateLabel ?? cr.visibilityPrivate
                             : copy.notSpecified,
                     },
                   ] as Array<{ label: string; value: string } | null>

@@ -821,7 +821,9 @@ export function AppHomeScreen() {
   const screenTitle =
     activeRole === 'agent' || partyInbox || isTenantWorkspace
       ? undefined
-      : getScreenTitle(activeTab, t);
+      : activeRole === 'self_owner' && activeTab === 'listingRoom'
+        ? t.selfOwnerWeb.listingsView // "ห้องของฉัน" like the web sidebar (23 Nov 2026)
+        : getScreenTitle(activeTab, t);
   /** Contract side shown in the party inbox ('owner' = landlord side of a contract, not a role). */
   const partyRole: ContractParty = activeRole === 'tenant' ? 'tenant' : 'owner';
   const partyAccent = tokens.colors.roles[CONTRACT_PARTY_ROLE[partyRole]];
@@ -2138,6 +2140,7 @@ export function AppHomeScreen() {
               activeTab={activeRole === 'tenant' && partyInbox ? 'menu' : activeTab}
               onTabPress={handleTabPress}
               accentColor={accentColor}
+              labels={activeRole === 'self_owner' ? { listingRoom: t.selfOwnerWeb.listingsView } : undefined}
               {...(activeRole === 'agent' || isTenantWorkspace
                 ? {
                     activeTintColor: theme.screenTitle,

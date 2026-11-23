@@ -97,3 +97,12 @@ test('without desktopLayout the sheets keep the phone look (no extra props), the
 test('owner contact that arrives after the form opened fills the empty name / phone (never overwrites)', () => {
   assert.match(code, /useEffect\(\(\) => \{\s*if \(!ownerContact\) return;\s*setOwnerName\(\(current\) => \(current\.trim\(\) \? current : ownerContact\.name\)\);\s*setOwnerPhone\(\(current\) => \(current\.trim\(\) \? current : ownerContact\.phone\)\);\s*\/\/[^\n]*\n\s*\}, \[ownerContact\?\.name, ownerContact\?\.phone\]\);/);
 });
+
+// Jom 23 Nov 2026: a self owner whose profile has a name but no phone saw "ยังไม่ได้เพิ่ม" on the contact
+// section although the name was already filled. With ownerContact, a name or a phone counts as started, so the
+// hub says what is still missing (the phone); the agent rule (both, or a picked contact) is unchanged.
+test('owner contact: a name or a phone is enough for the contact section to count as started', () => {
+  const start = code.indexOf('const sectionHasData');
+  const body = code.slice(start, code.indexOf('\n  };', start));
+  assert.match(body, /if \(current === 8\) \{\s*if \(roomContacts\.length > 0\) return true;\s*(?:\/\/[^\n]*\n\s*)?if \(ownerContact\) return ownerName\.trim\(\)\.length > 0 \|\| ownerPhone\.trim\(\)\.length > 0;\s*return ownerName\.trim\(\)\.length > 0 && ownerPhone\.trim\(\)\.length > 0;/);
+});

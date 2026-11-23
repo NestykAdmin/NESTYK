@@ -568,6 +568,7 @@ export interface TranslationSchema {
     createTitle: string;
     editTitle: string;
     edit: string;
+    viewDetail: string;
     savedDemo: string;
     publish: string;
     unpublish: string;
@@ -588,6 +589,9 @@ export interface TranslationSchema {
     saved: string;
     publishNeedsPhotos: string;
     listedNeedsPhotos: string;
+    /** Room detail internal card for the owner (no team, no share page). */
+    internalHint: string;
+    internalVisibility: string;
     toggleFailed: string;
     detailLoadError: string;
   };
