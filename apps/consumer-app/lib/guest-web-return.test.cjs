@@ -29,6 +29,9 @@ test('guest web pages (with or without a language prefix) are accepted as `next`
   }
   // Review R7: the guest web's paths are lower case; the query keeps its case.
   assert.equal(guestWebPath('/EN/Search?Q=Asok'), '/en/search?Q=Asok');
+  // The all-areas page (8b8bdfe): sign-in started there comes back to it (Mos 23 Nov 2026).
+  assert.equal(guestWebPath('/areas'), '/areas');
+  assert.equal(guestWebPath('/ja/areas'), '/ja/areas');
 });
 
 test('anything else is not a guest web page (open redirect and role pages stay out)', () => {
