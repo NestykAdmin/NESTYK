@@ -64,6 +64,7 @@
 - หลัง merge `UXUI/develop` วันที่ 23 พ.ย. ลง `20261123040000_viewing_requests.sql` เพิ่มบนฐานข้อมูลเดียวกัน (ลงหลังไฟล์ self owner) ได้ตาราง index constraint และ RLS ครบตามไฟล์ ข้อมูล self owner เดิมยังอยู่
 - หลัง merge: API tsc ผ่าน, เทสต์ API (self owner 14, ลบบัญชี 11, viewing requests 10, public listings 41) ผ่าน, consumer-app 850/850, feature-listing 95/95, i18n 13/13
 
-## ยังค้าง
+## ประวัติใน MIGRATION-RULES
 
-- ยังไม่ได้เพิ่มแถว `20261120081500_self_owner_rooms.sql` ในตาราง "ประวัติการแก้" ของ `supabase/MIGRATION-RULES.md` (แถวของ `20261123040000_viewing_requests.sql` ก็ยังไม่มีเหมือนกัน)
+- เพิ่มแถว `20261120081500_self_owner_rooms.sql` ในตาราง "ประวัติการแก้" ของ `supabase/MIGRATION-RULES.md` แล้ว (24 พ.ย.)
+- แถวของ `20261123040000_viewing_requests.sql` ยังไม่มี
