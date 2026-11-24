@@ -249,3 +249,13 @@ test('self owner (round 2, Mos 18 Nov 2026) lives at /self-owner; the old /owner
   assert.equal(routeToState('/self-owner/rooms/r5/edit').href, '/self-owner');
   assert.deepEqual(parseAppPath('/owner/contracts'), { kind: 'redirect', to: '/landlord/contracts' });
 });
+
+test('self owner contracts and income pages have their own paths (24 Nov 2026)', () => {
+  for (const [path, tab] of [['/self-owner/contracts', 'contracts'], ['/self-owner/income', 'income']]) {
+    const route = routeToState(path);
+    assert.equal(route.state.role, 'self_owner', path);
+    assert.equal(route.state.tab, tab, path);
+    assert.equal(route.href, path);
+    assert.equal(stateToRoute({ role: 'self_owner', tab }), path);
+  }
+});

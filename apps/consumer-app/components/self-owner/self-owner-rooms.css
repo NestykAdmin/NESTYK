@@ -63,3 +63,48 @@
     text-overflow: ellipsis;
   }
 }
+
+/* Contracts and income pages (24 Nov 2026): read-only contract details, month switcher and summary tiles. */
+.soc-detail-status { display: flex; align-items: center; gap: var(--aw-s2); margin-bottom: var(--aw-s3); }
+.soc-detail-status small { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--aw-s3) var(--aw-s4); margin: 0; }
+.soc-detail-list div { min-width: 0; }
+.soc-detail-list dt { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-detail-list dd { margin: 2px 0 0; color: var(--aw-ink); overflow-wrap: anywhere; }
+.soc-note { margin: var(--aw-s4) 0 0; color: var(--aw-muted); font-size: var(--aw-t-small); }
+@media (max-width: 599px) {
+  .soc-detail-list { grid-template-columns: minmax(0, 1fr); }
+}
+.soi-month { display: flex; align-items: center; gap: var(--aw-s3); }
+.soi-month-label { margin: 0; min-width: 180px; text-align: center; font-family: "NotoSansThai_600SemiBold", sans-serif; font-size: var(--aw-t-section, 18px); color: var(--aw-ink); }
+.soi-month-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+  cursor: pointer;
+}
+.soi-month-btn:hover:not(:disabled) { border-color: var(--aw-brand-line); }
+.soi-month-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+.soi-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--aw-s3); }
+.soi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--aw-s3) var(--aw-s4);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-md);
+  background: var(--aw-surface);
+}
+.soi-tile span { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soi-tile strong { font-family: "NotoSansThai_600SemiBold", sans-serif; font-size: 20px; color: var(--aw-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.soi-tile.is-received strong { color: var(--aw-success, var(--aw-ink)); }
+.soi-tile.is-overdue strong { color: var(--aw-danger, var(--aw-ink)); }
+@media (max-width: 599px) {
+  .soi-summary { grid-template-columns: minmax(0, 1fr); }
+}

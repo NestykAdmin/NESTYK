@@ -65,7 +65,10 @@ test('renders rooms, rent rows, to-dos and viewings from the snapshot', () => {
   assert.ok(all.includes(copy.roomCount.replace('{n}', String(sum.total))));
   assert.ok(all.includes(copy.occupiedCount.replace('{n}', String(sum.occupied))));
   assert.ok(all.includes(copy.vacantCount.replace('{n}', String(sum.vacant))));
-  assert.ok(all.includes(copy.rentState.overdue.replace('{days}', '3')));
+  // Overdue days are counted from the real due date since 24 Nov 2026 (805: due 1 Nov, so 18 days on 19 Nov).
+  const overdue = snapshot.rent.items.find((r) => r.roomTitle === 'ห้อง 805');
+  assert.equal(overdue.overdueDays, 18);
+  assert.ok(all.includes(copy.rentState.overdue.replace('{days}', '18')));
 });
 
 test('the listing action and the view-all links are all disabled as coming soon', () => {
@@ -170,4 +173,23 @@ test('the listing action opens the form when the shell passes onAddListing', () 
   assert.ok(!texts(nodes(button.props.children)).join('').includes(copy.comingSoon));
   button.props.onClick();
   assert.equal(added, 1);
+});
+
+test('rent "view all" and the to-dos link to income and contracts when the shell passes them (24 Nov 2026)', () => {
+  locale = 'th';
+  const calls = [];
+  const tree = render(fixture(), { onOpenIncome: () => calls.push('income'), onOpenContracts: () => calls.push('contracts') });
+  const copy = copyOf();
+  const rentLink = tree.find(n => n?.type === 'button' && n.props.className === 'sov-link' && texts(nodes(n.props.children)).join('') === copy.viewAllRent);
+  assert.equal(rentLink.props.disabled, undefined);
+  rentLink.props.onClick();
+  const todo = (kind) => tree.find(n => n?.props?.['data-kind'] === kind);
+  const press = (kind) => nodes(todo(kind).props.children).find(n => n?.type === 'button');
+  press('overdue_rent').props.onClick();
+  press('awaiting_signature').props.onClick();
+  press('renewal').props.onClick();
+  assert.deepEqual(calls, ['income', 'income', 'contracts', 'contracts']);
+  assert.equal(press('new_interest'), undefined, 'interest has no page yet');
+  const plain = render();
+  assert.equal(nodes(plain.find(n => n?.props?.['data-kind'] === 'overdue_rent').props.children).find(n => n?.type === 'button'), undefined);
 });

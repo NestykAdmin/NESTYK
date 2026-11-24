@@ -7,4 +7,8 @@ export interface SelfOwnerOverviewProps {
   onOpenRooms?: () => void;
   /** Opens the add-room form; without it "list a room" stays "coming soon". */
   onAddListing?: () => void;
+  /** Opens the income page (rent "view all" and the overdue-rent to-do). */
+  onOpenIncome?: () => void;
+  /** Opens the contracts page (awaiting-signature and renewal to-dos). */
+  onOpenContracts?: () => void;
 }

@@ -30,6 +30,10 @@ export type MobileSelfOwnerDashboardBodyProps = {
   deletionScheduledFor?: string | null;
   /** Opens the rooms list; without it "view all rooms" stays "coming soon". */
   onOpenRooms?: () => void;
+  /** Opens the income page (rent "view all" and the overdue-rent to-do). */
+  onOpenIncome?: () => void;
+  /** Opens the contracts page (awaiting-signature and renewal to-dos). */
+  onOpenContracts?: () => void;
   /** Opens the add-room form; without it "list a room" stays "coming soon". */
   onAddListing?: () => void;
 };
@@ -38,7 +42,7 @@ export type MobileSelfOwnerDashboardBodyProps = {
  * Self owner phone Dashboard (UI round, 19 Nov 2026, ClickUp z8rcteng6b). Same sections and order as the web page:
  * my rooms → rent this month → to do → today's viewings. No navigation yet; the one action is disabled.
  */
-export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletionScheduledFor, onOpenRooms, onAddListing }: MobileSelfOwnerDashboardBodyProps) {
+export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletionScheduledFor, onOpenRooms, onAddListing, onOpenIncome, onOpenContracts }: MobileSelfOwnerDashboardBodyProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerDashboard;
@@ -96,6 +100,9 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
       {onOpen ? <MobileIcon name="chevron-right" size={14} color={muted} /> : <Text style={[styles.caption, { color: muted }]}>{copy.comingSoon}</Text>}
     </Pressable>
   );
+  // To-dos that have a page (24 Nov 2026): rent → income, contract signing and renewals → contracts.
+  const todoLink = (kind: SelfOwnerWorkKind) =>
+    kind === 'overdue_rent' ? onOpenIncome : kind === 'awaiting_signature' || kind === 'renewal' ? onOpenContracts : undefined;
   const More = ({ total, shown }: { total: number; shown: number }) =>
     total > shown ? <Text style={[styles.caption, { color: muted }]}>{interpolate(copy.moreItems, { n: total - shown })}</Text> : null;
 
@@ -198,7 +205,7 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
             </>
           ),
         )}
-        <ViewAll id="rent" label={copy.viewAllRent} />
+        <ViewAll id="rent" label={copy.viewAllRent} onOpen={onOpenIncome} />
       </View>
 
       <View style={card}>
@@ -209,7 +216,14 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
             <Text style={mutedText}>{copy.noTodo}</Text>
           ) : (
             todo.map((item, index) => (
-              <View key={item.kind} testID={`so-todo-${item.kind}`} style={[styles.listRow, index === 0 ? styles.firstRow : { borderTopColor: theme.border }]}>
+              <Pressable
+                key={item.kind}
+                testID={`so-todo-${item.kind}`}
+                accessibilityRole={todoLink(item.kind) ? 'button' : undefined}
+                disabled={!todoLink(item.kind)}
+                onPress={todoLink(item.kind)}
+                style={[styles.listRow, index === 0 ? styles.firstRow : { borderTopColor: theme.border }]}
+              >
                 <Text style={[styles.body, styles.flex, { color: ink }]}>{copy.todo[item.kind]}</Text>
                 <Text
                   style={[
@@ -221,7 +235,8 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
                 >
                   {String(item.count)}
                 </Text>
-              </View>
+                {todoLink(item.kind) ? <MobileIcon name="chevron-right" size={14} color={muted} /> : null}
+              </Pressable>
             ))
           ),
         )}

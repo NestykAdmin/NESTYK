@@ -149,3 +149,19 @@ test('the listing button opens the form when the shell passes onAddListing', () 
   button.props.onPress();
   assert.equal(added, 1);
 });
+
+test('phone: rent "view all" and the to-dos link to income and contracts (24 Nov 2026)', () => {
+  locale = 'th';
+  const calls = [];
+  const tree = nodes(body().MobileSelfOwnerDashboardBody({ snapshot: fixture(), initials: 'J', onOpenIncome: () => calls.push('income'), onOpenContracts: () => calls.push('contracts') }));
+  const rent = byTestId(tree, 'so-link-rent')[0];
+  assert.equal(rent.props.accessibilityState.disabled, false);
+  rent.props.onPress();
+  for (const kind of ['overdue_rent', 'awaiting_signature', 'renewal']) {
+    const row = byTestId(tree, `so-todo-${kind}`)[0];
+    assert.equal(row.props.accessibilityRole, 'button', kind);
+    row.props.onPress();
+  }
+  assert.deepEqual(calls, ['income', 'income', 'contracts', 'contracts']);
+  assert.equal(byTestId(tree, 'so-todo-new_interest')[0].props.onPress, undefined);
+});

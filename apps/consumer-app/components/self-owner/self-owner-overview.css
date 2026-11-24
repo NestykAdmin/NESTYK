@@ -145,7 +145,23 @@
 .sov-todo-list > :first-child,
 .sov-viewing-list > :first-child { border-top: 0; }
 .sov-todo-row { display: flex; align-items: center; justify-content: space-between; gap: var(--aw-s3); }
-.sov-todo-row > strong {
+.sov-todo-link {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aw-s3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.sov-todo-link:hover > span { text-decoration: underline; }
+.sov-todo-row > strong,
+.sov-todo-link > strong {
   min-width: 28px;
   padding: 0 var(--aw-s2);
   border-radius: var(--aw-r-pill);
@@ -154,7 +170,8 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.sov-todo-row[data-kind="overdue_rent"] > strong { background: var(--aw-danger-soft); color: var(--aw-danger); }
+.sov-todo-row[data-kind="overdue_rent"] > strong,
+.sov-todo-row[data-kind="overdue_rent"] .sov-todo-link > strong { background: var(--aw-danger-soft); color: var(--aw-danger); }
 .sov-viewing { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: var(--aw-s3); align-items: baseline; }
 .sov-viewing > time { font: 16px/1.5 "Mitr_500Medium", sans-serif; color: var(--sov-accent); font-variant-numeric: tabular-nums; }
 .sov-viewing > span { display: grid; min-width: 0; }

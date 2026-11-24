@@ -57,8 +57,8 @@ export function adminWebNavSections(copy: RoleWebMenuCopy, overviewActive: boole
   ];
 }
 
-/** Self owner tabs that have a page (19 Nov 2026: overview and rooms and listings; the rest is still "coming soon"). */
-export type SelfOwnerWebTab = "dashboard" | "listingRoom" | "createListing";
+/** Self owner tabs that have a page (19 Nov 2026: overview and rooms and listings; 24 Nov 2026: contracts and income). */
+export type SelfOwnerWebTab = "dashboard" | "listingRoom" | "createListing" | "contracts" | "income";
 
 export function selfOwnerWebNavSections(
   copy: RoleWebMenuCopy,
@@ -93,8 +93,9 @@ export function selfOwnerWebNavSections(
       caption: o.money,
       items: [
         soon("tenants", "user", o.tenants, s),
-        soon("contracts", "file-text", o.contracts, s),
-        soon("billsIncome", "credit-card", o.billsIncome, s),
+        // Read-only pages (24 Nov 2026, ClickUp z8rcteng6e / z8rcteng6f): NESTYK admin will create contracts.
+        { id: "contracts", icon: "file-text", label: o.contracts, active: activeTab === "contracts", onPress: () => onSelect("contracts") },
+        { id: "billsIncome", icon: "credit-card", label: o.billsIncome, active: activeTab === "income", onPress: () => onSelect("income") },
         soon("repairs", "wrench", o.repairs, s),
       ],
     },

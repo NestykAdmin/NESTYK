@@ -551,6 +551,53 @@ export interface TranslationSchema {
     moreItems: string;
   };
   /** Self owner rooms page (UI round, 19 Nov 2026, ClickUp z8rcteng6c). */
+  selfOwnerContracts: {
+    searchPlaceholder: string;
+    filterLabel: string;
+    filterAll: string;
+    count: string;
+    colRoom: string;
+    colTenant: string;
+    colPeriod: string;
+    colRent: string;
+    colStatus: string;
+    status: { active: string; ending_soon: string; awaiting_signature: string; ended: string };
+    daysLeft: string;
+    period: string;
+    detailTitle: string;
+    room: string;
+    tenant: string;
+    phone: string;
+    startDate: string;
+    endDate: string;
+    monthlyRent: string;
+    advanceRent: string;
+    deposit: string;
+    monthsAmount: string;
+    viewDocument: string;
+    noDocument: string;
+    readOnlyNote: string;
+    empty: string;
+    viewDetail: string;
+  };
+  selfOwnerIncome: {
+    summaryTotal: string;
+    summaryReceived: string;
+    summaryOutstanding: string;
+    colRoom: string;
+    colTenant: string;
+    colAmount: string;
+    colDue: string;
+    colStatus: string;
+    paid: string;
+    due: string;
+    overdue: string;
+    paidOn: string;
+    dueOn: string;
+    prevMonth: string;
+    nextMonth: string;
+    empty: string;
+  };
   selfOwnerRooms: {
     title: string;
     searchPlaceholder: string;

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { DashboardSectionStatus } from '@nestyk/feature-listing';
 import { createSelfOwnerRoomsDemo, useSelfOwnerRooms, type SelfOwnerRoom } from './self-owner-rooms';
+import { createSelfOwnerContractsDemo, selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from './self-owner-contracts';
 
 export type { SelfOwnerRoom, SelfOwnerRoomState } from './self-owner-rooms';
 
@@ -9,19 +10,9 @@ export type { SelfOwnerRoom, SelfOwnerRoomState } from './self-owner-rooms';
  * No self owner API exists yet (docs/ROLE-CHANGE-PLAN.md 5.1), so the hook returns a demo snapshot.
  * When the API lands, only `useSelfOwnerDashboard` changes; the screens read this shape.
  */
-export type SelfOwnerRentState = 'paid' | 'due' | 'overdue';
+// Rent rows live with the contracts (24 Nov 2026): the income page and this Dashboard read one demo set.
+export type { SelfOwnerRent, SelfOwnerRentState } from './self-owner-contracts';
 export type SelfOwnerWorkKind = 'overdue_rent' | 'new_interest' | 'awaiting_signature' | 'renewal';
-
-export type SelfOwnerRent = {
-  id: string;
-  roomTitle: string;
-  tenantName: string;
-  amount: number;
-  state: SelfOwnerRentState;
-  /** ISO date (YYYY-MM-DD) */
-  dueDate: string;
-  overdueDays?: number;
-};
 
 export type SelfOwnerViewing = { id: string; startsAt: string; roomTitle: string; contactName: string };
 
@@ -77,30 +68,12 @@ export function createSelfOwnerDashboardDemoFixture(input: {
   const now = input.now ?? new Date();
   const today = bangkokYmd(now);
   const [year, month] = today.split('-').map(Number);
-  const ym = `${year}-${String(month).padStart(2, '0')}`;
 
   const rooms = input.rooms ?? createSelfOwnerRoomsDemo(now);
-  // Rent this month for every rented room; a few rooms are due later or overdue so each state shows.
-  const rentPlan: Record<string, { state: SelfOwnerRentState; day: string; overdueDays?: number }> = {
-    r2: { state: 'overdue', day: '01', overdueDays: 3 },
-    r11: { state: 'overdue', day: '10', overdueDays: 6 },
-    r4: { state: 'due', day: '25' },
-    r10: { state: 'due', day: '28' },
-  };
-  const rent: SelfOwnerRent[] = rooms
-    .filter((room) => room.state === 'occupied')
-    .map((room) => {
-      const plan = rentPlan[room.id] ?? { state: 'paid' as const, day: '05' };
-      return {
-        id: `p-${room.id}`,
-        roomTitle: room.title,
-        tenantName: room.tenantName ?? '',
-        amount: room.monthlyRent,
-        state: plan.state,
-        dueDate: `${ym}-${plan.day}`,
-        ...(plan.overdueDays ? { overdueDays: plan.overdueDays } : {}),
-      };
-    });
+  // Rent this month and the contract to-dos come from the demo contracts (always demo, like the income page), so the
+  // numbers here agree with the income page even when the rooms above are the owner's real rooms (24 Nov 2026).
+  const contracts = createSelfOwnerContractsDemo(now);
+  const rent: SelfOwnerRent[] = selfOwnerRentForMonth(contracts, year, month, now);
 
   const viewings: SelfOwnerViewing[] = [
     { id: 'v1', startsAt: `${today}T10:30:00+07:00`, roomTitle: 'ห้อง 2101', contactName: 'คุณกานต์' },
@@ -119,8 +92,8 @@ export function createSelfOwnerDashboardDemoFixture(input: {
       items: [
         { kind: 'overdue_rent', count: rent.filter((row) => row.state === 'overdue').length },
         { kind: 'new_interest', count: rooms.reduce((total, room) => total + (room.interestCount ?? 0), 0) },
-        { kind: 'awaiting_signature', count: 1 },
-        { kind: 'renewal', count: 1 },
+        { kind: 'awaiting_signature', count: contracts.filter((c) => c.status === 'awaiting_signature').length },
+        { kind: 'renewal', count: contracts.filter((c) => c.status === 'ending_soon').length },
       ],
     },
     viewings: { status: 'demo', items: viewings },

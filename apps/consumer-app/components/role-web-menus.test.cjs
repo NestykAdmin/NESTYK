@@ -51,7 +51,8 @@ test('self owner sidebar: my rooms (overview and rooms work, 19 Nov 2026), then 
   overview.onPress();
   listings.onPress();
   assert.deepEqual(calls, ['dashboard', 'listingRoom']);
-  for (const item of rest) {
+  // Contracts and bills/income open read-only pages since 24 Nov 2026; the rest stays "coming soon".
+  for (const item of rest.filter((i) => !['contracts', 'billsIncome'].includes(i.id))) {
     assert.equal(item.disabled, true, item.id);
     assert.equal(item.title, `${item.label} · Coming soon`);
   }
@@ -76,4 +77,21 @@ test('self owner "rooms and listings" is a group with view rooms and add room', 
   group.children.forEach((c) => c.onPress());
   group.onPress();
   assert.deepEqual(calls, ['listingRoom', 'createListing', 'listingRoom']);
+});
+
+test('self owner sidebar opens the contracts and the bills and income pages (24 Nov 2026)', () => {
+  const calls = [];
+  const items = (tab) => selfOwnerWebNavSections(copy, tab, (next) => calls.push(next)).flatMap((s) => s.items);
+  const contracts = items('contracts').find((i) => i.id === 'contracts');
+  const income = items('income').find((i) => i.id === 'billsIncome');
+  for (const item of [contracts, income]) {
+    assert.equal(item.disabled, undefined, item.id);
+    assert.equal(item.badge, undefined, item.id);
+    assert.equal(item.active, true, item.id);
+  }
+  contracts.onPress();
+  income.onPress();
+  assert.deepEqual(calls, ['contracts', 'income']);
+  assert.equal(items('dashboard').find((i) => i.id === 'contracts').active, false);
+  for (const id of ['interested', 'viewings', 'tenants', 'repairs']) assert.equal(items('dashboard').find((i) => i.id === id).disabled, true, id);
 });

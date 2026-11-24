@@ -172,3 +172,55 @@ test('self owner: the rooms page title and tab use the self owner words', () => 
   assert.match(bar, /labels\?: Partial<Record<MobileAppTab, string>>/);
   assert.match(bar, /const label = labels\?\.\[tab\.key\] \?\? t\.mobile\.tabs\[tab\.key\];/);
 });
+
+// Contracts and income (24 Nov 2026, ClickUp z8rcteng6e / z8rcteng6f): read-only pages, demo data.
+test('the contracts and income tabs of the self owner open their pages (web) or screens (phone)', () => {
+  for (const [tab, page, screen, hook] of [
+    ['contracts', 'SelfOwnerContractsPage', 'MobileSelfOwnerContractsScreen', 'selfOwnerContracts'],
+    ['income', 'SelfOwnerIncomePage', 'MobileSelfOwnerIncomeScreen', 'selfOwnerIncome'],
+  ]) {
+    const start = code.indexOf(`if (activeRole === 'self_owner' && activeTab === '${tab}')`);
+    assert.ok(start > 0, tab);
+    const branch = code.slice(start, code.indexOf('\n    }\n', start));
+    assert.match(branch, new RegExp(`isSelfOwnerWeb \\? \\(?\\s*<${page}`), tab);
+    assert.match(branch, new RegExp(`<${screen}`), tab);
+    assert.match(branch, new RegExp(`${hook}\\.`), tab);
+    assert.ok(start < code.indexOf("if (activeRole === 'agent'", start) || code.indexOf("if (activeRole === 'agent'", start) < 0);
+  }
+  assert.match(code, /const selfOwnerContracts = useSelfOwnerContracts\(\)/);
+  assert.match(code, /const selfOwnerIncome = useSelfOwnerIncome\(\)/);
+});
+
+test('the contracts and income pages are titled with the self owner words', () => {
+  assert.match(code, /activeRole === 'self_owner' && activeTab === 'contracts'\s*\?\s*t\.selfOwnerWeb\.contracts/);
+  assert.match(code, /activeRole === 'self_owner' && activeTab === 'income'\s*\?\s*t\.selfOwnerWeb\.billsIncome/);
+});
+
+test('the dashboard links to income and contracts on web and phone', () => {
+  const branch = body.slice(body.indexOf("if (activeRole === 'self_owner')"), body.indexOf('const summaries'));
+  assert.equal((branch.match(/onOpenIncome=\{\(\) => handleTabPress\('income'\)\}/g) ?? []).length, 2);
+  assert.equal((branch.match(/onOpenContracts=\{\(\) => handleTabPress\('contracts'\)\}/g) ?? []).length, 2);
+});
+
+test('the phone menu opens the contracts and income pages; add room is unchanged', () => {
+  const drawer = fs.readFileSync(path.join(__dirname, '../../../packages/ui/src/config/mobileDrawerMenuMatrix.ts'), 'utf8');
+  const section = drawer.slice(drawer.indexOf('  self_owner: ['), drawer.indexOf('  admin: ['));
+  assert.match(section, /id: 'incomeReport',[^}]*action: \{ type: 'tab', tab: 'income' \}/);
+  assert.match(section, /id: 'documents',[^}]*action: \{ type: 'tab', tab: 'contracts' \}/);
+  const line = (id) => section.split('\n').find((l) => l.includes(`id: '${id}'`));
+  assert.doesNotMatch(line('incomeReport'), /comingSoon/);
+  assert.doesNotMatch(line('documents'), /comingSoon/);
+  assert.match(line('createListing'), /comingSoon: true/);
+});
+
+// The landlord's "income" tab (TenantBillsScreen, landlord API) and the agent's mock "contracts" card match any role:
+// the self owner branches must come first, or the owner would land on the landlord bills screen (24 Nov 2026).
+test('the self owner contracts and income branches come before the shared income / contracts tabs', () => {
+  const tabs = code.slice(code.indexOf('const renderTabBody = () => {'));
+  for (const tab of ['contracts', 'income']) {
+    const ours = tabs.indexOf(`if (activeRole === 'self_owner' && activeTab === '${tab}')`);
+    const shared = tabs.indexOf(`if (activeTab === '${tab}') {`);
+    assert.ok(ours > 0 && shared > 0, tab);
+    assert.ok(ours < shared, `${tab}: self owner branch first`);
+  }
+});

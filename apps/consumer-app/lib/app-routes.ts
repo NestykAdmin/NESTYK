@@ -348,6 +348,9 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['rooms'], state: { tab: 'listingRoom' } },
     // Add a room (listing UI round, 20 Nov 2026, ClickUp z8rcteng6d)
     { path: ['rooms', 'new'], state: { tab: 'createListing' } },
+    // Contracts and income, read only (24 Nov 2026, ClickUp z8rcteng6e / z8rcteng6f)
+    { path: ['contracts'], state: { tab: 'contracts' } },
+    { path: ['income'], state: { tab: 'income' } },
     { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
     { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
     { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },

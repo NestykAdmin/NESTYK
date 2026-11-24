@@ -35,7 +35,7 @@ function Section({ title, aside, className = "", children }: { title: string; as
  * (--aw-* tokens, Mitr headings), laid out around the owner's own rooms. Pages it would link to do not exist yet,
  * so it has no navigation; the one action is shown disabled as "coming soon".
  */
-export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms, onAddListing }: SelfOwnerOverviewProps) {
+export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms, onAddListing, onOpenIncome, onOpenContracts }: SelfOwnerOverviewProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const copy = t.selfOwnerDashboard;
@@ -84,6 +84,9 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms,
         {label}
       </button>
     );
+  // To-dos that have a page (24 Nov 2026): rent → income, contract signing and renewals → contracts.
+  const todoLink = (kind: SelfOwnerWorkKind) =>
+    kind === "overdue_rent" ? onOpenIncome : kind === "awaiting_signature" || kind === "renewal" ? onOpenContracts : undefined;
   const more = (total: number, shown: number) =>
     total > shown ? <p className="sov-more">{interpolate(copy.moreItems, { n: total - shown })}</p> : null;
 
@@ -193,7 +196,7 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms,
           </Section>
 
           <div className="sov-columns">
-            <Section title={interpolate(copy.rentTitle, { period })} className="sov-panel sov-rent" aside={viewAll(copy.viewAllRent)}>
+            <Section title={interpolate(copy.rentTitle, { period })} className="sov-panel sov-rent" aside={viewAll(copy.viewAllRent, onOpenIncome)}>
               {ready(
                 snapshot.rent.status,
                 snapshot.rent.items.length === 0 ? (
@@ -245,8 +248,17 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms,
                     <ul className="sov-todo-list">
                       {todo.map((item) => (
                         <li key={item.kind} className="sov-todo-row" data-kind={item.kind}>
-                          <span>{copy.todo[item.kind]}</span>
-                          <strong>{item.count}</strong>
+                          {todoLink(item.kind) ? (
+                            <button type="button" className="sov-todo-link" onClick={todoLink(item.kind)}>
+                              <span>{copy.todo[item.kind]}</span>
+                              <strong>{item.count}</strong>
+                            </button>
+                          ) : (
+                            <>
+                              <span>{copy.todo[item.kind]}</span>
+                              <strong>{item.count}</strong>
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>

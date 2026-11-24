@@ -42,11 +42,16 @@ import { SelfOwnerOverview } from '../components/self-owner/SelfOwnerOverview';
 import { MobileSelfOwnerDashboardBody } from '../components/self-owner/MobileSelfOwnerDashboardBody';
 import { SelfOwnerRoomsPage } from '../components/self-owner/SelfOwnerRoomsPage';
 import { MobileSelfOwnerRoomsScreen } from '../components/self-owner/MobileSelfOwnerRoomsScreen';
+import { SelfOwnerContractsPage } from '../components/self-owner/SelfOwnerContractsPage';
+import { MobileSelfOwnerContractsScreen } from '../components/self-owner/MobileSelfOwnerContractsScreen';
+import { SelfOwnerIncomePage } from '../components/self-owner/SelfOwnerIncomePage';
+import { MobileSelfOwnerIncomeScreen } from '../components/self-owner/MobileSelfOwnerIncomeScreen';
 import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
 import { selfOwnerRoomStore, useSelfOwnerRooms } from '../lib/self-owner-rooms';
+import { useSelfOwnerContracts, useSelfOwnerIncome } from '../lib/self-owner-contracts';
 import { selfOwnerRoomsApi } from '../lib/self-owner-rooms-api';
 import { SelfOwnerListingEditor } from '../components/self-owner/SelfOwnerListingEditor';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
@@ -823,7 +828,11 @@ export function AppHomeScreen() {
       ? undefined
       : activeRole === 'self_owner' && activeTab === 'listingRoom'
         ? t.selfOwnerWeb.listingsView // "ห้องของฉัน" like the web sidebar (23 Nov 2026)
-        : getScreenTitle(activeTab, t);
+        : activeRole === 'self_owner' && activeTab === 'contracts'
+          ? t.selfOwnerWeb.contracts // the agent's "contracts" tab title is "tenants"; the owner's page is contracts (24 Nov 2026)
+          : activeRole === 'self_owner' && activeTab === 'income'
+            ? t.selfOwnerWeb.billsIncome
+            : getScreenTitle(activeTab, t);
   /** Contract side shown in the party inbox ('owner' = landlord side of a contract, not a role). */
   const partyRole: ContractParty = activeRole === 'tenant' ? 'tenant' : 'owner';
   const partyAccent = tokens.colors.roles[CONTRACT_PARTY_ROLE[partyRole]];
@@ -1085,6 +1094,9 @@ export function AppHomeScreen() {
     else if (!isAuthenticated) selfOwnerRoomStore.disconnect();
   }, [selfOwnerAccount, isAuthenticated]);
   const selfOwnerRooms = useSelfOwnerRooms();
+  // Contracts and income are read only and demo until NESTYK admin creates contracts (Jom 24 Nov 2026).
+  const selfOwnerContracts = useSelfOwnerContracts();
+  const selfOwnerIncome = useSelfOwnerIncome();
   // The owner's profile is the room contact in the self owner room form (Jom 20 Nov 2026).
   const selfOwnerContact = useMemo(
     () => ({ name: isAuthenticated ? displayName : '', phone: session?.phone ?? '' }),
@@ -1221,6 +1233,8 @@ export function AppHomeScreen() {
           deletionScheduledFor={deletionScheduledFor}
           onOpenRooms={() => handleTabPress('listingRoom')}
           onAddListing={openCreateListing}
+          onOpenIncome={() => handleTabPress('income')}
+          onOpenContracts={() => handleTabPress('contracts')}
         />
       ) : (
         <View style={styles.bodyContainer}>
@@ -1230,6 +1244,8 @@ export function AppHomeScreen() {
             deletionScheduledFor={deletionScheduledFor}
             onOpenRooms={() => handleTabPress('listingRoom')}
             onAddListing={openCreateListing}
+            onOpenIncome={() => handleTabPress('income')}
+            onOpenContracts={() => handleTabPress('contracts')}
           />
         </View>
       );
@@ -1273,6 +1289,29 @@ export function AppHomeScreen() {
   };
 
   const renderTabBody = () => {
+    // Self owner pages first: the landlord's "income" tab and the agent's "contracts" card below match any role.
+    if (activeRole === 'self_owner' && activeTab === 'contracts') {
+      // Read-only contracts (24 Nov 2026, ClickUp z8rcteng6e): NESTYK admin will create them; demo until then.
+      return isSelfOwnerWeb ? (
+        <SelfOwnerContractsPage contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} />
+      ) : (
+        <View style={styles.bodyContainer}>
+          <MobileSelfOwnerContractsScreen contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} />
+        </View>
+      );
+    }
+
+    if (activeRole === 'self_owner' && activeTab === 'income') {
+      // Read-only rent income (24 Nov 2026, ClickUp z8rcteng6f): which rooms paid this month; same rows as the Dashboard.
+      return isSelfOwnerWeb ? (
+        <SelfOwnerIncomePage contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} />
+      ) : (
+        <View style={styles.bodyContainer}>
+          <MobileSelfOwnerIncomeScreen contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} />
+        </View>
+      );
+    }
+
     if (activeTab === 'home') {
       return (
         <View style={styles.bodyContainer}>
