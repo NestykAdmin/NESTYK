@@ -41,6 +41,7 @@ import { AgentOverview } from '../components/agent-web/AgentOverview';
 import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { AdminViewingRequestsPage } from '../components/agent-web/AdminViewingRequestsPage';
+import { GuestWebView } from '../components/GuestWebView';
 import { listAdminViewingRequests } from '../lib/admin-viewing-requests-api';
 import { countByTab } from '../lib/admin-viewing-requests';
 import { useAgentDashboard } from '../lib/agent-dashboard';
@@ -811,6 +812,8 @@ export function AppHomeScreen() {
     };
   }, [loadAdminCount, activeTab]);
   const isSelfOwnerWeb = isWideWeb && activeRole === 'self_owner';
+  // Guest on the phone: home and search show the guest web in a WebView (W1, Mos 24 Nov 2026).
+  const guestWebTab = Platform.OS !== 'web' && activeRole === 'guest' && (activeTab === 'home' || activeTab === 'search');
   const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb || isAdminWeb || isSelfOwnerWeb;
   // Widening the browser past WEB_SHELL_MIN_WIDTH swaps in the desktop shell; close the app drawer so it does not
   // pop back open when the window is narrowed again.
@@ -1227,6 +1230,10 @@ export function AppHomeScreen() {
   };
 
   const renderTabBody = () => {
+    // Guest on the phone: home and search are the guest web itself (W1, nestyk-guest-app-webview-plan-20261124.md).
+    if (guestWebTab) {
+      return <GuestWebView path={activeTab === 'search' ? '/search' : '/'} />;
+    }
     if (activeTab === 'home') {
       return (
         <View style={styles.bodyContainer}>
@@ -1897,7 +1904,7 @@ export function AppHomeScreen() {
         role={activeRole}
         backgroundColor={isTenantWorkspace ? theme.surface : undefined}
         screenTitle={screenTitle}
-        scrollable={partyInbox || !isWizardTab}
+        scrollable={(partyInbox || !isWizardTab) && !guestWebTab}
         refreshing={pageRefreshing}
         onRefresh={onPageRefresh}
         header={
@@ -2085,7 +2092,7 @@ export function AppHomeScreen() {
           ) : (
             renderTabBody()
           )}
-          {activeRole === 'guest' && (activeTab === 'home' || activeTab === 'search' || activeTab === 'services') ? (
+          {activeRole === 'guest' && !guestWebTab && (activeTab === 'home' || activeTab === 'search' || activeTab === 'services') ? (
             <GuestPublicFooter />
           ) : null}
         </React.Fragment>
