@@ -42,3 +42,12 @@ export const CAPTCHA_WAIT_MS = 20000;
 export function captchaSubmitStep(required: boolean, token: string | null): 'submit' | 'wait' {
   return required && !token ? 'wait' : 'submit';
 }
+
+/**
+ * "Use as a guest" on the sign-in page (Mos 24 Nov 2026). In the phone app anyone can browse the guest pages without
+ * signing in, whatever role the build starts with (EXPO_PUBLIC_DEFAULT_ROLE). On the web the link stays tied to a
+ * guest-first build, since the guest site there is its own Next.js app.
+ */
+export function showGuestBrowse(platform: string, defaultRole: string): boolean {
+  return platform !== 'web' || defaultRole === 'guest';
+}
