@@ -43,19 +43,29 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
   const stateText = (row: SelfOwnerRent) => (row.state === "overdue" ? interpolate(inc.overdue, { n: row.overdueDays ?? 0 }) : inc[row.state]);
 
   const columns: WebTableColumn<SelfOwnerRent>[] = [
-    { key: "room", header: inc.colRoom, cell: (r) => <strong className="awr-nowrap" title={r.roomTitle}>{r.roomTitle}</strong> },
+    // The room name wraps like the contracts table, so a long name does not push the status column out of the card;
+    // the project sits under it, as on the contracts page (rooms can be in several projects, Jom 24 Nov 2026).
+    {
+      key: "room",
+      header: inc.colRoom,
+      cell: (r) => (
+        <span className="awr-room">
+          <strong title={r.roomTitle}>{r.roomTitle}</strong>
+          <small>{r.project}</small>
+        </span>
+      ),
+    },
     { key: "tenant", header: inc.colTenant, cell: (r) => <span className="awr-nowrap">{r.tenantName}</span> },
     { key: "amount", header: inc.colAmount, align: "end", cell: (r) => <span className="awr-price">{money(r.amount)}</span> },
     { key: "due", header: inc.colDue, hideBelow: "md", cell: (r) => <span className="awr-muted">{day(r.dueDate)}</span> },
+    // The paid date has its own column (Jom 24 Nov 2026); "-" when the rent is not paid yet.
+    { key: "paidAt", header: inc.colPaidAt, hideBelow: "md", cell: (r) => <span className="awr-muted">{r.paidAt ? day(r.paidAt) : "-"}</span> },
     {
       key: "status",
       header: inc.colStatus,
       cell: (r) => (
-        <span className="sor-detail">
-          <span className="sor-status-cell">
-            <StatusBadge label={stateText(r)} intent={RENT_STATE_INTENT[r.state]} />
-          </span>
-          {r.paidAt ? <small>{interpolate(inc.paidOn, { date: day(r.paidAt) })}</small> : null}
+        <span className="sor-status-cell">
+          <StatusBadge label={stateText(r)} intent={RENT_STATE_INTENT[r.state]} />
         </span>
       ),
     },

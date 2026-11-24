@@ -34,6 +34,8 @@ export type SelfOwnerRentState = 'paid' | 'due' | 'overdue';
 export type SelfOwnerRent = {
   id: string;
   roomTitle: string;
+  /** The room's project: an owner can have rooms in several projects (Jom 24 Nov 2026). */
+  project: string;
   tenantName: string;
   amount: number;
   state: SelfOwnerRentState;
@@ -172,7 +174,7 @@ export function selfOwnerRentForMonth(contracts: SelfOwnerContract[], year: numb
   return contracts
     .filter((c) => c.status !== 'awaiting_signature' && c.startDate <= last && c.endDate >= first)
     .map((c) => {
-      const base = { id: `p-${c.roomId}-${year}-${pad(month)}`, roomTitle: c.roomTitle, tenantName: c.tenantName, amount: c.monthlyRent };
+      const base = { id: `p-${c.roomId}-${year}-${pad(month)}`, roomTitle: c.roomTitle, project: c.project, tenantName: c.tenantName, amount: c.monthlyRent };
       const unpaidDay = key === current ? UNPAID_THIS_MONTH[c.roomId] : undefined;
       const dueDate = ymd(year, month, unpaidDay ?? DUE_DAY);
       if (unpaidDay === undefined && dueDate <= today) return { ...base, state: 'paid' as const, dueDate, paidAt: ymd(year, month, PAID_DAY) };

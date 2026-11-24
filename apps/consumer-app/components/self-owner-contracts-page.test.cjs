@@ -190,10 +190,78 @@ test('phone income: month switch, summary, rows', () => {
   assert.equal(tree.filter(n => n?.props?.accessibilityRole === 'text' && n?.props?.testID === 'soi-demo').length + tree.filter(n => n?.props?.testID === 'soi-demo').length > 0, true);
 });
 
+// Jom 24 Nov 2026: rooms from several projects, so the income page names the project like the contracts page.
+test('web income: room cell shows the project under the room name', () => {
+  locale = 'th';
+  const tree = incomeWeb();
+  const rows = lib().selfOwnerRentForMonth(contracts(), 2026, 11, now);
+  for (const r of rows) {
+    const row = tree.find(n => n?.type === 'tr' && n.props['data-testid'] === `self-owner-income-table.row.${r.id}`);
+    const roomTd = nodes(row.props.children).find(n => n?.type === 'td');
+    const small = nodes(roomTd.props.children).find(n => n?.type === 'small');
+    assert.ok(small, r.roomTitle);
+    assert.equal(texts(nodes(small.props.children)).join(''), r.project, r.roomTitle);
+  }
+});
+
+test('phone income: each card names the project', () => {
+  locale = 'th';
+  const tree = incomePhone();
+  const rows = lib().selfOwnerRentForMonth(contracts(), 2026, 11, now);
+  for (const r of rows) {
+    const card = tree.find(n => n?.props?.testID === `soi-row-${r.id}`);
+    assert.ok(texts(nodes(card.props.children)).includes(`${r.tenantName} · ${r.project}`), r.roomTitle);
+  }
+});
+
 test('native fallbacks render the phone screens', () => {
   locale = 'th';
   const c = phone('SelfOwnerContractsPage.tsx').SelfOwnerContractsPage({ contracts: contracts(), isDemoPreview: true });
   assert.equal(c.type.name, 'MobileSelfOwnerContractsScreen');
   const i = phone('SelfOwnerIncomePage.tsx').SelfOwnerIncomePage({ contracts: contracts(), months: months(), isDemoPreview: true });
   assert.equal(i.type.name, 'MobileSelfOwnerIncomeScreen');
+});
+
+// Jom 24 Nov 2026: "จ่ายแล้ว" is easier to read than "รับแล้ว"; the income page uses the Dashboard's word in every locale.
+test('income uses the Dashboard word for paid rent in every locale', () => {
+  for (const l of ['th', 'en', 'ja', 'zh']) {
+    const all = copyOf(l);
+    const paid = all.selfOwnerDashboard.rentState.paid;
+    assert.equal(all.selfOwnerIncome.paid, paid, l);
+    assert.equal(all.selfOwnerIncome.summaryReceived, paid, l);
+    assert.ok(all.selfOwnerIncome.paidOn.includes('{date}'), l);
+  }
+  assert.equal(copyOf('th').selfOwnerIncome.paidOn, 'จ่ายเมื่อ {date}');
+});
+
+// Jom 24 Nov 2026: the paid date is its own column on the web income table; "-" when not paid.
+test('web income: paid date has its own column, "-" when not paid', () => {
+  locale = 'th';
+  const inc = copyOf().selfOwnerIncome;
+  const tree = incomeWeb();
+  const headers = tree.filter(n => n?.type === 'th').map(h => texts(nodes(h.props.children)).join(''));
+  assert.equal(inc.colPaidAt, 'วันที่จ่าย', 'Thai header wording (Jom 24 Nov 2026)');
+  assert.ok(headers.includes(inc.colPaidAt), 'header');
+  assert.equal(headers.indexOf(inc.colPaidAt), headers.indexOf(inc.colDue) + 1, 'right after the due date');
+  const rowOf = (title) => tree.find(n => n?.type === 'tr' && String(n.props['data-testid'] ?? '').startsWith('self-owner-income-table.row.') && texts(nodes(n.props.children)).includes(title));
+  const cells = (row) => nodes(row.props.children).filter(n => n?.type === 'td').map(td => texts(nodes(td.props.children)).join(''));
+  const paidIndex = headers.indexOf(inc.colPaidAt);
+  const paid = cells(rowOf('ห้อง 1204'));
+  assert.equal(paid[paidIndex], '3 พ.ย.');
+  assert.equal(cells(rowOf('ห้อง 805'))[paidIndex], '-');
+  assert.equal(cells(rowOf('ห้อง 417'))[paidIndex], '-');
+  assert.ok(!paid.some(c => c.includes('จ่ายเมื่อ')), 'no paid-on text left in the status cell');
+  for (const l of ['en', 'ja', 'zh']) assert.ok(copyOf(l).selfOwnerIncome.colPaidAt, l);
+});
+
+// Browser check 24 Nov 2026: with the paid-date column, a long room name kept on one line pushed the status pills
+// out of the card. The room cell wraps like the contracts page (awr-room) instead of awr-nowrap.
+test('web income: room name wraps like the contracts table', () => {
+  locale = 'th';
+  const tree = incomeWeb();
+  const row = tree.find(n => n?.type === 'tr' && String(n.props['data-testid'] ?? '').startsWith('self-owner-income-table.row.'));
+  const roomTd = nodes(row.props.children).find(n => n?.type === 'td');
+  const inner = nodes(roomTd.props.children);
+  assert.ok(inner.some(n => n?.props?.className === 'awr-room'), 'room cell uses awr-room');
+  assert.ok(!inner.some(n => String(n?.props?.className ?? '').includes('awr-nowrap')), 'room cell is not nowrap');
 });

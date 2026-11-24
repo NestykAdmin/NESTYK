@@ -96,7 +96,7 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
                 <Text style={[styles.body, styles.flex, { color: ink }]} numberOfLines={1}>{r.roomTitle}</Text>
                 <Text style={[styles.body, { color: ink }]}>{money(r.amount)}</Text>
               </View>
-              <Text style={small} numberOfLines={1}>{r.tenantName}</Text>
+              <Text style={small} numberOfLines={1}>{`${r.tenantName} · ${r.project}`}</Text>
               <View style={styles.row}>
                 <StatusBadge label={stateText(r)} intent={STATE_INTENT[r.state]} />
                 <Text style={[small, styles.flex]}>

@@ -130,6 +130,19 @@ test('past months are all paid, future months empty, months run oldest to newest
   assert.ok(selfOwnerRentForMonth(list, first.year, first.month, now).length > 0, 'the first month has rent');
 });
 
+// Jom 24 Nov 2026: an owner can have rooms in several projects, so each rent row says which project the room is in.
+test('rent rows carry the contract project', () => {
+  const { createSelfOwnerContractsDemo, selfOwnerRentForMonth } = load();
+  const contracts = createSelfOwnerContractsDemo(now);
+  const rows = selfOwnerRentForMonth(contracts, 2026, 11, now);
+  assert.ok(rows.length > 0);
+  for (const r of rows) {
+    const c = contracts.find(x => x.roomTitle === r.roomTitle);
+    assert.equal(r.project, c.project, r.roomTitle);
+    assert.ok(r.project, r.roomTitle);
+  }
+});
+
 test('hooks make no network call', () => {
   const source = fs.readFileSync(file, 'utf8');
   assert.doesNotMatch(source, /from ['"][^'"]*\/api/);

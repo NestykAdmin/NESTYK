@@ -588,6 +588,7 @@ export interface TranslationSchema {
     colTenant: string;
     colAmount: string;
     colDue: string;
+    colPaidAt: string;
     colStatus: string;
     paid: string;
     due: string;
