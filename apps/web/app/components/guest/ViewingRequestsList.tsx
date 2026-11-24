@@ -27,10 +27,6 @@ function intlLocale(locale: string): string {
   return locale === 'th' ? 'th-TH-u-ca-gregory' : locale;
 }
 
-function shortDay(day: string, locale: string): string {
-  return new Intl.DateTimeFormat(intlLocale(locale), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
-}
-
 function dateTime(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: 'short',
@@ -247,15 +243,7 @@ function RequestCard({ request, locale, onChanged }: { request: GuestViewingRequ
         </p>
       ) : (
         <p className="nk-vr-item__meta">
-          <span>{copy.preferred}</span> {request.preferredDates.map((day) => shortDay(day, locale)).join(', ')} ·{' '}
-          {
-            {
-              morning: copy.slotMorning,
-              afternoon: copy.slotAfternoon,
-              evening: copy.slotEvening,
-              any: copy.slotAny,
-            }[request.preferredSlot]
-          }
+          <span>{copy.preferred}</span> {dateTime(request.preferredAt, locale)}
         </p>
       )}
 

@@ -7,7 +7,6 @@ import type {
   ViewingRequestContact,
   ViewingRequestErrorCode,
   ViewingRequestHandler,
-  ViewingRequestSlot,
   ViewingRequestStatus,
 } from '@nestyk/types';
 
@@ -18,10 +17,16 @@ import type {
  */
 export const OPEN_STATUSES: ViewingRequestStatus[] = ['new', 'awaiting_agent', 'agent_handling', 'admin_handling', 'scheduled'];
 export const ALL_STATUSES: ViewingRequestStatus[] = [...OPEN_STATUSES, 'viewed', 'cancelled', 'closed'];
-const SLOTS: ViewingRequestSlot[] = ['morning', 'afternoon', 'evening', 'any'];
 export const OPEN_LIMIT = 10;
+/** One preferred day and time (Mos 23 Nov 2026): from tomorrow up to 60 days ahead, 08:00–20:00 Bangkok, every 30 minutes. */
+const MIN_DAYS_AHEAD = 1;
 const MAX_DAYS_AHEAD = 60;
-const MAX_DATES = 3;
+const FIRST_MINUTE = 8 * 60;
+const LAST_MINUTE = 20 * 60;
+const STEP_MINUTES = 30;
+const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+/** A date-time with a time and an offset (Z or ±hh:mm), so the moment is never guessed from the server's zone. */
+const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
 const MAX_TEXT = 500;
 const MAX_INT = 2147483647;
 /** Same as agent viewings (lead-viewings.service.ts): 60 s of clock skew, at most 366 days ahead. */
@@ -49,8 +54,7 @@ export type ViewingRequestRecord = ViewingRequestRow & {
   contact_name: string;
   contact_phone: string;
   contact_email: string | null;
-  preferred_dates: string[];
-  preferred_slot: ViewingRequestSlot;
+  preferred_at: Date;
   message: string | null;
   close_reason: string | null;
   cancelled_by: 'guest' | 'admin' | null;
@@ -75,8 +79,7 @@ export type Patch = Partial<Pick<ViewingRequestRecord, 'status' | 'agent_user_id
 
 export type NewViewingRequest = {
   roomId: number;
-  preferredDates: string[];
-  preferredSlot: ViewingRequestSlot;
+  preferredAt: Date;
   phone: string;
   message: string | null;
 };
@@ -102,7 +105,7 @@ function optionalText(value: unknown, field: string): string | null {
 
 /** 'YYYY-MM-DD' of the given moment in Bangkok (UTC+7, no daylight saving). */
 export function bangkokDate(now: number): string {
-  return new Date(now + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return new Date(now + BANGKOK_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 /** Calendar day plus n days, 'YYYY-MM-DD'. */
@@ -111,11 +114,26 @@ export function addDays(day: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-function calendarDay(value: unknown): string {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException('preferredDates must be YYYY-MM-DD days');
-  // A real day: 2026-02-30 would roll over to March.
-  if (addDays(value, 0) !== value) throw new BadRequestException('preferredDates must be YYYY-MM-DD days');
-  return value;
+/** The preferred moment: on the half hour, 08:00–20:00 in Bangkok, on a day from tomorrow up to 60 days ahead. */
+function preferredMoment(value: unknown, now: number): Date {
+  const message = 'preferredAt must be a date-time with an offset, like 2026-11-24T14:30:00+07:00';
+  if (typeof value !== 'string' || !DATE_TIME_PATTERN.test(value)) throw new BadRequestException(message);
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) throw new BadRequestException(message);
+  // A day that does not exist (2026-11-31) would roll over to the next month: the written day must survive parsing.
+  const offset = value.endsWith('Z') ? 0 : (value.at(-6) === '-' ? -1 : 1) * (Number(value.slice(-5, -3)) * 60 + Number(value.slice(-2)));
+  if (new Date(at.getTime() + offset * 60000).toISOString().slice(0, 10) !== value.slice(0, 10)) throw new BadRequestException(message);
+  const local = at.getTime() + BANGKOK_OFFSET_MS;
+  const minuteOfDay = Math.floor((((local % 86400000) + 86400000) % 86400000) / 60000);
+  if (local % 60000 !== 0 || minuteOfDay % STEP_MINUTES !== 0 || minuteOfDay < FIRST_MINUTE || minuteOfDay > LAST_MINUTE) {
+    throw new BadRequestException('preferredAt must be 08:00–20:00 Bangkok time, on the hour or half hour');
+  }
+  const day = bangkokDate(at.getTime());
+  const today = bangkokDate(now);
+  if (day < addDays(today, MIN_DAYS_AHEAD) || day > addDays(today, MAX_DAYS_AHEAD)) {
+    throw new BadRequestException(`preferredAt must be from tomorrow up to ${MAX_DAYS_AHEAD} days ahead`);
+  }
+  return at;
 }
 
 export function validateCreate(input: unknown, now: number): NewViewingRequest {
@@ -123,16 +141,7 @@ export function validateCreate(input: unknown, now: number): NewViewingRequest {
   const roomText = body.roomId;
   if (typeof roomText !== 'string' || !/^[1-9]\d{0,9}$/.test(roomText) || Number(roomText) > MAX_INT) throw new BadRequestException('Invalid room id');
 
-  if (!Array.isArray(body.preferredDates)) throw new BadRequestException('preferredDates must be a list of days');
-  const days = [...new Set(body.preferredDates.map(calendarDay))].sort();
-  if (days.length < 1 || days.length > MAX_DATES || body.preferredDates.length > MAX_DATES) {
-    throw new BadRequestException(`Pick 1 to ${MAX_DATES} days`);
-  }
-  const today = bangkokDate(now);
-  const last = addDays(today, MAX_DAYS_AHEAD);
-  if (days[0] < today || days[days.length - 1] > last) throw new BadRequestException(`Days must be from today up to ${MAX_DAYS_AHEAD} days ahead`);
-
-  if (!SLOTS.includes(body.preferredSlot as ViewingRequestSlot)) throw new BadRequestException('preferredSlot is invalid');
+  const preferredAt = preferredMoment(body.preferredAt, now);
 
   if (typeof body.phone !== 'string' || !body.phone.trim() || body.phone.trim().length > 50) {
     throw new BadRequestException('phone is required and must be text up to 50 characters');
@@ -143,7 +152,7 @@ export function validateCreate(input: unknown, now: number): NewViewingRequest {
     if (!E164_PATTERN.test(phone)) throw new BadRequestException('phone must be an international number like +66812345678');
   }
 
-  return { roomId: Number(roomText), preferredDates: days, preferredSlot: body.preferredSlot as ViewingRequestSlot, phone, message: optionalText(body.message, 'message') };
+  return { roomId: Number(roomText), preferredAt, phone, message: optionalText(body.message, 'message') };
 }
 
 export function validateSchedule(input: unknown, now: number): Date {
@@ -241,8 +250,7 @@ export function toGuestView(row: ViewingRequestRecord, card: PublicRoomCard | nu
     roomId: String(row.rent_room_id),
     room: card,
     status: row.status,
-    preferredDates: [...row.preferred_dates],
-    preferredSlot: row.preferred_slot,
+    preferredAt: new Date(row.preferred_at).toISOString(),
     scheduledAt: isoOrNull(row.scheduled_at),
     message: row.message ?? null,
     createdAt: new Date(row.created_at).toISOString(),
@@ -259,8 +267,7 @@ export function toAdminView(row: ViewingRequestRecord): AdminViewingRequest {
     status: row.status,
     handledBy: row.handled_by ?? null,
     contact: contactOf(row),
-    preferredDates: [...row.preferred_dates],
-    preferredSlot: row.preferred_slot,
+    preferredAt: new Date(row.preferred_at).toISOString(),
     message: row.message ?? null,
     scheduledAt: isoOrNull(row.scheduled_at),
     closeReason: row.close_reason ?? null,
@@ -281,8 +288,7 @@ export function toAgentView(row: ViewingRequestRecord): AgentViewingRequest {
     handledBy: row.handled_by ?? null,
     contact: mine ? contactOf(row) : null,
     message: mine ? row.message ?? null : null,
-    preferredDates: [...row.preferred_dates],
-    preferredSlot: row.preferred_slot,
+    preferredAt: new Date(row.preferred_at).toISOString(),
     scheduledAt: isoOrNull(row.scheduled_at),
     createdAt: new Date(row.created_at).toISOString(),
   };

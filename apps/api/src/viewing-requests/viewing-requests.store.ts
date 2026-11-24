@@ -33,7 +33,6 @@ function toRecord(row: ViewingRequestEntity): ViewingRequestRecord {
   const agent = row.agent;
   return {
     ...row,
-    preferred_dates: (row.preferred_dates ?? []).map((d) => String(d).slice(0, 10)),
     room: roomInfoOf(row.rent_room),
     agent: agent ? { id: agent.id, name: personName(agent) ?? `#${agent.id}`, email: agent.email } : null,
   };

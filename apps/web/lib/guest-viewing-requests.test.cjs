@@ -1,5 +1,6 @@
 // Viewing requests on the guest web, step 2 (project-docs/nestyk-guest-viewing-request-plan-20261123.md, Mos picked
-// 23 Nov 2026: a dialog / bottom sheet form, a list page with a room card and a 3-step bar, 5 simple stages).
+// 23 Nov 2026: a dialog / bottom sheet form, a list page with a room card and a 3-step bar, 5 simple stages;
+// then form E: one day from a 7-day strip or a calendar, a time every 30 minutes under morning / afternoon / evening tabs).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -21,41 +22,69 @@ const web = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(web, ...p), 'utf8');
 const V = loadTs(path.join(__dirname, 'guest-viewing-requests.ts'));
 
-test('same limits as the API: 3 days, today to 60 days ahead, 10 open requests', () => {
+test('same rules as the API: one day from tomorrow up to 60 days ahead, 08:00–20:00 every 30 minutes, 10 open requests', () => {
   const api = fs.readFileSync(path.join(web, '..', 'api', 'src', 'viewing-requests', 'viewing-request-rules.ts'), 'utf8');
-  assert.equal(V.VIEWING_MAX_DATES, 3);
+  assert.equal(V.VIEWING_MIN_DAYS_AHEAD, 1);
   assert.equal(V.VIEWING_MAX_DAYS_AHEAD, 60);
   assert.equal(V.VIEWING_OPEN_LIMIT, 10);
-  assert.match(api, /const MAX_DATES = 3;/);
+  const times = V.viewingTimes();
+  assert.equal(times.length, 25);
+  assert.equal(times[0], '08:00');
+  assert.equal(times[1], '08:30');
+  assert.equal(times.at(-1), '20:00');
+  assert.match(api, /const MIN_DAYS_AHEAD = 1;/);
   assert.match(api, /const MAX_DAYS_AHEAD = 60;/);
+  assert.match(api, /const FIRST_MINUTE = 8 \* 60;/);
+  assert.match(api, /const LAST_MINUTE = 20 \* 60;/);
+  assert.match(api, /const STEP_MINUTES = 30;/);
   assert.match(api, /export const OPEN_LIMIT = 10;/);
 });
 
-test('the days a guest can pick: today and the next 60 days, Bangkok calendar', () => {
-  const days = V.pickableDays('2026-11-23');
-  assert.equal(days.length, 61);
-  assert.equal(days[0], '2026-11-23');
-  assert.equal(days[1], '2026-11-24');
-  assert.equal(days.at(-1), '2027-01-22');
+test('the 7-day strip starts tomorrow; the calendar allows tomorrow up to 60 days ahead (Bangkok days)', () => {
+  assert.deepEqual(V.stripDays('2026-11-23'), ['2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30']);
+  assert.equal(V.isPickableDay('2026-11-23', '2026-11-23'), false, 'not today');
+  assert.equal(V.isPickableDay('2026-11-23', '2026-11-24'), true);
+  assert.equal(V.isPickableDay('2026-11-23', '2027-01-22'), true);
+  assert.equal(V.isPickableDay('2026-11-23', '2027-01-23'), false);
+  assert.equal(V.lastPickableDay('2026-11-23'), '2027-01-22');
 });
 
-test('picking days: up to 3, sorted; a picked day is unpicked; a 4th is ignored', () => {
-  let picked = [];
-  picked = V.toggleDay(picked, '2026-11-26');
-  picked = V.toggleDay(picked, '2026-11-24');
-  assert.deepEqual(picked, ['2026-11-24', '2026-11-26']);
-  picked = V.toggleDay(picked, '2026-11-25');
-  assert.deepEqual(V.toggleDay(picked, '2026-11-27'), picked, 'full: no change');
-  assert.deepEqual(V.toggleDay(picked, '2026-11-24'), ['2026-11-25', '2026-11-26']);
+test('the calendar: the months that hold a pickable day, each laid out from Sunday', () => {
+  assert.deepEqual(V.calendarMonths('2026-11-23'), ['2026-11', '2026-12', '2027-01']);
+  assert.deepEqual(V.calendarMonths('2026-12-31'), ['2027-01', '2027-02', '2027-03'], 'tomorrow is already January');
+  const nov = V.monthGrid('2026-11');
+  assert.equal(nov.length, 30, '1 Nov 2026 is a Sunday: no blanks');
+  assert.equal(nov[0], '2026-11-01');
+  const dec = V.monthGrid('2026-12');
+  assert.deepEqual(dec.slice(0, 3), [null, null, '2026-12-01'], '1 Dec 2026 is a Tuesday');
+  assert.equal(dec.at(-1), '2026-12-31');
 });
 
-test('form check before sending: a day, a phone, and "+" numbers in international form (as the API)', () => {
-  assert.equal(V.formProblem({ dates: [], phone: '0812345678' }), 'needDate');
-  assert.equal(V.formProblem({ dates: ['2026-11-24'], phone: '  ' }), 'needPhone');
-  assert.equal(V.formProblem({ dates: ['2026-11-24'], phone: '+12' }), 'badPhone');
-  assert.equal(V.formProblem({ dates: ['2026-11-24'], phone: 'x'.repeat(51) }), 'badPhone');
-  assert.equal(V.formProblem({ dates: ['2026-11-24'], phone: '+66 81-234-5678' }), null);
-  assert.equal(V.formProblem({ dates: ['2026-11-24'], phone: '081 234 5678' }), null);
+test('time tabs: morning 08:00–11:30, afternoon 12:00–16:30, evening 17:00–20:00', () => {
+  assert.deepEqual(V.VIEWING_PERIODS, ['morning', 'afternoon', 'evening']);
+  assert.equal(V.timesOf('morning').length, 8);
+  assert.equal(V.timesOf('afternoon').length, 10);
+  assert.equal(V.timesOf('evening').length, 7);
+  assert.deepEqual([V.timesOf('afternoon')[0], V.timesOf('afternoon').at(-1)], ['12:00', '16:30']);
+  assert.equal(V.periodOf('11:30'), 'morning');
+  assert.equal(V.periodOf('12:00'), 'afternoon');
+  assert.equal(V.periodOf('17:00'), 'evening');
+  assert.equal(V.periodRange('evening'), '17:00–20:00');
+});
+
+test('the moment sent to the API is Bangkok time with its offset', () => {
+  assert.equal(V.preferredAt('2026-11-24', '14:30'), '2026-11-24T14:30:00+07:00');
+});
+
+test('form check before sending: a day, a time, a phone, and "+" numbers in international form (as the API)', () => {
+  const ok = { day: '2026-11-24', time: '14:30' };
+  assert.equal(V.formProblem({ day: null, time: null, phone: '0812345678' }), 'needDate');
+  assert.equal(V.formProblem({ day: '2026-11-24', time: null, phone: '0812345678' }), 'needTime');
+  assert.equal(V.formProblem({ ...ok, phone: '  ' }), 'needPhone');
+  assert.equal(V.formProblem({ ...ok, phone: '+12' }), 'badPhone');
+  assert.equal(V.formProblem({ ...ok, phone: 'x'.repeat(51) }), 'badPhone');
+  assert.equal(V.formProblem({ ...ok, phone: '+66 81-234-5678' }), null);
+  assert.equal(V.formProblem({ ...ok, phone: '081 234 5678' }), null);
 });
 
 test('what sending did: the API answers become a small set of results the form can show', () => {
@@ -95,14 +124,14 @@ test('calls: same-site /api, the tab token, never cached, no cookies; errors com
     calls.push({ url, init });
     return { ok: status >= 200 && status < 300, status, json: async () => body };
   };
-  const sent = await V.sendViewingRequest('tok', { roomId: '31', preferredDates: ['2026-11-24'], preferredSlot: 'any', phone: '081', message: null }, fake(201, { id: 1 }));
+  const sent = await V.sendViewingRequest('tok', { roomId: '31', preferredAt: '2026-11-24T14:30:00+07:00', phone: '081', message: null }, fake(201, { id: 1 }));
   assert.equal(sent.kind, 'ok');
   assert.equal(calls[0].url, '/api/me/viewing-requests');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer tok');
   assert.equal(calls[0].init.cache, 'no-store');
   assert.equal(calls[0].init.credentials, 'omit');
-  assert.deepEqual(JSON.parse(calls[0].init.body).preferredDates, ['2026-11-24']);
+  assert.equal(JSON.parse(calls[0].init.body).preferredAt, '2026-11-24T14:30:00+07:00');
 
   assert.deepEqual(await V.fetchMyViewingRequests('tok', fake(200, [{ id: 1, roomId: '31', status: 'new' }, { bad: true }])), [{ id: 1, roomId: '31', status: 'new' }]);
   assert.equal(await V.fetchMyViewingRequests('tok', fake(500, {})), null);

@@ -7,10 +7,17 @@ import type { CreateViewingRequestInput, GuestViewingRequest, ViewingRequestErro
  * Type-only imports: lib/guest-viewing-requests.test.cjs loads this file bare.
  */
 export const VIEWING_REQUESTS_URL = '/api/me/viewing-requests';
-/** Same as the API (apps/api/src/viewing-requests/viewing-request-rules.ts, Mos D2 23 Nov 2026). */
-export const VIEWING_MAX_DATES = 3;
+/**
+ * Same as the API (apps/api/src/viewing-requests/viewing-request-rules.ts; Mos D2 and form E, 23 Nov 2026):
+ * one day from tomorrow up to 60 days ahead, a time 08:00–20:00 Bangkok every 30 minutes, 10 open requests.
+ */
+export const VIEWING_MIN_DAYS_AHEAD = 1;
 export const VIEWING_MAX_DAYS_AHEAD = 60;
 export const VIEWING_OPEN_LIMIT = 10;
+export const VIEWING_STRIP_DAYS = 7;
+const FIRST_MINUTE = 8 * 60;
+const LAST_MINUTE = 20 * 60;
+const STEP_MINUTES = 30;
 
 const OPEN: ReadonlySet<ViewingRequestStatus> = new Set(['new', 'awaiting_agent', 'agent_handling', 'admin_handling', 'scheduled']);
 const E164_PATTERN = /^\+[1-9]\d{6,14}$/;
@@ -46,23 +53,80 @@ function addDays(day: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-/** Today (Bangkok, 'YYYY-MM-DD') and every day up to 60 days ahead. */
-export function pickableDays(today: string): string[] {
-  return Array.from({ length: VIEWING_MAX_DAYS_AHEAD + 1 }, (_, i) => addDays(today, i));
+/** The 7 days shown first: tomorrow onwards (no viewing today). */
+export function stripDays(today: string): string[] {
+  return Array.from({ length: VIEWING_STRIP_DAYS }, (_, i) => addDays(today, VIEWING_MIN_DAYS_AHEAD + i));
 }
 
-/** Picks or unpicks a day; at most 3, kept in date order. A 4th pick changes nothing. */
-export function toggleDay(picked: readonly string[], day: string): string[] {
-  if (picked.includes(day)) return picked.filter((d) => d !== day);
-  if (picked.length >= VIEWING_MAX_DATES) return [...picked];
-  return [...picked, day].sort();
+export function lastPickableDay(today: string): string {
+  return addDays(today, VIEWING_MAX_DAYS_AHEAD);
 }
 
-export type FormProblem = 'needDate' | 'needPhone' | 'badPhone';
+export function isPickableDay(today: string, day: string): boolean {
+  return day >= addDays(today, VIEWING_MIN_DAYS_AHEAD) && day <= lastPickableDay(today);
+}
+
+/** 'YYYY-MM' of every month that holds a pickable day, in order. */
+export function calendarMonths(today: string): string[] {
+  const first = addDays(today, VIEWING_MIN_DAYS_AHEAD).slice(0, 7);
+  const last = lastPickableDay(today).slice(0, 7);
+  const months: string[] = [];
+  for (let month = first; month <= last; month = addDays(`${month}-01`, 32).slice(0, 7)) months.push(month);
+  return months;
+}
+
+/** One month for the calendar: a blank (null) for each weekday before the 1st (weeks start on Sunday), then every day. */
+export function monthGrid(month: string): (string | null)[] {
+  const [y, m] = month.split('-').map(Number);
+  const blanks = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+  const length = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return [
+    ...Array.from({ length: blanks }, () => null),
+    ...Array.from({ length }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`),
+  ];
+}
+
+export type ViewingPeriod = 'morning' | 'afternoon' | 'evening';
+export const VIEWING_PERIODS: readonly ViewingPeriod[] = ['morning', 'afternoon', 'evening'];
+
+function clock(minute: number): string {
+  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+}
+
+/** Every time a guest can pick, 'HH:MM': 08:00, 08:30 … 20:00. */
+export function viewingTimes(): string[] {
+  const times: string[] = [];
+  for (let minute = FIRST_MINUTE; minute <= LAST_MINUTE; minute += STEP_MINUTES) times.push(clock(minute));
+  return times;
+}
+
+export function periodOf(time: string): ViewingPeriod {
+  if (time < '12:00') return 'morning';
+  if (time < '17:00') return 'afternoon';
+  return 'evening';
+}
+
+export function timesOf(period: ViewingPeriod): string[] {
+  return viewingTimes().filter((time) => periodOf(time) === period);
+}
+
+/** "08:00–11:30" under a tab. */
+export function periodRange(period: ViewingPeriod): string {
+  const times = timesOf(period);
+  return `${times[0]}–${times[times.length - 1]}`;
+}
+
+/** The moment sent to the API: the Bangkok day and time with its offset, so no device zone can shift it. */
+export function preferredAt(day: string, time: string): string {
+  return `${day}T${time}:00+07:00`;
+}
+
+export type FormProblem = 'needDate' | 'needTime' | 'needPhone' | 'badPhone';
 
 /** Same phone rule as the API: up to 50 characters; a number starting with "+" must be international (E.164). */
-export function formProblem(form: { dates: readonly string[]; phone: string }): FormProblem | null {
-  if (!form.dates.length) return 'needDate';
+export function formProblem(form: { day: string | null; time: string | null; phone: string }): FormProblem | null {
+  if (!form.day) return 'needDate';
+  if (!form.time) return 'needTime';
   const phone = form.phone.trim();
   if (!phone) return 'needPhone';
   if (phone.length > 50) return 'badPhone';

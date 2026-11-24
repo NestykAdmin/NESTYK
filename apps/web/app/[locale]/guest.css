@@ -1926,6 +1926,55 @@ a.nk-types__item:hover {
 .nk-vr__panel {
   width: min(520px, 100%);
 }
+/* Narrow screens: one column, the room first. */
+.nk-vr__side {
+  display: contents;
+}
+.nk-vr__side > .nk-prompt__room {
+  order: -1;
+}
+.nk-vr__pick {
+  display: contents;
+}
+/* Wide screens (Mos 24 Nov 2026): a wider dialog in 2 columns so the whole form fits without scrolling. */
+@media (min-width: 961px) {
+  .nk-vr__panel--form {
+    width: min(920px, calc(100vw - 48px));
+  }
+  .nk-vr__panel--form .nk-vr__form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    column-gap: var(--nk-space-8);
+    align-items: stretch;
+  }
+  .nk-vr__pick,
+  .nk-vr__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nk-space-4);
+    min-width: 0;
+  }
+  .nk-vr__side {
+    padding-left: var(--nk-space-8);
+    border-left: 1px solid var(--nk-color-border);
+  }
+  .nk-vr__side > .nk-prompt__room {
+    order: 0;
+  }
+  .nk-vr__side .nk-vr__submit {
+    margin-top: auto;
+  }
+  .nk-vr__panel--form .nk-vr__days {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .nk-vr__panel--form .nk-vr__scroll {
+    display: none;
+  }
+  .nk-vr__panel--form .nk-vr__times {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
 .nk-vr__head {
   display: flex;
   align-items: center;
@@ -2015,12 +2064,98 @@ a.nk-types__item:hover {
 }
 .nk-vr__day.is-on {
   border-color: var(--nk-color-ink);
+  background: var(--nk-color-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--nk-color-ink);
+}
+.nk-vr__day--cal {
+  border-style: dashed;
+  gap: var(--nk-space-1);
+}
+.nk-vr__field--dates {
+  position: relative;
+}
+.nk-vr__back {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  min-height: 32px;
+  padding: 0 var(--nk-space-1);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.nk-vr-cal {
+  padding: var(--nk-space-3);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+}
+.nk-vr-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nk-space-2);
+}
+.nk-vr-cal__month {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-vr-cal__nav {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.nk-vr-cal__nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.nk-vr-cal__week,
+.nk-vr-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  text-align: center;
+}
+.nk-vr-cal__week {
+  margin-bottom: var(--nk-space-1);
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-cal__day {
+  height: 40px;
+  border: 0;
+  border-radius: var(--nk-radius-md);
+  background: none;
+  font: inherit;
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-vr-cal__day:hover:not(:disabled) {
+  background: var(--nk-color-brand-soft);
+}
+.nk-vr-cal__day.is-on {
   background: var(--nk-color-ink);
   color: var(--nk-color-surface);
+  font-weight: 600;
 }
-.nk-vr__day:disabled {
-  opacity: 0.45;
+.nk-vr-cal__day:disabled {
+  color: var(--nk-color-text-disabled);
   cursor: not-allowed;
+}
+.nk-vr-cal__limit {
+  margin: var(--nk-space-2) 0 0;
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
 }
 .nk-vr__day-week,
 .nk-vr__day-month {
@@ -2031,47 +2166,74 @@ a.nk-types__item:hover {
   font-size: var(--nk-text-lg);
   line-height: 1.1;
 }
-.nk-vr__slots {
+.nk-vr__tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--nk-space-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--nk-radius-lg);
+  background: var(--nk-color-neutral-bg);
 }
-.nk-vr__slot {
-  position: relative;
+.nk-vr__tab {
   min-height: var(--nk-tap);
-  box-sizing: border-box;
-  padding: var(--nk-space-1) var(--nk-space-2);
-  border: 1px solid var(--nk-color-border);
+  border: 0;
   border-radius: var(--nk-radius-md);
+  background: transparent;
+  font: inherit;
+  color: var(--nk-color-ink);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  line-height: 1.3;
   cursor: pointer;
 }
-.nk-vr__slot input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.nk-vr__tab.is-on {
+  background: var(--nk-color-surface);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
 }
-.nk-vr__slot:has(input:focus-visible) {
-  outline: 3px solid var(--nk-color-focus);
-  outline-offset: 2px;
+.nk-vr__tab-name {
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
 }
-.nk-vr__slot.is-on {
+.nk-vr__tab-range {
+  font-size: 11px;
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr__times {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nk-space-2);
+}
+.nk-vr__time {
+  min-height: var(--nk-tap);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  font: inherit;
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-vr__time:hover {
+  border-color: var(--nk-color-ink);
+}
+.nk-vr__time.is-on {
   border-color: var(--nk-color-ink);
   background: var(--nk-color-brand-soft);
   box-shadow: inset 0 0 0 1px var(--nk-color-ink);
 }
-.nk-vr__slot-name {
+.nk-vr__summary {
+  margin: 0;
+  padding: var(--nk-space-2) var(--nk-space-3);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-brand-soft);
+  color: var(--nk-color-ink);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
   font-size: var(--nk-text-sm);
   font-weight: 600;
-  color: var(--nk-color-ink);
-}
-.nk-vr__slot-hint {
-  font-size: 11px;
-  color: var(--nk-color-text-secondary);
 }
 .nk-vr__message {
   height: auto;
@@ -2134,8 +2296,8 @@ a.nk-types__item:hover {
   cursor: pointer;
 }
 @media (max-width: 480px) {
-  .nk-vr__slots {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .nk-vr__times {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .nk-vr__scroll {
     display: none;
