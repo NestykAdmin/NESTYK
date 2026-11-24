@@ -249,7 +249,8 @@ export type AppRouteTab =
   | 'contact'
   | 'living'
   | 'bills'
-  | 'income';
+  | 'income'
+  | 'viewingRequests';
 
 export interface AppRouteState {
   role: UserRole;
@@ -333,9 +334,11 @@ const ROUTE_PAGES: Record<UserRole, RoutePage[]> = {
     { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },
     { path: ['settings', 'help'], state: { tab: 'dashboard', settings: 'help' } },
   ],
-  // Admin pages are samples for now (plan 3.5): its home and the settings page (web shell, Mos 18 Nov 2026).
+  // Admin pages are samples for now (plan 3.5): its home and the settings page (web shell, Mos 18 Nov 2026),
+  // plus the viewing request queue (plan step 3, Mos 24 Nov 2026).
   admin: [
     { path: [], state: { tab: 'dashboard' } },
+    { path: ['viewing-requests'], state: { tab: 'viewingRequests' } },
     { path: ['settings'], state: { tab: 'dashboard', settings: 'profile' } },
     { path: ['settings', 'security'], state: { tab: 'dashboard', settings: 'security' } },
     { path: ['settings', 'display'], state: { tab: 'dashboard', settings: 'display' } },

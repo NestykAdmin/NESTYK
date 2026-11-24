@@ -12,6 +12,10 @@ export interface WorkspaceNavItem {
   active?: boolean;
   disabled?: boolean;
   badge?: string;
+  /** A number shown at the end of the row (e.g. new requests waiting); hidden when 0 or unset. */
+  count?: number;
+  /** What the number means, read by screen readers with the label (e.g. "3 new"). */
+  countLabel?: string;
   title?: string;
   onPress: () => void;
 }

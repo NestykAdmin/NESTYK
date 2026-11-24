@@ -40,6 +40,9 @@ import { AgentSectionHeader } from '../components/agent-web/AgentSectionHeader';
 import { AgentOverview } from '../components/agent-web/AgentOverview';
 import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
+import { AdminViewingRequestsPage } from '../components/agent-web/AdminViewingRequestsPage';
+import { listAdminViewingRequests } from '../lib/admin-viewing-requests-api';
+import { countByTab } from '../lib/admin-viewing-requests';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
 import { CreateLeadForm, type LeadFormTab } from '../components/CreateLeadForm';
@@ -173,6 +176,8 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
       return t.mobile.screens.deals;
     case 'tickets':
       return t.mobile.screens.tickets;
+    case 'viewingRequests':
+      return t.adminWeb.viewing.title;
     case 'services':
       return t.mobile.screens.services;
     default:
@@ -785,6 +790,26 @@ export function AppHomeScreen() {
   const isTenantWeb = isWideWeb && activeRole === 'tenant';
   // Admin and self owner web shells (Mos 18 Nov 2026): the same workspace shell with their own sidebars.
   const isAdminWeb = isWideWeb && activeRole === 'admin';
+  // Admin menu count: new viewing requests waiting (Mos 24 Nov 2026). On the queue page the page itself reports it
+  // (onNewCount), so this load runs on the other admin pages only, again on each page change, and only once signed in
+  // (review R3). Leaving the admin shell clears it.
+  const [adminNewRequests, setAdminNewRequests] = useState(0);
+  const loadAdminCount = isAdminWeb && ready && isAuthenticated && activeTab !== 'viewingRequests';
+  useEffect(() => {
+    if (!isAdminWeb || !isAuthenticated) setAdminNewRequests(0);
+  }, [isAdminWeb, isAuthenticated]);
+  useEffect(() => {
+    if (!loadAdminCount) return;
+    let cancelled = false;
+    listAdminViewingRequests()
+      .then((items) => {
+        if (!cancelled) setAdminNewRequests(countByTab(items).new);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAdminCount, activeTab]);
   const isSelfOwnerWeb = isWideWeb && activeRole === 'self_owner';
   const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb || isAdminWeb || isSelfOwnerWeb;
   // Widening the browser past WEB_SHELL_MIN_WIDTH swaps in the desktop shell; close the app drawer so it does not
@@ -1591,6 +1616,11 @@ export function AppHomeScreen() {
       );
     }
 
+    if (activeTab === 'viewingRequests') {
+      // Admin web only (plan step 3, Mos 24 Nov 2026); the admin app gets it later.
+      return isAdminWeb ? <AdminViewingRequestsPage onNewCount={setAdminNewRequests} /> : null;
+    }
+
     return null;
   };
 
@@ -1792,7 +1822,12 @@ export function AppHomeScreen() {
     : isTenantWeb
       ? tenantNavSections
       : isAdminWeb
-        ? adminWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
+        ? adminWebNavSections(
+            roleMenuCopy,
+            activeTab === 'dashboard' || activeTab === 'viewingRequests' ? activeTab : null,
+            (page) => handleTabPress(page),
+            adminNewRequests,
+          )
         : isSelfOwnerWeb
           ? selfOwnerWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
           : undefined;

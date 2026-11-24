@@ -193,6 +193,35 @@
   background: var(--aw-border);
   margin: var(--aw-s6) var(--aw-s3) var(--aw-s6);
 }
+/* A count at the end of a menu row (admin: new viewing requests). Collapsed sidebar: a small badge on the icon. */
+.aw-nav-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #f8b615;
+  color: #211e1e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+.aw-collapsed .aw-sidebar .aw-nav-item {
+  position: relative;
+}
+.aw-collapsed .aw-sidebar .aw-nav-count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 18px;
+}
 .aw-soon {
   /* 12px Thai floor made the old boxed badge too wide for a 216px sidebar (labels wrapped at 1024): plain muted text now. */
   margin-left: auto;

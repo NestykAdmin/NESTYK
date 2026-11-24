@@ -136,6 +136,7 @@ const R2_PAGES = [
   ['/landlord/income', { role: 'landlord', tab: 'income' }],
   ['/landlord/services', { role: 'landlord', tab: 'services' }],
   ['/admin', { role: 'admin', tab: 'dashboard' }],
+  ['/admin/viewing-requests', { role: 'admin', tab: 'viewingRequests' }],
 ];
 
 function open(href) {

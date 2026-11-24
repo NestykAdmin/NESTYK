@@ -3,7 +3,8 @@ import type { WorkspaceNavItem, WorkspaceNavSection } from "./AgentWorkspace.typ
 
 /**
  * Web sidebars of the admin and the self owner (Mos 18 Nov 2026, canvas page "setting" A1 and O1).
- * Only the overview works yet; every other item shows "coming soon" (admin pages are samples, plan 3.5;
+ * Only the overview works yet (admin: also the viewing request queue, plan step 3, Mos 24 Nov 2026); every other
+ * item shows "coming soon" (admin pages are samples, plan 3.5;
  * self_owner is round 2 of docs/ROLE-CHANGE-PLAN.md with sample menus only). Pure: no React.
  */
 export interface RoleWebMenuCopy {
@@ -11,7 +12,7 @@ export interface RoleWebMenuCopy {
   dashboard: string;
   services: string;
   drawer: { users: string; tickets: string; system: string; audit: string; opsSettings: string };
-  admin: { main: string };
+  admin: { main: string; viewing: { menu: string; newCount: string } };
   selfOwner: {
     main: string;
     money: string;
@@ -33,14 +34,31 @@ function overview(copy: RoleWebMenuCopy, active: boolean, onOverview: () => void
   return { id: "dashboard", icon: "grid", label: copy.dashboard, active, onPress: onOverview };
 }
 
-export function adminWebNavSections(copy: RoleWebMenuCopy, overviewActive: boolean, onOverview: () => void): WorkspaceNavSection[] {
+export type AdminWebPage = "dashboard" | "viewingRequests";
+
+export function adminWebNavSections(
+  copy: RoleWebMenuCopy,
+  active: AdminWebPage | null,
+  onOpen: (page: AdminWebPage) => void,
+  newViewingRequests = 0,
+): WorkspaceNavSection[] {
   const s = copy.comingSoon;
+  const viewing: WorkspaceNavItem = {
+    id: "viewingRequests",
+    icon: "calendar",
+    label: copy.admin.viewing.menu,
+    active: active === "viewingRequests",
+    count: newViewingRequests > 0 ? newViewingRequests : undefined,
+    countLabel: newViewingRequests > 0 ? copy.admin.viewing.newCount.replace("{count}", String(newViewingRequests)) : undefined,
+    onPress: () => onOpen("viewingRequests"),
+  };
   return [
     {
       id: "main",
       caption: copy.admin.main,
       items: [
-        overview(copy, overviewActive, onOverview),
+        overview(copy, active === "dashboard", () => onOpen("dashboard")),
+        viewing,
         soon("users", "user", copy.drawer.users, s),
         soon("tickets", "ticket", copy.drawer.tickets, s),
         soon("services", "wrench", copy.services, s),

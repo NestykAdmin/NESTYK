@@ -35,6 +35,8 @@ export type MobileAppTab =
   | 'deals'
   | 'tickets'
   | 'services'
+  /** Admin web: viewing request queue (no bottom tab; reached from the admin sidebar). */
+  | 'viewingRequests'
   | 'menu';
 
 export interface MobileBottomTabBarProps {

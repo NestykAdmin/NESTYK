@@ -3,6 +3,7 @@ import type {
   AgentTenantBillStatus,
   LeadDisplayStatus,
   LeadViewingStatus,
+  ViewingRequestStatus,
 } from "@nestyk/types";
 import type { TenantWorkKind } from "../../../lib/tenant-work";
 
@@ -72,6 +73,14 @@ export function billStatusIntent(status: AgentTenantBillStatus | string | null |
 
 export function tenantWorkIntent(kind: TenantWorkKind | string | null | undefined): StatusIntent {
   return (kind && WORK[kind as TenantWorkKind]) || "neutral";
+}
+
+/** Admin viewing request queue: admin must act on new ones and on the ones NESTYK handles; agents' work is in progress. */
+export function viewingRequestIntent(status: ViewingRequestStatus): StatusIntent {
+  if (status === "new" || status === "admin_handling") return "attn";
+  if (status === "awaiting_agent" || status === "agent_handling" || status === "scheduled") return "prog";
+  if (status === "viewed") return "done";
+  return "neutral";
 }
 
 /** A scheduled viewing whose time has passed reads as "attn" (เลยเวลานัด). */

@@ -384,6 +384,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       aria-current={item.active && !settingsOpen ? "page" : undefined}
       disabled={props.navigationDisabled || item.disabled}
       title={item.title ?? item.label}
+      aria-label={item.count && item.countLabel ? `${item.label}, ${item.countLabel}` : undefined}
       onClick={() => {
         if (props.navigationDisabled || item.disabled) return;
         accountRef.current?.removeAttribute("open");
@@ -394,6 +395,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       <MobileIcon name={item.icon} size={20} color={itemColor(Boolean(item.active) && !settingsOpen)} />
       <span className="aw-nav-label">{item.label}</span>
       {item.badge ? <span className="aw-soon aw-nav-label">{item.badge}</span> : null}
+      {item.count ? <span className="aw-nav-count">{item.count > 99 ? "99+" : item.count}</span> : null}
       {item.active && !settingsOpen ? <span className="aw-active-dot" /> : null}
     </button>
   );
