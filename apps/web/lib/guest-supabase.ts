@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { appSessionToken, inApp } from './app-bridge-client';
 
 /**
  * Supabase client of the guest web (AUTH-2.1, nestyk-guest-session-plan-20261112.md B1/B3). Same project, same
@@ -13,7 +14,8 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 let client: Promise<SupabaseClient | null> | null = null;
 
 export function loadGuestSupabase(): Promise<SupabaseClient | null> {
-  if (!url || !anonKey || typeof window === 'undefined') return Promise.resolve(null);
+  // Inside the NESTYK app the app keeps the sign-in (W1): this page never holds or refreshes a session of its own.
+  if (!url || !anonKey || typeof window === 'undefined' || inApp()) return Promise.resolve(null);
   if (!client) {
     client = (async () => {
       const { createClient } = await import('@supabase/supabase-js');
@@ -39,6 +41,7 @@ export function loadGuestSupabase(): Promise<SupabaseClient | null> {
  * when Supabase cannot be reached. The caller checks userId, so a switch of account mid-press is never sent.
  */
 export async function guestSessionToken(): Promise<{ token: string; userId: string } | null> {
+  if (inApp()) return appSessionToken();
   const supabase = await loadGuestSupabase();
   if (!supabase) return null;
   try {

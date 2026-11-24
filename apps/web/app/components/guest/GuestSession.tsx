@@ -12,6 +12,7 @@ import {
   type GuestProfile,
 } from '../../../lib/guest-session';
 import { loadGuestSupabase } from '../../../lib/guest-supabase';
+import { appSessionProfile, inApp, onAppSessionChanged, signOutOfApp } from '../../../lib/app-bridge-client';
 
 /**
  * Who is signed in, for the guest web (AUTH-2.3, nestyk-guest-session-plan-20261112.md B3–B6).
@@ -21,6 +22,8 @@ import { loadGuestSupabase } from '../../../lib/guest-supabase';
  * - Signed in only when the copy and the Supabase session agree on the user.
  * - Other tabs (and the account pages) signing in or out are followed through the "storage" event.
  * - 8 hours with no use on any tab signs this device out (the shared last-activity time, Mos D4).
+ * Inside the NESTYK app (W1, nestyk-guest-app-webview-plan-20261124.md) the app owns the sign-in: this asks the app
+ * who is signed in, follows the app's changes, and signing out here signs the app out. No storage, no idle rule.
  */
 export type GuestSessionState =
   | { status: 'checking'; profile: null }
@@ -63,6 +66,10 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
    */
   const signOut = useCallback(async (reason: 'signedOut' | 'expired' = 'signedOut') => {
     setState(SIGNED_OUT);
+    if (inApp()) {
+      if (reason === 'signedOut') signOutOfApp();
+      return;
+    }
     try {
       const supabase = await loadGuestSupabase();
       await supabase?.auth.signOut({ scope: 'local' });
@@ -78,8 +85,25 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  // Inside the app: ask the app now and again whenever it signs in, out or switches account.
+  const appMode = typeof window !== 'undefined' && inApp();
+  useEffect(() => {
+    if (!appMode) return;
+    let latest = 0;
+    const look = () => {
+      const ask = ++latest;
+      void appSessionProfile().then((profile) => {
+        if (ask !== latest) return;
+        setState(profile ? { status: 'signedIn', profile } : SIGNED_OUT);
+      });
+    };
+    look();
+    return onAppSessionChanged(look);
+  }, [appMode]);
+
   // First look, in the browser only. supabase-js loads only when there is a sign-in copy (review R5).
   useEffect(() => {
+    if (appMode) return;
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
     if (!readGuestProfile(readKey(SESSION_STORAGE_KEY))) {
@@ -111,10 +135,11 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
       cancelled = true;
       unsubscribe?.();
     };
-  }, [signOut]);
+  }, [appMode, signOut]);
 
   // Other tabs and the account pages.
   useEffect(() => {
+    if (appMode) return;
     const onStorage = (event: StorageEvent) => {
       if (event.storageArea && event.storageArea !== browserStorage()) return;
       const change = guestSessionChange({ currentUserId: userIdRef.current, key: event.key, newValue: event.newValue });
@@ -127,12 +152,12 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [appMode]);
 
   // Idle: count use on this page into the shared time, and sign out after 8 hours with none on any tab.
   const signedIn = state.status === 'signedIn';
   useEffect(() => {
-    if (!signedIn) return;
+    if (!signedIn || appMode) return;
     let lastWrite = 0;
     const markActive = () => {
       const now = Date.now();
@@ -153,7 +178,7 @@ export function GuestSessionProvider({ children }: { children: React.ReactNode }
       for (const name of ACTIVITY_EVENTS) window.removeEventListener(name, markActive);
       window.clearInterval(timer);
     };
-  }, [signedIn, signOut]);
+  }, [appMode, signedIn, signOut]);
 
   const value = useMemo<GuestSessionValue>(() => ({ ...state, signOut: () => signOut('signedOut') }), [state, signOut]);
   return <GuestSessionContext.Provider value={value}>{children}</GuestSessionContext.Provider>;
