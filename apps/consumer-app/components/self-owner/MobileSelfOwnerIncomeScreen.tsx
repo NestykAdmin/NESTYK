@@ -8,6 +8,7 @@ import type { StatusIntent } from '../agent-web/ui/statusIntent';
 import { SELF_OWNER_LOCALE_TAG, summarizeRent } from '../../lib/self-owner-dashboard';
 import { selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from '../../lib/self-owner-contracts';
 import type { SelfOwnerIncomePageProps } from './SelfOwnerIncomePage.types';
+import { LeadSelectField } from '../LeadSelectField';
 
 const STATE_INTENT: Record<SelfOwnerRentState, StatusIntent> = { paid: 'done', due: 'neutral', overdue: 'crit' };
 const { subtle } = tokens.colors;
@@ -38,12 +39,13 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
   const sum = summarizeRent(rows);
   const money = (amount: number) => t.agent.listings.rentAmount.replace('{price}', amount.toLocaleString(tag));
   const day = (ymd: string) => new Date(`${ymd}T00:00:00+07:00`).toLocaleDateString(tag, { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' });
-  const monthLabel = shownMonth
-    ? new Date(Date.UTC(shownMonth.year, shownMonth.month - 1, 15)).toLocaleDateString(tag, { month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' })
-    : '';
+  const nameOf = (m: { year: number; month: number }) =>
+    new Date(Date.UTC(m.year, m.month - 1, 15)).toLocaleDateString(tag, { month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' });
   const stateText = (row: SelfOwnerRent) => (row.state === 'overdue' ? interpolate(inc.overdue, { n: row.overdueDays ?? 0 }) : inc[row.state]);
   const small = [styles.small, { color: muted }];
 
+  // Arrows step one month; the month itself is a select field, newest first (Jom 24 Nov 2026).
+  const monthOptions = months.map((m, i) => ({ value: i, label: nameOf(m) })).reverse();
   const navButton = (label: string, icon: 'chevron-left' | 'chevron-right', next: number) => {
     const disabled = next < 0 || next >= months.length;
     return (
@@ -71,7 +73,18 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
       ) : null}
       <View style={styles.month}>
         {navButton(inc.prevMonth, 'chevron-left', index - 1)}
-        <Text style={[styles.title, { color: ink }]} accessibilityLiveRegion="polite">{monthLabel}</Text>
+        <LeadSelectField
+          label={inc.month}
+          placeholder={inc.month}
+          hideLabel
+          icon="calendar"
+          value={index}
+          options={monthOptions}
+          onChange={(next) => {
+            if (next != null) setIndex(next);
+          }}
+          style={styles.flex}
+        />
         {navButton(inc.nextMonth, 'chevron-right', index + 1)}
       </View>
       <View style={styles.summary}>
@@ -116,14 +129,13 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   demo: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
-  month: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1 },
+  month: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  navBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1 },
   summary: { gap: 8 },
   tile: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
   amount: { fontFamily: tokens.typography.native.bodyBold, fontSize: 17, lineHeight: 24 },
   list: { gap: 10 },
   card: { gap: 6, padding: 14, borderRadius: 14, borderWidth: 1 },
-  title: { fontFamily: tokens.typography.native.bodyBold, fontSize: 18, lineHeight: 26, flex: 1, textAlign: 'center' },
   body: { fontFamily: tokens.typography.native.body, fontSize: 15, lineHeight: 22 },
   small: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 19 },
 });

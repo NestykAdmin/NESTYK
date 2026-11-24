@@ -596,6 +596,7 @@ export const en: TranslationSchema = {
     overdue: '{n} days overdue',
     paidOn: 'Paid {date}',
     dueOn: 'Due {date}',
+    month: 'Month',
     prevMonth: 'Previous month',
     nextMonth: 'Next month',
     empty: 'No rent to collect this month',

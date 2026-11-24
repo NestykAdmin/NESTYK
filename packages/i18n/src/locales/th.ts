@@ -596,6 +596,7 @@ export const th: TranslationSchema = {
     overdue: 'เลยกำหนด {n} วัน',
     paidOn: 'จ่ายเมื่อ {date}',
     dueOn: 'ครบกำหนด {date}',
+    month: 'เดือน',
     prevMonth: 'เดือนก่อน',
     nextMonth: 'เดือนถัดไป',
     empty: 'เดือนนี้ไม่มีค่าเช่าที่ต้องเก็บ',

@@ -596,6 +596,7 @@ export const ja: TranslationSchema = {
     overdue: '{n} 日遅延',
     paidOn: '{date} 支払済み',
     dueOn: '期日 {date}',
+    month: '月',
     prevMonth: '前の月',
     nextMonth: '次の月',
     empty: '今月回収する家賃はありません',

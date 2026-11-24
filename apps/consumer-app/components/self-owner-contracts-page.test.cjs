@@ -23,7 +23,7 @@ function load(filename) {
     if (name.endsWith('.css')) return {};
     if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useSyncExternalStore: (_s, get) => get(), useEffect() {}, useRef: () => ({ current: null }), useId: () => `test-${sequence++}`, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
-    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileStatusPill: 'MobileStatusPill', MobileSectionHeader: 'MobileSectionHeader', MobileFilterChip: 'MobileFilterChip', MobileButton: 'MobileButton', MobileInput: 'MobileInput', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens };
+    if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileStatusPill: 'MobileStatusPill', MobileSectionHeader: 'MobileSectionHeader', MobileFilterChip: 'MobileFilterChip', MobileButton: 'MobileButton', MobileInput: 'MobileInput', MobileBottomSheet: 'MobileBottomSheet', SelectionCheck: 'SelectionCheck', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens };
     if (name === '@nestyk/ui/cookie-consent') return { cookieConsentAllows: () => false };
     if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), ScrollView: 'ScrollView', TextInput: 'TextInput', View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: v => v, hairlineWidth: 1 }, Platform: { OS: 'ios' } };
     if (name === 'react-native-safe-area-context') return { SafeAreaView: ({ children }) => children };
@@ -97,7 +97,7 @@ test('web contract detail is read only', () => {
   assert.ok(buttons.filter(b => !b.props.disabled).every(b => b.props['aria-label'] === closeLabel || label(b) === closeLabel));
 });
 
-test('web income: this month, summary adds up, next month disabled, first month has no previous', () => {
+test('web income: this month, summary adds up, arrows plus a month dropdown', () => {
   locale = 'th';
   const inc = copyOf().selfOwnerIncome;
   const tree = incomeWeb();
@@ -107,12 +107,21 @@ test('web income: this month, summary adds up, next month disabled, first month 
   const sum = (state) => rows.filter(r => !state || r.state === state).reduce((n, r) => n + r.amount, 0);
   for (const amount of [sum(), sum('paid'), sum('overdue')]) assert.ok(all.includes(`฿${amount.toLocaleString('en-US')}`), String(amount));
   assert.equal(sum(), sum('paid') + sum('overdue') + sum('due'));
-  const nav = (tree, name) => tree.find(n => n?.type === 'button' && n.props['aria-label'] === name);
-  assert.equal(nav(tree, inc.nextMonth).props.disabled, true);
+  // Jom 24 Nov 2026: previous / next arrows, and the month itself is a dropdown (newest first).
+  const select = (t) => t.find(n => n?.type === 'select' && n.props['aria-label'] === inc.month);
+  const options = nodes(select(tree).props.children).filter(n => n?.type === 'option');
+  assert.equal(options.length, months().length);
+  assert.equal(label(options[0]), 'พฤศจิกายน 2026');
+  assert.equal(label(options[options.length - 1]), 'ตุลาคม 2025');
+  assert.equal(select(tree).props.value, options[0].props.value, 'this month selected');
+  const nav = (t, name) => t.find(n => n?.type === 'button' && n.props['aria-label'] === name);
+  assert.equal(nav(tree, inc.nextMonth).props.disabled, true, 'no month after this one');
   assert.equal(nav(tree, inc.prevMonth).props.disabled, false);
   const first = months()[0];
   const firstTree = incomeWeb({ initialMonth: first });
-  assert.equal(nav(firstTree, inc.prevMonth).props.disabled, true);
+  assert.equal(select(firstTree).props.value, options[options.length - 1].props.value, 'initial month selected');
+  assert.equal(nav(firstTree, inc.prevMonth).props.disabled, true, 'no month before the first');
+  assert.equal(nav(firstTree, inc.nextMonth).props.disabled, false);
   const rowsOf = (t) => t.filter(n => n?.type === 'tr' && String(n.props['data-testid'] ?? '').startsWith('self-owner-income-table.row.'));
   assert.equal(rowsOf(tree).length, rows.length);
   assert.equal(rowsOf(firstTree).length, lib().selfOwnerRentForMonth(contracts(), first.year, first.month, now).length);
@@ -182,8 +191,17 @@ test('phone income: month switch, summary, rows', () => {
   const rows = lib().selfOwnerRentForMonth(contracts(), 2026, 11, now);
   assert.equal(byTestId(tree, 'soi-row-').length, rows.length);
   assert.ok(texts(tree).includes('พฤศจิกายน 2026'));
+  // Jom 24 Nov 2026: previous / next arrows, and the month itself is a select field (bottom sheet), newest first.
+  const shallow = (el) => (el == null || typeof el !== 'object' ? [] : Array.isArray(el) ? el.flatMap(shallow) : [el, ...shallow(el.props?.children)]);
+  const screen = phone('MobileSelfOwnerIncomeScreen.tsx').MobileSelfOwnerIncomeScreen({ contracts: contracts(), months: months(), isDemoPreview: true, now });
+  const field = shallow(screen).find(n => n?.type?.name === 'LeadSelectField');
+  assert.ok(field, 'month select field');
+  assert.equal(field.props.label, inc.month);
+  assert.equal(field.props.options.length, months().length);
+  assert.equal(field.props.options[0].label, 'พฤศจิกายน 2026');
+  assert.equal(field.props.value, field.props.options[0].value, 'this month selected');
   const nav = (name) => tree.find(n => n?.props?.accessibilityLabel === name && n?.props?.accessibilityRole === 'button');
-  assert.equal(nav(inc.nextMonth).props.disabled, true);
+  assert.equal(nav(inc.nextMonth).props.disabled, true, 'no month after this one');
   assert.equal(nav(inc.prevMonth).props.disabled, false);
   const sum = rows.reduce((n, r) => n + r.amount, 0);
   assert.ok(texts(tree).includes(`฿${sum.toLocaleString('en-US')}`));

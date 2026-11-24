@@ -595,6 +595,8 @@ export interface TranslationSchema {
     overdue: string;
     paidOn: string;
     dueOn: string;
+    /** Month dropdown label; the arrows either side step one month (Jom 24 Nov 2026). */
+    month: string;
     prevMonth: string;
     nextMonth: string;
     empty: string;

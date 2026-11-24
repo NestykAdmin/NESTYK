@@ -595,6 +595,7 @@ export const zh: TranslationSchema = {
     overdue: '逾期 {n} 天',
     paidOn: '{date} 已支付',
     dueOn: '{date} 到期',
+    month: '月份',
     prevMonth: '上个月',
     nextMonth: '下个月',
     empty: '本月没有需要收取的租金',

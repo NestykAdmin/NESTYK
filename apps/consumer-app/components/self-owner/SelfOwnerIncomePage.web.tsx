@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useLocale } from "@nestyk/i18n";
 import { MobileIcon } from "@nestyk/ui/native";
 import { interpolate } from "@nestyk/feature-listing";
+import { AgentSelect } from "../agent-web/AgentSelect";
 import { WebTable, type WebTableColumn } from "../agent-web/ui/WebTable";
 import { StatusBadge } from "../agent-web/ui/StatusBadge";
 import type { StatusIntent } from "../agent-web/ui/statusIntent";
@@ -37,9 +38,9 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
   const sum = summarizeRent(rows);
   const money = (amount: number) => t.agent.listings.rentAmount.replace("{price}", amount.toLocaleString(tag));
   const day = (ymd: string) => new Date(`${ymd}T00:00:00+07:00`).toLocaleDateString(tag, { day: "numeric", month: "short", timeZone: "Asia/Bangkok" });
-  const monthLabel = shownMonth
-    ? new Date(Date.UTC(shownMonth.year, shownMonth.month - 1, 15)).toLocaleDateString(tag, { month: "long", year: "numeric", timeZone: "Asia/Bangkok" })
-    : "";
+  const nameOf = (m: { year: number; month: number }) =>
+    new Date(Date.UTC(m.year, m.month - 1, 15)).toLocaleDateString(tag, { month: "long", year: "numeric", timeZone: "Asia/Bangkok" });
+  const monthLabel = shownMonth ? nameOf(shownMonth) : "";
   const stateText = (row: SelfOwnerRent) => (row.state === "overdue" ? interpolate(inc.overdue, { n: row.overdueDays ?? 0 }) : inc[row.state]);
 
   const columns: WebTableColumn<SelfOwnerRent>[] = [
@@ -71,6 +72,7 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
     },
   ];
 
+
   const navButton = (label: string, icon: "chevron-left" | "chevron-right", next: number) => (
     <button
       type="button"
@@ -94,9 +96,16 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
           </p>
         </div>
       ) : null}
-      <div className="soi-month" role="group" aria-label={monthLabel}>
+      {/* Arrows step one month; the month itself is a dropdown, newest first (Jom 24 Nov 2026). */}
+      <div className="soi-month">
         {navButton(inc.prevMonth, "chevron-left", index - 1)}
-        <h2 className="soi-month-label" aria-live="polite">{monthLabel}</h2>
+        <div className="awr-status-select">
+          <AgentSelect aria-label={inc.month} value={String(index)} onChange={(event) => setIndex(Number(event.target.value))}>
+            {months.map((m, i) => ({ m, i })).reverse().map(({ m, i }) => (
+              <option key={`${m.year}-${m.month}`} value={String(i)}>{nameOf(m)}</option>
+            ))}
+          </AgentSelect>
+        </div>
         {navButton(inc.nextMonth, "chevron-right", index + 1)}
       </div>
       <div className="soi-summary">
