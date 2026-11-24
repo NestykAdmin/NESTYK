@@ -80,6 +80,7 @@ import {
   useMobileTheme,
   getDefaultTabForRole,
   isAgentComingSoonTab,
+  roleTileColors,
   tokens,
 } from '@nestyk/ui/native';
 import { UserRole, CONTRACT_PARTY_ROLE, type AgentLead, type AgentTenant, type ContractParty, type PartyContract } from '@nestyk/types';
@@ -208,7 +209,7 @@ const WEB_SHELL_MIN_WIDTH = 768;
 
 export function AppHomeScreen() {
   const { t, locale } = useLocale();
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { width: windowWidth } = useWindowDimensions();
   const router = useRouter();
   const { ready, isAuthenticated, session, displayName, initials, signOut, signOutEverywhere, refreshProfile } = useAuth();
@@ -659,6 +660,8 @@ export function AppHomeScreen() {
     setSettingsSection(null);
     setActiveRole(role);
     setActiveTab(getDefaultTabForRole(role));
+    // Mos 24 Nov 2026: once the role has changed, the side menu closes so the new role's home shows at once.
+    setDrawerOpen(false);
   };
 
   // Seeker (guest) is public; every other role requires login.
@@ -1271,7 +1274,8 @@ export function AppHomeScreen() {
 
     // Living (/tenant/home): showed one sample lease to every tenant (QA web flow bugs 6 Nov 2026 item 1). The menu
     // and the tab are "coming soon" until the page reads the tenant's own lease; a direct link lands here.
-    if (activeTab === 'living') {
+    // Guest services are closed for now (Mos 24 Nov 2026): the tab is "coming soon"; a direct link lands here (review R4).
+    if (activeTab === 'living' || (activeRole === 'guest' && activeTab === 'services')) {
       return (
         <View style={styles.bodyContainer}>
           <View style={[styles.card, cardStyle]}>
@@ -2065,12 +2069,10 @@ export function AppHomeScreen() {
               activeTab={activeRole === 'tenant' && partyInbox ? 'menu' : activeTab}
               onTabPress={handleTabPress}
               accentColor={accentColor}
-              {...(activeRole === 'agent' || isTenantWorkspace
-                ? {
-                    activeTintColor: theme.screenTitle,
-                    indicatorColor: tokens.colors.brand[500],
-                  }
-                : {})}
+              // Every role: the agent style (ink label, underline under the picked tab) in the role's own colour
+              // (Mos 24 Nov 2026; was the agent and the tenant workspace only, in brand yellow).
+              activeTintColor={theme.screenTitle}
+              indicatorColor={roleTileColors(activeRole, isDark).ring}
             />
           )
         }

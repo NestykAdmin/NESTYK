@@ -56,7 +56,8 @@
 
   --nk-content-width: 1200px;
   --nk-tap: 44px;
-  --nk-tabbar-height: calc(64px + env(safe-area-inset-bottom, 0px));
+  /* Floating bar (64px) + the gap under it; the page keeps this much room at the bottom. */
+  --nk-tabbar-height: calc(80px + env(safe-area-inset-bottom, 0px));
   --nk-shadow-pop: 0 12px 32px rgba(33, 30, 30, 0.12);
 }
 
@@ -413,10 +414,12 @@ a.nk-nav__item:hover {
   display: none;
 }
 .nk-tab {
+  position: relative;
   min-height: var(--nk-tap);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   color: var(--nk-color-text-secondary);
   font-size: var(--nk-text-xs);
@@ -434,8 +437,13 @@ a.nk-nav__item:hover {
   color: var(--nk-color-ink);
   font-weight: 600;
 }
-.nk-tab[aria-current="page"] .nk-tab__icon {
-  background: var(--nk-color-brand-soft);
+/* Same as the app's tab bar (Mos 24 Nov 2026): a short underline under the picked tab in the guest colour. */
+.nk-tab[aria-current="page"]::after {
+  content: "";
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--nk-color-brand);
 }
 .nk-tab--soon {
   color: var(--nk-color-placeholder);
@@ -817,19 +825,22 @@ summary.nk-row:hover {
   .nk-footer {
     display: none;
   }
+  /* A floating capsule like the app's tab bar (Mos 24 Nov 2026). */
   .nk-tabbar {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: var(--nk-space-3);
+    right: var(--nk-space-3);
+    bottom: max(var(--nk-space-3), env(safe-area-inset-bottom, 0px));
     z-index: 40;
     box-sizing: border-box;
-    min-height: var(--nk-tabbar-height);
-    padding: var(--nk-space-2) var(--nk-space-1) max(var(--nk-space-2), env(safe-area-inset-bottom, 0px));
+    min-height: 64px;
+    padding: var(--nk-space-1);
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     background: var(--nk-color-surface);
-    border-top: 1px solid var(--nk-color-border);
+    border: 1px solid var(--nk-color-border);
+    border-radius: 20px;
+    box-shadow: 0 8px 24px rgba(33, 30, 30, 0.12);
   }
   /* The cookie card floats above the tab bar; the page keeps room for it while it is open. */
   .ck-bar {

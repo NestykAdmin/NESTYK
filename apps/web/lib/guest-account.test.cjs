@@ -125,3 +125,11 @@ test('the phone tab bar shows the own initials in the Guest role colours (brand 
   const css = read(web, 'app', '[locale]', 'guest.css');
   assert.match(css, /\.nk-tab__avatar \{[^}]*background: var\(--nk-role-bg\);[^}]*color: var\(--nk-role-fg\);/);
 });
+
+// Mos 24 Nov 2026: the phone-width tab bar looks like the app's (floating bar, ink label, short underline under the
+// picked tab in the guest colour), no pale yellow pill.
+test('tab bar: floating like the app, underline under the picked tab, no pale yellow', () => {
+  const css = read(web, 'app', '[locale]', 'guest.css');
+  assert.match(css, /\.nk-tab\[aria-current="page"\]::after \{[^}]*background: var\(--nk-color-brand\);/);
+  assert.doesNotMatch(css, /\.nk-tab\[aria-current="page"\] \.nk-tab__icon \{[^}]*brand-soft/);
+});
