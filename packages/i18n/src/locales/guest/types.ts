@@ -305,6 +305,7 @@ export interface GuestCopy {
     periodEvening: string;
     timeValue: string;
     summary: string;
+    summaryEmpty: string;
     phoneLabel: string;
     phonePlaceholder: string;
     messageLabel: string;
@@ -331,6 +332,7 @@ export interface GuestCopy {
     title: string;
     subtitle: string;
     openTitle: string;
+    noOpen: string;
     endedTitle: string;
     emptyTitle: string;
     emptyBody: string;

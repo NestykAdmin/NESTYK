@@ -1961,7 +1961,7 @@ a.nk-types__item:hover {
   .nk-vr__side > .nk-prompt__room {
     order: 0;
   }
-  .nk-vr__side .nk-vr__submit {
+  .nk-vr__side .nk-vr__foot {
     margin-top: auto;
   }
   .nk-vr__panel--form .nk-vr__days {
@@ -2144,8 +2144,9 @@ a.nk-types__item:hover {
   background: var(--nk-color-brand-soft);
 }
 .nk-vr-cal__day.is-on {
-  background: var(--nk-color-ink);
-  color: var(--nk-color-surface);
+  background: var(--nk-color-brand-soft);
+  box-shadow: inset 0 0 0 2px var(--nk-color-ink);
+  color: var(--nk-color-ink);
   font-weight: 600;
 }
 .nk-vr-cal__day:disabled {
@@ -2222,6 +2223,29 @@ a.nk-types__item:hover {
   border-color: var(--nk-color-ink);
   background: var(--nk-color-brand-soft);
   box-shadow: inset 0 0 0 1px var(--nk-color-ink);
+}
+.nk-vr__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+}
+/* Phones: the summary and the send button stay at the bottom of the sheet while the form scrolls. */
+@media (max-width: 960px) {
+  .nk-vr__foot {
+    position: sticky;
+    /* The sheet keeps its bottom padding outside the sticky area: pull the bar down over it. */
+    bottom: calc(-1 * (var(--nk-space-6) + env(safe-area-inset-bottom)));
+    z-index: 1;
+    margin: 0 calc(-1 * var(--nk-space-5)) calc(-1 * (var(--nk-space-6) + env(safe-area-inset-bottom)));
+    padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-4) + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--nk-color-border);
+    background: var(--nk-color-surface);
+  }
+}
+.nk-vr__summary.is-empty {
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-text-secondary);
+  font-weight: 400;
 }
 .nk-vr__summary {
   margin: 0;
@@ -2305,6 +2329,18 @@ a.nk-types__item:hover {
 }
 
 /* The /viewing-requests page (Mos picked "room card + 3-step bar"). */
+.nk-vr-list__none {
+  margin: 0 0 var(--nk-space-4);
+  padding: var(--nk-space-4);
+  border: 1px dashed var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-3);
+  flex-wrap: wrap;
+  color: var(--nk-color-text-secondary);
+}
 .nk-vr-list {
   display: flex;
   flex-direction: column;

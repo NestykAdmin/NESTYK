@@ -141,7 +141,14 @@ export function ViewingRequestsList({ locale }: { locale: string }) {
             ))}
           </ul>
         </section>
-      ) : null}
+      ) : (
+        <p className="nk-vr-list__none" data-testid="viewingRequests.noOpen">
+          <span>{copy.noOpen}</span>
+          <Link href="/search" className="nk-btn nk-btn--outline nk-btn--sm">
+            {copy.browse}
+          </Link>
+        </p>
+      )}
       {ended.length ? (
         <details className="nk-vr-list__ended" open={!open.length}>
           <summary className="nk-vr-list__title">{fillTemplate(copy.endedTitle, { count: ended.length })}</summary>

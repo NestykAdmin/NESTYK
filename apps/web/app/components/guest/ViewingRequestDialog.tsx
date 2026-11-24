@@ -487,18 +487,6 @@ export function ViewingRequestDialog({
 
             <div className="nk-vr__side">
               {roomCard}
-              {day && time ? (
-                <p className="nk-vr__summary" aria-live="polite" data-testid="viewingRequest.summary">
-                  <CalendarIcon size={18} />
-                  <span>
-                    {fillTemplate(copy.summary, {
-                      date: fullDay(day),
-                      time: fillTemplate(copy.timeValue, { time }),
-                    })}
-                  </span>
-                </p>
-              ) : null}
-
               <label className="nk-vr__field">
                 <span className="nk-vr__label">{copy.phoneLabel}</span>
                 <input
@@ -531,31 +519,46 @@ export function ViewingRequestDialog({
                 />
               </label>
 
-              {problem ? (
-                <p id={errorId} className="nk-vr__error" role="alert" data-testid="viewingRequest.error">
-                  {problemText[problem]}
-                  {problem === 'exists' ? (
-                    <>
-                      {' '}
-                      <Link href="/viewing-requests">{copy.viewMine}</Link>
-                    </>
-                  ) : null}
-                </p>
-              ) : null}
-
               <p className="nk-vr__note">
                 <CalendarIcon size={16} />
                 {copy.teamNote}
               </p>
-              <button
-                type="submit"
-                className="nk-btn nk-btn--primary nk-vr__submit"
-                disabled={sending}
-                aria-busy={sending || undefined}
-                data-testid="viewingRequest.submit"
-              >
-                {sending ? copy.sending : copy.submit}
-              </button>
+              {/* Phones: stays at the bottom of the sheet while the form scrolls (Mos 24 Nov 2026). */}
+              <div className="nk-vr__foot">
+                {problem ? (
+                  <p id={errorId} className="nk-vr__error" role="alert" data-testid="viewingRequest.error">
+                    {problemText[problem]}
+                    {problem === 'exists' ? (
+                      <>
+                        {' '}
+                        <Link href="/viewing-requests">{copy.viewMine}</Link>
+                      </>
+                    ) : null}
+                  </p>
+                ) : null}
+
+                <p
+                  className={day && time ? 'nk-vr__summary' : 'nk-vr__summary is-empty'}
+                  aria-live="polite"
+                  data-testid="viewingRequest.summary"
+                >
+                  <CalendarIcon size={18} />
+                  <span>
+                    {day && time
+                      ? fillTemplate(copy.summary, { date: fullDay(day), time: fillTemplate(copy.timeValue, { time }) })
+                      : copy.summaryEmpty}
+                  </span>
+                </p>
+                <button
+                  type="submit"
+                  className="nk-btn nk-btn--primary nk-vr__submit"
+                  disabled={sending}
+                  aria-busy={sending || undefined}
+                  data-testid="viewingRequest.submit"
+                >
+                  {sending ? copy.sending : copy.submit}
+                </button>
+              </div>
             </div>
           </form>
         )}
