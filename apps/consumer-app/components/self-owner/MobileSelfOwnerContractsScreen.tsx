@@ -19,6 +19,8 @@ import {
   type SelfOwnerRoomContracts,
 } from '../../lib/self-owner-contracts';
 import { contractDetailView, contractParty } from './contract-detail-rows';
+import { MobileSelfOwnerPager } from './MobileSelfOwnerPager';
+import { SELF_OWNER_ROOMS_PAGE_SIZE, clampPage } from '../../lib/self-owner-rooms';
 import type { SelfOwnerContractsPageProps } from './SelfOwnerContractsPage.types';
 
 const FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'ending_soon', 'active', 'ended'];
@@ -208,7 +210,7 @@ export function MobileSelfOwnerRoomContracts({
  * one card per room (contract kinds, Jom 24 Nov 2026); a card opens all the room's contracts. Demo data until NESTYK
  * admin creates contracts.
  */
-export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initialFilter = 'all', initialQuery = '' }: SelfOwnerContractsPageProps) {
+export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initialFilter = 'all', initialQuery = '', initialPage = 1 }: SelfOwnerContractsPageProps) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const so = t.selfOwnerContracts;
@@ -220,9 +222,14 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<SelfOwnerContractFilter>(initialFilter);
   const [selected, setSelected] = useState<string | null>(null);
+  const [page, setPage] = useState(initialPage);
   const roomList = useMemo(() => groupSelfOwnerContracts(contracts), [contracts]);
   const counts = useMemo(() => countSelfOwnerRooms(roomList), [roomList]);
-  const shown = useMemo(() => filterSelfOwnerRooms(roomList, query, filter), [roomList, query, filter]);
+  const results = useMemo(() => filterSelfOwnerRooms(roomList, query, filter), [roomList, query, filter]);
+  // Ten rooms a page, like "my rooms" (Jom 25 Nov 2026); a search or filter starts again from page 1.
+  const pages = Math.max(1, Math.ceil(results.length / SELF_OWNER_ROOMS_PAGE_SIZE));
+  const current = clampPage(page, results.length);
+  const shown = results.slice((current - 1) * SELF_OWNER_ROOMS_PAGE_SIZE, current * SELF_OWNER_ROOMS_PAGE_SIZE);
   const open = selected ? roomList.find((room) => room.roomId === selected) ?? null : null;
   const small = [styles.small, { color: muted }];
 
@@ -238,6 +245,7 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
             onPress={() => {
               setQuery('');
               setFilter('all');
+              setPage(1);
             }}
             style={[styles.outline, { borderColor: theme.border }]}
           >
@@ -286,7 +294,10 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
           <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{shared.demoNote}</Text>
         </View>
       ) : null}
-      <MobileInput value={query} placeholder={so.searchPlaceholder} accessibilityLabel={so.searchPlaceholder} onChangeText={setQuery} returnKeyType="search" />
+      <MobileInput value={query} placeholder={so.searchPlaceholder} accessibilityLabel={so.searchPlaceholder} onChangeText={(text) => {
+          setQuery(text);
+          setPage(1);
+        }} returnKeyType="search" />
       <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={so.filterLabel}>
         {FILTERS.map((key) => {
           const on = filter === key;
@@ -296,7 +307,10 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
               testID={`soc-filter-${key}`}
               accessibilityRole="radio"
               accessibilityState={{ selected: on }}
-              onPress={() => setFilter(key)}
+              onPress={() => {
+                setFilter(key);
+                setPage(1);
+              }}
               style={[styles.chip, { borderColor: on ? ink : theme.border, backgroundColor: on ? ink : theme.surface }]}
             >
               <Text style={[styles.small, { color: on ? theme.surface : ink }]}>{key === 'all' ? so.filterAll : so.status[key]}</Text>
@@ -305,8 +319,9 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
           );
         })}
       </View>
-      <Text style={small}>{interpolate(so.count, { n: shown.length })}</Text>
+      <Text style={small}>{interpolate(so.count, { n: results.length })}</Text>
       <View style={styles.list}>{list()}</View>
+      <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, results.length))} testIDPrefix="soc-page" />
       <Modal visible={!!open} animationType="slide" onRequestClose={() => setSelected(null)}>
         {open ? <MobileSelfOwnerRoomContracts room={open} all={contracts} onClose={() => setSelected(null)} /> : null}
       </Modal>

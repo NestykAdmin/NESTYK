@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useLocale } from "@nestyk/i18n";
 import { MobileIcon, useMobileTheme } from "@nestyk/ui/native";
 import { interpolate } from "@nestyk/feature-listing";
@@ -21,6 +21,8 @@ import {
   type SelfOwnerRoomContracts,
 } from "../../lib/self-owner-contracts";
 import { contractDetailView, contractParty } from "./contract-detail-rows";
+import { SelfOwnerWebPager } from "./SelfOwnerWebPager";
+import { SELF_OWNER_ROOMS_WEB_PAGE_SIZE, clampPage } from "../../lib/self-owner-rooms";
 import type { SelfOwnerContractsPageProps } from "./SelfOwnerContractsPage.types";
 import "../agent-web/agent-rooms.css";
 import "./self-owner-rooms.css";
@@ -216,7 +218,7 @@ export function SelfOwnerRoomContractsDialog({
  * Self owner contracts web page: one row per room (contract kinds, Jom 24 Nov 2026), showing the room's current
  * contract; a row opens every contract of that room. Read only; contracts come from NESTYK admin, demo data until then.
  */
-export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter = "all", initialQuery = "" }: SelfOwnerContractsPageProps) {
+export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter = "all", initialQuery = "", initialPage = 1 }: SelfOwnerContractsPageProps) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const so = t.selfOwnerContracts;
@@ -225,15 +227,27 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<SelfOwnerContractFilter>(initialFilter);
   const [selected, setSelected] = useState<string | null>(null);
+  const [page, setPage] = useState(initialPage);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const rooms = useMemo(() => groupSelfOwnerContracts(contracts), [contracts]);
   const counts = useMemo(() => countSelfOwnerRooms(rooms), [rooms]);
-  const shown = useMemo(() => filterSelfOwnerRooms(rooms, query, filter), [rooms, query, filter]);
+  const results = useMemo(() => filterSelfOwnerRooms(rooms, query, filter), [rooms, query, filter]);
+  // 24 rooms a page, like "my rooms" (Jom 25 Nov 2026); a search or filter starts again from page 1.
+  const size = SELF_OWNER_ROOMS_WEB_PAGE_SIZE;
+  const pages = Math.max(1, Math.ceil(results.length / size));
+  const current = clampPage(page, results.length, size);
+  const shown = results.slice((current - 1) * size, current * size);
+  const goToPage = (next: number) => {
+    setPage(clampPage(next, results.length, size));
+    rootRef.current?.closest(".aw-page-scroll")?.scrollTo({ top: 0 });
+  };
   const filtered = !!query.trim() || filter !== "all";
   const open = selected ? rooms.find((room) => room.roomId === selected) ?? null : null;
   const clearAll = () => {
     setQuery("");
     setFilter("all");
+    setPage(1);
   };
 
   const columns: WebTableColumn<SelfOwnerRoomContracts>[] = [
@@ -266,7 +280,7 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
   ];
 
   return (
-    <div className="awr-page" data-testid="self-owner-contracts-page">
+    <div className="awr-page" ref={rootRef} data-testid="self-owner-contracts-page">
       {isDemoPreview ? (
         <div className="sor-head">
           <p className="sor-demo" role="note">
@@ -283,12 +297,22 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
             value={query}
             placeholder={so.searchPlaceholder}
             aria-label={so.searchPlaceholder}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
             data-testid="soc-search"
           />
         </label>
         <div className="awr-status-select">
-          <AgentSelect aria-label={so.filterLabel} value={filter} onChange={(event) => setFilter(event.target.value as SelfOwnerContractFilter)}>
+          <AgentSelect
+            aria-label={so.filterLabel}
+            value={filter}
+            onChange={(event) => {
+              setFilter(event.target.value as SelfOwnerContractFilter);
+              setPage(1);
+            }}
+          >
             <option value="all">{`${so.filterLabel}: ${so.filterAll} (${counts.all})`}</option>
             {STATUSES.map((key) => (
               <option key={key} value={key}>{`${so.status[key]} (${counts[key]})`}</option>
@@ -296,7 +320,7 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
           </AgentSelect>
         </div>
         <span className="awr-count" aria-live="polite">
-          {interpolate(so.count, { n: shown.length })}
+          {interpolate(so.count, { n: results.length })}
         </span>
       </div>
       <div className="awr-results">
@@ -316,6 +340,7 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
           />
         </div>
       </div>
+      <SelfOwnerWebPager current={current} pages={pages} total={results.length} size={size} onPage={goToPage} />
       {open ? <SelfOwnerRoomContractsDialog room={open} all={contracts} onClose={() => setSelected(null)} /> : null}
     </div>
   );

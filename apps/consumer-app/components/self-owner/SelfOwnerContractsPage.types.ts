@@ -5,4 +5,6 @@ export type SelfOwnerContractsPageProps = {
   isDemoPreview: boolean;
   initialFilter?: SelfOwnerContractFilter;
   initialQuery?: string;
+  /** The page shown first (tests); page 1 when left out. */
+  initialPage?: number;
 };

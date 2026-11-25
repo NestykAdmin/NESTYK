@@ -304,7 +304,7 @@ test('phone contracts: chips count rooms, one card per room with its current con
   assert.equal(chips.length, 5);
   assert.ok(texts(nodes(chips[0].props.children)).includes('11'));
   const cards = byTestId(tree, 'soc-card-');
-  assert.equal(cards.length, 11);
+  assert.equal(cards.length, 10, 'ten rooms a page on the phone (11 demo rooms)');
   assert.equal(cards[0].props.testID, 'soc-card-r5');
   const c1204 = cards.find(c => c.props.testID === 'soc-card-r1');
   assert.equal(c1204.props.accessibilityLabel, `${so.viewDetail} ห้อง 1204`);
@@ -457,4 +457,69 @@ test('web page names match the phone menu in every locale', () => {
   }
   assert.equal(copyOf('th').selfOwnerWeb.contracts, 'เอกสาร');
   assert.equal(copyOf('th').selfOwnerWeb.billsIncome, 'รายงานรายได้');
+});
+
+// ---- Pagination (Jom 25 Nov 2026): like "my rooms" — 24 a page on desktop, 10 on the phone ----
+const many = (n) => {
+  const base = contracts().find(c => c.id === 'c-r3');
+  return Array.from({ length: n }, (_, i) => ({ ...base, id: `c-x${i + 1}`, roomId: `x${i + 1}`, roomTitle: `ห้อง X${String(i + 1).padStart(2, '0')}` }));
+};
+const web_ = (file) => load(path.join(__dirname, 'self-owner', file));
+const webCopy = () => copyOf().agent.listings.web;
+const pagerButtons = (tree) => byClass(tree, 'awr-page-btn').map(b => b.props['aria-label'] ?? label(b));
+const range = (from, to, total) => webCopy().pageRange.replace('{from}', from).replace('{to}', to).replace('{total}', total);
+
+test('web documents: 24 rooms a page with the rooms pager; page 2 holds the rest', () => {
+  locale = 'th';
+  const web = webCopy();
+  const first = nodes(web_('SelfOwnerContractsPage.web.tsx').SelfOwnerContractsPage({ contracts: many(30), isDemoPreview: true }));
+  assert.equal(roomRows(first).length, 24);
+  assert.ok(texts(first).includes(range('1', '24', '30')));
+  assert.deepEqual(pagerButtons(first), [web.prevPage, '1', '2', web.nextPage]);
+  assert.equal(byClass(first, 'awr-page-btn')[0].props.disabled, true);
+  assert.equal(byClass(first, 'awr-page-btn')[1].props['aria-current'], 'page');
+  assert.ok(byClass(first, 'awr-page-btn').every(b => b.props.disabled || typeof b.props.onClick === 'function'));
+  const second = nodes(web_('SelfOwnerContractsPage.web.tsx').SelfOwnerContractsPage({ contracts: many(30), isDemoPreview: true, initialPage: 2 }));
+  assert.equal(roomRows(second).length, 6);
+  assert.ok(texts(second).includes(range('25', '30', '30')));
+  assert.equal(byClass(second, 'awr-page-btn').at(-1).props.disabled, true);
+  // A filter that leaves fewer pages shows page 1; one page shows the range but no buttons.
+  const narrowed = nodes(web_('SelfOwnerContractsPage.web.tsx').SelfOwnerContractsPage({ contracts: [...many(30), ...contracts()], isDemoPreview: true, initialPage: 2, initialFilter: 'ended' }));
+  assert.equal(roomRows(narrowed).length, 1);
+  assert.equal(pagerButtons(narrowed).length, 0);
+  assert.ok(texts(contractsWeb()).includes(range('1', '11', '11')));
+});
+
+test('web income: 24 rows a page; the summary still adds up the whole month', () => {
+  locale = 'th';
+  const list = many(30);
+  const page = (props = {}) => nodes(web_('SelfOwnerIncomePage.web.tsx').SelfOwnerIncomePage({ contracts: list, months: lib().selfOwnerIncomeMonths(list, now), isDemoPreview: true, now, ...props }));
+  const rowsOfIncome = (t) => t.filter(n => n?.type === 'tr' && String(n.props['data-testid'] ?? '').startsWith('self-owner-income-table.row.'));
+  const first = page();
+  assert.equal(rowsOfIncome(first).length, 24);
+  assert.ok(texts(first).includes(range('1', '24', '30')));
+  const all = lib().selfOwnerRentForMonth(list, 2026, 11, now);
+  assert.equal(all.length, 30);
+  assert.ok(texts(first).includes(`฿${all.reduce((n, r) => n + r.amount, 0).toLocaleString('en-US')}`), 'total of all 30 rows');
+  assert.equal(rowsOfIncome(page({ initialPage: 2 })).length, 6);
+  assert.equal(pagerButtons(incomeWeb()).length, 0, 'the demo month fits one page');
+});
+
+test('phone documents and income: ten a page with previous / next', () => {
+  locale = 'th';
+  const rooms = copyOf().selfOwnerRooms;
+  const docs = contractsPhone({ contracts: many(30) });
+  assert.equal(byTestId(docs, 'soc-card-').length, 10);
+  assert.equal(byTestId(docs, 'soc-page-prev')[0].props.disabled, true);
+  assert.equal(byTestId(docs, 'soc-page-next')[0].props.disabled, false);
+  assert.ok(texts(docs).includes(interpolate(rooms.pageOf, { page: 1, pages: 3 })));
+  const last = contractsPhone({ contracts: many(30), initialPage: 3 });
+  assert.equal(byTestId(last, 'soc-card-').length, 10);
+  assert.equal(byTestId(last, 'soc-page-next')[0].props.disabled, true);
+  assert.equal(byTestId(contractsPhone({ initialPage: 2 }), 'soc-card-').length, 1, 'demo: 11th room on page 2');
+  const list = many(30);
+  const income = incomePhone({ contracts: list, months: lib().selfOwnerIncomeMonths(list, now) });
+  assert.equal(byTestId(income, 'soi-row-').length, 10);
+  assert.ok(texts(income).includes(interpolate(rooms.pageOf, { page: 1, pages: 3 })));
+  assert.equal(byTestId(incomePhone(), 'soi-page-').length, 0, 'the demo month fits one page');
 });

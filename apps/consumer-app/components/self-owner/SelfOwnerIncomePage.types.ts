@@ -9,4 +9,6 @@ export type SelfOwnerIncomePageProps = {
   initialMonth?: SelfOwnerMonth;
   /** Today (tests); the clock when left out. */
   now?: Date;
+  /** The page of rows shown first (tests); page 1 when left out. */
+  initialPage?: number;
 };

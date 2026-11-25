@@ -9,6 +9,8 @@ import { SELF_OWNER_LOCALE_TAG, summarizeRent } from '../../lib/self-owner-dashb
 import { selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from '../../lib/self-owner-contracts';
 import type { SelfOwnerIncomePageProps } from './SelfOwnerIncomePage.types';
 import { LeadSelectField } from '../LeadSelectField';
+import { MobileSelfOwnerPager } from './MobileSelfOwnerPager';
+import { SELF_OWNER_ROOMS_PAGE_SIZE, clampPage } from '../../lib/self-owner-rooms';
 
 const STATE_INTENT: Record<SelfOwnerRentState, StatusIntent> = { paid: 'done', due: 'neutral', overdue: 'crit' };
 const { subtle } = tokens.colors;
@@ -22,7 +24,7 @@ function indexOf(months: SelfOwnerIncomePageProps['months'], month?: SelfOwnerIn
  * Self owner income on the phone (UI round, 24 Nov 2026, ClickUp z8rcteng6f): pick a month, see the total, received
  * and overdue rent, and which rooms paid. Read only; demo data, same rows as the Dashboard's rent section.
  */
-export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, initialMonth, now }: SelfOwnerIncomePageProps) {
+export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1 }: SelfOwnerIncomePageProps) {
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const inc = t.selfOwnerIncome;
@@ -30,13 +32,23 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
   const tag = SELF_OWNER_LOCALE_TAG[locale as keyof typeof SELF_OWNER_LOCALE_TAG] ?? SELF_OWNER_LOCALE_TAG.th;
   const ink = theme.screenTitle;
   const muted = theme.textSecondary;
-  const [index, setIndex] = useState(() => indexOf(months, initialMonth));
+  const [index, setMonthIndex] = useState(() => indexOf(months, initialMonth));
+  const [page, setPage] = useState(initialPage);
+  // Another month starts again from page 1.
+  const setIndex = (next: number) => {
+    setMonthIndex(next);
+    setPage(1);
+  };
   const shownMonth = months[index] ?? months[months.length - 1];
   const rows = useMemo(
     () => (shownMonth ? selfOwnerRentForMonth(contracts, shownMonth.year, shownMonth.month, now) : []),
     [contracts, shownMonth, now],
   );
+  // The summary adds up the whole month; the list shows ten rows a page, like "my rooms" (Jom 25 Nov 2026).
   const sum = summarizeRent(rows);
+  const pages = Math.max(1, Math.ceil(rows.length / SELF_OWNER_ROOMS_PAGE_SIZE));
+  const current = clampPage(page, rows.length);
+  const pageRows = rows.slice((current - 1) * SELF_OWNER_ROOMS_PAGE_SIZE, current * SELF_OWNER_ROOMS_PAGE_SIZE);
   const money = (amount: number) => t.agent.listings.rentAmount.replace('{price}', amount.toLocaleString(tag));
   const day = (ymd: string) => new Date(`${ymd}T00:00:00+07:00`).toLocaleDateString(tag, { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' });
   const nameOf = (m: { year: number; month: number }) =>
@@ -103,7 +115,7 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
         {rows.length === 0 ? (
           <Text style={small}>{inc.empty}</Text>
         ) : (
-          rows.map((r) => (
+          pageRows.map((r) => (
             <View key={r.id} testID={`soi-row-${r.id}`} style={[styles.card, { borderColor: theme.border, backgroundColor: theme.surface }]}>
               <View style={styles.row}>
                 <Text style={[styles.body, styles.flex, { color: ink }]} numberOfLines={1}>{r.roomTitle}</Text>
@@ -120,6 +132,7 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
           ))
         )}
       </View>
+      <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, rows.length))} testIDPrefix="soi-page" />
     </View>
   );
 }

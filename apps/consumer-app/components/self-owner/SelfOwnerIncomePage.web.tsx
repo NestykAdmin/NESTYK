@@ -7,6 +7,8 @@ import { WebTable, type WebTableColumn } from "../agent-web/ui/WebTable";
 import { StatusBadge } from "../agent-web/ui/StatusBadge";
 import type { StatusIntent } from "../agent-web/ui/statusIntent";
 import { SELF_OWNER_LOCALE_TAG, summarizeRent } from "../../lib/self-owner-dashboard";
+import { SelfOwnerWebPager } from "./SelfOwnerWebPager";
+import { SELF_OWNER_ROOMS_WEB_PAGE_SIZE, clampPage } from "../../lib/self-owner-rooms";
 import { selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from "../../lib/self-owner-contracts";
 import type { SelfOwnerIncomePageProps } from "./SelfOwnerIncomePage.types";
 import "../agent-web/agent-rooms.css";
@@ -24,18 +26,29 @@ export function monthIndex(months: SelfOwnerIncomePageProps["months"], month?: S
  * Self owner income web page (UI round, 24 Nov 2026, ClickUp z8rcteng6f): which rooms paid this month's rent and which
  * have not. Read only; demo data until the admin side and its API exist. Same rows as the Dashboard's rent section.
  */
-export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialMonth, now }: SelfOwnerIncomePageProps) {
+export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1 }: SelfOwnerIncomePageProps) {
   const { t, locale } = useLocale();
   const inc = t.selfOwnerIncome;
   const shared = t.selfOwnerDashboard;
   const tag = SELF_OWNER_LOCALE_TAG[locale as keyof typeof SELF_OWNER_LOCALE_TAG] ?? SELF_OWNER_LOCALE_TAG.th;
-  const [index, setIndex] = useState(() => monthIndex(months, initialMonth));
+  const [index, setMonthIndex] = useState(() => monthIndex(months, initialMonth));
+  const [page, setPage] = useState(initialPage);
+  // Another month starts again from page 1.
+  const setIndex = (next: number) => {
+    setMonthIndex(next);
+    setPage(1);
+  };
   const shownMonth = months[index] ?? months[months.length - 1];
   const rows = useMemo(
     () => (shownMonth ? selfOwnerRentForMonth(contracts, shownMonth.year, shownMonth.month, now) : []),
     [contracts, shownMonth, now],
   );
+  // The summary adds up the whole month; the table shows 24 rows a page, like "my rooms" (Jom 25 Nov 2026).
   const sum = summarizeRent(rows);
+  const size = SELF_OWNER_ROOMS_WEB_PAGE_SIZE;
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const current = clampPage(page, rows.length, size);
+  const pageRows = rows.slice((current - 1) * size, current * size);
   const money = (amount: number) => t.agent.listings.rentAmount.replace("{price}", amount.toLocaleString(tag));
   const day = (ymd: string) => new Date(`${ymd}T00:00:00+07:00`).toLocaleDateString(tag, { day: "numeric", month: "short", timeZone: "Asia/Bangkok" });
   const nameOf = (m: { year: number; month: number }) =>
@@ -124,13 +137,14 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
         <WebTable
           label={monthLabel}
           columns={columns}
-          rows={rows}
+          rows={pageRows}
           rowKey={(r) => r.id}
           status="ready"
           empty={{ title: inc.empty }}
           testID="self-owner-income-table"
         />
       </div>
+      <SelfOwnerWebPager current={current} pages={pages} total={rows.length} size={size} onPage={(next) => setPage(clampPage(next, rows.length, size))} />
     </div>
   );
 }
