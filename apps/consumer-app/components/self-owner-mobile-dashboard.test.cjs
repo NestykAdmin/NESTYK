@@ -62,7 +62,8 @@ test('sections follow the web order and list every item', () => {
   const { SELF_OWNER_PREVIEW: limit } = load(path.join(__dirname, '../lib/self-owner-dashboard.ts'));
   assert.equal(byTestId(tree, 'so-room-').length, Math.min(snapshot.rooms.items.length, limit.rooms));
   assert.equal(byTestId(tree, 'so-rent-').length, Math.min(snapshot.rent.items.length, limit.rent));
-  assert.equal(byTestId(tree, 'so-todo-').length, 4);
+  // Rows with a zero count are hidden; the demo's renewal to-do is 0 since 805 has a renewal waiting (contract kinds, 24 Nov 2026).
+  assert.equal(byTestId(tree, 'so-todo-').length, snapshot.todo.items.filter((i) => i.count > 0).length);
   assert.equal(byTestId(tree, 'so-viewing-').length, snapshot.viewings.items.length);
   assert.equal(all.filter(text => text === copy.demoNote).length, 1);
 });
@@ -150,10 +151,12 @@ test('the listing button opens the form when the shell passes onAddListing', () 
   assert.equal(added, 1);
 });
 
+// A snapshot with every to-do showing, so each link can be pressed (the demo's renewal count is 0 since 24 Nov 2026).
+const withEveryTodo = () => { const s = fixture(); s.todo.items = s.todo.items.map((i) => (i.count > 0 ? i : { ...i, count: 1 })); return s; };
 test('phone: rent "view all" and the to-dos link to income and contracts (24 Nov 2026)', () => {
   locale = 'th';
   const calls = [];
-  const tree = nodes(body().MobileSelfOwnerDashboardBody({ snapshot: fixture(), initials: 'J', onOpenIncome: () => calls.push('income'), onOpenContracts: () => calls.push('contracts') }));
+  const tree = nodes(body().MobileSelfOwnerDashboardBody({ snapshot: withEveryTodo(), initials: 'J', onOpenIncome: () => calls.push('income'), onOpenContracts: () => calls.push('contracts') }));
   const rent = byTestId(tree, 'so-link-rent')[0];
   assert.equal(rent.props.accessibilityState.disabled, false);
   rent.props.onPress();

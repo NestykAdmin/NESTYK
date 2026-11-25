@@ -66,6 +66,23 @@ test('todo counts agree with rooms and rent', () => {
   assert.equal(count('new_interest'), s.rooms.items.reduce((n, r) => n + (r.interestCount ?? 0), 0));
 });
 
+// Contract kinds (Jom 24 Nov 2026, plan self-owner-contract-kinds Task 2): a room whose lease ends soon but already has
+// a renewal awaiting signature needs no renewal; "awaiting signature" counts every kind.
+test('contract to-dos: renewal skips rooms with a renewal waiting; awaiting counts every kind', () => {
+  const { createSelfOwnerDashboardDemoFixture } = load();
+  const contractsLib = loadFile(path.join(__dirname, '../lib/self-owner-contracts.ts'));
+  const s = createSelfOwnerDashboardDemoFixture({ greetingName: 'Jom', localDateLabel: 'Today', now });
+  const count = (kind) => s.todo.items.find((i) => i.kind === kind)?.count;
+  const list = contractsLib.createSelfOwnerContractsDemo(now);
+  const awaiting = list.filter((c) => c.status === 'awaiting_signature');
+  assert.ok(awaiting.some((c) => c.id === 'c-r2-renewal') && awaiting.some((c) => c.id === 'c-r5'));
+  assert.equal(count('awaiting_signature'), awaiting.length);
+  const rooms = contractsLib.groupSelfOwnerContracts(list);
+  const needRenewal = rooms.filter((g) => g.status === 'ending_soon' && !g.contracts.some((c) => c.kind === 'renewal' && c.status === 'awaiting_signature'));
+  assert.ok(!needRenewal.some((g) => g.roomId === 'r2'), '805 already has a renewal waiting');
+  assert.equal(count('renewal'), needRenewal.length);
+});
+
 test('viewings are today in Bangkok and sorted', () => {
   const { createSelfOwnerDashboardDemoFixture } = load();
   const s = createSelfOwnerDashboardDemoFixture({ greetingName: 'Jom', localDateLabel: 'Today', now });

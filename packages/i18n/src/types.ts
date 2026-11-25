@@ -579,6 +579,29 @@ export interface TranslationSchema {
     readOnlyNote: string;
     empty: string;
     viewDetail: string;
+    /** Contract kinds (Jom 24 Nov 2026): the `form_kind` values of master_agreement_types. */
+    kind: { reservation: string; lease: string; renewal: string; broker_appointment: string };
+    colCurrent: string;
+    colContracts: string;
+    contractCount: string;
+    roomContractsTitle: string;
+    back: string;
+    renewsFrom: string;
+    brokerCompany: string;
+    brokerContact: string;
+    signedDate: string;
+    appointmentPeriod: string;
+    askingRent: string;
+    commission: string;
+    commissionMonths: string;
+    booker: string;
+    moveInDate: string;
+    bookingFee: string;
+    /** A used booking letter (status terminated, end reason reservation_fulfilled); the tenant side's word. */
+    fulfilled: string;
+    /** Layout A (Jom 24 Nov 2026): "month 8 of 12" under the progress bar, and a months note on a money tile. */
+    progressMonth: string;
+    monthsCount: string;
   };
   selfOwnerIncome: {
     summaryTotal: string;

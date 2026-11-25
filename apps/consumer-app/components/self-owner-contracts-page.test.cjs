@@ -57,44 +57,181 @@ const web = (file) => load(path.join(__dirname, 'self-owner', file));
 const contractsWeb = (props = {}) => nodes(web('SelfOwnerContractsPage.web.tsx').SelfOwnerContractsPage({ contracts: contracts(), isDemoPreview: true, ...props }));
 const incomeWeb = (props = {}) => nodes(web('SelfOwnerIncomePage.web.tsx').SelfOwnerIncomePage({ contracts: contracts(), months: months(), isDemoPreview: true, now, ...props }));
 
-test('web contracts table: one row per contract, work first, status pills', () => {
+// ---- Contract kinds (Jom 24 Nov 2026), plan self-owner-contract-kinds Task 3: shared detail rows + copy ----
+const fmt = { money: (n) => `฿${n.toLocaleString('en-US')}`, day: (ymd) => ymd };
+const viewOf = (id) => {
+  const all = contracts();
+  return web('contract-detail-rows.ts').contractDetailView(all.find(c => c.id === id), all, copyOf().selfOwnerContracts, fmt, '2026-11-24');
+};
+const tile = (view, label) => view.tiles.find(t => t.label === label);
+
+// Layout A (Jom 24 Nov 2026): period + progress, the party, money tiles, a link to the renewed contract.
+test('detail view by kind: lease and renewal', () => {
   locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  const renewal = viewOf('c-r1');
+  assert.equal(renewal.period, '2026-04-01 – 2027-03-31');
+  assert.equal(renewal.room, 'ห้อง 1204 · Ideo Q สยาม-ราชเทวี');
+  assert.deepEqual([renewal.progress.month, renewal.progress.months, renewal.progress.daysLeft], [8, 12, 127]);
+  assert.ok(renewal.progress.ratio > 0.6 && renewal.progress.ratio < 0.7);
+  assert.equal(renewal.progressLabel, interpolate(so.progressMonth, { n: 8, total: 12 }));
+  assert.deepEqual(renewal.party, { name: 'ณัฐวุฒิ ใจดี', role: so.tenant, phone: '081-234-5601', initial: 'ณ' });
+  assert.deepEqual(renewal.tiles.map(t => [t.label, t.value, t.note]), [
+    [so.monthlyRent, '฿18,000', undefined],
+    [so.advanceRent, '฿18,000', interpolate(so.monthsCount, { n: 1 })],
+    [so.deposit, '฿36,000', interpolate(so.monthsCount, { n: 2 })],
+  ]);
+  assert.equal(renewal.renewsFrom.id, 'c-r1-lease');
+  assert.equal(renewal.renewsFrom.label, `${so.renewsFrom} ${so.kind.lease} · 2025-04-01 – 2026-03-31`);
+  const ended = viewOf('c-r1-lease');
+  assert.equal(ended.progress, undefined, 'no progress bar once ended');
+  assert.equal(ended.renewsFrom, undefined);
+  assert.deepEqual(ended.extra, []);
+});
+
+test('detail view by kind: broker appointment and reservation', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  const broker = viewOf('c-r1-broker');
+  assert.deepEqual(broker.party, { name: 'Bangkok Home Agent', role: `${so.brokerContact} สมชาย ใจดี`, phone: '02-118-4400', initial: 'B' });
+  assert.deepEqual(broker.tiles.map(t => [t.label, t.value, t.note]), [
+    [so.askingRent, '฿18,000', undefined],
+    [so.commission, '฿18,000', interpolate(so.commissionMonths, { months: 1 })],
+  ]);
+  assert.deepEqual(broker.extra, [[so.signedDate, '2025-02-15']]);
+  const r5broker = viewOf('c-r5-broker');
+  assert.deepEqual([tile(r5broker, so.commission).value, tile(r5broker, so.commission).note], ['฿30,000', undefined]);
+  assert.deepEqual([r5broker.progress.month, r5broker.progress.months], [2, 12], 'an appointment in force shows its progress');
+  const reservation = viewOf('c-r5-reservation');
+  assert.deepEqual(reservation.party, { name: 'คุณกานต์', role: so.booker, phone: '082-908-1105', initial: 'ค' });
+  assert.deepEqual(reservation.tiles.map(t => [t.label, t.value]), [[so.bookingFee, '฿42,000'], [so.moveInDate, '2026-12-01']]);
+  assert.deepEqual(reservation.extra, [[so.signedDate, '2026-11-20']]);
+  assert.equal(reservation.progress, undefined, 'a reservation has no progress bar');
+  assert.equal(web('contract-detail-rows.ts').contractParty(contracts().find(c => c.id === 'c-r1-broker')), 'Bangkok Home Agent');
+  assert.equal(web('contract-detail-rows.ts').initialOf('เมษา ดีงาม'), 'ม', 'skips a leading Thai vowel');
+});
+
+test('contract kinds copy in every locale', () => {
+  const keys = ['progressMonth', 'monthsCount', 'colCurrent', 'colContracts', 'contractCount', 'roomContractsTitle', 'back', 'renewsFrom', 'brokerCompany', 'brokerContact', 'signedDate', 'appointmentPeriod', 'askingRent', 'commission', 'commissionMonths', 'booker', 'moveInDate', 'bookingFee'];
+  for (const l of ['th', 'en', 'ja', 'zh']) {
+    const so = copyOf(l).selfOwnerContracts;
+    for (const k of keys) assert.ok(so[k], `${l}.${k}`);
+    for (const k of ['reservation', 'lease', 'renewal', 'broker_appointment']) assert.ok(so.kind?.[k], `${l}.kind.${k}`);
+    assert.ok(so.count.includes('{n}') && so.contractCount.includes('{n}') && so.roomContractsTitle.includes('{room}'), l);
+  }
+  const th = copyOf('th').selfOwnerContracts;
+  assert.deepEqual(th.kind, { reservation: 'หนังสือจอง', lease: 'สัญญาเช่า', renewal: 'ต่อสัญญา', broker_appointment: 'สัญญาแต่งตั้งนายหน้า' });
+  assert.equal(th.count, '{n} ห้อง');
+  assert.equal(th.contractCount, '{n} ฉบับ');
+  assert.equal(th.roomContractsTitle, 'สัญญาทั้งหมดของ {room}');
+});
+
+// Plan self-owner-contract-kinds Task 4: the web page lists rooms; a room opens all its contracts.
+const roomRows = (tree) => tree.filter(n => n?.type === 'tr' && typeof n.props.onClick === 'function');
+const rowOfRoom = (tree, roomId) => tree.find(n => n?.type === 'tr' && n.props['data-testid'] === `self-owner-contracts-table.row.${roomId}`);
+const groups = () => lib().groupSelfOwnerContracts(contracts());
+const phoneRoomList = (roomId) =>
+  nodes(load(path.join(__dirname, 'self-owner', 'MobileSelfOwnerContractsScreen.tsx')).MobileSelfOwnerRoomContracts({ room: groups().find(g => g.roomId === roomId), all: contracts(), onClose() {} }));
+const roomDialog = (roomId, props = {}) =>
+  nodes(web('SelfOwnerContractsPage.web.tsx').SelfOwnerRoomContractsDialog({ room: groups().find(g => g.roomId === roomId), all: contracts(), onClose() {}, ...props }));
+
+test('web contracts: one row per room, work first, current contract and how many', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
   const tree = contractsWeb();
-  const rows = tree.filter(n => n?.type === 'tr' && typeof n.props.onClick === 'function');
+  const rows = roomRows(tree);
   assert.equal(rows.length, 11);
   assert.ok(label(rows[0]).includes('ห้อง 2101'));
-  const so = copyOf().selfOwnerContracts;
+  const r1204 = label(rowOfRoom(tree, 'r1'));
+  for (const text of ['ห้อง 1204', 'Ideo Q สยาม-ราชเทวี', 'ณัฐวุฒิ ใจดี', so.kind.renewal, '฿18,000', interpolate(so.contractCount, { n: 4 })]) assert.ok(r1204.includes(text), text);
+  const r2101 = label(rowOfRoom(tree, 'r5'));
+  for (const text of [so.kind.lease, 'คุณกานต์', interpolate(so.contractCount, { n: 3 })]) assert.ok(r2101.includes(text), text);
   const pills = tree.filter(n => n?.type === 'MobileStatusPill').map(p => p.props.label);
   assert.ok(pills.includes(so.status.awaiting_signature));
   assert.ok(pills.includes(so.status.ending_soon));
   assert.ok(texts(tree).join('').includes(interpolate(so.daysLeft, { n: 37 })));
+  assert.ok(texts(tree).includes(interpolate(so.count, { n: 11 })));
+  const headers = tree.filter(n => n?.type === 'th').map(h => label(h));
+  assert.deepEqual(headers, [so.colRoom, so.colTenant, so.colCurrent, so.colRent, so.colStatus, so.colContracts]);
 });
 
-test('web contracts: the status filter narrows the rows; no match shows clear filters', () => {
+test('web contracts: a room with only a broker appointment and a reservation shows "-" for tenant and rent', () => {
   locale = 'th';
-  const ended = contractsWeb({ initialFilter: 'ended' }).filter(n => n?.type === 'tr' && typeof n.props.onClick === 'function');
+  const only = contracts().filter(c => c.roomId === 'r5' && c.kind !== 'lease');
+  const tree = nodes(web('SelfOwnerContractsPage.web.tsx').SelfOwnerContractsPage({ contracts: only, isDemoPreview: true }));
+  const cells = nodes(rowOfRoom(tree, 'r5').props.children).filter(n => n?.type === 'td').map(td => label(td));
+  assert.equal(cells[1], '-');
+  assert.equal(cells[3], '-');
+  assert.ok(cells[2].includes(copyOf().selfOwnerContracts.kind.reservation));
+});
+
+test('web contracts: the status filter and the search narrow the rooms; no match shows clear filters', () => {
+  locale = 'th';
+  const ended = roomRows(contractsWeb({ initialFilter: 'ended' }));
   assert.equal(ended.length, 1);
   assert.ok(label(ended[0]).includes('ห้อง 309'));
+  const broker = roomRows(contractsWeb({ initialQuery: 'สมชาย' }));
+  assert.deepEqual(broker.map(r => r.props['data-testid']), ['self-owner-contracts-table.row.r1']);
   const none = contractsWeb({ initialQuery: 'zzz' });
-  assert.equal(none.filter(n => n?.type === 'tr' && typeof n.props.onClick === 'function').length, 0);
+  assert.equal(roomRows(none).length, 0);
   const states = copyOf().agent.dashboard.webStates;
   assert.ok(texts(none).includes(states.filteredTitle));
   assert.ok(none.some(n => n?.props?.['data-testid'] === 'state.filtered'));
-  assert.ok(none.some(n => n?.type === 'button' && typeof n.props.onClick === 'function' && n.props.className?.includes('awu-btn')));
 });
 
-test('web contract detail is read only', () => {
+test('web room dialog: every contract of the room, newest first', () => {
   locale = 'th';
   const so = copyOf().selfOwnerContracts;
-  const c805 = contracts().find(c => c.roomTitle === 'ห้อง 805');
-  const tree = nodes(web('SelfOwnerContractsPage.web.tsx').SelfOwnerContractDetail({ contract: c805, onClose() {} }));
+  const tree = roomDialog('r1');
+  assert.ok(texts(tree).includes(interpolate(so.roomContractsTitle, { room: 'ห้อง 1204' })));
+  const items = tree.filter(n => n?.type === 'button' && String(n.props['data-testid'] ?? '').startsWith('soc-contract-'));
+  assert.deepEqual(items.map(b => b.props['data-testid']), ['soc-contract-c-r1', 'soc-contract-c-r1-lease', 'soc-contract-c-r1-reservation', 'soc-contract-c-r1-broker']);
+  assert.ok(items.every(b => typeof b.props.onClick === 'function'));
+  assert.ok(label(items[0]).includes(so.kind.renewal) && label(items[0]).includes('ณัฐวุฒิ ใจดี'));
+  assert.ok(label(items[3]).includes(so.kind.broker_appointment) && label(items[3]).includes('Bangkok Home Agent'));
+  assert.equal(tree.filter(n => n?.props?.['data-testid'] === 'soc-back').length, 0, 'no back on the list');
+});
+
+test('a used reservation reads "ใช้แล้ว" on web and phone, and the copy exists in every locale', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  assert.equal(so.fulfilled, 'ใช้แล้ว');
+  for (const l of ['en', 'ja', 'zh']) assert.ok(copyOf(l).selfOwnerContracts.fulfilled, l);
+  const pillOf = (tree, testId, key) => nodes(tree.find(n => n?.props?.[key] === testId).props.children).filter(n => n?.type === 'MobileStatusPill').map(p => p.props.label);
+  const web = roomDialog('r1');
+  assert.deepEqual(pillOf(web, 'soc-contract-c-r1-reservation', 'data-testid'), [so.fulfilled]);
+  assert.deepEqual(pillOf(web, 'soc-contract-c-r1-lease', 'data-testid'), [so.status.ended]);
+  assert.ok(roomDialog('r1', { initialContractId: 'c-r1-reservation' }).some(n => n?.type === 'MobileStatusPill' && n.props.label === so.fulfilled), 'detail pill');
+  const phoneList = phoneRoomList('r1');
+  assert.deepEqual(pillOf(phoneList, 'soc-contract-c-r1-reservation', 'testID'), [so.fulfilled]);
+});
+
+test('web room dialog: a contract opens its read-only detail with a back button', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  const tree = roomDialog('r1', { initialContractId: 'c-r1-broker' });
   const all = texts(tree).join('|');
-  for (const value of [c805.tenantName, c805.tenantPhone, '25,000', so.advanceRent, so.deposit, so.readOnlyNote]) assert.ok(all.includes(value), value);
-  const buttons = tree.filter(n => n?.type === 'button');
-  const doc = buttons.find(b => label(b).includes(so.viewDocument));
+  for (const value of ['Bangkok Home Agent', 'สมชาย ใจดี', so.commission, so.readOnlyNote, so.kind.broker_appointment]) assert.ok(all.includes(value), value);
+  assert.equal(tree.filter(n => String(n?.props?.['data-testid'] ?? '').startsWith('soc-contract-')).length, 0, 'the list is replaced by the detail');
+  const back = tree.find(n => n?.type === 'button' && n.props['data-testid'] === 'soc-back');
+  assert.equal(typeof back.props.onClick, 'function');
+  assert.equal(label(back).includes(so.back), true);
+  const doc = tree.filter(n => n?.type === 'button').find(b => label(b).includes(so.viewDocument));
   assert.equal(doc.props.disabled, true);
   const closeLabel = copyOf().agent.dashboard.webWorkspace.close;
-  assert.ok(buttons.filter(b => !b.props.disabled).every(b => b.props['aria-label'] === closeLabel || label(b) === closeLabel));
+  assert.ok(tree.filter(n => n?.type === 'button' && !n.props.disabled).every(b => b === back || b.props['aria-label'] === closeLabel || label(b) === closeLabel));
+  const lease = texts(roomDialog('r1', { initialContractId: 'c-r1-lease' })).join('|');
+  for (const value of [so.advanceRent, so.deposit, '18,000']) assert.ok(lease.includes(value), value);
+  // Layout A: progress bar and money tiles; the renewed contract opens from its row.
+  const renewal = roomDialog('r1', { initialContractId: 'c-r1', now });
+  assert.equal(renewal.filter(n => n?.props?.className === 'soc-tile').length, 3);
+  const bar = renewal.find(n => n?.props?.role === 'progressbar');
+  assert.equal(bar.props['aria-valuenow'], 8);
+  assert.equal(bar.props['aria-valuemax'], 12);
+  assert.ok(texts(renewal).includes(interpolate(so.daysLeft, { n: 127 })));
+  const link = renewal.find(n => n?.type === 'button' && n.props['data-testid'] === 'soc-renews-from');
+  assert.equal(typeof link.props.onClick, 'function');
+  assert.equal(roomDialog('r1', { initialContractId: 'c-r1-lease', now }).filter(n => n?.props?.role === 'progressbar').length, 0);
 });
 
 test('web income: this month, summary adds up, arrows plus a month dropdown', () => {
@@ -112,7 +249,7 @@ test('web income: this month, summary adds up, arrows plus a month dropdown', ()
   const options = nodes(select(tree).props.children).filter(n => n?.type === 'option');
   assert.equal(options.length, months().length);
   assert.equal(label(options[0]), 'พฤศจิกายน 2026');
-  assert.equal(label(options[options.length - 1]), 'ตุลาคม 2025');
+  assert.equal(label(options[options.length - 1]), 'เมษายน 2025', 'oldest lease: ห้อง 1204 from Apr 2025');
   assert.equal(select(tree).props.value, options[0].props.value, 'this month selected');
   const nav = (t, name) => t.find(n => n?.type === 'button' && n.props['aria-label'] === name);
   assert.equal(nav(tree, inc.nextMonth).props.disabled, true, 'no month after this one');
@@ -155,25 +292,52 @@ const contractsPhone = (props = {}) => nodes(phone('MobileSelfOwnerContractsScre
 const incomePhone = (props = {}) => nodes(phone('MobileSelfOwnerIncomeScreen.tsx').MobileSelfOwnerIncomeScreen({ contracts: contracts(), months: months(), isDemoPreview: true, now, ...props }));
 const byTestId = (tree, prefix) => tree.filter(n => typeof n?.props?.testID === 'string' && n.props.testID.startsWith(prefix));
 
-test('phone contracts: chips with counts, cards that open a read-only detail', () => {
+// Plan self-owner-contract-kinds Task 5: room cards; a card opens all the room's contracts, a contract its detail.
+const phoneRoom = (roomId, props = {}) =>
+  nodes(phone('MobileSelfOwnerContractsScreen.tsx').MobileSelfOwnerRoomContracts({ room: groups().find(g => g.roomId === roomId), all: contracts(), onClose() {}, ...props }));
+
+test('phone contracts: chips count rooms, one card per room with its current contract', () => {
   locale = 'th';
   const so = copyOf().selfOwnerContracts;
   const tree = contractsPhone();
   const chips = byTestId(tree, 'soc-filter-');
   assert.equal(chips.length, 5);
-  const counts = lib().countSelfOwnerContracts(contracts());
-  assert.ok(texts(nodes(chips[0].props.children)).includes(String(counts.all)));
+  assert.ok(texts(nodes(chips[0].props.children)).includes('11'));
   const cards = byTestId(tree, 'soc-card-');
   assert.equal(cards.length, 11);
-  const c805 = cards.find(c => c.props.testID === 'soc-card-c-r2');
-  assert.equal(c805.props.accessibilityLabel, `${so.viewDetail} ห้อง 805`);
-  assert.equal(typeof c805.props.onPress, 'function');
-  assert.equal(typeof c805.props.style, 'function', 'card dims while pressed');
-  const detail = nodes(phone('MobileSelfOwnerContractsScreen.tsx').MobileSelfOwnerContractDetail({ contract: contracts().find(c => c.roomId === 'r2'), onClose() {} }));
-  const doc = detail.find(n => n?.props?.testID === 'soc-document');
-  assert.equal(doc.props.disabled, true);
+  assert.equal(cards[0].props.testID, 'soc-card-r5');
+  const c1204 = cards.find(c => c.props.testID === 'soc-card-r1');
+  assert.equal(c1204.props.accessibilityLabel, `${so.viewDetail} ห้อง 1204`);
+  assert.equal(typeof c1204.props.onPress, 'function');
+  assert.equal(typeof c1204.props.style, 'function', 'card dims while pressed');
+  const text = texts(nodes(c1204.props.children)).join('|');
+  for (const value of ['ห้อง 1204', so.kind.renewal, interpolate(so.contractCount, { n: 4 }), 'ณัฐวุฒิ ใจดี · Ideo Q สยาม-ราชเทวี']) assert.ok(text.includes(value), value);
+  assert.ok(texts(tree).includes(interpolate(so.count, { n: 11 })));
+  assert.deepEqual(byTestId(contractsPhone({ initialQuery: 'สมชาย' }), 'soc-card-').map(c => c.props.testID), ['soc-card-r1']);
+});
+
+test('phone room contracts: list newest first, a contract opens its detail with back and close', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  const list = phoneRoom('r1');
+  assert.ok(texts(list).includes(interpolate(so.roomContractsTitle, { room: 'ห้อง 1204' })));
+  const items = byTestId(list, 'soc-contract-');
+  assert.deepEqual(items.map(i => i.props.testID), ['soc-contract-c-r1', 'soc-contract-c-r1-lease', 'soc-contract-c-r1-reservation', 'soc-contract-c-r1-broker']);
+  assert.ok(items.every(i => typeof i.props.onPress === 'function' && i.props.accessibilityRole === 'button'));
+  assert.equal(byTestId(list, 'soc-back').length, 0);
+  assert.equal(typeof byTestId(list, 'soc-close')[0].props.onPress, 'function');
+  const detail = phoneRoom('r2', { initialContractId: 'c-r2' });
   const all = texts(detail).join('|');
-  for (const value of ['Emily Carter', '089-112-3402', so.readOnlyNote]) assert.ok(all.includes(value), value);
+  for (const value of ['Emily Carter', '089-112-3402', so.readOnlyNote, so.advanceRent]) assert.ok(all.includes(value), value);
+  assert.equal(byTestId(detail, 'soc-contract-').length, 0);
+  assert.equal(typeof byTestId(detail, 'soc-back')[0].props.onPress, 'function');
+  assert.equal(byTestId(detail, 'soc-document')[0].props.disabled, true);
+  const renewalPhone = phoneRoom('r1', { initialContractId: 'c-r1', now });
+  assert.equal(byTestId(renewalPhone, 'soc-tile-').length, 3);
+  assert.equal(byTestId(renewalPhone, 'soc-progress').length, 1);
+  assert.equal(typeof byTestId(renewalPhone, 'soc-renews-from')[0].props.onPress, 'function');
+  const broker = texts(phoneRoom('r5', { initialContractId: 'c-r5-broker' })).join('|');
+  for (const value of ['Urban Nest Realty', 'Jenny Lim', '฿30,000']) assert.ok(broker.includes(value), value);
 });
 
 test('phone contracts: no match shows clear filters', () => {

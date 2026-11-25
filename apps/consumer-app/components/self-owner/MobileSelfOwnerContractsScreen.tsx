@@ -7,12 +7,18 @@ import { StatusBadge } from '../agent-web/ui/StatusBadge';
 import type { StatusIntent } from '../agent-web/ui/statusIntent';
 import { SELF_OWNER_LOCALE_TAG } from '../../lib/self-owner-dashboard';
 import {
-  countSelfOwnerContracts,
-  filterSelfOwnerContracts,
+  countSelfOwnerRooms,
+  filterSelfOwnerRooms,
+  groupSelfOwnerContracts,
+  isFulfilledReservation,
+  isRentContract,
+  selfOwnerToday,
   type SelfOwnerContract,
   type SelfOwnerContractFilter,
   type SelfOwnerContractStatus,
+  type SelfOwnerRoomContracts,
 } from '../../lib/self-owner-contracts';
+import { contractDetailView, contractParty } from './contract-detail-rows';
 import type { SelfOwnerContractsPageProps } from './SelfOwnerContractsPage.types';
 
 const FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'ending_soon', 'active', 'ended'];
@@ -28,28 +34,52 @@ function useFormat() {
   return { money, day };
 }
 
-/** Read-only contract details on the phone (the owner cannot change or sign anything, Jom 24 Nov 2026). */
-export function MobileSelfOwnerContractDetail({ contract, onClose }: { contract: SelfOwnerContract; onClose: () => void }) {
+/**
+ * All contracts of one room on the phone (contract kinds, Jom 24 Nov 2026): the list, newest first; a contract opens
+ * its read-only details with a back button to the list. The owner cannot change or sign anything.
+ */
+export function MobileSelfOwnerRoomContracts({
+  room,
+  all,
+  onClose,
+  initialContractId = null,
+  now,
+}: {
+  room: SelfOwnerRoomContracts;
+  /** Every contract, to find the one a renewal renews. */
+  all: SelfOwnerContract[];
+  onClose: () => void;
+  initialContractId?: string | null;
+  /** "Today" for the progress bar; defaults to now. */
+  now?: Date;
+}) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const so = t.selfOwnerContracts;
-  const { money, day } = useFormat();
+  const fmt = useFormat();
   const ink = theme.screenTitle;
   const muted = theme.textSecondary;
-  const rows: Array<[string, string]> = [
-    [so.room, `${contract.roomTitle} · ${contract.project}`],
-    [so.tenant, contract.tenantName],
-    [so.phone, contract.tenantPhone],
-    [so.startDate, day(contract.startDate)],
-    [so.endDate, day(contract.endDate)],
-    [so.monthlyRent, money(contract.monthlyRent)],
-    [so.advanceRent, interpolate(so.monthsAmount, { months: contract.advanceRentMonths, amount: money(contract.monthlyRent * contract.advanceRentMonths) })],
-    [so.deposit, interpolate(so.monthsAmount, { months: contract.depositMonths, amount: money(contract.monthlyRent * contract.depositMonths) })],
-  ];
+  const [selectedId, setSelectedId] = useState<string | null>(initialContractId);
+  const open = selectedId ? room.contracts.find((c) => c.id === selectedId) ?? null : null;
+  const period = (c: SelfOwnerContract) => interpolate(so.period, { start: fmt.day(c.startDate), end: fmt.day(c.endDate) });
+  const status = (c: SelfOwnerContract) => (
+    <View style={styles.row}>
+      <StatusBadge label={isFulfilledReservation(c) ? so.fulfilled : so.status[c.status]} intent={STATUS_INTENT[c.status]} />
+      {c.daysLeft !== undefined ? <Text style={[styles.small, { color: muted }]}>{interpolate(so.daysLeft, { n: c.daysLeft })}</Text> : null}
+    </View>
+  );
+
   return (
     <View style={[styles.sheet, { backgroundColor: theme.background }]}>
       <View style={[styles.sheetHeader, { borderBottomColor: theme.border }]}>
-        <Text style={[styles.title, { color: ink }]} numberOfLines={1}>{so.detailTitle}</Text>
+        {open ? (
+          <Pressable testID="soc-back" accessibilityRole="button" accessibilityLabel={so.back} onPress={() => setSelectedId(null)} hitSlop={8}>
+            <MobileIcon name="chevron-left" size={20} color={ink} />
+          </Pressable>
+        ) : null}
+        <Text style={[styles.title, { color: ink }]} numberOfLines={1}>
+          {open ? so.kind[open.kind] : interpolate(so.roomContractsTitle, { room: room.roomTitle })}
+        </Text>
         <Pressable
           testID="soc-close"
           accessibilityRole="button"
@@ -61,28 +91,113 @@ export function MobileSelfOwnerContractDetail({ contract, onClose }: { contract:
         </Pressable>
       </View>
       <ScrollView contentContainerStyle={styles.sheetBody}>
-        <View style={styles.row}>
-          <StatusBadge label={so.status[contract.status]} intent={STATUS_INTENT[contract.status]} />
-          {contract.daysLeft !== undefined ? <Text style={[styles.small, { color: muted }]}>{interpolate(so.daysLeft, { n: contract.daysLeft })}</Text> : null}
-        </View>
-        {rows.map(([term, value]) => (
-          <View key={term} style={[styles.field, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.small, { color: muted }]}>{term}</Text>
-            <Text style={[styles.body, { color: ink }]}>{value}</Text>
-          </View>
-        ))}
-        <Text style={[styles.small, { color: muted }]}>{so.readOnlyNote}</Text>
-        <Pressable
-          testID="soc-document"
-          accessibilityRole="button"
-          accessibilityLabel={`${so.viewDocument}, ${so.noDocument}`}
-          accessibilityState={{ disabled: true }}
-          disabled
-          style={[styles.outline, styles.row, { borderColor: theme.border, opacity: 0.5 }]}
-        >
-          <MobileIcon name="file-text" size={16} color={ink} />
-          <Text style={[styles.small, { color: ink }]}>{so.viewDocument}</Text>
-        </Pressable>
+        {open ? (
+          (() => {
+            // Layout A (Jom 24 Nov 2026): period and progress, the other party, money tiles, then the rest.
+            const view = contractDetailView(open, all, so, fmt, selfOwnerToday(now));
+            return (
+              <>
+                <View style={styles.row}>
+                  <View style={[styles.kind, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={[styles.small, { color: ink }]}>{so.kind[open.kind]}</Text>
+                  </View>
+                  <StatusBadge label={isFulfilledReservation(open) ? so.fulfilled : so.status[open.status]} intent={STATUS_INTENT[open.status]} />
+                </View>
+                <View>
+                  <Text style={[styles.period, { color: ink }]}>{view.period}</Text>
+                  <Text style={[styles.small, { color: muted }]}>{view.room}</Text>
+                </View>
+                {view.progress ? (
+                  <View testID="soc-progress" accessibilityRole="progressbar" accessibilityLabel={view.progressLabel} accessibilityValue={{ min: 1, max: view.progress.months, now: view.progress.month }}>
+                    <View style={[styles.track, { backgroundColor: theme.border }]}>
+                      <View style={[styles.bar, { width: `${Math.round(view.progress.ratio * 100)}%` }]} />
+                    </View>
+                    <View style={[styles.row, styles.between]}>
+                      <Text style={[styles.small, { color: muted }]}>{view.progressLabel}</Text>
+                      <Text style={[styles.small, { color: muted }]}>{interpolate(so.daysLeft, { n: view.progress.daysLeft })}</Text>
+                    </View>
+                  </View>
+                ) : null}
+                <View style={[styles.party, { borderColor: theme.border }]}>
+                  <View style={styles.avatar}>
+                    <Text style={[styles.body, { color: tokens.colors.icon.brand }]}>{view.party.initial}</Text>
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={[styles.body, { color: ink }]} numberOfLines={2}>{view.party.name}</Text>
+                    <Text style={[styles.small, { color: muted }]}>{view.party.role}</Text>
+                  </View>
+                  {view.party.phone ? <Text style={[styles.small, { color: muted }]}>{view.party.phone}</Text> : null}
+                </View>
+                <View style={styles.tiles}>
+                  {view.tiles.map((tile) => (
+                    <View key={tile.label} testID={`soc-tile-${tile.label}`} style={[styles.tile, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                      <Text style={[styles.small, { color: muted }]}>{tile.label}</Text>
+                      <Text style={[styles.tileValue, { color: ink }]}>{tile.value}</Text>
+                      {tile.note ? <Text style={[styles.small, { color: muted }]}>{tile.note}</Text> : null}
+                    </View>
+                  ))}
+                </View>
+                {view.extra.map(([term, value]) => (
+                  <View key={term} style={[styles.row, styles.between]}>
+                    <Text style={[styles.small, { color: muted }]}>{term}</Text>
+                    <Text style={[styles.body, { color: ink }]}>{value}</Text>
+                  </View>
+                ))}
+                {view.renewsFrom ? (
+                  <Pressable
+                    testID="soc-renews-from"
+                    accessibilityRole="button"
+                    accessibilityLabel={view.renewsFrom.label}
+                    onPress={() => setSelectedId(view.renewsFrom!.id)}
+                    style={[styles.outline, styles.row, { borderColor: theme.border }]}
+                  >
+                    <MobileIcon name="files" size={16} color={muted} />
+                    <Text style={[styles.small, styles.flex, { color: ink }]}>{view.renewsFrom.label}</Text>
+                    <MobileIcon name="chevron-right" size={16} color={muted} />
+                  </Pressable>
+                ) : null}
+                <View style={styles.row}>
+                  <MobileIcon name="lock" size={14} color={muted} />
+                  <Text style={[styles.small, styles.flex, { color: muted }]}>{so.readOnlyNote}</Text>
+                </View>
+                <Pressable
+                  testID="soc-document"
+                  accessibilityRole="button"
+                  accessibilityLabel={`${so.viewDocument}, ${so.noDocument}`}
+                  accessibilityState={{ disabled: true }}
+                  disabled
+                  style={[styles.outline, styles.row, { borderColor: theme.border, opacity: 0.5 }]}
+                >
+                  <MobileIcon name="file-text" size={16} color={ink} />
+                  <Text style={[styles.small, { color: ink }]}>{so.viewDocument}</Text>
+                </Pressable>
+              </>
+            );
+          })()
+        ) : (
+          <>
+            <Text style={[styles.small, { color: muted }]}>{room.project}</Text>
+            {room.contracts.map((c) => (
+              <Pressable
+                key={c.id}
+                testID={`soc-contract-${c.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${so.viewDetail} ${so.kind[c.kind]} ${period(c)}`}
+                onPress={() => setSelectedId(c.id)}
+                style={({ pressed }: { pressed: boolean }) => [styles.card, { borderColor: theme.border, backgroundColor: theme.surface }, pressed ? styles.pressed : null]}
+              >
+                <View style={styles.row}>
+                  <Text style={[styles.body, styles.flex, { color: ink }]} numberOfLines={1}>{so.kind[c.kind]}</Text>
+                  <MobileIcon name="chevron-right" size={16} color={muted} />
+                </View>
+                <Text style={[styles.small, { color: muted }]}>{period(c)}</Text>
+                {contractParty(c) ? <Text style={[styles.small, { color: muted }]} numberOfLines={1}>{contractParty(c)}</Text> : null}
+                {status(c)}
+              </Pressable>
+            ))}
+            <Text style={[styles.small, { color: muted }]}>{so.readOnlyNote}</Text>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -90,7 +205,8 @@ export function MobileSelfOwnerContractDetail({ contract, onClose }: { contract:
 
 /**
  * Self owner contracts on the phone (UI round, 24 Nov 2026, ClickUp z8rcteng6e): search, status chips with counts and
- * contract cards; a card opens the read-only details. Demo data until NESTYK admin creates contracts.
+ * one card per room (contract kinds, Jom 24 Nov 2026); a card opens all the room's contracts. Demo data until NESTYK
+ * admin creates contracts.
  */
 export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initialFilter = 'all', initialQuery = '' }: SelfOwnerContractsPageProps) {
   const { t } = useLocale();
@@ -104,9 +220,10 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<SelfOwnerContractFilter>(initialFilter);
   const [selected, setSelected] = useState<string | null>(null);
-  const counts = useMemo(() => countSelfOwnerContracts(contracts), [contracts]);
-  const shown = useMemo(() => filterSelfOwnerContracts(contracts, query, filter), [contracts, query, filter]);
-  const open = selected ? contracts.find((c) => c.id === selected) ?? null : null;
+  const roomList = useMemo(() => groupSelfOwnerContracts(contracts), [contracts]);
+  const counts = useMemo(() => countSelfOwnerRooms(roomList), [roomList]);
+  const shown = useMemo(() => filterSelfOwnerRooms(roomList, query, filter), [roomList, query, filter]);
+  const open = selected ? roomList.find((room) => room.roomId === selected) ?? null : null;
   const small = [styles.small, { color: muted }];
 
   const list = () => {
@@ -129,27 +246,36 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
         </View>
       );
     }
-    return shown.map((c) => (
-      <Pressable
-        key={c.id}
-        testID={`soc-card-${c.id}`}
-        accessibilityRole="button"
-        accessibilityLabel={`${so.viewDetail} ${c.roomTitle}`}
-        onPress={() => setSelected(c.id)}
-        style={({ pressed }: { pressed: boolean }) => [styles.card, { borderColor: theme.border, backgroundColor: theme.surface }, pressed ? styles.pressed : null]}
-      >
-        <View style={styles.row}>
-          <Text style={[styles.body, styles.flex, { color: ink }]} numberOfLines={1}>{c.roomTitle}</Text>
-          <StatusBadge label={so.status[c.status]} intent={STATUS_INTENT[c.status]} />
-        </View>
-        <Text style={small} numberOfLines={1}>{`${c.tenantName} · ${c.project}`}</Text>
-        <View style={styles.row}>
-          <Text style={[small, styles.flex]}>{interpolate(so.period, { start: day(c.startDate), end: day(c.endDate) })}</Text>
-          <Text style={[styles.body, { color: ink }]}>{money(c.monthlyRent)}</Text>
-        </View>
-        {c.daysLeft !== undefined ? <Text style={[styles.small, { color: subtle.warningFg }]}>{interpolate(so.daysLeft, { n: c.daysLeft })}</Text> : null}
-      </Pressable>
-    ));
+    // One card per room with its current contract (contract kinds, Jom 24 Nov 2026); a card opens all its contracts.
+    return shown.map((r) => {
+      const c = r.current;
+      const rent = isRentContract(c);
+      const tenant = rent && c.tenantName ? c.tenantName : '-';
+      return (
+        <Pressable
+          key={r.roomId}
+          testID={`soc-card-${r.roomId}`}
+          accessibilityRole="button"
+          accessibilityLabel={`${so.viewDetail} ${r.roomTitle}`}
+          onPress={() => setSelected(r.roomId)}
+          style={({ pressed }: { pressed: boolean }) => [styles.card, { borderColor: theme.border, backgroundColor: theme.surface }, pressed ? styles.pressed : null]}
+        >
+          <View style={styles.row}>
+            <Text style={[styles.body, styles.flex, { color: ink }]} numberOfLines={1}>{r.roomTitle}</Text>
+            <StatusBadge label={so.status[c.status]} intent={STATUS_INTENT[c.status]} />
+          </View>
+          <Text style={small} numberOfLines={1}>{`${tenant} · ${r.project}`}</Text>
+          <View style={styles.row}>
+            <Text style={[small, styles.flex]}>{`${so.kind[c.kind]} · ${interpolate(so.period, { start: day(c.startDate), end: day(c.endDate) })}`}</Text>
+            <Text style={[styles.body, { color: ink }]}>{rent ? money(c.monthlyRent) : '-'}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={[small, styles.flex]}>{interpolate(so.contractCount, { n: r.contracts.length })}</Text>
+            {c.daysLeft !== undefined ? <Text style={[styles.small, { color: subtle.warningFg }]}>{interpolate(so.daysLeft, { n: c.daysLeft })}</Text> : null}
+          </View>
+        </Pressable>
+      );
+    });
   };
 
   return (
@@ -182,7 +308,7 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
       <Text style={small}>{interpolate(so.count, { n: shown.length })}</Text>
       <View style={styles.list}>{list()}</View>
       <Modal visible={!!open} animationType="slide" onRequestClose={() => setSelected(null)}>
-        {open ? <MobileSelfOwnerContractDetail contract={open} onClose={() => setSelected(null)} /> : null}
+        {open ? <MobileSelfOwnerRoomContracts room={open} all={contracts} onClose={() => setSelected(null)} /> : null}
       </Modal>
     </View>
   );
@@ -204,6 +330,16 @@ const styles = StyleSheet.create({
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   sheetBody: { gap: 12, padding: 16, paddingBottom: 40 },
   field: { gap: 2, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  between: { justifyContent: 'space-between' },
+  kind: { paddingHorizontal: 10, paddingVertical: 2, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },
+  period: { fontFamily: tokens.typography.native.bodyBold, fontSize: 18, lineHeight: 26 },
+  track: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
+  bar: { height: 6, borderRadius: 3, backgroundColor: tokens.colors.icon.brand },
+  party: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: subtle.brandBg },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tile: { flexGrow: 1, flexBasis: '30%', minWidth: 96, gap: 2, padding: 10, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth },
+  tileValue: { fontFamily: tokens.typography.native.bodyBold, fontSize: 16, lineHeight: 22 },
   title: { fontFamily: tokens.typography.native.bodyBold, fontSize: 18, lineHeight: 26, flex: 1 },
   body: { fontFamily: tokens.typography.native.body, fontSize: 15, lineHeight: 22 },
   small: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 19 },

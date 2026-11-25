@@ -9,15 +9,19 @@ import { createSelfOwnerRoomsDemo, type SelfOwnerRoom } from './self-owner-rooms
  */
 export type SelfOwnerContractStatus = 'active' | 'ending_soon' | 'awaiting_signature' | 'ended';
 export type SelfOwnerContractFilter = 'all' | SelfOwnerContractStatus;
+/** The `form_kind` values of `master_agreement_types` (Jom 24 Nov 2026: the owner sees all four). */
+export type SelfOwnerContractKind = 'reservation' | 'lease' | 'renewal' | 'broker_appointment';
 
 export type SelfOwnerContract = {
   id: string;
+  kind: SelfOwnerContractKind;
   roomId: string;
   roomTitle: string;
   project: string;
+  /** The tenant (lease, renewal) or the booker (reservation); empty for a broker appointment. */
   tenantName: string;
   tenantPhone: string;
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD; the signed date of a reservation or a broker appointment. */
   startDate: string;
   /** YYYY-MM-DD */
   endDate: string;
@@ -27,7 +31,33 @@ export type SelfOwnerContract = {
   status: SelfOwnerContractStatus;
   /** Days to the end date; only when ending soon. */
   daysLeft?: number;
+  /** A renewal: the contract it renews. */
+  renewsContractId?: string;
+  /** Why an ended contract ended; `reservation_fulfilled`: a booking letter used once its lease is in force (the
+   * system's end reason, migration 20261103110000; shown as "ใช้แล้ว"). */
+  endReason?: 'reservation_fulfilled';
+  /** A broker appointment: the broker and the commission (an amount or months of rent, as in the agent form). */
+  broker?: { company: string; contact: string; phone: string; commission: { months: number } | { amount: number } };
+  /** A reservation: the agreed move-in date (also its end date) and the booking fee. */
+  reservation?: { moveInDate: string; bookingFee: number };
 };
+
+/** One room and every contract of it, newest first; the page lists these (Jom 24 Nov 2026). */
+export type SelfOwnerRoomContracts = {
+  roomId: string;
+  roomTitle: string;
+  project: string;
+  contracts: SelfOwnerContract[];
+  current: SelfOwnerContract;
+  status: SelfOwnerContractStatus;
+};
+
+/** A booking letter that became the lease (ended with reason reservation_fulfilled): the system calls it "ใช้แล้ว". */
+export const isFulfilledReservation = (contract: SelfOwnerContract): boolean =>
+  contract.kind === 'reservation' && contract.status === 'ended' && contract.endReason === 'reservation_fulfilled';
+
+/** Leases and renewals carry rent, can end soon and are the room's current contract. */
+export const isRentContract = (contract: SelfOwnerContract): boolean => contract.kind === 'lease' || contract.kind === 'renewal';
 
 export type SelfOwnerRentState = 'paid' | 'due' | 'overdue';
 
@@ -62,6 +92,10 @@ function shiftMonth(y: number, m: number, delta: number): SelfOwnerMonth {
   const index = y * 12 + (m - 1) + delta;
   return { year: Math.floor(index / 12), month: (index % 12) + 1 };
 }
+/** Today in Bangkok as YYYY-MM-DD (the contracts' dates are Bangkok days). */
+export function selfOwnerToday(now: Date = new Date()): string {
+  return bangkokToday(now);
+}
 function bangkokToday(now: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(now);
 }
@@ -87,9 +121,17 @@ const UNPAID_THIS_MONTH: Record<string, number> = { r2: 1, r11: 10, r4: 25, r10:
 const DUE_DAY = 5;
 const PAID_DAY = 3;
 
+/** Demo brokers per room (fixed). */
+const DEMO_BROKERS: Record<string, NonNullable<SelfOwnerContract['broker']>> = {
+  r1: { company: 'Bangkok Home Agent', contact: 'สมชาย ใจดี', phone: '02-118-4400', commission: { months: 1 } },
+  r5: { company: 'Urban Nest Realty', contact: 'Jenny Lim', phone: '02-660-7171', commission: { amount: 30000 } },
+};
+const addDays = (date: string, n: number) => new Date(toUtc(date) + n * DAY_MS).toISOString().slice(0, 10);
+
 function contractOf(room: SelfOwnerRoom, fields: Partial<SelfOwnerContract> & Pick<SelfOwnerContract, 'tenantName' | 'startDate' | 'endDate'>): SelfOwnerContract {
   return {
     id: `c-${room.id}`,
+    kind: 'lease',
     roomId: room.id,
     roomTitle: room.title,
     project: room.project,
@@ -106,7 +148,7 @@ function statusOn(contract: SelfOwnerContract, today: string): SelfOwnerContract
   if (contract.status === 'awaiting_signature') return contract;
   const left = daysBetween(today, contract.endDate);
   if (left < 0) return { ...contract, status: 'ended' };
-  if (left <= SELF_OWNER_ENDING_SOON_DAYS) return { ...contract, status: 'ending_soon', daysLeft: left };
+  if (isRentContract(contract) && left <= SELF_OWNER_ENDING_SOON_DAYS) return { ...contract, status: 'ending_soon', daysLeft: left };
   return { ...contract, status: 'active' };
 }
 
@@ -121,15 +163,31 @@ export function createSelfOwnerContractsDemo(now: Date = new Date()): SelfOwnerC
   const contracts: SelfOwnerContract[] = [];
   for (const room of createSelfOwnerRoomsDemo(now)) {
     if (room.state === 'occupied' && room.leaseEndsAt) {
-      const start = twelveMonthsBefore(room.leaseEndsAt);
-      contracts.push(contractOf(room, {
-        tenantName: room.tenantName ?? '',
-        startDate: start > today ? firstOfPrevious : start,
-        endDate: room.leaseEndsAt,
-      }));
+      const start = twelveMonthsBefore(room.leaseEndsAt) > today ? firstOfPrevious : twelveMonthsBefore(room.leaseEndsAt);
+      const tenantName = room.tenantName ?? '';
+      if (room.id === 'r1') {
+        // ห้อง 1204: broker appointment → reservation → lease → the renewal running now (all four kinds).
+        const leaseEnd = addDays(start, -1);
+        const leaseStart = twelveMonthsBefore(leaseEnd);
+        const brokerSigned = addDays(leaseStart, -45);
+        contracts.push(contractOf(room, { id: 'c-r1-broker', kind: 'broker_appointment', tenantName: '', tenantPhone: '', startDate: brokerSigned, endDate: twelveMonthsFrom(brokerSigned), broker: DEMO_BROKERS.r1 }));
+        contracts.push(contractOf(room, { id: 'c-r1-reservation', kind: 'reservation', tenantName, startDate: addDays(leaseStart, -22), endDate: leaseStart, reservation: { moveInDate: leaseStart, bookingFee: room.monthlyRent } }));
+        contracts.push(contractOf(room, { id: 'c-r1-lease', tenantName, startDate: leaseStart, endDate: leaseEnd }));
+        contracts.push(contractOf(room, { kind: 'renewal', renewsContractId: 'c-r1-lease', tenantName, startDate: start, endDate: room.leaseEndsAt }));
+      } else {
+        contracts.push(contractOf(room, { tenantName, startDate: start, endDate: room.leaseEndsAt }));
+      }
+      if (room.id === 'r2') {
+        // ห้อง 805: the lease ends soon and its renewal waits for signatures.
+        const renewalStart = addDays(room.leaseEndsAt, 1);
+        contracts.push(contractOf(room, { id: 'c-r2-renewal', kind: 'renewal', renewsContractId: 'c-r2', tenantName, startDate: renewalStart, endDate: twelveMonthsFrom(renewalStart), status: 'awaiting_signature' }));
+      }
     } else if (room.id === 'r5') {
+      // ห้อง 2101: broker appointment and reservation in force, the lease awaits signatures.
       const next = shiftMonth(year, month, 1);
       const start = ymd(next.year, next.month, 1);
+      contracts.push(contractOf(room, { id: 'c-r5-broker', kind: 'broker_appointment', tenantName: '', tenantPhone: '', startDate: firstOfPrevious, endDate: twelveMonthsFrom(firstOfPrevious), broker: DEMO_BROKERS.r5 }));
+      contracts.push(contractOf(room, { id: 'c-r5-reservation', kind: 'reservation', tenantName: 'คุณกานต์', startDate: addDays(today, -4), endDate: start, reservation: { moveInDate: start, bookingFee: room.monthlyRent } }));
       contracts.push(contractOf(room, { tenantName: 'คุณกานต์', startDate: start, endDate: twelveMonthsFrom(start), status: 'awaiting_signature' }));
     } else if (room.id === 'r6') {
       const ended = shiftMonth(year, month, -2);
@@ -137,32 +195,68 @@ export function createSelfOwnerContractsDemo(now: Date = new Date()): SelfOwnerC
       contracts.push(contractOf(room, { tenantName: 'มานพ ดีงาม', startDate: twelveMonthsBefore(end), endDate: end }));
     }
   }
-  return contracts.map((contract) => statusOn(contract, today));
-}
-
-export function countSelfOwnerContracts(list: SelfOwnerContract[]): Record<SelfOwnerContractFilter, number> {
-  const counts: Record<SelfOwnerContractFilter, number> = { all: list.length, active: 0, ending_soon: 0, awaiting_signature: 0, ended: 0 };
-  for (const contract of list) counts[contract.status] += 1;
-  return counts;
+  const dated = contracts.map((contract) => statusOn(contract, today));
+  // A booking letter ends as used once the room's lease from its move-in date is in force (as the API records it).
+  return dated.map((c) =>
+    c.kind === 'reservation' && c.status === 'ended' &&
+    dated.some((l) => l.roomId === c.roomId && isRentContract(l) && l.status !== 'awaiting_signature' && l.startDate === c.reservation?.moveInDate)
+      ? { ...c, endReason: 'reservation_fulfilled' as const }
+      : c,
+  );
 }
 
 const STATUS_ORDER: SelfOwnerContractStatus[] = ['awaiting_signature', 'ending_soon', 'active', 'ended'];
 
-/** Search (room, project or tenant; trimmed, case-insensitive), then status; work first. Input is not mutated. */
-export function filterSelfOwnerContracts(list: SelfOwnerContract[], q: string, filter: SelfOwnerContractFilter): SelfOwnerContract[] {
+/** The contract a room's row shows: the running lease or renewal, else one awaiting signature, else the last ended one;
+ * a room with no lease or renewal shows its newest contract. `newestFirst` is sorted by start date, newest first. */
+function currentOf(newestFirst: SelfOwnerContract[]): SelfOwnerContract {
+  const rent = newestFirst.filter(isRentContract);
+  return (
+    rent.find((c) => c.status === 'active' || c.status === 'ending_soon') ??
+    rent.find((c) => c.status === 'awaiting_signature') ??
+    rent.find((c) => c.status === 'ended') ??
+    newestFirst[0]
+  );
+}
+
+/** Contracts grouped by room (first-seen room order), each room's contracts newest first. Input is not mutated. */
+export function groupSelfOwnerContracts(list: SelfOwnerContract[]): SelfOwnerRoomContracts[] {
+  const byRoom = new Map<string, SelfOwnerContract[]>();
+  for (const contract of list) byRoom.set(contract.roomId, [...(byRoom.get(contract.roomId) ?? []), contract]);
+  return [...byRoom.values()].map((own) => {
+    const contracts = [...own].sort((a, b) => b.startDate.localeCompare(a.startDate) || a.id.localeCompare(b.id, 'en', { numeric: true }));
+    const current = currentOf(contracts);
+    return { roomId: current.roomId, roomTitle: current.roomTitle, project: current.project, contracts, current, status: current.status };
+  });
+}
+
+export function countSelfOwnerRooms(rooms: SelfOwnerRoomContracts[]): Record<SelfOwnerContractFilter, number> {
+  const counts: Record<SelfOwnerContractFilter, number> = { all: rooms.length, active: 0, ending_soon: 0, awaiting_signature: 0, ended: 0 };
+  for (const room of rooms) counts[room.status] += 1;
+  return counts;
+}
+
+/** Search (room, project, any contract's tenant or broker; trimmed, case-insensitive), then the room's current status;
+ * work first. Input is not mutated. */
+export function filterSelfOwnerRooms(rooms: SelfOwnerRoomContracts[], q: string, filter: SelfOwnerContractFilter): SelfOwnerRoomContracts[] {
   const needle = q.trim().toLocaleLowerCase();
-  return list
-    .filter((c) => filter === 'all' || c.status === filter)
-    .filter((c) => !needle || [c.roomTitle, c.project, c.tenantName].some((text) => text.toLocaleLowerCase().includes(needle)))
+  const texts = (room: SelfOwnerRoomContracts) => [
+    room.roomTitle,
+    room.project,
+    ...room.contracts.flatMap((c) => [c.tenantName, c.broker?.company ?? '', c.broker?.contact ?? '']),
+  ];
+  return rooms
+    .filter((room) => filter === 'all' || room.status === filter)
+    .filter((room) => !needle || texts(room).some((text) => text.toLocaleLowerCase().includes(needle)))
     .sort((a, b) => {
       const byStatus = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
       if (byStatus) return byStatus;
-      if (a.status === 'ended') return b.endDate.localeCompare(a.endDate);
-      return a.endDate.localeCompare(b.endDate) || a.id.localeCompare(b.id, 'en', { numeric: true });
+      if (a.status === 'ended') return b.current.endDate.localeCompare(a.current.endDate);
+      return a.current.endDate.localeCompare(b.current.endDate) || a.roomId.localeCompare(b.roomId, 'en', { numeric: true });
     });
 }
 
-/** Rent of one month for the contracts that run in it (not the ones awaiting signature). Future months are empty. */
+/** Rent of one month for the leases and renewals that run in it (not the ones awaiting signature). Future months are empty. */
 export function selfOwnerRentForMonth(contracts: SelfOwnerContract[], year: number, month: number, now: Date = new Date()): SelfOwnerRent[] {
   const today = bangkokToday(now);
   const [thisYear, thisMonth] = today.split('-').map(Number);
@@ -172,9 +266,10 @@ export function selfOwnerRentForMonth(contracts: SelfOwnerContract[], year: numb
   const first = ymd(year, month, 1);
   const last = ymd(year, month, lastDay(year, month));
   return contracts
-    .filter((c) => c.status !== 'awaiting_signature' && c.startDate <= last && c.endDate >= first)
+    .filter((c) => isRentContract(c) && c.status !== 'awaiting_signature' && c.startDate <= last && c.endDate >= first)
     .map((c) => {
-      const base = { id: `p-${c.roomId}-${year}-${pad(month)}`, roomTitle: c.roomTitle, project: c.project, tenantName: c.tenantName, amount: c.monthlyRent };
+      // The contract id keeps rows apart when two contracts of a room fall in one month.
+      const base = { id: `p-${c.id}-${year}-${pad(month)}`, roomTitle: c.roomTitle, project: c.project, tenantName: c.tenantName, amount: c.monthlyRent };
       const unpaidDay = key === current ? UNPAID_THIS_MONTH[c.roomId] : undefined;
       const dueDate = ymd(year, month, unpaidDay ?? DUE_DAY);
       if (unpaidDay === undefined && dueDate <= today) return { ...base, state: 'paid' as const, dueDate, paidAt: ymd(year, month, PAID_DAY) };
@@ -183,10 +278,10 @@ export function selfOwnerRentForMonth(contracts: SelfOwnerContract[], year: numb
     });
 }
 
-/** Months that have rent to show: from the oldest contract start (not awaiting signature) to this month, oldest first. */
+/** Months that have rent to show: from the oldest lease or renewal start (not awaiting signature) to this month, oldest first. */
 export function selfOwnerIncomeMonths(contracts: SelfOwnerContract[], now: Date = new Date()): SelfOwnerMonth[] {
   const [thisYear, thisMonth] = bangkokToday(now).split('-').map(Number);
-  const starts = contracts.filter((c) => c.status !== 'awaiting_signature').map((c) => c.startDate).sort();
+  const starts = contracts.filter((c) => isRentContract(c) && c.status !== 'awaiting_signature').map((c) => c.startDate).sort();
   if (!starts.length) return [{ year: thisYear, month: thisMonth }];
   const [startYear, startMonth] = starts[0].split('-').map(Number);
   const months: SelfOwnerMonth[] = [];

@@ -56,7 +56,8 @@ test('renders rooms, rent rows, to-dos and viewings from the snapshot', () => {
   const { SELF_OWNER_PREVIEW: limit } = lib();
   assert.equal(byClass(tree, 'sov-room').length, Math.min(snapshot.rooms.items.length, limit.rooms));
   assert.equal(byClass(tree, 'sov-rent-row').length, Math.min(snapshot.rent.items.length, limit.rent));
-  assert.equal(byClass(tree, 'sov-todo-row').length, 4);
+  // Rows with a zero count are hidden; the demo's renewal to-do is 0 since 805 has a renewal waiting (contract kinds, 24 Nov 2026).
+  assert.equal(byClass(tree, 'sov-todo-row').length, snapshot.todo.items.filter((i) => i.count > 0).length);
   assert.equal(byClass(tree, 'sov-viewing').length, snapshot.viewings.items.length);
   assert.equal(tree.filter(node => node?.props?.role === 'note').length, 1);
   const all = texts(tree).join('\n');
@@ -175,10 +176,12 @@ test('the listing action opens the form when the shell passes onAddListing', () 
   assert.equal(added, 1);
 });
 
+// A snapshot with every to-do showing, so each link can be pressed (the demo's renewal count is 0 since 24 Nov 2026).
+const withEveryTodo = () => { const s = fixture(); s.todo.items = s.todo.items.map((i) => (i.count > 0 ? i : { ...i, count: 1 })); return s; };
 test('rent "view all" and the to-dos link to income and contracts when the shell passes them (24 Nov 2026)', () => {
   locale = 'th';
   const calls = [];
-  const tree = render(fixture(), { onOpenIncome: () => calls.push('income'), onOpenContracts: () => calls.push('contracts') });
+  const tree = render(withEveryTodo(), { onOpenIncome: () => calls.push('income'), onOpenContracts: () => calls.push('contracts') });
   const copy = copyOf();
   const rentLink = tree.find(n => n?.type === 'button' && n.props.className === 'sov-link' && texts(nodes(n.props.children)).join('') === copy.viewAllRent);
   assert.equal(rentLink.props.disabled, undefined);

@@ -107,3 +107,68 @@
 @media (max-width: 599px) {
   .soi-summary { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Contract kinds (24 Nov 2026): the room's current contract cell and the room's contract list in the dialog. */
+.soc-current { display: flex; flex-direction: column; min-width: 160px; }
+.soc-current small { color: var(--aw-muted); font-size: var(--aw-t-small); white-space: nowrap; }
+.soc-contract-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--aw-s2); }
+.soc-contract {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aw-s3);
+  width: 100%;
+  padding: var(--aw-s3);
+  border: 1px solid var(--aw-border);
+  border-radius: var(--aw-r-sm);
+  background: var(--aw-surface);
+  color: var(--aw-ink);
+  text-align: start;
+  cursor: pointer;
+}
+.soc-contract:hover { border-color: var(--aw-brand-line); }
+.soc-contract-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.soc-contract-main strong { font-family: "NotoSansThai_600SemiBold", sans-serif; font-weight: 600; }
+.soc-contract-main small { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: var(--aw-s3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--aw-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.soc-back:hover { color: var(--aw-ink); }
+
+/* Contract detail, layout A (Jom 24 Nov 2026): period and progress, the other party, money tiles. */
+.soc-hero { margin-bottom: var(--aw-s4); }
+.soc-hero-tags { display: flex; align-items: center; gap: var(--aw-s2); margin-bottom: var(--aw-s2); }
+.soc-kind { padding: 2px 10px; border-radius: var(--aw-r-sm); background: var(--aw-bg); color: var(--aw-ink); font-size: var(--aw-t-small); }
+.soc-period { margin: 0; color: var(--aw-ink); font-family: "NotoSansThai_600SemiBold", sans-serif; font-size: var(--aw-t-section, 18px); }
+.soc-room { margin: 2px 0 0; color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-progress { height: 6px; margin-top: var(--aw-s3); border-radius: var(--aw-r-pill); background: var(--aw-bg); overflow: hidden; }
+.soc-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--aw-brand); }
+.soc-progress-meta { display: flex; justify-content: space-between; margin-top: 4px; color: var(--aw-muted); font-size: var(--aw-t-caption); }
+.soc-party { display: flex; align-items: center; gap: var(--aw-s3); padding: var(--aw-s3) 0; border-top: 1px solid var(--aw-border); border-bottom: 1px solid var(--aw-border); }
+.soc-avatar { display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--aw-brand-soft); color: var(--aw-brand-ink, var(--aw-ink)); font-family: "NotoSansThai_600SemiBold", sans-serif; }
+.soc-party-name { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.soc-party-name strong { color: var(--aw-ink); font-family: "NotoSansThai_600SemiBold", sans-serif; font-weight: 600; overflow-wrap: anywhere; }
+.soc-party-name small { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-phone { display: inline-flex; align-items: center; gap: 4px; color: var(--aw-muted); font-size: var(--aw-t-small); text-decoration: none; white-space: nowrap; }
+.soc-phone:hover { color: var(--aw-ink); }
+.soc-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--aw-s2); margin: var(--aw-s4) 0; }
+.soc-tile { display: flex; flex-direction: column; gap: 2px; padding: var(--aw-s3); border-radius: var(--aw-r-sm); background: var(--aw-bg); }
+.soc-tile span, .soc-tile small { color: var(--aw-muted); font-size: var(--aw-t-caption); }
+.soc-tile strong { color: var(--aw-ink); font-family: "NotoSansThai_600SemiBold", sans-serif; font-size: var(--aw-t-body); font-variant-numeric: tabular-nums; }
+.soc-extra { display: grid; gap: var(--aw-s2); margin: 0 0 var(--aw-s4); }
+.soc-extra div { display: flex; justify-content: space-between; gap: var(--aw-s3); }
+.soc-extra dt { color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-extra dd { margin: 0; color: var(--aw-ink); }
+.soc-link { display: flex; align-items: center; gap: var(--aw-s2); width: 100%; padding: var(--aw-s2) var(--aw-s3); border: 1px solid var(--aw-border); border-radius: var(--aw-r-sm); background: var(--aw-surface); color: var(--aw-ink); font: inherit; text-align: start; cursor: pointer; }
+.soc-link > span { flex: 1; }
+.soc-link:hover { border-color: var(--aw-brand-line); }
+.soc-readonly { display: flex; align-items: center; gap: 6px; }

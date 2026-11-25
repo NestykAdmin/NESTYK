@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { DashboardSectionStatus } from '@nestyk/feature-listing';
 import { createSelfOwnerRoomsDemo, useSelfOwnerRooms, type SelfOwnerRoom } from './self-owner-rooms';
-import { createSelfOwnerContractsDemo, selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from './self-owner-contracts';
+import { createSelfOwnerContractsDemo, groupSelfOwnerContracts, selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from './self-owner-contracts';
 
 export type { SelfOwnerRoom, SelfOwnerRoomState } from './self-owner-rooms';
 
@@ -93,7 +93,13 @@ export function createSelfOwnerDashboardDemoFixture(input: {
         { kind: 'overdue_rent', count: rent.filter((row) => row.state === 'overdue').length },
         { kind: 'new_interest', count: rooms.reduce((total, room) => total + (room.interestCount ?? 0), 0) },
         { kind: 'awaiting_signature', count: contracts.filter((c) => c.status === 'awaiting_signature').length },
-        { kind: 'renewal', count: contracts.filter((c) => c.status === 'ending_soon').length },
+        // Rooms whose lease ends soon and have no renewal awaiting signature yet (contract kinds, Jom 24 Nov 2026).
+        {
+          kind: 'renewal',
+          count: groupSelfOwnerContracts(contracts).filter(
+            (room) => room.status === 'ending_soon' && !room.contracts.some((c) => c.kind === 'renewal' && c.status === 'awaiting_signature'),
+          ).length,
+        },
       ],
     },
     viewings: { status: 'demo', items: viewings },
