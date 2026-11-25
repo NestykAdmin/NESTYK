@@ -40,7 +40,12 @@ export type SelfOwnerContract = {
   broker?: { company: string; contact: string; phone: string; commission: { months: number } | { amount: number } };
   /** A reservation: the agreed move-in date (also its end date) and the booking fee. */
   reservation?: { moveInDate: string; bookingFee: number };
+  /** Who signed and when (YYYY-MM-DD); the owner signs in the contract detail (Jom 25 Nov 2026, demo). */
+  signatures?: Partial<Record<SelfOwnerSigner, string>>;
 };
+
+/** The parties that sign a contract. */
+export type SelfOwnerSigner = 'owner' | 'tenant' | 'broker';
 
 /** One room and every contract of it, newest first; the page lists these (Jom 24 Nov 2026). */
 export type SelfOwnerRoomContracts = {
@@ -209,7 +214,15 @@ export function createSelfOwnerContractsDemo(now: Date = new Date()): SelfOwnerC
       contracts.push(contractOf(room, { tenantName: 'มานพ ดีงาม', startDate: twelveMonthsBefore(end), endDate: end }));
     }
   }
-  const dated = contracts.map((contract) => statusOn(contract, today));
+  // Who signed (Jom 25 Nov 2026, demo): awaiting contracts wait only for the owner, the tenant signed yesterday; every
+  // other contract is signed by all, a lease or renewal three days before it starts, the others on their date.
+  const signedDemo = contracts.map((contract): SelfOwnerContract => {
+    const signers = selfOwnerSigners(contract);
+    if (contract.status === 'awaiting_signature') return { ...contract, signatures: { tenant: addDays(today, -1) } };
+    const day = isRentContract(contract) ? addDays(contract.startDate, -3) : contract.startDate;
+    return { ...contract, signatures: Object.fromEntries(signers.map((signer) => [signer, day])) };
+  });
+  const dated = signedDemo.map((contract) => statusOn(contract, today));
   // A booking letter ends as used once the room's lease from its move-in date is in force (as the API records it).
   return dated.map((c) =>
     c.kind === 'reservation' && c.status === 'ended' &&
@@ -217,6 +230,28 @@ export function createSelfOwnerContractsDemo(now: Date = new Date()): SelfOwnerC
       ? { ...c, endReason: 'reservation_fulfilled' as const }
       : c,
   );
+}
+
+/** Who signs each kind: the owner always; the tenant (or booker), or the broker for a broker appointment. A self owner's
+ * booking letter has no broker signing it (in the agent system the agent signs, Jom 25 Nov 2026). */
+export function selfOwnerSigners(contract: SelfOwnerContract): SelfOwnerSigner[] {
+  return contract.kind === 'broker_appointment' ? ['owner', 'broker'] : ['owner', 'tenant'];
+}
+
+/** The owner can sign: the contract awaits signatures and the owner has not signed yet. */
+export const ownerCanSign = (contract: SelfOwnerContract): boolean =>
+  contract.status === 'awaiting_signature' && !contract.signatures?.owner;
+
+/** The owner signs on `today`; once every party has signed the contract takes its status from its dates. */
+export function signSelfOwnerContract(contract: SelfOwnerContract, today: string): SelfOwnerContract {
+  const signed = { ...contract, signatures: { ...contract.signatures, owner: today } };
+  const all = selfOwnerSigners(signed).every((signer) => signed.signatures[signer]);
+  return all ? statusOn({ ...signed, status: 'active' }, today) : signed;
+}
+
+/** The list with the owner's signatures of this session (contract id → day signed) applied. */
+export function applySelfOwnerSignatures(list: SelfOwnerContract[], signedOn: Record<string, string>, today: string): SelfOwnerContract[] {
+  return list.map((contract) => (signedOn[contract.id] && ownerCanSign(contract) ? signSelfOwnerContract(contract, signedOn[contract.id] ?? today) : contract));
 }
 
 const STATUS_ORDER: SelfOwnerContractStatus[] = ['awaiting_signature', 'ending_soon', 'active', 'ended'];

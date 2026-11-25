@@ -710,6 +710,37 @@ export interface TranslationSchema {
     /** Layout A (Jom 24 Nov 2026): "month 8 of 12" under the progress bar, and a months note on a money tile. */
     progressMonth: string;
     monthsCount: string;
+    /** Contract signing in the detail (Jom 25 Nov 2026, demo). */
+    signing: string;
+    signerOwner: string;
+    signerBroker: string;
+    signedOn: string;
+    notSigned: string;
+    signAction: string;
+    signHint: string;
+    clearSignature: string;
+    confirmSignature: string;
+    cancelSigning: string;
+    signEmpty: string;
+    waitingOthers: string;
+    demoSignNote: string;
+    /** The separate sign page, option B (Jom 25 Nov 2026). */
+    signStepReview: string;
+    signStepSign: string;
+    signStep: string;
+    noFileSummary: string;
+    acceptTerms: string;
+    nextStep: string;
+    previousStep: string;
+    signedTitle: string;
+    signedAll: string;
+    backToContract: string;
+    /** The contract file on the sign page and from the detail (Jom 25 Nov 2026). */
+    readToEnd: string;
+    readDone: string;
+    documentLoading: string;
+    documentFailed: string;
+    sampleDocument: string;
   };
   selfOwnerIncome: {
     summaryTotal: string;

@@ -14,3 +14,12 @@ export function tabSlideDirection(role: string, from: string | null | undefined,
   if (a < 0 || b < 0) return 'right';
   return b > a ? 'right' : 'left';
 }
+
+/**
+ * Steps inside one window (Jom 25 Nov 2026, the self owner contracts dialog and sign page): a higher step slides in from
+ * the right, a lower one from the left; the first show and the same step do not slide.
+ */
+export function stepSlideDirection(previous: number | null, next: number): TabSlideDirection | null {
+  if (previous === null || previous === next) return null;
+  return next > previous ? 'right' : 'left';
+}
