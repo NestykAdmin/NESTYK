@@ -11,7 +11,7 @@ const { adminWebNavSections, selfOwnerWebNavSections } = mod.exports;
 const copy = {
   comingSoon: 'Coming soon', dashboard: 'Dashboard', services: 'Services',
   drawer: { users: 'Users', tickets: 'Tickets', system: 'System', audit: 'Audit log', opsSettings: 'Operations settings' },
-  admin: { main: 'Platform' },
+  admin: { main: 'Platform', viewing: { menu: 'Viewing requests', newCount: '{count} new' } },
   selfOwner: { main: 'My rooms', money: 'Tenants and money', listings: 'Rooms and listings', listingsView: 'View rooms', listingsCreate: 'Add room', interested: 'Interested people', viewings: 'Viewings', tenants: 'Tenants', contracts: 'Contracts', billsIncome: 'Bills and income', repairs: 'Repairs' },
 };
 
@@ -28,13 +28,31 @@ function check(sections, captions, ids) {
   }
 }
 
-test('admin sidebar: overview, users, tickets, services, then System: audit log and operations settings', () => {
+test('admin sidebar: overview, viewing requests (works, with the new count), users, tickets, services, then System', () => {
   const calls = [];
-  const sections = adminWebNavSections(copy, true, () => calls.push('dashboard'));
-  check(sections, ['Platform', 'System'], ['dashboard', 'users', 'tickets', 'services', 'audit', 'opsSettings']);
-  assert.equal(sections[0].items[0].active, true);
-  sections[0].items[0].onPress();
-  assert.deepEqual(calls, ['dashboard']);
+  const sections = adminWebNavSections(copy, 'dashboard', (id) => calls.push(id), 3);
+  assert.deepEqual(sections.map((s) => s.caption), ['Platform', 'System']);
+  const items = sections.flatMap((s) => s.items);
+  assert.deepEqual(items.map((i) => i.id), ['dashboard', 'viewingRequests', 'users', 'tickets', 'services', 'audit', 'opsSettings']);
+  const [overview, viewing, ...rest] = items;
+  assert.equal(overview.active, true);
+  assert.equal(viewing.active, false);
+  assert.equal(viewing.disabled, undefined, 'viewing requests work (plan step 3, Mos 24 Nov 2026)');
+  assert.equal(viewing.label, 'Viewing requests');
+  assert.equal(viewing.count, 3);
+  assert.equal(viewing.countLabel, '3 new', 'screen readers hear what the number means (review R9)');
+  for (const item of rest) {
+    assert.equal(item.disabled, true, item.id);
+    assert.equal(item.badge, 'Coming soon', item.id);
+  }
+  overview.onPress();
+  viewing.onPress();
+  assert.deepEqual(calls, ['dashboard', 'viewingRequests']);
+  const onViewing = adminWebNavSections(copy, 'viewingRequests', () => {}, 0).flatMap((s) => s.items);
+  assert.equal(onViewing[1].active, true);
+  assert.equal(onViewing[0].active, false);
+  assert.equal(onViewing[1].count, undefined, 'no number when nothing is new');
+  assert.equal(onViewing[1].countLabel, undefined);
 });
 
 test('self owner sidebar: my rooms (overview and rooms work, 19 Nov 2026), then tenants and money', () => {

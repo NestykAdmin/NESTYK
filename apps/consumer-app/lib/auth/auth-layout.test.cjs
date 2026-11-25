@@ -95,3 +95,14 @@ test('the two new texts exist in all four languages', () => {
     assert.match(s, /\n  captchaChecking: '[^']+',/, `${lang}.captchaChecking`);
   }
 });
+
+// Mos 24 Nov 2026: on the phone app anyone can use the guest pages without signing in, whatever role the build
+// starts with; on the web the link stays tied to a guest-first build (the guest site is its own Next.js app).
+test('"Use as a guest" on the sign-in page: always in the phone app, on the web only for a guest-first build', () => {
+  assert.equal(rules.showGuestBrowse('ios', 'agent'), true);
+  assert.equal(rules.showGuestBrowse('android', 'agent'), true);
+  assert.equal(rules.showGuestBrowse('ios', 'guest'), true);
+  assert.equal(rules.showGuestBrowse('web', 'guest'), true);
+  assert.equal(rules.showGuestBrowse('web', 'agent'), false);
+  assert.ok(read('app/login.tsx').includes('showGuestBrowse(Platform.OS, APP_CONFIG.defaultRole)'), 'the sign-in page uses the rule');
+});

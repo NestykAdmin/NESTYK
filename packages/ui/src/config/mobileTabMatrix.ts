@@ -17,7 +17,8 @@ const MENU_TAB: MobileTabConfig = { key: 'menu', icon: 'menu' };
 const TAB_MATRIX: Record<ExtendedTabRole, MobileTabConfig[]> = {
   guest: [
     { key: 'home', icon: 'home' },
-    SERVICES_TAB,
+    // Services closed for guests for now (Mos 24 Nov 2026): coming soon until it is decided (S8.5).
+    { ...SERVICES_TAB, comingSoon: true },
     { key: 'search', icon: 'search' },
     MENU_TAB,
   ],

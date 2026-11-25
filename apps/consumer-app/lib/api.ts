@@ -81,6 +81,26 @@ async function authHeader(overrideToken?: string): Promise<AuthInfo> {
 }
 
 /**
+ * The signed-in user's current access token (renewed first when it is due) and its user, or null.
+ * For the guest web shown in the app (W1, components/GuestWebView). Never a signed-out dev identity, never the saved
+ * copy of an old token, and null when Supabase holds another user's session than the one saved (review R7).
+ */
+export async function signedInAccessToken(): Promise<{ token: string; userId: string } | null> {
+  const saved = await loadAuthSession();
+  if (!saved) return null;
+  if (saved.mode === 'dev') return saved.accessToken ? { token: saved.accessToken, userId: saved.userId } : null;
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const session = (await client.auth.getSession()).data.session;
+    if (!session?.access_token || session.user.id !== saved.userId) return null;
+    return { token: session.access_token, userId: saved.userId };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * After a 401: ask Supabase for a new access token once.
  * `offline` means the refresh could not reach Supabase (no network, server down); the session may
  * still be fine, so the user is not signed out.

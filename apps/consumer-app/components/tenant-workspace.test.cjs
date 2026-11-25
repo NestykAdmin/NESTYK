@@ -44,7 +44,11 @@ test('Living is coming soon on web and in the mobile tab bar, and the sample lea
   const { getTabsForRole } = load(path.join(root, 'packages/ui/src/config/mobileTabMatrix.ts'));
   const tenantTabs = getTabsForRole('tenant');
   assert.deepEqual(tenantTabs.filter(tab => tab.comingSoon).map(tab => tab.key), ['living']);
-  for (const role of ['guest', 'landlord', 'agent', 'admin']) {
+  // Guest services are closed for now (Mos 24 Nov 2026): the tab shows "coming soon" and cannot be pressed.
+  assert.deepEqual(getTabsForRole('guest').filter(tab => tab.comingSoon).map(tab => tab.key), ['services']);
+  const shell = fs.readFileSync(path.join(__dirname, '../app/index.tsx'), 'utf8');
+  assert.ok(shell.includes("activeTab === 'living' || (activeRole === 'guest' && activeTab === 'services')"), 'a direct link to guest services shows coming soon');
+  for (const role of ['landlord', 'agent', 'admin']) {
     assert.deepEqual(getTabsForRole(role).filter(tab => tab.comingSoon), [], role);
   }
   const home = fs.readFileSync(path.join(__dirname, '../app/index.tsx'), 'utf8');
@@ -69,4 +73,14 @@ test('tenant menu labels and workspace name exist in all four locales', () => {
     assert.ok(messages.tenant.webWorkspace.main);
     assert.notEqual(messages.tenant.webWorkspace.brandTag, messages.owner.webWorkspace.brandTag);
   }
+});
+
+// Mos 24 Nov 2026: every role's bottom tab bar uses the agent style (ink icon and label, a short underline under the
+// picked tab), and the underline takes the role's own colour (its role ring: guest yellow, agent emerald, admin gold).
+test('bottom tab bar: underline style for every role, in the role colour', () => {
+  const shell = fs.readFileSync(path.join(__dirname, '../app/index.tsx'), 'utf8');
+  const bar = shell.slice(shell.indexOf('<MobileBottomTabBar'), shell.indexOf('/>', shell.indexOf('<MobileBottomTabBar')));
+  assert.ok(!bar.includes("activeRole === 'agent' || isTenantWorkspace"), 'no longer only for the agent and the tenant workspace');
+  assert.ok(bar.includes('indicatorColor={roleTileColors(activeRole, isDark).ring}'));
+  assert.ok(bar.includes('activeTintColor={theme.screenTitle}'));
 });

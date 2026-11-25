@@ -399,3 +399,26 @@ export const RefreshIcon = (props: IconProps) => (
     <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" />
   </Line>
 );
+
+/** App bar bell (step 2, design W): the app's notifications. */
+export const BellIcon = (props: IconProps) => (
+  <Line {...props}>
+    <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9" />
+    <path d="M10 19a2 2 0 0 0 4 0" />
+  </Line>
+);
+
+/** "More" tab in the app (three dots, as the app's own More tab). */
+export const MoreIcon = (props: IconProps) => (
+  <Line strokeWidth={2.4} {...props}>
+    <path d="M5 12h.01M12 12h.01M19 12h.01" />
+  </Line>
+);
+
+/** Recent searches on the mobile search page /find. */
+export const ClockIcon = (props: IconProps) => (
+  <Line {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Line>
+);

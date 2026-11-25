@@ -3,9 +3,10 @@
 import React, { useId, useRef, useState } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { GUEST_QUICK_FILTERS } from '@nestyk/feature-search';
-import { useRouter } from '../../../i18n/navigation';
+import { Link, useRouter } from '../../../i18n/navigation';
 import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, searchHrefIfReady, type HomeSearchInput } from '../../../lib/guest-home';
 import { locationPatch, type LocationChoice } from '../../../lib/guest-location';
+import { FIND_FROM_SITE } from '../../../lib/guest-recent';
 import { isGuestPageReady, shownQuickFilters } from '../../../lib/guest-site';
 import { SearchIcon } from './GuestIcons';
 import { LocationCombobox } from './LocationCombobox';
@@ -14,8 +15,8 @@ import type { Price } from './PriceRangeField';
 
 /**
  * Home search box (S3.4, design v2.3): rent / buy (buy is "coming soon"), one search row, popular filters.
- * Sends the guest to /search with the chosen values in the URL. On mobile only the keyword row and the popular
- * filters show (guest.css), as in MobileHomeV23.
+ * Sends the guest to /search with the chosen values in the URL. On phones (Mos 25 Nov 2026, canvas "searchnew" N1)
+ * only a search bar shows, a link to the search page /find; the row and the popular filters are hidden (guest.css).
  */
 export function SearchPanel() {
   const { t } = useLocale();
@@ -83,6 +84,21 @@ export function SearchPanel() {
           <span className="nk-soon">{copy.search.comingSoon}</span>
         </button>
       </div>
+      <Link
+        href="/find"
+        className="nk-search__find"
+        onClick={() => {
+          try {
+            window.sessionStorage.setItem(FIND_FROM_SITE, '1');
+          } catch {
+            // Storage off: ✕ on /find then goes to the home page instead of back.
+          }
+        }}
+        data-testid="guestHome.findLink"
+      >
+        <SearchIcon size={18} />
+        <span>{copy.search.keywordPlaceholder}</span>
+      </Link>
       <div className="nk-search__row">
         <div className="nk-field nk-field--keyword">
           <label htmlFor={`${id}-q`} className="nk-field__label">

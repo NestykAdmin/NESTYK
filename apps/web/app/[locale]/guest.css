@@ -56,7 +56,12 @@
 
   --nk-content-width: 1200px;
   --nk-tap: 44px;
-  --nk-tabbar-height: calc(64px + env(safe-area-inset-bottom, 0px));
+  /* The phone's status bar / home bar. Inside the NESTYK app the app gives them (--nk-app-top / --nk-app-bottom),
+     since the page there cannot read env() (step 2, design W). */
+  --nk-safe-top: env(safe-area-inset-top, 0px);
+  --nk-safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Floating bar (64px) + the gap under it; the page keeps this much room at the bottom. */
+  --nk-tabbar-height: calc(80px + var(--nk-safe-bottom));
   --nk-shadow-pop: 0 12px 32px rgba(33, 30, 30, 0.12);
 }
 
@@ -68,10 +73,13 @@ body {
   line-height: 1.6;
 }
 
+/* The location sheet and the sign-in prompt sit outside .nk-guest (portals): same focus ring there, so no browser
+   paints its own (macOS accent in Chrome, blue in Safari and the app). */
 .nk-guest a:focus-visible,
 .nk-guest button:focus-visible,
 .nk-guest summary:focus-visible,
-.nk-guest input:focus-visible {
+.nk-guest input:focus-visible,
+:is(.nk-loc-sheet, .nk-prompt) :is(a, button, input):focus-visible {
   outline: 3px solid var(--nk-color-focus);
   outline-offset: 2px;
 }
@@ -413,10 +421,12 @@ a.nk-nav__item:hover {
   display: none;
 }
 .nk-tab {
+  position: relative;
   min-height: var(--nk-tap);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   color: var(--nk-color-text-secondary);
   font-size: var(--nk-text-xs);
@@ -434,8 +444,13 @@ a.nk-nav__item:hover {
   color: var(--nk-color-ink);
   font-weight: 600;
 }
-.nk-tab[aria-current="page"] .nk-tab__icon {
-  background: var(--nk-color-brand-soft);
+/* Same as the app's tab bar (Mos 24 Nov 2026): a short underline under the picked tab in the guest colour. */
+.nk-tab[aria-current="page"]::after {
+  content: "";
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--nk-color-brand);
 }
 .nk-tab--soon {
   color: var(--nk-color-placeholder);
@@ -817,19 +832,22 @@ summary.nk-row:hover {
   .nk-footer {
     display: none;
   }
+  /* A floating capsule like the app's tab bar (Mos 24 Nov 2026). */
   .nk-tabbar {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: var(--nk-space-3);
+    right: var(--nk-space-3);
+    bottom: max(var(--nk-space-3), var(--nk-safe-bottom));
     z-index: 40;
     box-sizing: border-box;
-    min-height: var(--nk-tabbar-height);
-    padding: var(--nk-space-2) var(--nk-space-1) max(var(--nk-space-2), env(safe-area-inset-bottom, 0px));
+    min-height: 64px;
+    padding: var(--nk-space-1);
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     background: var(--nk-color-surface);
-    border-top: 1px solid var(--nk-color-border);
+    border: 1px solid var(--nk-color-border);
+    border-radius: 20px;
+    box-shadow: 0 8px 24px rgba(33, 30, 30, 0.12);
   }
   /* The cookie card floats above the tab bar; the page keeps room for it while it is open. */
   .ck-bar {
@@ -1628,12 +1646,12 @@ a.nk-types__item:hover {
   .nk-search__quick::-webkit-scrollbar {
     display: none;
   }
-  .nk-search .nk-chip {
+  .nk-search__quick .nk-chip {
     border-color: var(--nk-color-dark-line);
     background: transparent;
     color: var(--nk-color-surface);
   }
-  .nk-search .nk-chip[aria-pressed="true"] {
+  .nk-search__quick .nk-chip[aria-pressed="true"] {
     border-color: var(--nk-color-surface);
     background: var(--nk-color-surface);
     color: var(--nk-color-ink);
@@ -1695,6 +1713,40 @@ a.nk-types__item:hover {
     width: 76%;
     max-width: 300px;
     scroll-snap-align: start;
+  }
+  /* Sideways room rails (home "recommended"), compact A (Mos 24 Nov 2026): a narrower card with a shorter photo and
+     a tighter text block, so 1.5 cards show; the title always takes 2 lines, so every card is the same height.
+     The first card snaps 16px in from the edge, in line with the section title. Search results stack: not here. */
+  .nk-room-grid:not(.nk-search-list) {
+    scroll-padding-inline: var(--nk-space-4);
+  }
+  .nk-room-grid:not(.nk-search-list) > .nk-room {
+    width: 66%;
+    max-width: 260px;
+  }
+  .nk-room-grid:not(.nk-search-list) .nk-room__media {
+    aspect-ratio: 3 / 2;
+  }
+  .nk-room-grid:not(.nk-search-list) .nk-room__body {
+    padding: var(--nk-space-3);
+    gap: var(--nk-space-1);
+  }
+  .nk-room-grid:not(.nk-search-list) .nk-price__value {
+    font-size: var(--nk-text-xl);
+  }
+  .nk-room-grid:not(.nk-search-list) .nk-room__title {
+    font-size: var(--nk-text-sm);
+    line-height: 1.45;
+    min-height: calc(2 * 1.45em);
+  }
+  .nk-room-grid:not(.nk-search-list) :is(.nk-room__meta, .nk-room__specs, .nk-room__availability) {
+    font-size: var(--nk-text-xs);
+  }
+  .nk-room-grid:not(.nk-search-list) .nk-room__specs {
+    gap: 2px var(--nk-space-3);
+  }
+  .nk-room-grid:not(.nk-search-list) .nk-room__availability {
+    padding-top: var(--nk-space-2);
   }
   .nk-area-grid {
     grid-template-columns: 1fr;
@@ -1910,7 +1962,7 @@ a.nk-types__item:hover {
     width: 100%;
     max-height: calc(100vh - 48px);
     border-radius: 20px 20px 0 0;
-    padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-6) + env(safe-area-inset-bottom));
+    padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-6) + var(--nk-safe-bottom));
   }
   .nk-prompt__handle {
     display: block;
@@ -1925,6 +1977,55 @@ a.nk-types__item:hover {
 /* Viewing requests (plan 23 Nov 2026, step 2). Form: the sign-in prompt's dialog / bottom sheet, a wider panel. */
 .nk-vr__panel {
   width: min(520px, 100%);
+}
+/* Narrow screens: one column, the room first. */
+.nk-vr__side {
+  display: contents;
+}
+.nk-vr__side > .nk-prompt__room {
+  order: -1;
+}
+.nk-vr__pick {
+  display: contents;
+}
+/* Wide screens (Mos 24 Nov 2026): a wider dialog in 2 columns so the whole form fits without scrolling. */
+@media (min-width: 961px) {
+  .nk-vr__panel--form {
+    width: min(920px, calc(100vw - 48px));
+  }
+  .nk-vr__panel--form .nk-vr__form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    column-gap: var(--nk-space-8);
+    align-items: stretch;
+  }
+  .nk-vr__pick,
+  .nk-vr__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nk-space-4);
+    min-width: 0;
+  }
+  .nk-vr__side {
+    padding-left: var(--nk-space-8);
+    border-left: 1px solid var(--nk-color-border);
+  }
+  .nk-vr__side > .nk-prompt__room {
+    order: 0;
+  }
+  .nk-vr__side .nk-vr__foot {
+    margin-top: auto;
+  }
+  .nk-vr__panel--form .nk-vr__days {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .nk-vr__panel--form .nk-vr__scroll {
+    display: none;
+  }
+  .nk-vr__panel--form .nk-vr__times {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 .nk-vr__head {
   display: flex;
@@ -2015,12 +2116,99 @@ a.nk-types__item:hover {
 }
 .nk-vr__day.is-on {
   border-color: var(--nk-color-ink);
-  background: var(--nk-color-ink);
-  color: var(--nk-color-surface);
+  background: var(--nk-color-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--nk-color-ink);
 }
-.nk-vr__day:disabled {
-  opacity: 0.45;
+.nk-vr__day--cal {
+  border-style: dashed;
+  gap: var(--nk-space-1);
+}
+.nk-vr__field--dates {
+  position: relative;
+}
+.nk-vr__back {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  min-height: 32px;
+  padding: 0 var(--nk-space-1);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.nk-vr-cal {
+  padding: var(--nk-space-3);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+}
+.nk-vr-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nk-space-2);
+}
+.nk-vr-cal__month {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-vr-cal__nav {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.nk-vr-cal__nav:disabled {
+  opacity: 0.35;
   cursor: not-allowed;
+}
+.nk-vr-cal__week,
+.nk-vr-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  text-align: center;
+}
+.nk-vr-cal__week {
+  margin-bottom: var(--nk-space-1);
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr-cal__day {
+  height: 40px;
+  border: 0;
+  border-radius: var(--nk-radius-md);
+  background: none;
+  font: inherit;
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-vr-cal__day:hover:not(:disabled) {
+  background: var(--nk-color-brand-soft);
+}
+.nk-vr-cal__day.is-on {
+  background: var(--nk-color-brand-soft);
+  box-shadow: inset 0 0 0 2px var(--nk-color-ink);
+  color: var(--nk-color-ink);
+  font-weight: 600;
+}
+.nk-vr-cal__day:disabled {
+  color: var(--nk-color-text-disabled);
+  cursor: not-allowed;
+}
+.nk-vr-cal__limit {
+  margin: var(--nk-space-2) 0 0;
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
 }
 .nk-vr__day-week,
 .nk-vr__day-month {
@@ -2031,47 +2219,97 @@ a.nk-types__item:hover {
   font-size: var(--nk-text-lg);
   line-height: 1.1;
 }
-.nk-vr__slots {
+.nk-vr__tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--nk-space-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--nk-radius-lg);
+  background: var(--nk-color-neutral-bg);
 }
-.nk-vr__slot {
-  position: relative;
+.nk-vr__tab {
   min-height: var(--nk-tap);
-  box-sizing: border-box;
-  padding: var(--nk-space-1) var(--nk-space-2);
-  border: 1px solid var(--nk-color-border);
+  border: 0;
   border-radius: var(--nk-radius-md);
+  background: transparent;
+  font: inherit;
+  color: var(--nk-color-ink);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  line-height: 1.3;
   cursor: pointer;
 }
-.nk-vr__slot input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.nk-vr__tab.is-on {
+  background: var(--nk-color-surface);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
 }
-.nk-vr__slot:has(input:focus-visible) {
-  outline: 3px solid var(--nk-color-focus);
-  outline-offset: 2px;
+.nk-vr__tab-name {
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
 }
-.nk-vr__slot.is-on {
+.nk-vr__tab-range {
+  font-size: 11px;
+  color: var(--nk-color-text-secondary);
+}
+.nk-vr__times {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nk-space-2);
+}
+.nk-vr__time {
+  min-height: var(--nk-tap);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-surface);
+  font: inherit;
+  font-weight: 600;
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-vr__time:hover {
+  border-color: var(--nk-color-ink);
+}
+.nk-vr__time.is-on {
   border-color: var(--nk-color-ink);
   background: var(--nk-color-brand-soft);
   box-shadow: inset 0 0 0 1px var(--nk-color-ink);
 }
-.nk-vr__slot-name {
+.nk-vr__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-2);
+}
+/* Phones: the summary and the send button stay at the bottom of the sheet while the form scrolls. */
+@media (max-width: 960px) {
+  .nk-vr__foot {
+    position: sticky;
+    /* The sheet keeps its bottom padding outside the sticky area: pull the bar down over it. */
+    bottom: calc(-1 * (var(--nk-space-6) + var(--nk-safe-bottom)));
+    z-index: 1;
+    margin: 0 calc(-1 * var(--nk-space-5)) calc(-1 * (var(--nk-space-6) + var(--nk-safe-bottom)));
+    padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-4) + var(--nk-safe-bottom));
+    border-top: 1px solid var(--nk-color-border);
+    background: var(--nk-color-surface);
+  }
+}
+.nk-vr__summary.is-empty {
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-text-secondary);
+  font-weight: 400;
+}
+.nk-vr__summary {
+  margin: 0;
+  padding: var(--nk-space-2) var(--nk-space-3);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-brand-soft);
+  color: var(--nk-color-ink);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
   font-size: var(--nk-text-sm);
   font-weight: 600;
-  color: var(--nk-color-ink);
-}
-.nk-vr__slot-hint {
-  font-size: 11px;
-  color: var(--nk-color-text-secondary);
 }
 .nk-vr__message {
   height: auto;
@@ -2134,8 +2372,8 @@ a.nk-types__item:hover {
   cursor: pointer;
 }
 @media (max-width: 480px) {
-  .nk-vr__slots {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .nk-vr__times {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .nk-vr__scroll {
     display: none;
@@ -2143,6 +2381,18 @@ a.nk-types__item:hover {
 }
 
 /* The /viewing-requests page (Mos picked "room card + 3-step bar"). */
+.nk-vr-list__none {
+  margin: 0 0 var(--nk-space-4);
+  padding: var(--nk-space-4);
+  border: 1px dashed var(--nk-color-border);
+  border-radius: var(--nk-radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nk-space-3);
+  flex-wrap: wrap;
+  color: var(--nk-color-text-secondary);
+}
 .nk-vr-list {
   display: flex;
   flex-direction: column;
@@ -2908,7 +3158,7 @@ fieldset.nk-filter-dd {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: var(--nk-space-3);
-  padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-4) + env(safe-area-inset-bottom, 0px));
+  padding: var(--nk-space-3) var(--nk-space-5) calc(var(--nk-space-4) + var(--nk-safe-bottom));
   border-top: 1px solid var(--nk-color-border);
   background: var(--nk-color-surface);
 }
@@ -4404,7 +4654,8 @@ div.nk-role-row:hover {
   .nk-rp-overlay {
     display: flex;
     position: absolute;
-    top: var(--nk-space-3);
+    /* Below the phone's status bar inside the app (step 2); a browser adds 0 here. */
+    top: calc(var(--nk-space-3) + var(--nk-safe-top));
     left: var(--nk-space-3);
     right: var(--nk-space-3);
     justify-content: space-between;
@@ -4552,7 +4803,7 @@ div.nk-role-row:hover {
     z-index: 40;
     box-sizing: border-box;
     min-height: var(--nk-tabbar-height);
-    padding: var(--nk-space-3) var(--nk-space-5) max(var(--nk-space-3), env(safe-area-inset-bottom, 0px));
+    padding: var(--nk-space-3) var(--nk-space-5) max(var(--nk-space-3), var(--nk-safe-bottom));
     display: flex;
     align-items: center;
     gap: var(--nk-space-3);
@@ -4586,5 +4837,437 @@ div.nk-role-row:hover {
     width: auto;
     padding: 0 var(--nk-space-4);
     font-size: var(--nk-text-md);
+  }
+}
+
+/* ===== Inside the NESTYK app (step 2, design W, Mos 24 Nov 2026) =====
+   The app marks the page before it loads (html[data-nk-app], apps/consumer-app lib/guest-web-bridge.ts bootScript)
+   and gives it the status bar / home bar heights (--nk-app-top / --nk-app-bottom). In a browser nothing here applies. */
+.nk-tab__part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+html:not([data-nk-app]) .nk-app-only {
+  display: none !important;
+}
+html[data-nk-app] .nk-web-only {
+  display: none !important;
+}
+.nk-appbar {
+  display: none;
+}
+html[data-nk-app] {
+  --nk-safe-top: var(--nk-app-top, 0px);
+  --nk-safe-bottom: var(--nk-app-bottom, 0px);
+}
+/* Phones: the app bar replaces the header. Wider (a tablet in the app) keeps the header, which has the menu there. */
+@media (max-width: 960px) {
+  html[data-nk-app] .nk-header {
+    display: none;
+  }
+}
+/* The phone's status bar is always on ink in the app (its text is light), also over the white sheets, the map and
+   the room photo, which start below it. */
+html[data-nk-app] body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nk-safe-top);
+  background: var(--nk-color-ink);
+  z-index: 1000;
+  pointer-events: none;
+}
+html[data-nk-app] .nk-appbar {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(var(--nk-safe-top) + 8px) 12px 10px;
+  background: var(--nk-color-ink);
+  border-radius: 0 0 20px 20px;
+}
+/* Home hero and the pages' ink heads: the bar runs into them, so they keep the rounded edge (the bar has the logo). */
+html[data-nk-app] .nk-guest:has(.nk-hero, .nk-page-head) .nk-appbar {
+  border-radius: 0;
+}
+html[data-nk-app] .nk-hero__logo {
+  display: none;
+}
+.nk-appbar__brand {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--nk-tap);
+  display: flex;
+  align-items: center;
+  border-radius: var(--nk-radius-sm, 8px);
+}
+.nk-appbar__brand img {
+  display: block;
+  height: 28px;
+  width: auto;
+}
+.nk-appbar__avatar,
+.nk-appbar__bell {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--nk-radius-pill);
+  background: transparent;
+  color: var(--nk-color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font: inherit;
+}
+/* Signed in: the guest's picture in the guest colours with its ring, as the app's own avatar. */
+.nk-appbar__avatar--signed-in {
+  border: 0;
+  box-shadow: 0 0 0 2px var(--nk-color-ink), 0 0 0 4px var(--nk-role-ring, var(--nk-color-brand));
+}
+.nk-appbar__avatar--signed-in .nk-avatar-initials {
+  background: var(--nk-role-bg, var(--nk-color-brand));
+  color: var(--nk-role-fg, var(--nk-color-ink));
+  font-size: var(--nk-text-sm);
+}
+.nk-appbar :is(.nk-appbar__avatar, .nk-appbar__bell, .nk-appbar__brand):focus-visible {
+  outline: 2px solid var(--nk-color-brand);
+  outline-offset: 2px;
+}
+/* A wrapper that only exists to be hidden in one place: no box of its own. */
+.nk-contents {
+  display: contents;
+}
+
+/* Phones: every text box, list and note at 16px, so iPhone (Safari and the NESTYK app) does not zoom the page in when
+   one gets focus and leave it zoomed (the home search, Mos 24 Nov 2026). The location sheet's box already was. */
+@media (max-width: 960px) {
+  :is(input, select, textarea).nk-input {
+    font-size: 16px;
+  }
+}
+
+/* ===== Mobile search (Mos 25 Nov 2026, canvas page "searchnew": N1 and D2–D6) =====
+   Home on phones: only a search bar, a link to /find. /find: the place box, "near me" and the rail lines, recent
+   searches, the type / rent / bedrooms dropdowns, and "ล้าง" / "ดูห้อง" fixed at the bottom. */
+.nk-search__find {
+  display: none;
+}
+@media (max-width: 960px) {
+  .nk-search .nk-search__find {
+    min-height: 48px;
+    padding: 0 var(--nk-space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--nk-space-2);
+    border-radius: var(--nk-radius-md);
+    background: var(--nk-color-surface);
+    color: var(--nk-color-text-secondary);
+    font-size: 16px;
+    text-decoration: none;
+  }
+  .nk-search .nk-search__find svg {
+    flex: none;
+    color: var(--nk-color-text-secondary);
+  }
+  .nk-search .nk-search__row,
+  .nk-search .nk-search__quick {
+    display: none;
+  }
+}
+.nk-find {
+  min-height: 100dvh;
+  box-sizing: border-box;
+  /* Room under the list for the bottom bar (its height comes from the page) and, while typing, the keyboard. */
+  padding-bottom: calc(var(--nk-find-bar, 96px) + var(--nk-find-kb, 0px) + var(--nk-safe-bottom));
+  background: var(--nk-color-surface);
+}
+.nk-find__top {
+  position: relative;
+  padding: calc(var(--nk-safe-top) + var(--nk-space-3)) var(--nk-space-4) 0;
+}
+.nk-find__loc {
+  display: flex;
+  flex-direction: column;
+}
+.nk-find__field {
+  margin-right: calc(var(--nk-tap) + var(--nk-space-2));
+}
+.nk-find__field-icon {
+  position: absolute;
+  left: var(--nk-space-3);
+  top: 15px;
+  color: var(--nk-color-text-secondary);
+  pointer-events: none;
+}
+.nk-find__close {
+  position: absolute;
+  top: calc(var(--nk-safe-top) + var(--nk-space-3) + 2px);
+  right: var(--nk-space-3);
+  width: var(--nk-tap);
+  height: var(--nk-tap);
+  border: 0;
+  border-radius: var(--nk-radius-pill);
+  background: transparent;
+  color: var(--nk-color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nk-find__list {
+  margin-top: var(--nk-space-2);
+}
+/* The rows line up with the box and the filters (the sheet and the popover keep their own padding). */
+.nk-find__list .nk-loc__option {
+  margin: 0 calc(-1 * var(--nk-space-2));
+  padding-left: var(--nk-space-2);
+  padding-right: var(--nk-space-2);
+}
+.nk-find__list:empty {
+  display: none;
+}
+.nk-find__idle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+  padding-top: var(--nk-space-3);
+}
+.nk-find__heading {
+  margin: 0 0 var(--nk-space-2);
+  font-family: var(--nk-font-body);
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+  color: var(--nk-color-text-secondary);
+}
+.nk-find__recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nk-find__recent-item {
+  width: 100%;
+  min-height: var(--nk-tap);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: var(--nk-text-md);
+  color: var(--nk-color-ink);
+  cursor: pointer;
+}
+.nk-find__recent-icon {
+  flex: none;
+  color: var(--nk-color-text-secondary);
+}
+.nk-find__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-find__field-btn {
+  width: 100%;
+  min-height: 56px;
+  padding: 0 var(--nk-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  border: 1px solid var(--nk-color-divider);
+  border-radius: 14px;
+  background: var(--nk-color-surface);
+  color: var(--nk-color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nk-find__field-btn.is-open {
+  border: 2px solid var(--nk-color-ink);
+  padding: 0 calc(var(--nk-space-4) - 1px);
+}
+.nk-find__field-btn .nk-find__field-icon {
+  position: static;
+  display: flex;
+  color: var(--nk-color-ink);
+}
+.nk-find__field-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nk-find__field-label {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-color-text-secondary);
+  line-height: 1.3;
+}
+.nk-find__field-value {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--nk-color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nk-find__field-value.is-set {
+  font-weight: 600;
+  color: var(--nk-color-ink);
+}
+.nk-find__menu {
+  margin-top: var(--nk-space-1);
+  padding: var(--nk-space-1) 0;
+  border: 1px solid var(--nk-color-border);
+  border-radius: 14px;
+  background: var(--nk-color-surface);
+  box-shadow: var(--nk-shadow-pop);
+}
+.nk-find__option {
+  width: 100%;
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--nk-color-ink);
+  font: inherit;
+  font-size: var(--nk-text-md);
+  text-align: left;
+  cursor: pointer;
+}
+.nk-find__option[aria-checked="true"] {
+  background: var(--nk-color-bg);
+  font-weight: 600;
+}
+.nk-find__option--custom {
+  border-top: 1px solid var(--nk-color-border);
+  font-weight: 600;
+}
+.nk-find__radio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 2px solid var(--nk-color-text-secondary);
+  border-radius: var(--nk-radius-pill);
+}
+.nk-find__option[aria-checked="true"] .nk-find__radio {
+  border-color: var(--nk-color-ink);
+  box-shadow: inset 0 0 0 3px var(--nk-color-surface);
+  background: var(--nk-color-ink);
+}
+.nk-find__option-text {
+  flex: 1;
+}
+.nk-find__check {
+  color: var(--nk-color-ink);
+}
+.nk-find__custom {
+  padding: var(--nk-space-3) var(--nk-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-find__apply {
+  align-self: flex-end;
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-6);
+  border: 0;
+  cursor: pointer;
+}
+.nk-find__bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--nk-find-lift, 0px);
+  z-index: 50;
+  padding: var(--nk-space-3) var(--nk-space-4) calc(var(--nk-space-3) + var(--nk-safe-bottom));
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-3);
+  flex-wrap: wrap;
+  border-top: 1px solid var(--nk-color-border);
+  background: var(--nk-color-surface);
+}
+/* Above the on-screen keyboard (iOS): the keyboard covers the home bar edge, so no safe-area room under the bar. */
+.nk-find[data-keyboard] .nk-find__bar {
+  padding-bottom: var(--nk-space-3);
+}
+/* While the guest types: one line of the filters set, a tap brings them back (Mos 25 Nov 2026, canvas "findsummary"). */
+.nk-find__summary {
+  flex: 1 0 100%;
+  min-width: 0;
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  background: var(--nk-color-neutral-bg);
+  color: var(--nk-color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nk-find__summary-icon {
+  flex: none;
+}
+.nk-find__summary-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+}
+.nk-find__go {
+  flex: 1;
+  min-height: 52px;
+  justify-content: center;
+  font-size: var(--nk-text-md);
+}
+.nk-find__clear {
+  min-height: var(--nk-tap);
+  padding: 0 var(--nk-space-2);
+  font-size: var(--nk-text-md);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.nk-find :is(a, button, input):focus-visible {
+  outline: 3px solid var(--nk-color-focus);
+  outline-offset: 2px;
+}
+/* No tab bar on /find: the page keeps only the room of its own bottom bar (review R9). */
+@media (max-width: 960px) {
+  .nk-main:has(.nk-find) {
+    padding-bottom: 0;
+  }
+}
+/* Opened on a wide screen (a typed link): a narrow column under the header, its bar in the flow. */
+@media (min-width: 961px) {
+  .nk-find {
+    max-width: 560px;
+    min-height: 0;
+    margin: 0 auto;
+    padding-bottom: var(--nk-space-8);
+  }
+  .nk-find__bar {
+    position: static;
+    padding: var(--nk-space-4) 0 0;
+    border-top: 0;
   }
 }

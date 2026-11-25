@@ -54,9 +54,18 @@ export function readGuestProfile(raw: string | null | undefined): GuestProfile |
   } catch {
     return null;
   }
+  if (!text(parsed.accessToken)) return null;
+  return guestProfileFromFields(parsed);
+}
+
+/**
+ * The profile out of its saved fields (user id and email required). Also reads what the NESTYK app sends to this
+ * page when it runs inside the app (lib/app-bridge.ts), which never carries a token.
+ */
+export function guestProfileFromFields(parsed: Record<string, unknown>): GuestProfile | null {
   const userId = text(parsed.userId);
   const email = text(parsed.email);
-  if (!userId || !email || !text(parsed.accessToken)) return null;
+  if (!userId || !email) return null;
   const firstName = text(parsed.firstName);
   const lastName = text(parsed.lastName);
   const avatar = text(parsed.avatarUrl);

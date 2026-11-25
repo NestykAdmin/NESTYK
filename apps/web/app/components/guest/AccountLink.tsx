@@ -2,7 +2,9 @@
 
 import React, { forwardRef, useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { accountUrlWithNext, guestAccountOrigin } from '../../../lib/guest-site';
+import { appPageFor } from '../../../lib/app-bridge';
+import { inApp, openAppPage } from '../../../lib/app-bridge-client';
+import { accountUrlWithNext, guestAccountOrigin, guestAccountUrl } from '../../../lib/guest-site';
 
 type Props = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & { page: 'signIn' | 'register' };
 
@@ -44,7 +46,25 @@ export const AccountLink = forwardRef<HTMLAnchorElement, Props>(function Account
       onClick={(event) => {
         event.currentTarget.href = current();
         onClick?.(event);
+        // Inside the app (step 2): the app's own sign-in / sign-up screen; the app keeps the sign-in.
+        if (!event.defaultPrevented && inApp() && openAppPage(appPageFor(page))) event.preventDefault();
       }}
     />
   );
 });
+
+type PageProps = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & { page: 'privacy' | 'terms' | 'cookies' };
+
+/** Privacy / terms / cookie notes link of the account web. Inside the app: the app's own legal screen (step 2). */
+export function AccountPageLink({ page, onClick, ...rest }: PageProps) {
+  return (
+    <a
+      {...rest}
+      href={guestAccountUrl(page)}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented && inApp() && openAppPage(appPageFor(page))) event.preventDefault();
+      }}
+    />
+  );
+}

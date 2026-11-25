@@ -27,7 +27,7 @@ import {
 } from "@nestyk/ui/native";
 import { useAuth } from "../lib/auth/AuthContext";
 import { captchaSiteKey } from "../lib/auth/captcha-site-key";
-import { CAPTCHA_WAIT_MS, captchaSubmitStep } from "../lib/auth/auth-layout-rules";
+import { CAPTCHA_WAIT_MS, captchaSubmitStep, showGuestBrowse } from "../lib/auth/auth-layout-rules";
 import { signInErrorKind, type SignInErrorKind } from "../lib/auth/auth-error";
 import { CaptchaField } from "../components/CaptchaField";
 import { AuthLayout } from "../components/auth/AuthLayout";
@@ -335,7 +335,7 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            {APP_CONFIG.defaultRole === "guest" ? (
+            {showGuestBrowse(Platform.OS, APP_CONFIG.defaultRole) ? (
               <TouchableOpacity
                 onPress={() => {
                   dismissSessionExpired();

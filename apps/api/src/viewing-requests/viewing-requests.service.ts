@@ -23,7 +23,6 @@ import {
   validateSchedule,
   type Action,
   type Actor,
-  type NewViewingRequest,
   type Patch,
   type RoomInfo,
   type ViewingRequestRecord,
@@ -50,8 +49,7 @@ export type NewRow = {
   contact_name: string;
   contact_phone: string;
   contact_email: string | null;
-  preferred_dates: string[];
-  preferred_slot: NewViewingRequest['preferredSlot'];
+  preferred_at: Date;
   message: string | null;
 };
 
@@ -119,8 +117,7 @@ export class ViewingRequestsService {
         contact_name: name.slice(0, 255),
         contact_phone: body.phone,
         contact_email: user.email ?? null,
-        preferred_dates: body.preferredDates,
-        preferred_slot: body.preferredSlot,
+        preferred_at: body.preferredAt,
         message: body.message,
       },
       user.id,

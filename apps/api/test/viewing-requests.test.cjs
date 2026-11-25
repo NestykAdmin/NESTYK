@@ -35,21 +35,43 @@ test('Bangkok calendar day: the date a guest sees, not the UTC date', () => {
   assert.equal(R.addDays('2026-11-23', 60), '2027-01-22');
 });
 
-test('new request: room id, 1–3 dates from today to 60 days ahead, a slot and a phone; message optional', () => {
-  const ok = R.validateCreate({ roomId: '31', preferredDates: ['2026-11-25', '2026-11-23', '2026-11-25'], preferredSlot: 'afternoon', phone: ' 081 234 5678 ', message: '  ' }, NOW);
-  assert.deepEqual(ok, { roomId: 31, preferredDates: ['2026-11-23', '2026-11-25'], preferredSlot: 'afternoon', phone: '081 234 5678', message: null });
-  assert.equal(R.validateCreate({ roomId: '31', preferredDates: ['2027-01-22'], preferredSlot: 'any', phone: '+66 81-234-5678' }, NOW).phone, '+66812345678');
-  const base = { roomId: '31', preferredDates: ['2026-11-24'], preferredSlot: 'morning', phone: '0812345678' };
+test('new request: room id, one day and time (Bangkok, every 30 min, 08:00–20:00) from tomorrow up to 60 days ahead, a phone; message optional', () => {
+  const ok = R.validateCreate({ roomId: '31', preferredAt: '2026-11-24T14:30:00+07:00', phone: ' 081 234 5678 ', message: '  ' }, NOW);
+  assert.deepEqual(ok, { roomId: 31, preferredAt: new Date('2026-11-24T07:30:00.000Z'), phone: '081 234 5678', message: null });
+  // The same rule whatever offset the client writes: 01:00 UTC is 08:00 in Bangkok, the first time of the day.
+  const first = R.validateCreate({ roomId: '31', preferredAt: '2026-11-24T01:00:00.000Z', phone: '+66 81-234-5678' }, NOW);
+  assert.equal(first.preferredAt.toISOString(), '2026-11-24T01:00:00.000Z');
+  assert.equal(first.phone, '+66812345678');
+  // The last time of the day, on the 60th day.
+  assert.equal(R.validateCreate({ roomId: '31', preferredAt: '2027-01-22T20:00:00+07:00', phone: '0812345678' }, NOW).preferredAt.toISOString(), '2027-01-22T13:00:00.000Z');
+  const base = { roomId: '31', preferredAt: '2026-11-24T10:00:00+07:00', phone: '0812345678' };
   for (const bad of [
     null, [], {},
     { ...base, roomId: '0' }, { ...base, roomId: 31 },
-    { ...base, preferredDates: [] }, { ...base, preferredDates: ['2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27'] },
-    { ...base, preferredDates: ['2026-11-22'] }, { ...base, preferredDates: ['2027-01-23'] },
-    { ...base, preferredDates: ['2026-02-30'] }, { ...base, preferredDates: ['24/11/2026'] }, { ...base, preferredDates: '2026-11-24' },
-    { ...base, preferredSlot: 'night' },
+    { ...base, preferredAt: undefined }, { ...base, preferredAt: '' }, { ...base, preferredAt: 'soon' }, { ...base, preferredAt: 5 },
+    { ...base, preferredAt: '2026-11-24' }, // a day without a time
+    { ...base, preferredAt: '2026-11-23T18:00:00+07:00' }, // today: not allowed (Mos 23 Nov 2026)
+    { ...base, preferredAt: '2026-11-22T10:00:00+07:00' }, // past
+    { ...base, preferredAt: '2027-01-23T10:00:00+07:00' }, // 61 days ahead
+    { ...base, preferredAt: '2026-11-24T14:15:00+07:00' }, { ...base, preferredAt: '2026-11-24T14:30:10+07:00' },
+    { ...base, preferredAt: '2026-11-24T14:30:00.500+07:00' }, // not on the half hour
+    { ...base, preferredAt: '2026-11-24T07:30:00+07:00' }, { ...base, preferredAt: '2026-11-24T20:30:00+07:00' },
+    { ...base, preferredAt: '2026-11-24T00:00:00+07:00' }, // outside 08:00–20:00
+    { ...base, preferredAt: '2026-11-31T10:00:00+07:00' }, { ...base, preferredAt: '2027-02-30T10:00:00+07:00' }, // no such day
+    { roomId: '31', preferredDates: ['2026-11-24'], preferredSlot: 'morning', phone: '0812345678' }, // the old shape
     { ...base, phone: '' }, { ...base, phone: '   ' }, { ...base, phone: 'x'.repeat(51) }, { ...base, phone: '+12' },
     { ...base, message: 'x'.repeat(501) }, { ...base, message: 5 },
   ]) assert.throws(() => R.validateCreate(bad, NOW), BadRequestException, JSON.stringify(bad));
+});
+
+test('around Bangkok midnight the day rule follows the Bangkok date, whatever offset the client writes', () => {
+  const at = (now, preferredAt) => R.validateCreate({ roomId: '31', preferredAt, phone: '0812345678' }, now);
+  const justAfterMidnight = Date.UTC(2026, 10, 23, 17, 30); // 24 Nov 00:30 in Bangkok (still 23 Nov in UTC)
+  assert.throws(() => at(justAfterMidnight, '2026-11-24T10:00:00+07:00'), BadRequestException, 'that is today now');
+  assert.ok(at(justAfterMidnight, '2026-11-25T08:00:00+07:00'));
+  const lateEvening = Date.UTC(2026, 10, 23, 16, 30); // 23 Nov 23:30 in Bangkok
+  assert.ok(at(lateEvening, '2026-11-24T08:00:00+07:00'));
+  assert.equal(at(NOW, '2026-11-23T20:00:00-05:00').preferredAt.toISOString(), '2026-11-24T01:00:00.000Z', '08:00 on the 24th in Bangkok');
 });
 
 test('schedule time: a date-time no more than 60 s in the past and at most 366 days ahead (same as agent viewings)', () => {
@@ -127,14 +149,14 @@ test('who sees what: the agent gets the contact and message only after "นั�
   const record = {
     ...row({ status: 'awaiting_agent', agent_user_id: 7 }),
     contact_name: 'Mint Guest', contact_phone: '0812345678', contact_email: 'mint@example.test',
-    preferred_dates: ['2026-11-24'], preferred_slot: 'evening', message: 'Line: mint', close_reason: null, cancelled_by: null,
+    preferred_at: new Date('2026-11-24T11:00:00.000Z'), message: 'Line: mint', close_reason: null, cancelled_by: null,
     owner_notified_at: null, created_at: new Date(NOW), updated_at: new Date(NOW),
     room: agentRoom, agent: { id: 7, name: 'Agent Seven', email: 'seven@example.test' },
   };
   const before = R.toAgentView(record);
   assert.equal(before.contact, null);
   assert.equal(before.message, null);
-  assert.deepEqual(before.preferredDates, ['2026-11-24']);
+  assert.equal(before.preferredAt, '2026-11-24T11:00:00.000Z');
   const after = R.toAgentView({ ...record, status: 'agent_handling', handled_by: 'agent' });
   assert.deepEqual(after.contact, { name: 'Mint Guest', phone: '0812345678', email: 'mint@example.test' });
   assert.equal(after.message, 'Line: mint');
@@ -198,14 +220,14 @@ function fakeRooms(publicIds = [31, 32]) {
 }
 
 const me = { id: 50, first_name: 'Mint', last_name: 'Guest', email: 'mint@example.test' };
-const body = (over = {}) => ({ roomId: '31', preferredDates: ['2026-11-24'], preferredSlot: 'evening', phone: '0812345678', ...over });
+const body = (over = {}) => ({ roomId: '31', preferredAt: '2026-11-24T18:00:00+07:00', phone: '0812345678', ...over });
 
 test('sending a request: public rooms only, not your own room, one open request per room, at most 10 open', async () => {
   const store = fakeStore();
   const service = new ViewingRequestsService(store, fakeRooms([31, 32]), () => NOW);
   const created = await service.create(me, body({ message: 'Line: mint' }));
   assert.equal(created.status, 'new');
-  assert.deepEqual(store.rows[0].preferred_dates, ['2026-11-24']);
+  assert.equal(store.rows[0].preferred_at.toISOString(), '2026-11-24T11:00:00.000Z');
   assert.equal(store.rows[0].contact_name, 'Mint Guest');
   assert.equal(store.rows[0].contact_email, 'mint@example.test');
   assert.deepEqual(store.log[0], { request_id: 1, actor_user_id: 50, from_status: null, to_status: 'new', note: null });
@@ -289,7 +311,7 @@ test('HTTP: me/ needs a sign-in, admin/ needs admin, agent/ needs agent; persona
 
   assert.equal((await call('me/viewing-requests')).status, 401);
   assert.equal((await call('me/viewing-requests', { user: 99 })).status, 401, 'a valid token without an account row');
-  const created = await call('me/viewing-requests', { method: 'POST', user: 50, json: { roomId: '31', preferredDates: [tomorrow], preferredSlot: 'any', phone: '0812345678' } });
+  const created = await call('me/viewing-requests', { method: 'POST', user: 50, json: { roomId: '31', preferredAt: `${tomorrow}T10:00:00+07:00`, phone: '0812345678' } });
   assert.equal(created.status, 201);
   const { id } = await created.json();
   const mine = await call('me/viewing-requests', { user: 50 });

@@ -12,17 +12,19 @@ export type ViewingRequestStatus =
   | 'viewed'
   | 'cancelled'
   | 'closed';
-export type ViewingRequestSlot = 'morning' | 'afternoon' | 'evening' | 'any';
 export type ViewingRequestHandler = 'agent' | 'admin';
 export type ViewingRequestCanceller = 'guest' | 'admin';
+
+/** 08:00–20:00 Bangkok time on the hour or half hour (migration *_viewing_requests_preferred_at.sql). */
+const PREFERRED_AT_CHECK =
+  "date_part('second', preferred_at AT TIME ZONE 'Asia/Bangkok') = 0 AND date_part('minute', preferred_at AT TIME ZONE 'Asia/Bangkok') IN (0, 30) AND (preferred_at AT TIME ZONE 'Asia/Bangkok')::time BETWEEN '08:00' AND '20:00'";
 
 /**
  * A request to view a public room, sent from the guest web and coordinated by NESTYK admin
  * (migration *_viewing_requests.sql, project-docs/nestyk-guest-viewing-request-plan-20261123.md).
  */
 @Check('chk_viewing_requests_status', "status IN ('new', 'awaiting_agent', 'agent_handling', 'admin_handling', 'scheduled', 'viewed', 'cancelled', 'closed')")
-@Check('chk_viewing_requests_slot', "preferred_slot IN ('morning', 'afternoon', 'evening', 'any')")
-@Check('chk_viewing_requests_dates', 'cardinality(preferred_dates) BETWEEN 1 AND 3')
+@Check('chk_viewing_requests_preferred_at', PREFERRED_AT_CHECK)
 @Check('chk_viewing_requests_handled_by', "handled_by IS NULL OR handled_by IN ('agent', 'admin')")
 @Check('chk_viewing_requests_cancelled_by', "cancelled_by IS NULL OR cancelled_by IN ('guest', 'admin')")
 @Check('chk_viewing_requests_handler_set', "status NOT IN ('agent_handling', 'admin_handling', 'scheduled', 'viewed') OR handled_by IS NOT NULL")
@@ -69,12 +71,9 @@ export class ViewingRequestEntity extends SerialTimestampEntity {
   @Column({ type: 'varchar', length: 255, nullable: true })
   contact_email: string | null;
 
-  /** 1–3 days that suit the guest (Bangkok calendar days, 'YYYY-MM-DD'). */
-  @Column({ type: 'date', array: true })
-  preferred_dates: string[];
-
-  @Column({ type: 'varchar', length: 10 })
-  preferred_slot: ViewingRequestSlot;
+  /** The day and time that suit the guest (one moment; the API keeps it from tomorrow up to 60 days ahead). */
+  @Column({ type: 'timestamptz' })
+  preferred_at: Date;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   message: string | null;

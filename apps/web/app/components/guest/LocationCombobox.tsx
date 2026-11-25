@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import * as Ariakit from '@ariakit/react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import {
@@ -21,7 +21,7 @@ import {
   type LocationArea,
   type LocationChoice,
 } from '../../../lib/guest-location';
-import { PLACE_INPUT_MIN, type PlaceLocation, type PlaceSuggestion } from '../../../lib/guest-places';
+import { PLACE_INPUT_MIN, placeSessionToken, type PlaceLocation, type PlaceSuggestion } from '../../../lib/guest-places';
 import { ChevronRightIcon, CloseIcon, LocateIcon, MapIcon, PinIcon, SearchIcon, TrainIcon } from './GuestIcons';
 import '../../[locale]/guest-location.css';
 
@@ -34,7 +34,8 @@ const PLACE_DEBOUNCE_MS = 300;
 const PHONE_QUERY = '(max-width: 960px)';
 
 function newSession(): string | null {
-  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : null;
+  // Not crypto.randomUUID alone: the app's WebView on the dev network is not a secure page (placeSessionToken).
+  return placeSessionToken(typeof crypto === 'undefined' ? undefined : crypto);
 }
 
 async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<{ status: number; data: T | null }> {
@@ -68,6 +69,18 @@ interface Props {
   testId?: string;
 }
 
+/** What /find can ask of its place box (canvas "findsummary"): stop typing, so the page shows its filters again. */
+export interface LocationPageHandle {
+  stopTyping: () => void;
+}
+
+interface PageOnly {
+  idle?: React.ReactNode;
+  /** True while the suggestions cover the page's own parts (the guest is typing). */
+  onSuggestingChange?: (on: boolean) => void;
+  handle?: React.Ref<LocationPageHandle>;
+}
+
 /**
  * Location box (Mos 20 Nov 2026, canvas page "ช่องค้นหารวม"): "near my location" and "choose from rail lines" first,
  * then stations from our list, areas, Google places (through /place-search, when this deploy has a Places key) and the
@@ -77,6 +90,13 @@ interface Props {
 export function LocationCombobox(props: Props) {
   const phone = usePhone();
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Closing the sheet hands focus back to the box (Ariakit), and focus opens the sheet: that focus must not reopen it
+  // (the back arrow did nothing, Mos 24 Nov 2026). A later focus (Tab, a tap) opens it as before.
+  const closing = useRef(false);
+  const closeSheet = () => {
+    closing.current = true;
+    setSheetOpen(false);
+  };
   const { t } = useLocale();
 
   if (!phone) return <LocationBox {...props} mode="popover" />;
@@ -93,14 +113,23 @@ export function LocationCombobox(props: Props) {
         value={props.value}
         placeholder={props.placeholder}
         className={props.inputClassName}
-        onClick={() => setSheetOpen(true)}
-        onFocus={() => setSheetOpen(true)}
+        onClick={() => {
+          closing.current = false;
+          setSheetOpen(true);
+        }}
+        onFocus={() => {
+          if (closing.current) {
+            closing.current = false;
+            return;
+          }
+          setSheetOpen(true);
+        }}
         aria-haspopup="dialog"
         data-testid={props.testId}
       />
       <Ariakit.Dialog
         open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
+        onClose={closeSheet}
         className="nk-loc-sheet"
         aria-label={t.guest.location.listLabel}
         unmountOnHide
@@ -111,9 +140,9 @@ export function LocationCombobox(props: Props) {
           inputId={`${props.inputId}-sheet`}
           testId={props.testId ? `${props.testId}.sheet` : undefined}
           mode="sheet"
-          onClose={() => setSheetOpen(false)}
+          onClose={closeSheet}
           onPick={(choice) => {
-            setSheetOpen(false);
+            closeSheet();
             props.onPick(choice);
           }}
         />
@@ -133,12 +162,17 @@ function LocationBox({
   testId,
   mode,
   onClose,
-}: Props & { mode: 'popover' | 'sheet'; onClose?: () => void }) {
+  idle,
+  onSuggestingChange,
+  handle,
+}: Props & PageOnly & { mode: 'popover' | 'sheet' | 'page'; onClose?: () => void }) {
   const { t, locale } = useLocale();
   const copy = t.guest;
   const lineNames = copy.transitLines as Record<string, string>;
   const headingId = useId();
-  const [open, setOpen] = useState(mode === 'sheet');
+  const [open, setOpen] = useState(mode !== 'popover');
+  // Page mode (/find): the suggestions show while the guest types; after a pick the page shows its own parts again.
+  const [typing, setTyping] = useState(false);
   const [view, setView] = useState<View>('list');
   const [line, setLine] = useState<RailLine>(RAIL_LINES[0]);
   const [status, setStatus] = useState<Status>('idle');
@@ -148,6 +182,7 @@ function LocationBox({
   // Off for the rest of the page once the site answers that it has no Places key (503).
   const placesOn = useRef(true);
   const session = useRef<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const areas = useMemo<LocationArea[]>(
     () => locationAreas(copy.areaNames as Record<string, string>, copy.areaInfo as Record<string, { places?: string }>),
@@ -157,11 +192,24 @@ function LocationBox({
   const areaItems = base.filter((item): item is Extract<typeof item, { kind: 'area' }> => item.kind === 'area');
   const keyword = base.find((item): item is Extract<typeof item, { kind: 'keyword' }> => item.kind === 'keyword');
   const stations = useMemo(() => matchRailStations(value), [value]);
-  const isOpen = mode === 'sheet' || open;
+  const isOpen = mode !== 'popover' || open;
+  const suggesting = mode !== 'page' || (typing && value.trim() !== '');
+
+  useEffect(() => {
+    onSuggestingChange?.(mode === 'page' && suggesting && view === 'list');
+  }, [mode, suggesting, view, onSuggestingChange]);
+  useImperativeHandle(handle, () => ({
+    stopTyping: () => {
+      setTyping(false);
+      setView('list');
+      inputRef.current?.blur();
+    },
+  }));
 
   useEffect(() => {
     const input = value.trim();
-    if (!isOpen || view !== 'list' || !placesOn.current || input.length < PLACE_INPUT_MIN) {
+    // Page mode: Google is asked only while the guest types (review R1: a picked name in the box is not a question).
+    if (!isOpen || !suggesting || view !== 'list' || !placesOn.current || input.length < PLACE_INPUT_MIN) {
       setPlaces([]);
       return;
     }
@@ -185,7 +233,7 @@ function LocationBox({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [value, isOpen, view, locale]);
+  }, [value, isOpen, suggesting, view, locale]);
 
   const close = () => {
     setOpen(false);
@@ -195,6 +243,7 @@ function LocationBox({
   const finish = (choice: LocationChoice) => {
     setOpen(false);
     setView('list');
+    setTyping(false);
     onPick(choice);
   };
   const locate = () => {
@@ -255,7 +304,8 @@ function LocationBox({
     );
   };
 
-  const listView = (
+  // "Near me" and "choose from rail lines": first in the list, and alone on /find before the guest types.
+  const quickItems = (
     <>
       <Ariakit.ComboboxItem className="nk-loc__option" hideOnClick={false} setValueOnClick={false} onClick={locate} data-testid="location.nearMe">
         <span className="nk-loc__icon nk-loc__icon--ink" aria-hidden="true">
@@ -283,6 +333,12 @@ function LocationBox({
         </Ariakit.ComboboxItem>
       ) : null}
 
+    </>
+  );
+
+  const listView = (
+    <>
+      {mode === 'page' ? null : quickItems}
       {stations.length ? (
         <Ariakit.ComboboxGroup className="nk-loc__group">
           <Ariakit.ComboboxGroupLabel className="nk-loc__heading">{copy.location.stationsHeading}</Ariakit.ComboboxGroupLabel>
@@ -434,6 +490,7 @@ function LocationBox({
 
   const input = (
     <Ariakit.Combobox
+      ref={inputRef}
       id={inputId}
       name={name}
       type="text"
@@ -444,6 +501,13 @@ function LocationBox({
       placeholder={placeholder}
       className={inputClassName}
       autoFocus={mode === 'sheet'}
+      onFocus={() => {
+        if (mode === 'page' && value.trim()) setTyping(true);
+      }}
+      onKeyDown={(event) => {
+        // Page mode: Escape hides the suggestions and brings back the recent searches and filters (review R3).
+        if (mode === 'page' && event.key === 'Escape') setTyping(false);
+      }}
       data-testid={testId}
     />
   );
@@ -452,19 +516,36 @@ function LocationBox({
     <Ariakit.ComboboxProvider
       value={value}
       setValue={(next) => {
+        setTyping(true);
         onValueChange(next);
         setView('list');
         setStatus('idle');
       }}
       open={isOpen}
       setOpen={(next) => {
-        if (mode === 'sheet') return;
+        if (mode !== 'popover') return;
         setOpen(next);
         if (!next) setView('list');
       }}
       resetValueOnHide={false}
     >
-      {mode === 'sheet' ? (
+      {mode === 'page' ? (
+        <div className="nk-find__loc">
+          <div className="nk-loc-sheet__field nk-find__field">
+            <SearchIcon size={18} className="nk-find__field-icon" />
+            {input}
+            {value ? (
+              <button type="button" className="nk-loc-sheet__clear" aria-label={copy.location.clear} onClick={() => onValueChange('')}>
+                <CloseIcon size={16} />
+              </button>
+            ) : null}
+          </div>
+          <Ariakit.ComboboxList className="nk-find__list" aria-label={copy.location.listLabel}>
+            {view === 'lines' ? linesView : suggesting ? listView : quickItems}
+          </Ariakit.ComboboxList>
+          {view === 'list' && !suggesting ? idle : null}
+        </div>
+      ) : mode === 'sheet' ? (
         <div className="nk-loc-sheet__inner">
           <div className="nk-loc-sheet__bar">
             <button type="button" className="nk-loc-sheet__close" aria-label={copy.transit.close} onClick={close}>
@@ -501,3 +582,14 @@ function LocationBox({
     </Ariakit.ComboboxProvider>
   );
 }
+
+/**
+ * The place box of the mobile search page /find (Mos 25 Nov 2026, canvas "searchnew"): "near me" and the rail lines
+ * under it; while the guest types, the suggestions take the place of `idle` (recent searches and the filters).
+ * A pick fills the box and brings `idle` back; the page searches when the guest presses "ดูห้อง".
+ */
+export const LocationPageBox = forwardRef<LocationPageHandle, Props & Omit<PageOnly, 'handle'> & { idle: React.ReactNode }>(
+  function LocationPageBox(props, ref) {
+    return <LocationBox {...props} handle={ref} mode="page" />;
+  },
+);

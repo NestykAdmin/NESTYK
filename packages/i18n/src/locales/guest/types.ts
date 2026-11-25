@@ -245,6 +245,27 @@ export interface GuestCopy {
     search: string;
     saved: string;
     profile: string;
+    /** In the app the 4th tab is "More" (step 2, design W, Mos 24 Nov 2026). */
+    more: string;
+  };
+  /** Mobile search page /find (Mos 25 Nov 2026, canvas "searchnew" D2–D6): place, recent searches, dropdown filters. */
+  find: {
+    title: string;
+    close: string;
+    recentHeading: string;
+    filtersHeading: string;
+    anywhere: string;
+    customPrice: string;
+    apply: string;
+    clearAll: string;
+    showRooms: string;
+    /** Name of the filter summary row on /find while typing (screen readers), followed by the summary. */
+    editFilters: string;
+  };
+  /** The app-only top bar of the guest web inside the app (design W): avatar → app menu, bell → notifications. */
+  appBar: {
+    myMenu: string;
+    notifications: string;
   };
   saved: {
     title: string;
@@ -290,18 +311,22 @@ export interface GuestCopy {
     formTitle: string;
     datesLabel: string;
     datesHint: string;
-    datesFull: string;
     prevDays: string;
     nextDays: string;
-    today: string;
-    slotLabel: string;
-    slotMorning: string;
-    slotAfternoon: string;
-    slotEvening: string;
-    slotAny: string;
-    slotMorningHint: string;
-    slotAfternoonHint: string;
-    slotEveningHint: string;
+    tomorrow: string;
+    calendar: string;
+    calendarOpen: string;
+    calendarBack: string;
+    calendarLimit: string;
+    prevMonth: string;
+    nextMonth: string;
+    timeLabel: string;
+    periodMorning: string;
+    periodAfternoon: string;
+    periodEvening: string;
+    timeValue: string;
+    summary: string;
+    summaryEmpty: string;
     phoneLabel: string;
     phonePlaceholder: string;
     messageLabel: string;
@@ -311,6 +336,7 @@ export interface GuestCopy {
     sending: string;
     close: string;
     errorNeedDate: string;
+    errorNeedTime: string;
     errorNeedPhone: string;
     errorBadPhone: string;
     errorExists: string;
@@ -327,6 +353,7 @@ export interface GuestCopy {
     title: string;
     subtitle: string;
     openTitle: string;
+    noOpen: string;
     endedTitle: string;
     emptyTitle: string;
     emptyBody: string;
@@ -357,6 +384,10 @@ export interface GuestCopy {
   profile: {
     title: string;
     subtitle: string;
+    /** In the app the profile page is "More": the account lives in the app's side menu (step 2, design W). */
+    moreTitle: string;
+    moreSubtitle: string;
+    exploreLabel: string;
     accountTitle: string;
     accountBody: string;
     signIn: string;

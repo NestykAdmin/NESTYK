@@ -144,3 +144,22 @@ export function createRateLimit({ max, windowMs }: { max: number; windowMs: numb
 export function callerOf(headers: { get(name: string): string | null }): string {
   return headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
 }
+
+type CryptoLike = { randomUUID?: () => string; getRandomValues?: (array: Uint8Array) => Uint8Array };
+
+/**
+ * A session token (UUID v4) for one place search. crypto.randomUUID exists only on secure pages (https or localhost);
+ * the guest web inside the app on the dev network (http://192.168.x.x) is not one, so the box got no Google places
+ * there (Mos 25 Nov 2026). getRandomValues works on any page. Null without crypto: the box then skips Google.
+ */
+export function placeSessionToken(source: CryptoLike | undefined): string | null {
+  if (!source) return null;
+  if (typeof source.randomUUID === 'function') return source.randomUUID();
+  if (typeof source.getRandomValues !== 'function') return null;
+  const bytes = new Uint8Array(16);
+  source.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}

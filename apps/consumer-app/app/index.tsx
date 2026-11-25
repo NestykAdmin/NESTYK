@@ -48,6 +48,12 @@ import { SelfOwnerIncomePage } from '../components/self-owner/SelfOwnerIncomePag
 import { MobileSelfOwnerIncomeScreen } from '../components/self-owner/MobileSelfOwnerIncomeScreen';
 import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
+import { AdminViewingRequestsPage } from '../components/agent-web/AdminViewingRequestsPage';
+import { GuestWebView } from '../components/GuestWebView';
+import type { GuestWebViewHandle } from '../components/GuestWebView.types';
+import { APP_PAGE_ROUTE, guestWebPathForMenu } from '../lib/guest-web-bridge';
+import { listAdminViewingRequests } from '../lib/admin-viewing-requests-api';
+import { countByTab } from '../lib/admin-viewing-requests';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
 import { selfOwnerRoomStore, useSelfOwnerRooms } from '../lib/self-owner-rooms';
@@ -89,6 +95,7 @@ import {
   useMobileTheme,
   getDefaultTabForRole,
   isAgentComingSoonTab,
+  roleTileColors,
   tokens,
 } from '@nestyk/ui/native';
 import { UserRole, CONTRACT_PARTY_ROLE, type AgentLead, type AgentTenant, type ContractParty, type PartyContract } from '@nestyk/types';
@@ -188,6 +195,8 @@ function getScreenTitle(tab: MobileAppTab, t: ReturnType<typeof useLocale>['t'])
       return t.mobile.screens.deals;
     case 'tickets':
       return t.mobile.screens.tickets;
+    case 'viewingRequests':
+      return t.adminWeb.viewing.title;
     case 'services':
       return t.mobile.screens.services;
     default:
@@ -217,7 +226,7 @@ const WEB_SHELL_MIN_WIDTH = 768;
 
 export function AppHomeScreen() {
   const { t, locale } = useLocale();
-  const { theme } = useMobileTheme();
+  const { theme, isDark } = useMobileTheme();
   const { width: windowWidth } = useWindowDimensions();
   const router = useRouter();
   const { ready, isAuthenticated, session, displayName, initials, signOut, signOutEverywhere, refreshProfile } = useAuth();
@@ -252,6 +261,7 @@ export function AppHomeScreen() {
   const [selectedBillRoom, setSelectedBillRoom] = useState<{ property: string; room: string | null } | null>(null);
   const [openedPartyContract, setOpenedPartyContract] = useState<PartyContract | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const guestWebRef = useRef<GuestWebViewHandle>(null);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [notifications, messages] = useMemo(() => {
     const time = new Intl.DateTimeFormat(localeTag(locale), {
@@ -687,6 +697,8 @@ export function AppHomeScreen() {
     setSettingsSection(null);
     setActiveRole(role);
     setActiveTab(getDefaultTabForRole(role));
+    // Mos 24 Nov 2026: once the role has changed, the side menu closes so the new role's home shows at once.
+    setDrawerOpen(false);
   };
 
   // Seeker (guest) is public; every other role requires login.
@@ -819,7 +831,30 @@ export function AppHomeScreen() {
   const isTenantWeb = isWideWeb && activeRole === 'tenant';
   // Admin and self owner web shells (Mos 18 Nov 2026): the same workspace shell with their own sidebars.
   const isAdminWeb = isWideWeb && activeRole === 'admin';
+  // Admin menu count: new viewing requests waiting (Mos 24 Nov 2026). On the queue page the page itself reports it
+  // (onNewCount), so this load runs on the other admin pages only, again on each page change, and only once signed in
+  // (review R3). Leaving the admin shell clears it.
+  const [adminNewRequests, setAdminNewRequests] = useState(0);
+  const loadAdminCount = isAdminWeb && ready && isAuthenticated && activeTab !== 'viewingRequests';
+  useEffect(() => {
+    if (!isAdminWeb || !isAuthenticated) setAdminNewRequests(0);
+  }, [isAdminWeb, isAuthenticated]);
+  useEffect(() => {
+    if (!loadAdminCount) return;
+    let cancelled = false;
+    listAdminViewingRequests()
+      .then((items) => {
+        if (!cancelled) setAdminNewRequests(countByTab(items).new);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAdminCount, activeTab]);
   const isSelfOwnerWeb = isWideWeb && activeRole === 'self_owner';
+  // Guest on the phone: the guest web is the whole screen, with its own app bar and tab bar (W1, then step 2 design W,
+  // Mos 24 Nov 2026). The app keeps the side menu, the notifications and its sign-in / legal screens.
+  const guestWebShell = Platform.OS !== 'web' && activeRole === 'guest';
   const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb || isAdminWeb || isSelfOwnerWeb;
   // Widening the browser past WEB_SHELL_MIN_WIDTH swaps in the desktop shell; close the app drawer so it does not
   // pop back open when the window is narrowed again.
@@ -1357,7 +1392,8 @@ export function AppHomeScreen() {
 
     // Living (/tenant/home): showed one sample lease to every tenant (QA web flow bugs 6 Nov 2026 item 1). The menu
     // and the tab are "coming soon" until the page reads the tenant's own lease; a direct link lands here.
-    if (activeTab === 'living') {
+    // Guest services are closed for now (Mos 24 Nov 2026): the tab is "coming soon"; a direct link lands here (review R4).
+    if (activeTab === 'living' || (activeRole === 'guest' && activeTab === 'services')) {
       return (
         <View style={styles.bodyContainer}>
           <View style={[styles.card, cardStyle]}>
@@ -1747,6 +1783,11 @@ export function AppHomeScreen() {
       );
     }
 
+    if (activeTab === 'viewingRequests') {
+      // Admin web only (plan step 3, Mos 24 Nov 2026); the admin app gets it later.
+      return isAdminWeb ? <AdminViewingRequestsPage onNewCount={setAdminNewRequests} /> : null;
+    }
+
     return null;
   };
 
@@ -1949,7 +1990,12 @@ export function AppHomeScreen() {
     : isTenantWeb
       ? tenantNavSections
       : isAdminWeb
-        ? adminWebNavSections(roleMenuCopy, activeTab === 'dashboard', () => handleTabPress('dashboard'))
+        ? adminWebNavSections(
+            roleMenuCopy,
+            activeTab === 'dashboard' || activeTab === 'viewingRequests' ? activeTab : null,
+            (page) => handleTabPress(page),
+            adminNewRequests,
+          )
         : isSelfOwnerWeb
           ? selfOwnerWebNavSections(roleMenuCopy, activeTab, (tab) => (tab === 'createListing' ? openCreateListing() : handleTabPress(tab)))
           : undefined;
@@ -1970,6 +2016,15 @@ export function AppHomeScreen() {
 
   return (
     <>
+      {guestWebShell ? (
+        <GuestWebView
+          ref={guestWebRef}
+          onOpenMenu={() => setDrawerOpen(true)}
+          onOpenNotifications={() => setNotificationsOpen(true)}
+          onOpenPage={(page) => router.push(APP_PAGE_ROUTE[page] as never)}
+          backEnabled={!drawerOpen && !notificationsOpen}
+        />
+      ) : (
       <AgentWorkspace
         enabled={isDesktopWeb}
         activeRole={workspaceRole}
@@ -2189,12 +2244,10 @@ export function AppHomeScreen() {
               onTabPress={handleTabPress}
               accentColor={accentColor}
               labels={activeRole === 'self_owner' ? { listingRoom: t.selfOwnerWeb.listingsView } : undefined}
-              {...(activeRole === 'agent' || isTenantWorkspace
-                ? {
-                    activeTintColor: theme.screenTitle,
-                    indicatorColor: tokens.colors.brand[500],
-                  }
-                : {})}
+              // Every role: the agent style (ink label, underline under the picked tab) in the role's own colour
+              // (Mos 24 Nov 2026; was the agent and the tenant workspace only, in brand yellow).
+              activeTintColor={theme.screenTitle}
+              indicatorColor={roleTileColors(activeRole, isDark).ring}
             />
           )
         }
@@ -2222,6 +2275,7 @@ export function AppHomeScreen() {
         </TabTransition>
       </Page>
       </AgentWorkspace>
+      )}
 
       <MobileProfileDrawer
         visible={!isDesktopWeb && drawerOpen}
@@ -2258,6 +2312,13 @@ export function AppHomeScreen() {
             return;
           }
           if (action.type === 'route') {
+            // Guest in the app: Favourites and My viewing requests are pages of the guest web (step 2).
+            const webPath = guestWebShell ? guestWebPathForMenu(action.path) : null;
+            if (webPath) {
+              guestWebRef.current?.navigate(webPath);
+              setDrawerOpen(false);
+              return;
+            }
             // Self owner "ลงประกาศใหม่": the add-room form, same as the "+ ลงประกาศ" buttons (Jom 25 Nov 2026).
             if (action.path === '/self-owner/rooms/new') {
               openCreateListing();

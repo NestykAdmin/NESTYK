@@ -51,7 +51,9 @@ const BASE_CSS = `
  */
 export function RootDocument({ lang, children }: { lang: string; children: React.ReactNode }) {
   return (
-    <html lang={lang} className={`${mitr.variable} ${baloo2.variable} ${notoSansThai.variable}`}>
+    // suppressHydrationWarning: inside the NESTYK app, the app marks <html> (data-nk-app and the screen edges) before
+    // the page loads (guest web step 2). Only this element's own attributes; its children are still checked.
+    <html lang={lang} className={`${mitr.variable} ${baloo2.variable} ${notoSansThai.variable}`} suppressHydrationWarning>
       <head>
         <style dangerouslySetInnerHTML={{ __html: BASE_CSS }} />
       </head>
