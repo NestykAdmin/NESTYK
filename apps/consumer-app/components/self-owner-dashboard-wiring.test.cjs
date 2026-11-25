@@ -202,7 +202,7 @@ test('the dashboard links to income and contracts on web and phone', () => {
   assert.equal((branch.match(/onOpenContracts=\{\(\) => handleTabPress\('contracts'\)\}/g) ?? []).length, 2);
 });
 
-test('the phone menu opens the contracts and income pages; add room is unchanged', () => {
+test('the phone menu opens the contracts and income pages and the add-room form', () => {
   const drawer = fs.readFileSync(path.join(__dirname, '../../../packages/ui/src/config/mobileDrawerMenuMatrix.ts'), 'utf8');
   const section = drawer.slice(drawer.indexOf('  self_owner: ['), drawer.indexOf('  admin: ['));
   assert.match(section, /id: 'incomeReport',[^}]*action: \{ type: 'tab', tab: 'income' \}/);
@@ -210,7 +210,12 @@ test('the phone menu opens the contracts and income pages; add room is unchanged
   const line = (id) => section.split('\n').find((l) => l.includes(`id: '${id}'`));
   assert.doesNotMatch(line('incomeReport'), /comingSoon/);
   assert.doesNotMatch(line('documents'), /comingSoon/);
-  assert.match(line('createListing'), /comingSoon: true/);
+  // Jom 25 Nov 2026: "ลงประกาศใหม่" opens the add-room form, like the "+ ลงประกาศ" buttons, instead of "coming soon".
+  assert.doesNotMatch(line('createListing'), /comingSoon/);
+  assert.match(line('createListing'), /action: \{ type: 'route', path: '\/self-owner\/rooms\/new' \}/);
+  const menu = code.slice(code.indexOf('onMenuAction={(action) => {'));
+  const route = menu.slice(menu.indexOf("if (action.type === 'route') {"), menu.indexOf('Alert.alert(t.mobile.demoAlerts.comingSoon);'));
+  assert.match(route, /if \(action\.path === '\/self-owner\/rooms\/new'\) \{\s*openCreateListing\(\);\s*return;\s*\}/);
 });
 
 // The landlord's "income" tab (TenantBillsScreen, landlord API) and the agent's mock "contracts" card match any role:

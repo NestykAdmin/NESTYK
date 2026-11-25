@@ -2250,6 +2250,11 @@ export function AppHomeScreen() {
             return;
           }
           if (action.type === 'route') {
+            // Self owner "ลงประกาศใหม่": the add-room form, same as the "+ ลงประกาศ" buttons (Jom 25 Nov 2026).
+            if (action.path === '/self-owner/rooms/new') {
+              openCreateListing();
+              return;
+            }
             if (action.path === '/landlord/tenants') {
               openPartyInbox(true);
               return;

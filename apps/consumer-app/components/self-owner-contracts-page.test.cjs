@@ -447,3 +447,14 @@ test('web income: room name wraps like the contracts table', () => {
   assert.ok(inner.some(n => n?.props?.className === 'awr-room'), 'room cell uses awr-room');
   assert.ok(!inner.some(n => String(n?.props?.className ?? '').includes('awr-nowrap')), 'room cell is not nowrap');
 });
+
+// Jom 25 Nov 2026: the web uses the phone menu's words for these two pages (sidebar and page titles).
+test('web page names match the phone menu in every locale', () => {
+  for (const l of ['th', 'en', 'ja', 'zh']) {
+    const all = load(`${root}/packages/i18n/src/locales/${l}.ts`)[l];
+    assert.equal(all.selfOwnerWeb.contracts, all.mobile.drawerMenu.documents, `${l} contracts`);
+    assert.equal(all.selfOwnerWeb.billsIncome, all.mobile.drawerMenu.incomeReport, `${l} income`);
+  }
+  assert.equal(copyOf('th').selfOwnerWeb.contracts, 'เอกสาร');
+  assert.equal(copyOf('th').selfOwnerWeb.billsIncome, 'รายงานรายได้');
+});

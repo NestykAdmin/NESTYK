@@ -222,7 +222,8 @@ const DRAWER_MENU_MATRIX: Record<UserRole, DrawerMenuSection[]> = {
     {
       titleKey: 'sectionTitle',
       items: [
-        { id: 'createListing', labelKey: 'createListing', icon: 'house-plus', comingSoon: true, action: { type: 'route', path: '/self-owner/rooms/new' } },
+        // Opens the add-room form like the "+ ลงประกาศ" buttons (Jom 25 Nov 2026; was coming soon).
+        { id: 'createListing', labelKey: 'createListing', icon: 'house-plus', action: { type: 'route', path: '/self-owner/rooms/new' } },
         // Read-only contracts and income pages (24 Nov 2026, ClickUp z8rcteng6e / z8rcteng6f).
         { id: 'incomeReport', labelKey: 'incomeReport', icon: 'credit-card', action: { type: 'tab', tab: 'income' } },
         { id: 'documents', labelKey: 'documents', icon: 'clipboard', action: { type: 'tab', tab: 'contracts' } },
