@@ -150,7 +150,13 @@ test('web contracts: one row per room, work first, current contract and how many
   assert.ok(pills.includes(so.status.awaiting_signature));
   assert.ok(pills.includes(so.status.ending_soon));
   assert.ok(texts(tree).join('').includes(interpolate(so.daysLeft, { n: 37 })));
-  assert.ok(texts(tree).includes(interpolate(so.count, { n: 11 })));
+  // Jom 25 Nov 2026: no room count in the toolbar, and the status dropdown sits at the right, like the income page.
+  assert.ok(!texts(tree).includes(interpolate(so.count, { n: 11 })), 'no room count');
+  assert.equal(tree.filter(n => n?.props?.className === 'awr-count').length, 0);
+  const statusBox = tree.find(n => n?.props?.className?.split?.(' ').includes('awr-status-select'));
+  assert.ok(statusBox.props.className.split(' ').includes('so-filter-end'), 'dropdown pushed to the right');
+  const css = fs.readFileSync(path.join(__dirname, 'self-owner', 'self-owner-rooms.css'), 'utf8');
+  assert.match(css, /\.so-filter-end \{[^}]*margin-left: auto/);
   const headers = tree.filter(n => n?.type === 'th').map(h => label(h));
   assert.deepEqual(headers, [so.colRoom, so.colTenant, so.colCurrent, so.colRent, so.colStatus, so.colContracts]);
 });
@@ -312,7 +318,7 @@ test('phone contracts: chips count rooms, one card per room with its current con
   assert.equal(typeof c1204.props.style, 'function', 'card dims while pressed');
   const text = texts(nodes(c1204.props.children)).join('|');
   for (const value of ['ห้อง 1204', so.kind.renewal, interpolate(so.contractCount, { n: 4 }), 'ณัฐวุฒิ ใจดี · Ideo Q สยาม-ราชเทวี']) assert.ok(text.includes(value), value);
-  assert.ok(texts(tree).includes(interpolate(so.count, { n: 11 })));
+  assert.ok(!texts(tree).includes(interpolate(so.count, { n: 11 })), 'no room count under the chips, like the income page');
   assert.deepEqual(byTestId(contractsPhone({ initialQuery: 'สมชาย' }), 'soc-card-').map(c => c.props.testID), ['soc-card-r1']);
 });
 

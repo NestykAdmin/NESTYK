@@ -325,7 +325,6 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
           );
         })}
       </View>
-      {ready ? <Text style={small}>{interpolate(so.count, { n: results.length })}</Text> : null}
       <View style={styles.list}>{list()}</View>
       {ready ? <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, results.length))} testIDPrefix="soc-page" /> : null}
       <Modal visible={!!open} animationType="slide" onRequestClose={() => setSelected(null)}>

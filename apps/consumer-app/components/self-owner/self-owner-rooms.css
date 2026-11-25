@@ -75,6 +75,8 @@
 @media (max-width: 599px) {
   .soc-detail-list { grid-template-columns: minmax(0, 1fr); }
 }
+/* Documents: the status dropdown at the right of the toolbar, like the income page (Jom 25 Nov 2026). */
+.so-filter-end { margin-left: auto; }
 /* Month control on the left, status filter on the right; they stack on a narrow window (Jom 25 Nov 2026). */
 .soi-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--aw-s3); }
 .soi-month { display: flex; align-items: center; gap: var(--aw-s2); }

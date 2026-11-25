@@ -306,7 +306,8 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
             data-testid="soc-search"
           />
         </label>
-        <div className="awr-status-select">
+        {/* The dropdown sits at the right and there is no room count, like the income page (Jom 25 Nov 2026). */}
+        <div className="awr-status-select so-filter-end">
           <AgentSelect
             aria-label={so.filterLabel}
             value={filter}
@@ -321,11 +322,6 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
             ))}
           </AgentSelect>
         </div>
-        {ready ? (
-          <span className="awr-count" aria-live="polite">
-            {interpolate(so.count, { n: results.length })}
-          </span>
-        ) : null}
       </div>
       <div className="awr-results">
         <div className="awr-table-card">
