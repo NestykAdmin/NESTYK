@@ -237,6 +237,23 @@ export const guestZh: GuestCopy = {
     search: '搜索',
     saved: '收藏',
     profile: '我的',
+    more: '更多',
+  },
+  find: {
+    title: '找房',
+    close: '关闭',
+    recentHeading: '最近搜索',
+    filtersHeading: '筛选',
+    anywhere: '所有区域',
+    customPrice: '自定义…',
+    apply: '确定',
+    clearAll: '清除',
+    showRooms: '查看房源',
+    editFilters: '编辑筛选',
+  },
+  appBar: {
+    myMenu: '我的菜单',
+    notifications: '通知',
   },
   saved: {
     title: '收藏',
@@ -345,6 +362,9 @@ export const guestZh: GuestCopy = {
   profile: {
     title: '我的',
     subtitle: '管理你的账户和设置',
+    moreTitle: '更多',
+    moreSubtitle: 'NESTYK 的更多内容、帮助和联系方式',
+    exploreLabel: '浏览 NESTYK',
     accountTitle: '你的账户',
     accountBody: '登录后可以收藏房源、预约看房并查看进度。',
     signIn: '登录',

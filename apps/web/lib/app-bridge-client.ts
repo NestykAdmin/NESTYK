@@ -6,6 +6,7 @@ import {
   isInApp,
   parseAppMessage,
   webMessage,
+  type AppPage,
   type AppToWeb,
   type WebToApp,
 } from './app-bridge';
@@ -19,6 +20,7 @@ type AppWindow = Window & { ReactNativeWebView?: Bridge; [APP_FLAG]?: unknown; [
 
 const waiting = new Map<string, (reply: AppToWeb | null) => void>();
 const changeListeners = new Set<() => void>();
+const navigateListeners = new Set<(path: string) => void>();
 let counter = 0;
 
 function appWindow(): AppWindow | null {
@@ -39,6 +41,10 @@ function listen(win: AppWindow): void {
     if (!reply) return;
     if (reply.type === 'session.changed') {
       for (const listener of changeListeners) listener();
+      return;
+    }
+    if (reply.type === 'navigate') {
+      for (const listener of navigateListeners) listener(reply.path);
       return;
     }
     if (reply.id == null) return;
@@ -104,4 +110,27 @@ export function onAppSessionChanged(listener: () => void): () => void {
 /** Signing out here signs the app out (the app owns the sign-in). */
 export function signOutOfApp(): void {
   send({ type: 'auth.signOut' });
+}
+
+/** Opens the app's side menu ("my menu": account, roles, settings), as the avatar does for every other role. */
+export function openAppMenu(): boolean {
+  return send({ type: 'app.menu' });
+}
+
+/** Opens the app's notifications panel. */
+export function openAppNotifications(): boolean {
+  return send({ type: 'app.notifications' });
+}
+
+/** Opens the app's own sign-in, sign-up or legal screen. False when not in the app (follow the link instead). */
+export function openAppPage(page: AppPage): boolean {
+  return send({ type: 'app.open', page });
+}
+
+/** Called when the app's side menu asks this page to go to one of its paths. Returns the way to stop listening. */
+export function onAppNavigate(listener: (path: string) => void): () => void {
+  const win = appWindow();
+  if (win) listen(win);
+  navigateListeners.add(listener);
+  return () => navigateListeners.delete(listener);
 }

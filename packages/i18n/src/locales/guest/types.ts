@@ -245,6 +245,27 @@ export interface GuestCopy {
     search: string;
     saved: string;
     profile: string;
+    /** In the app the 4th tab is "More" (step 2, design W, Mos 24 Nov 2026). */
+    more: string;
+  };
+  /** Mobile search page /find (Mos 25 Nov 2026, canvas "searchnew" D2–D6): place, recent searches, dropdown filters. */
+  find: {
+    title: string;
+    close: string;
+    recentHeading: string;
+    filtersHeading: string;
+    anywhere: string;
+    customPrice: string;
+    apply: string;
+    clearAll: string;
+    showRooms: string;
+    /** Name of the filter summary row on /find while typing (screen readers), followed by the summary. */
+    editFilters: string;
+  };
+  /** The app-only top bar of the guest web inside the app (design W): avatar → app menu, bell → notifications. */
+  appBar: {
+    myMenu: string;
+    notifications: string;
   };
   saved: {
     title: string;
@@ -363,6 +384,10 @@ export interface GuestCopy {
   profile: {
     title: string;
     subtitle: string;
+    /** In the app the profile page is "More": the account lives in the app's side menu (step 2, design W). */
+    moreTitle: string;
+    moreSubtitle: string;
+    exploreLabel: string;
     accountTitle: string;
     accountBody: string;
     signIn: string;

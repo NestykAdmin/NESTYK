@@ -237,6 +237,23 @@ export const guestEn: GuestCopy = {
     search: 'Search',
     saved: 'Saved',
     profile: 'Profile',
+    more: 'More',
+  },
+  find: {
+    title: 'Search rooms',
+    close: 'Close',
+    recentHeading: 'Recent searches',
+    filtersHeading: 'Filters',
+    anywhere: 'Anywhere',
+    customPrice: 'Custom…',
+    apply: 'Done',
+    clearAll: 'Clear',
+    showRooms: 'Show rooms',
+    editFilters: 'Edit filters',
+  },
+  appBar: {
+    myMenu: 'My menu',
+    notifications: 'Notifications',
   },
   saved: {
     title: 'Saved',
@@ -345,6 +362,9 @@ export const guestEn: GuestCopy = {
   profile: {
     title: 'Profile',
     subtitle: 'Manage your account and settings',
+    moreTitle: 'More',
+    moreSubtitle: 'More from NESTYK, help and ways to reach us',
+    exploreLabel: 'Explore NESTYK',
     accountTitle: 'Your account',
     accountBody: 'Sign in to save rooms, book viewings and follow their status.',
     signIn: 'Sign in',

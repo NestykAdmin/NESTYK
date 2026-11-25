@@ -81,3 +81,71 @@ test('a reply reaches only a page of our own origin, even if the view moved on m
   new Function('window', 'location', B.receiveScript({ type: 'token', id: 'r', token: 't', userId: 'u' }, null))(win, { origin: ORIGIN });
   assert.equal(calls.length, 0, 'no guest web configured: nothing is sent');
 });
+
+// Step 2 (design W, Mos 24 Nov 2026): the web is the guest's whole screen in the app; the app keeps the side menu,
+// the notifications and its own sign-in / legal screens.
+test('the page can open the side menu, the notifications and the sign-in / legal screens of the app', () => {
+  assert.deepEqual(B.parseWebMessage('{"type":"app.menu"}'), { type: 'app.menu' });
+  assert.deepEqual(B.parseWebMessage('{"type":"app.notifications"}'), { type: 'app.notifications' });
+  for (const page of ['signIn', 'register', 'resetPassword', 'privacy', 'terms']) {
+    assert.deepEqual(B.parseWebMessage(JSON.stringify({ type: 'app.open', page })), { type: 'app.open', page });
+  }
+  assert.equal(B.parseWebMessage('{"type":"app.open","page":"admin"}'), null, 'only the known screens');
+  assert.equal(B.parseWebMessage('{"type":"app.open","page":"/login"}'), null);
+  assert.equal(B.parseWebMessage('{"type":"app.open"}'), null);
+  assert.deepEqual(B.APP_PAGE_ROUTE, { signIn: '/login', register: '/register', resetPassword: '/reset-password', privacy: '/privacy', terms: '/terms' });
+});
+
+test('an account page of our site opens the app screen; other account paths never load in the view', () => {
+  const go = (url, top = true) => B.navigationDecision(url, ORIGIN, top);
+  assert.equal(go(`${ORIGIN}/login`), 'app');
+  assert.equal(go(`${ORIGIN}/login?next=%2Frooms%2F31`), 'app');
+  assert.equal(go(`${ORIGIN}/register`), 'app');
+  assert.equal(go(`${ORIGIN}/reset-password`), 'app');
+  assert.equal(go(`${ORIGIN}/privacy#cookies`), 'app');
+  assert.equal(go(`${ORIGIN}/terms`), 'app');
+  for (const p of ['/agent', '/agent/leads', '/landlord', '/tenant/bills', '/admin', '/self-owner', '/owner', '/no-access']) {
+    assert.equal(go(`${ORIGIN}${p}`), 'block', p);
+  }
+  assert.equal(go(`${ORIGIN}/loginx`), 'allow', 'only whole path parts');
+  assert.equal(go(`${ORIGIN}/en/search`), 'allow');
+  assert.equal(go('https://other.example/login'), 'external', 'another site is still another site');
+  assert.equal(B.appPageOf(`${ORIGIN}/login?next=%2F`, ORIGIN), 'signIn');
+  assert.equal(B.appPageOf(`${ORIGIN}/privacy#cookies`, ORIGIN), 'privacy');
+  assert.equal(B.appPageOf(`${ORIGIN}/reset-password`, ORIGIN), 'resetPassword');
+  assert.equal(B.appPageOf(`${ORIGIN}/agent`, ORIGIN), null);
+  assert.equal(B.appPageOf('https://other.example/login', ORIGIN), null);
+});
+
+test('guest side-menu items open the matching page of the web', () => {
+  assert.equal(B.guestWebPathForMenu('/favorites'), '/saved');
+  assert.equal(B.guestWebPathForMenu('/viewings'), '/viewing-requests');
+  assert.equal(B.guestWebPathForMenu('/landlord/tenants'), null);
+});
+
+test('the boot script marks the page as in the app and gives it the screen edges, on our own origin only', () => {
+  const run = (origin, insets) => {
+    const attrs = {};
+    const props = {};
+    const doc = { documentElement: { setAttribute: (k, v) => { attrs[k] = v; }, style: { setProperty: (k, v) => { props[k] = v; } } } };
+    const win = {};
+    new Function('window', 'location', 'document', B.bootScript(ORIGIN, insets))(win, { origin }, doc);
+    return { flag: win.__NESTYK_APP__, attrs, props };
+  };
+  const ok = run(ORIGIN, { top: 47, bottom: 34 });
+  assert.deepEqual(ok.flag, { v: 1 });
+  assert.equal(ok.attrs['data-nk-app'], '1');
+  assert.deepEqual(ok.props, { '--nk-app-top': '47px', '--nk-app-bottom': '34px' });
+  const odd = run(ORIGIN, { top: Number.NaN, bottom: 9999 });
+  assert.deepEqual(odd.props, { '--nk-app-top': '0px', '--nk-app-bottom': '200px' }, 'bad numbers stay sane');
+  const other = run('https://evil.example', { top: 47, bottom: 34 });
+  assert.equal(other.flag, undefined);
+  assert.deepEqual(other.attrs, {});
+});
+
+test('the app can send the page to one of its own paths, never another site', () => {
+  const calls = [];
+  const win = { __nestykAppReceive: (raw) => calls.push(raw) };
+  new Function('window', 'location', B.receiveScript({ type: 'navigate', path: '/saved' }, ORIGIN))(win, { origin: ORIGIN });
+  assert.deepEqual(calls[0], { type: 'navigate', path: '/saved' });
+});

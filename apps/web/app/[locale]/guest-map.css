@@ -611,7 +611,7 @@
     display: block;
     position: absolute;
     z-index: 4;
-    top: max(var(--nk-space-3), env(safe-area-inset-top));
+    top: max(var(--nk-space-3), var(--nk-safe-top));
     left: var(--nk-space-3);
     right: var(--nk-space-3);
   }
@@ -640,7 +640,7 @@
     background: var(--nk-color-surface);
   }
   .nk-map-tools {
-    top: calc(max(var(--nk-space-3), env(safe-area-inset-top)) + 48px + var(--nk-space-3));
+    top: calc(max(var(--nk-space-3), var(--nk-safe-top)) + 48px + var(--nk-space-3));
     left: var(--nk-space-3);
     right: var(--nk-space-3);
     justify-content: center;
@@ -654,7 +654,7 @@
     box-shadow: var(--nk-shadow-pop);
   }
   .nk-map-controls {
-    top: calc(max(var(--nk-space-3), env(safe-area-inset-top)) + 48px + 40px + var(--nk-space-6));
+    top: calc(max(var(--nk-space-3), var(--nk-safe-top)) + 48px + 40px + var(--nk-space-6));
     right: var(--nk-space-3);
   }
   .nk-map-peek {

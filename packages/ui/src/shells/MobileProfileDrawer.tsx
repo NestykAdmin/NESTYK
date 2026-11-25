@@ -151,18 +151,19 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   // Role identity (Mos 20 Nov 2026, same as the web): the current-role box, the role list, the own avatar and its
   // rings use the role's tile colours (deep tile, light icon; the ring is deep in light mode and light in dark mode).
   const roleTile = roleTileColors(activeRole, isDark);
-  // The hero is the role's deep tone; guest keeps brand yellow. Admin is ink, which vanishes on the ink page in
-  // dark mode, so it lifts to grey there (D1, v1.2 B+C).
-  const heroFill =
-    activeRole === 'guest'
-      ? roleColor
-      : isDark && activeRole === 'admin'
-        ? tokens.colors.lift
-        : tokens.colors.roleIdentity[activeRole].deep;
+  // The hero is the role's deep tone. Guest is ink like the guest web's app bar (step 2, design W, Mos 24 Nov 2026;
+  // was brand yellow); admin's deep tone is that same ink. Ink vanishes on the ink page in dark mode, so admin and
+  // guest lift to grey there and carry their ring (guest: yellow) (D1, v1.2 B+C).
+  const inkHero = activeRole === 'admin' || activeRole === 'guest';
+  const heroFill = inkHero
+    ? isDark
+      ? tokens.colors.lift
+      : tokens.colors.primary
+    : tokens.colors.roleIdentity[activeRole].deep;
   // Dark mode: the deep tones sit close to the ink page (landlord 1.13:1), so the hero gets the role's light ring,
   // like a role tile in dark mode (review R1, option ก, Mos 20 Nov 2026). The edge is always there, in the hero's
   // own colour when it is not needed, so the hero keeps one height when the theme changes.
-  const heroEdge = { borderWidth: 1.5, borderColor: isDark && activeRole !== 'guest' ? roleTile.ring : heroFill };
+  const heroEdge = { borderWidth: 1.5, borderColor: isDark ? roleTile.ring : heroFill };
   const mutedIcon = theme.textSecondary;
   const brandSoft = brandSoftFill(isDark);
   // On/off switches: brand ink when on, yellow in dark mode (colour system v1.1).
@@ -185,8 +186,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
   const visibleRoleOptions = ROLE_OPTIONS.filter(
     (role) => allowedRoles.includes(role.key) || role.key === activeRole,
   );
-  const isGuestHeader = activeRole === 'guest';
-  const headerBtnBg = isGuestHeader ? 'rgba(33,30,30,0.08)' : 'rgba(255,255,255,0.92)';
+  const headerBtnBg = 'rgba(255,255,255,0.92)';
 
   const openSubView = (view: DrawerSubView) => {
     if ((view === 'profile' || view === 'account') && !isAuthenticated) {
@@ -449,7 +449,7 @@ export const MobileProfileDrawer: React.FC<MobileProfileDrawerProps> = ({
               </TouchableOpacity>
               <View style={styles.heroLogoWrap} pointerEvents="none">
                 <MobileNestykLogo
-                  variant={isGuestHeader ? 'wordmarkOnYellow' : 'wordmarkOnDark'}
+                  variant="wordmarkOnDark"
                   height={30}
                 />
               </View>

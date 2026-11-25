@@ -92,3 +92,17 @@ test('the routes exist, read the server-only key and never send it to the browse
   const middleware = fs.readFileSync(path.join(__dirname, '..', 'middleware.ts'), 'utf8');
   assert.match(middleware, /place-search/, 'the language middleware leaves the routes alone');
 });
+
+test('a session token also where crypto.randomUUID is missing (the app on the dev network is not a secure context)', () => {
+  const bytes = (n) => {
+    const out = new Uint8Array(n);
+    for (let i = 0; i < n; i += 1) out[i] = (i * 37 + 11) & 0xff;
+    return out;
+  };
+  const viaUuid = places.placeSessionToken({ randomUUID: () => SESSION, getRandomValues: () => assert.fail('not needed') });
+  assert.equal(viaUuid, SESSION);
+  const viaBytes = places.placeSessionToken({ getRandomValues: (array) => array.set(bytes(array.length)) ?? array });
+  assert.ok(viaBytes && places.readAutocompleteInput({ input: 'Su', session: viaBytes, lang: 'th' }), `the routes accept it: ${viaBytes}`);
+  assert.match(viaBytes, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(places.placeSessionToken(undefined), null, 'no crypto at all: no Google search');
+});

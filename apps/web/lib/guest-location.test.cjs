@@ -191,3 +191,11 @@ test('a map area labels the box, and every location pick clears the map-area fla
   assert.ok('nearMap' in loc.locationPatch({ kind: 'place', name: 'BTS อโศก', latitude: 13.7, longitude: 100.5, station: true }));
   assert.match(read('app/components/guest/SearchKeywordBar.tsx'), /const NO_PLACE = \{ area: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined \} as const;/);
 });
+
+test('phone sheet: closing it does not reopen it when focus goes back to the box (Mos 24 Nov 2026)', () => {
+  const code = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'app', 'components', 'guest', 'LocationCombobox.tsx'), 'utf8');
+  assert.match(code, /const closeSheet = \(\) => \{\s*closing\.current = true;\s*setSheetOpen\(false\);/);
+  assert.match(code, /onFocus=\{\(\) => \{\s*if \(closing\.current\) \{\s*closing\.current = false;\s*return;\s*\}\s*setSheetOpen\(true\);/);
+  assert.match(code, /onClose=\{closeSheet\}\s*className="nk-loc-sheet"/);
+  assert.equal(/setSheetOpen\(false\)/.test(code.replace(/const closeSheet[\s\S]*?\};/, '')), false, 'every close goes through closeSheet');
+});

@@ -237,6 +237,23 @@ export const guestTh: GuestCopy = {
     search: 'ค้นหา',
     saved: 'รายการโปรด',
     profile: 'โปรไฟล์',
+    more: 'เพิ่มเติม',
+  },
+  find: {
+    title: 'ค้นหาห้อง',
+    close: 'ปิด',
+    recentHeading: 'ค้นหาล่าสุด',
+    filtersHeading: 'ตัวกรอง',
+    anywhere: 'ทุกทำเล',
+    customPrice: 'กำหนดเอง…',
+    apply: 'ตกลง',
+    clearAll: 'ล้าง',
+    showRooms: 'ดูห้อง',
+    editFilters: 'แก้ตัวกรอง',
+  },
+  appBar: {
+    myMenu: 'เมนูของฉัน',
+    notifications: 'การแจ้งเตือน',
   },
   saved: {
     title: 'รายการโปรด',
@@ -345,6 +362,9 @@ export const guestTh: GuestCopy = {
   profile: {
     title: 'โปรไฟล์',
     subtitle: 'จัดการบัญชีและการตั้งค่าของคุณ',
+    moreTitle: 'เพิ่มเติม',
+    moreSubtitle: 'เมนูอื่นของ NESTYK ความช่วยเหลือ และช่องทางติดต่อ',
+    exploreLabel: 'สำรวจ NESTYK',
     accountTitle: 'บัญชีของคุณ',
     accountBody: 'เข้าสู่ระบบเพื่อบันทึกห้อง นัดดูห้อง และติดตามสถานะ',
     signIn: 'เข้าสู่ระบบ',

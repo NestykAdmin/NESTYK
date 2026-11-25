@@ -237,6 +237,23 @@ export const guestJa: GuestCopy = {
     search: '検索',
     saved: 'お気に入り',
     profile: 'プロフィール',
+    more: 'その他',
+  },
+  find: {
+    title: '部屋を探す',
+    close: '閉じる',
+    recentHeading: '最近の検索',
+    filtersHeading: '絞り込み',
+    anywhere: 'すべてのエリア',
+    customPrice: '金額を指定…',
+    apply: '決定',
+    clearAll: 'クリア',
+    showRooms: '部屋を見る',
+    editFilters: '絞り込みを編集',
+  },
+  appBar: {
+    myMenu: 'マイメニュー',
+    notifications: 'お知らせ',
   },
   saved: {
     title: 'お気に入り',
@@ -345,6 +362,9 @@ export const guestJa: GuestCopy = {
   profile: {
     title: 'プロフィール',
     subtitle: 'アカウントと設定の管理',
+    moreTitle: 'その他',
+    moreSubtitle: 'NESTYKのその他のメニュー、ヘルプ、お問い合わせ',
+    exploreLabel: 'NESTYKを見る',
     accountTitle: 'アカウント',
     accountBody: 'ログインすると、物件の保存や内見の予約、進み具合の確認ができます。',
     signIn: 'ログイン',

@@ -83,9 +83,12 @@ export function activeTabKey(pathname: string): GuestTabKey | null {
   return tab ? tab.key : null;
 }
 
-/** The mobile tab bar shows on every guest page except the room page, which has its own price + viewing bar (S7.3). */
+/**
+ * The mobile tab bar shows on every guest page except the room page, which has its own price + viewing bar (S7.3),
+ * and the search page /find, a full screen with its own close and "ดูห้อง" buttons (Mos 25 Nov 2026).
+ */
 export function showsTabBar(pathname: string): boolean {
-  return !/^\/rooms\//.test(pathname);
+  return !/^\/rooms\//.test(pathname) && pathname !== '/find';
 }
 
 /** Default language of the URL rules (i18n/routing.ts: localePrefix "as-needed"): its paths have no prefix. */

@@ -13,15 +13,35 @@ export const APP_UA_MARK = 'NestykApp/1';
 export const APP_FLAG = '__NESTYK_APP__';
 /** The function the app calls with each reply. */
 export const APP_RECEIVE = '__nestykAppReceive';
+/** Set on <html> by the app before the page loads; guest.css shows the app bar and hides web-only parts with it. */
+export const APP_ATTR = 'data-nk-app';
 /** How long a request waits for the app before giving up (then: not signed in). */
 export const APP_REPLY_TIMEOUT_MS = 8000;
 
-export type WebToApp = { type: 'session.get'; id: string } | { type: 'token.get'; id: string } | { type: 'auth.signOut' };
+/** App screens this page hands over to in the app (the app's AppPage, apps/consumer-app lib/guest-web-bridge.ts). */
+export type AppPage = 'signIn' | 'register' | 'resetPassword' | 'privacy' | 'terms';
+
+export type WebToApp =
+  | { type: 'session.get'; id: string }
+  | { type: 'token.get'; id: string }
+  | { type: 'auth.signOut' }
+  | { type: 'app.menu' }
+  | { type: 'app.notifications' }
+  | { type: 'app.open'; page: AppPage };
 
 export type AppToWeb =
   | { type: 'session'; id: string | null; profile: GuestProfile | null }
   | { type: 'token'; id: string; token: string | null; userId: string | null }
-  | { type: 'session.changed' };
+  | { type: 'session.changed' }
+  | { type: 'navigate'; path: string };
+
+/** The app screen for one of this site's account pages (lib/guest-site.ts AccountPage). Cookies: the privacy page. */
+export function appPageFor(page: 'signIn' | 'register' | 'privacy' | 'terms' | 'cookies'): AppPage {
+  return page === 'cookies' ? 'privacy' : page;
+}
+
+/** A path the app may move this page to: in-site, letters, digits, "-", "_" and "/" only, not "//". */
+const IN_SITE_PATH = /^\/(?!\/)[A-Za-z0-9\-_/]{0,120}$/;
 
 /** Inside the app only when the app's bridge exists and the app marked the page (flag or user agent). */
 export function isInApp(input: { hasBridge: boolean; flag: unknown; userAgent: string }): boolean {
@@ -47,6 +67,9 @@ export function parseAppMessage(raw: unknown): AppToWeb | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const message = value as Record<string, unknown>;
   if (message.type === 'session.changed') return { type: 'session.changed' };
+  if (message.type === 'navigate') {
+    return typeof message.path === 'string' && IN_SITE_PATH.test(message.path) ? { type: 'navigate', path: message.path } : null;
+  }
   if (message.type === 'session') {
     const id = typeof message.id === 'string' ? message.id : null;
     const fields = message.profile && typeof message.profile === 'object' ? (message.profile as Record<string, unknown>) : null;

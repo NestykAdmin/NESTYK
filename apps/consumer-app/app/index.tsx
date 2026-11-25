@@ -42,6 +42,8 @@ import { AgentRoomsPage } from '../components/agent-web/AgentRoomsPage';
 import { AgentLeadsPage } from '../components/agent-web/AgentLeadsPage';
 import { AdminViewingRequestsPage } from '../components/agent-web/AdminViewingRequestsPage';
 import { GuestWebView } from '../components/GuestWebView';
+import type { GuestWebViewHandle } from '../components/GuestWebView.types';
+import { APP_PAGE_ROUTE, guestWebPathForMenu } from '../lib/guest-web-bridge';
 import { listAdminViewingRequests } from '../lib/admin-viewing-requests-api';
 import { countByTab } from '../lib/admin-viewing-requests';
 import { useAgentDashboard } from '../lib/agent-dashboard';
@@ -238,6 +240,7 @@ export function AppHomeScreen() {
   const [selectedBillRoom, setSelectedBillRoom] = useState<{ property: string; room: string | null } | null>(null);
   const [openedPartyContract, setOpenedPartyContract] = useState<PartyContract | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const guestWebRef = useRef<GuestWebViewHandle>(null);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [notifications, messages] = useMemo(() => {
     const time = new Intl.DateTimeFormat(localeTag(locale), {
@@ -815,8 +818,9 @@ export function AppHomeScreen() {
     };
   }, [loadAdminCount, activeTab]);
   const isSelfOwnerWeb = isWideWeb && activeRole === 'self_owner';
-  // Guest on the phone: home and search show the guest web in a WebView (W1, Mos 24 Nov 2026).
-  const guestWebTab = Platform.OS !== 'web' && activeRole === 'guest' && (activeTab === 'home' || activeTab === 'search');
+  // Guest on the phone: the guest web is the whole screen, with its own app bar and tab bar (W1, then step 2 design W,
+  // Mos 24 Nov 2026). The app keeps the side menu, the notifications and its sign-in / legal screens.
+  const guestWebShell = Platform.OS !== 'web' && activeRole === 'guest';
   const isDesktopWeb = isAgentWeb || isLandlordWeb || isTenantWeb || isAdminWeb || isSelfOwnerWeb;
   // Widening the browser past WEB_SHELL_MIN_WIDTH swaps in the desktop shell; close the app drawer so it does not
   // pop back open when the window is narrowed again.
@@ -1233,10 +1237,6 @@ export function AppHomeScreen() {
   };
 
   const renderTabBody = () => {
-    // Guest on the phone: home and search are the guest web itself (W1, nestyk-guest-app-webview-plan-20261124.md).
-    if (guestWebTab) {
-      return <GuestWebView path={activeTab === 'search' ? '/search' : '/'} />;
-    }
     if (activeTab === 'home') {
       return (
         <View style={styles.bodyContainer}>
@@ -1859,6 +1859,15 @@ export function AppHomeScreen() {
 
   return (
     <>
+      {guestWebShell ? (
+        <GuestWebView
+          ref={guestWebRef}
+          onOpenMenu={() => setDrawerOpen(true)}
+          onOpenNotifications={() => setNotificationsOpen(true)}
+          onOpenPage={(page) => router.push(APP_PAGE_ROUTE[page] as never)}
+          backEnabled={!drawerOpen && !notificationsOpen}
+        />
+      ) : (
       <AgentWorkspace
         enabled={isDesktopWeb}
         activeRole={workspaceRole}
@@ -1908,7 +1917,7 @@ export function AppHomeScreen() {
         role={activeRole}
         backgroundColor={isTenantWorkspace ? theme.surface : undefined}
         screenTitle={screenTitle}
-        scrollable={(partyInbox || !isWizardTab) && !guestWebTab}
+        scrollable={partyInbox || !isWizardTab}
         refreshing={pageRefreshing}
         onRefresh={onPageRefresh}
         header={
@@ -2094,12 +2103,13 @@ export function AppHomeScreen() {
           ) : (
             renderTabBody()
           )}
-          {activeRole === 'guest' && !guestWebTab && (activeTab === 'home' || activeTab === 'search' || activeTab === 'services') ? (
+          {activeRole === 'guest' && (activeTab === 'home' || activeTab === 'search' || activeTab === 'services') ? (
             <GuestPublicFooter />
           ) : null}
         </React.Fragment>
       </Page>
       </AgentWorkspace>
+      )}
 
       <MobileProfileDrawer
         visible={!isDesktopWeb && drawerOpen}
@@ -2136,6 +2146,13 @@ export function AppHomeScreen() {
             return;
           }
           if (action.type === 'route') {
+            // Guest in the app: Favourites and My viewing requests are pages of the guest web (step 2).
+            const webPath = guestWebShell ? guestWebPathForMenu(action.path) : null;
+            if (webPath) {
+              guestWebRef.current?.navigate(webPath);
+              setDrawerOpen(false);
+              return;
+            }
             if (action.path === '/landlord/tenants') {
               openPartyInbox(true);
               return;

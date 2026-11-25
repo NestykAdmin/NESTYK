@@ -22,7 +22,8 @@ function parsePrice(text: string): number | undefined {
  * Monthly rent: slider, the six preset chips shared with the app, and the two boxes for an exact amount. Used by
  * the search filter panel, the mobile filter sheet and the home search box. Dragging and typing report with
  * `debounce`; a preset applies at once. `presets="select"` (search filter panel and sheet, Mos 20 Nov 2026): the ready
- * ranges are one dropdown instead of six chips.
+ * ranges are one dropdown instead of six chips. `presets="none"`: the mobile search page /find, whose price dropdown
+ * already lists the ready ranges ("กำหนดเอง…" opens this field).
  */
 export function PriceRangeField({
   minPrice,
@@ -30,7 +31,7 @@ export function PriceRangeField({
   onChange,
   idPrefix,
   presets = 'chips',
-}: Price & { onChange: PriceChange; idPrefix: string; presets?: 'chips' | 'select' }) {
+}: Price & { onChange: PriceChange; idPrefix: string; presets?: 'chips' | 'select' | 'none' }) {
   const { t } = useLocale();
   const copy = t.guest;
   const words: PriceWords = {
@@ -59,7 +60,7 @@ export function PriceRangeField({
   return (
     <div className="nk-price-field">
       <PriceRangeSlider minPrice={minPrice} maxPrice={maxPrice} onChange={(price) => onChange(price, { debounce: true })} idPrefix={idPrefix} />
-      {presets === 'select' ? (
+      {presets === 'none' ? null : presets === 'select' ? (
         <select
           id={`${idPrefix}-preset`}
           className="nk-input nk-price-field__select"

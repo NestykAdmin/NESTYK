@@ -88,3 +88,34 @@ test("the page's requests read in the app; anything else is dropped", () => {
   assert.equal(app.parseWebMessage('<html>'), null);
   assert.equal(app.parseWebMessage(JSON.stringify({ type: 'token.get', id: 'x'.repeat(65) })), null, 'ids stay short');
 });
+
+// Step 2 (design W): the page's app bar opens the app's side menu and notifications; sign-in and legal links open
+// the app's own screens; the app's side menu moves the page.
+test("the page's app requests read in the app", () => {
+  assert.deepEqual(app.parseWebMessage(web.webMessage({ type: 'app.menu' })), { type: 'app.menu' });
+  assert.deepEqual(app.parseWebMessage(web.webMessage({ type: 'app.notifications' })), { type: 'app.notifications' });
+  for (const page of ['signIn', 'register', 'privacy', 'terms', 'cookies']) {
+    const appPage = web.appPageFor(page);
+    assert.deepEqual(app.parseWebMessage(web.webMessage({ type: 'app.open', page: appPage })), { type: 'app.open', page: appPage }, page);
+  }
+  assert.equal(web.appPageFor('cookies'), 'privacy', 'the cookie notes are on the privacy page');
+  assert.equal(web.appPageFor('signIn'), 'signIn');
+});
+
+test('the boot script and the page agree on the in-app mark', () => {
+  const attrs = {};
+  const doc = { documentElement: { setAttribute: (k, v) => { attrs[k] = v; }, style: { setProperty() {} } } };
+  new Function('window', 'location', 'document', app.bootScript(ORIGIN, { top: 0, bottom: 0 }))({}, { origin: ORIGIN }, doc);
+  assert.equal(attrs[web.APP_ATTR], '1');
+});
+
+test('the app moves the page only to an in-site path', () => {
+  const received = [];
+  const win = { [web.APP_RECEIVE]: (raw) => received.push(web.parseAppMessage(raw)) };
+  new Function('window', 'location', app.receiveScript({ type: 'navigate', path: app.guestWebPathForMenu('/favorites') }, ORIGIN))(win, { origin: ORIGIN });
+  assert.deepEqual(received[0], { type: 'navigate', path: '/saved' });
+  for (const path of ['https://evil.example/', '//evil.example', '/\\evil', 'javascript:alert(1)', '', '/a b', '/x'.repeat(200)]) {
+    assert.equal(web.parseAppMessage({ type: 'navigate', path }), null, path);
+  }
+  assert.deepEqual(web.parseAppMessage({ type: 'navigate', path: '/viewing-requests' }), { type: 'navigate', path: '/viewing-requests' });
+});

@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { guestPageMetadata } from '../../../../lib/guest-seo';
 import {
   GUEST_CONTACT,
-  guestAccountUrl,
   isGuestPageReady,
   LANGUAGE_OPTIONS,
   languageName,
@@ -20,6 +19,8 @@ import {
   CheckIcon,
   ChevronRightIcon,
   DocumentIcon,
+  PinIcon,
+  TrainIcon,
   GlobeIcon,
   HeartIcon,
   HelpIcon,
@@ -30,6 +31,7 @@ import {
   SlidersIcon,
   SunIcon,
 } from '../../../components/guest/GuestIcons';
+import { AccountPageLink } from '../../../components/guest/AccountLink';
 import { ProfileAccount, ProfileSignOut } from '../../../components/guest/ProfileAccount';
 import { GuestSocialLinks } from '../../../components/guest/GuestSocialLinks';
 
@@ -62,6 +64,8 @@ function SoonRow({ icon: Icon, label, soon }: { icon: RowIcon; label: string; so
  * Profile page of the guest web (S2.9, design v2.3 "MobileProfileV23"). Signed-out view: sign in or sign up at
  * the central login, language, cookie settings, help and legal links, and on mobile the contact block that the
  * footer shows on wide screens. Role cards and notifications are left out on purpose (guest pages only).
+ * Inside the NESTYK app it is "More" (step 2, design W): no account, roles or settings (the app's side menu has
+ * them); the web's other menu items instead; privacy and terms open the app's own screens.
  */
 export default async function ProfilePage({ params }: Props) {
   const { locale } = await params;
@@ -72,12 +76,19 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <>
-      <div className="nk-page-head">
+      <div className="nk-page-head nk-web-only">
         <h1 className="nk-page-head__title">{copy.title}</h1>
         <p className="nk-page-head__text">{copy.subtitle}</p>
       </div>
+      {/* Inside the app this page is "More" (step 2, design W): the account, roles and settings are the app's side menu. */}
+      <div className="nk-page-head nk-app-only">
+        <h1 className="nk-page-head__title">{copy.moreTitle}</h1>
+        <p className="nk-page-head__text">{copy.moreSubtitle}</p>
+      </div>
       <div className="nk-page">
-        <ProfileAccount />
+        <div className="nk-contents nk-web-only">
+          <ProfileAccount />
+        </div>
 
         <section aria-label={copy.activityLabel} className="nk-card nk-list">
           <Link href={localePath(locale, '/saved')} className="nk-row" data-testid="profile.saved">
@@ -92,7 +103,22 @@ export default async function ProfilePage({ params }: Props) {
           </Link>
         </section>
 
-        <section aria-label={copy.settingsLabel} className="nk-card nk-list">
+        {/* In the app: the web's menu items that are not tabs, open or still coming (Mos 24 Nov 2026). */}
+        <section aria-label={copy.exploreLabel} className="nk-card nk-list nk-app-only" data-testid="profile.explore">
+          {isGuestPageReady('areas') ? (
+            <Link href={localePath(locale, '/areas')} className="nk-row" data-testid="profile.areas">
+              <PinIcon className="nk-row__icon" />
+              <span className="nk-row__label">{t.nav.areas}</span>
+              <Chevron />
+            </Link>
+          ) : (
+            <SoonRow icon={PinIcon} label={t.nav.areas} soon={soon} />
+          )}
+          {isGuestPageReady('commute') ? null : <SoonRow icon={TrainIcon} label={t.nav.commute} soon={soon} />}
+          {isGuestPageReady('articles') ? null : <SoonRow icon={DocumentIcon} label={t.nav.articles} soon={soon} />}
+        </section>
+
+        <section aria-label={copy.settingsLabel} className="nk-card nk-list nk-web-only">
           <details className="nk-details" data-testid="profile.language">
             <summary className="nk-row">
               <GlobeIcon className="nk-row__icon" />
@@ -128,16 +154,16 @@ export default async function ProfilePage({ params }: Props) {
         <section aria-label={copy.helpLabel} className="nk-card nk-list">
           {isGuestPageReady('help') ? null : <SoonRow icon={HelpIcon} label={copy.help} soon={soon} />}
           {isGuestPageReady('about') ? null : <SoonRow icon={InfoIcon} label={copy.about} soon={soon} />}
-          <a href={guestAccountUrl('privacy')} className="nk-row" data-testid="profile.privacy">
+          <AccountPageLink page="privacy" className="nk-row" data-testid="profile.privacy">
             <ShieldIcon className="nk-row__icon" />
             <span className="nk-row__label">{copy.privacy}</span>
             <Chevron />
-          </a>
-          <a href={guestAccountUrl('terms')} className="nk-row" data-testid="profile.terms">
+          </AccountPageLink>
+          <AccountPageLink page="terms" className="nk-row" data-testid="profile.terms">
             <DocumentIcon className="nk-row__icon" />
             <span className="nk-row__label">{copy.terms}</span>
             <Chevron />
-          </a>
+          </AccountPageLink>
           <a href={COOKIE_SETTINGS_HREF} className="nk-row" data-testid="profile.cookies">
             <SlidersIcon className="nk-row__icon" />
             <span className="nk-row__label">{copy.cookies}</span>
@@ -145,7 +171,9 @@ export default async function ProfilePage({ params }: Props) {
           </a>
         </section>
 
-        <ProfileSignOut />
+        <div className="nk-contents nk-web-only">
+          <ProfileSignOut />
+        </div>
 
         <section aria-label={copy.contactLabel} className="nk-card nk-list nk-page__mobile-only" data-testid="profile.contact">
           <a href={telHref(GUEST_CONTACT.phone)} className="nk-row">
