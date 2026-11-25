@@ -120,7 +120,7 @@ export function SelfOwnerOverview({ snapshot, deletionScheduledFor, onOpenRooms,
       }
     >
       <WebContentContainer>
-        <div className="sov-dashboard">
+        <div className="sov-dashboard so-skeleton-delay">
           {deletionScheduledFor ? (
             <p className="sov-deletion" role="alert">
               {t.mobile.account.deleteAccountOverview.replace(

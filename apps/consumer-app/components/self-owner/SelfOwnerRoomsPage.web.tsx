@@ -284,7 +284,7 @@ export function SelfOwnerRoomsPage({
   const to = Math.min(current * PAGE_SIZE, total);
 
   return (
-    <div className="awr-page" ref={rootRef} data-testid="self-owner-rooms-page">
+    <div className="awr-page so-skeleton-delay" ref={rootRef} data-testid="self-owner-rooms-page">
       <div className="sor-head">
         {isDemoPreview ? (
           <p className="sor-demo" role="note">

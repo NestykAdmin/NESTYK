@@ -120,6 +120,8 @@ import {
 import { ACCOUNT_DELETION_ENABLED, showAccountDeletion } from '../lib/account-deletion-flag';
 import { type AppRouteState, type SettingsSection, canOpenRole, roleHomePath, stateToRoute } from '../lib/app-routes';
 import { type RoleWebMenuCopy, adminWebNavSections, selfOwnerWebNavSections } from '../components/agent-web/role-web-menus';
+import { TabTransition } from '../components/TabTransition';
+import { tabSlideDirection } from '../lib/tab-transition';
 import {
   afterSignOutHref,
   holdShellMove,
@@ -232,6 +234,12 @@ export function AppHomeScreen() {
   );
   const [calendarReloadToken, setCalendarReloadToken] = useState(0);
   const [activeTab, setActiveTab] = useState<MobileAppTab>(() => initialRoute?.tab ?? getDefaultTabForRole(initialRole));
+  // Slide between menus (self owner, Jom 25 Nov 2026): the side comes from the menu shown before this render.
+  const lastTabRef = useRef<MobileAppTab | null>(null);
+  const tabSlide = tabSlideDirection(activeRole, lastTabRef.current, activeTab);
+  useEffect(() => {
+    lastTabRef.current = activeTab;
+  }, [activeTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [passwordCaptchaToken, setPasswordCaptchaToken] = useState<string | null>(null);
@@ -1293,10 +1301,10 @@ export function AppHomeScreen() {
     if (activeRole === 'self_owner' && activeTab === 'contracts') {
       // Read-only contracts (24 Nov 2026, ClickUp z8rcteng6e): NESTYK admin will create them; demo until then.
       return isSelfOwnerWeb ? (
-        <SelfOwnerContractsPage contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} />
+        <SelfOwnerContractsPage contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status} />
       ) : (
         <View style={styles.bodyContainer}>
-          <MobileSelfOwnerContractsScreen contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} />
+          <MobileSelfOwnerContractsScreen contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status} />
         </View>
       );
     }
@@ -1304,10 +1312,10 @@ export function AppHomeScreen() {
     if (activeRole === 'self_owner' && activeTab === 'income') {
       // Read-only rent income (24 Nov 2026, ClickUp z8rcteng6f): which rooms paid this month; same rows as the Dashboard.
       return isSelfOwnerWeb ? (
-        <SelfOwnerIncomePage contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} />
+        <SelfOwnerIncomePage contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} status={selfOwnerIncome.status} />
       ) : (
         <View style={styles.bodyContainer}>
-          <MobileSelfOwnerIncomeScreen contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} />
+          <MobileSelfOwnerIncomeScreen contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} status={selfOwnerIncome.status} />
         </View>
       );
     }
@@ -2191,7 +2199,7 @@ export function AppHomeScreen() {
           )
         }
       >
-        <React.Fragment key={`${activeRole}-${activeTab}-${partyInbox ? 'inbox' : 'tab'}`}>
+        <TabTransition key={`${activeRole}-${activeTab}-${partyInbox ? 'inbox' : 'tab'}`} direction={tabSlide}>
           {partyInbox ? (
             <PartyContractsScreen
               mode={partyRole}
@@ -2211,7 +2219,7 @@ export function AppHomeScreen() {
           {activeRole === 'guest' && (activeTab === 'home' || activeTab === 'search' || activeTab === 'services') ? (
             <GuestPublicFooter />
           ) : null}
-        </React.Fragment>
+        </TabTransition>
       </Page>
       </AgentWorkspace>
 

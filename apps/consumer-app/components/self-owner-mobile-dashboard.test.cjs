@@ -16,8 +16,8 @@ function load(filename) {
   const module = { exports: {} };
   cache.set(filename, module);
   const localRequire = (name) => {
-    if (name === 'react') return { ...React, useMemo: fn => fn() };
-    if (name === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 } };
+    if (name === 'react') return { ...React, useMemo: fn => fn(), useState: (v) => [typeof v === 'function' ? v() : v, () => {}], useEffect() {} };
+    if (name === 'react-native') return { Animated: { View: 'AnimatedView', Value: class { constructor(v) { this.v = v; } setValue() {} interpolate() { return this; } }, timing: () => ({ start() {}, stop() {} }), loop: () => ({ start() {}, stop() {} }), sequence: () => ({ start() {}, stop() {} }), delay: () => ({ start() {}, stop() {} }) }, Easing: { inOut: (f) => f, out: (f) => f, ease: (x) => x, cubic: (x) => x }, AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(false) }, View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
     if (name === '@nestyk/ui/native') return {
       useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileButton: 'MobileButton', MobileProfileAvatar: 'Avatar',
@@ -126,15 +126,17 @@ test('with onOpenRooms the phone "view all rooms" row works', () => {
   assert.equal(byTestId(tree, 'so-link-rent')[0].props.accessibilityState.disabled, true);
 });
 
-test('loading sections show a spinner, never stale rows or counts', () => {
+// Skeleton cards instead of spinners on the phone (Jom 25 Nov 2026), like the web overview's skeletons.
+test('loading sections show skeleton cards, never stale rows or counts', () => {
   locale = 'th';
   const copy = copyOf();
   const snapshot = fixture();
   for (const key of ['rooms', 'rent', 'todo', 'viewings']) snapshot[key].status = 'loading';
   const tree = nodes(body().MobileSelfOwnerDashboardBody({ snapshot, initials: 'J' }));
-  const spinners = tree.filter(node => node?.type === 'ActivityIndicator');
-  assert.equal(spinners.length, 4);
-  assert.ok(spinners.every(s => s.props.accessibilityLabel === load(`${root}/packages/i18n/src/locales/th.ts`).th.common.loading));
+  assert.equal(tree.filter(node => node?.type === 'ActivityIndicator').length, 0);
+  const skeletons = tree.filter(node => node?.props?.testID === 'so-skeleton');
+  assert.equal(skeletons.length, 4);
+  assert.ok(skeletons.every(s => s.props.accessibilityLabel === load(`${root}/packages/i18n/src/locales/th.ts`).th.common.loading));
   for (const prefix of ['so-room-', 'so-rent-', 'so-todo-', 'so-viewing-']) assert.equal(byTestId(tree, prefix).length, 0, prefix);
   assert.ok(!texts(tree).some(text => text === '…'));
   assert.doesNotMatch(texts(tree).join('\n'), new RegExp(copy.roomCount.replace('{n}', '\\d+')));

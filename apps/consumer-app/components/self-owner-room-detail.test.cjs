@@ -36,7 +36,7 @@ function load(filename) {
     if (name.endsWith('.css')) return {};
     if (name === 'react') return fakeReact;
     if (name === 'react-native') return {
-      Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator',
+      Animated: { View: 'AnimatedView', Value: class { constructor(v) { this.v = v; } setValue() {} interpolate() { return this; } }, timing: () => ({ start() {}, stop() {} }), loop: () => ({ start() {}, stop() {} }), sequence: () => ({ start() {}, stop() {} }), delay: () => ({ start() {}, stop() {} }) }, Easing: { inOut: (f) => f, out: (f) => f, ease: (x) => x, cubic: (x) => x }, AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(false) }, Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator',
       StyleSheet: { create: (v) => v, hairlineWidth: 1 }, Platform: { OS: 'ios' }, Alert: { alert: (...args) => alerts.push(args) },
     };
     if (name === 'react-native-safe-area-context') return { SafeAreaProvider: ({ children }) => children, SafeAreaView: ({ children }) => children, initialWindowMetrics: null };
@@ -432,4 +432,29 @@ test('web and phone: the detail gets the owner words for its internal card', () 
     assert.ok(copy.internalHint && copy.internalVisibility, l);
   }
   assert.doesNotMatch(so.internalHint, /ทีม|แชร์/);
+});
+
+// Room detail loading and opening (Jom 25 Nov 2026): a skeleton shaped like the detail while the API answers (web and
+// phone), and on the web the modal fades and rises in once; the phone keeps its slide-up modal.
+test('connected: while the room loads the detail shows a skeleton, not a spinner or a bare text', () => withEffects(async () => {
+  await connect();
+  const w = web({ roomId: '7' });
+  const skeleton = w.find((n) => n?.props?.className === 'sord-skeleton so-skeleton-delay');
+  assert.ok(skeleton, 'web skeleton block');
+  assert.equal(skeleton.props['aria-busy'], 'true');
+  assert.ok(byTestId(w, 'state.loading'), 'web skeleton rows');
+  assert.ok(w.some((n) => n?.props?.className === 'sord-skeleton-photo'), 'a photo block first');
+  const p = phone({ roomId: '7' });
+  assert.ok(byTestId(p, 'so-skeleton'), 'phone skeleton cards');
+  assert.equal(p.filter((n) => n?.type === 'ActivityIndicator').length, 0);
+  await settle();
+}));
+
+test('web: the room modal fades and rises in once; reduced motion turns it off', () => {
+  const tree = web({ roomId: 'r1' });
+  const section = tree.find((n) => n?.type === 'section' && String(n.props.className).includes('ard-dialog'));
+  assert.ok(section.props.className.split(' ').includes('sord-enter'));
+  const css = fs.readFileSync(path.join(__dirname, 'self-owner', 'self-owner-rooms.css'), 'utf8');
+  assert.match(css, /\.aw-shell\.ard-dialog\.sord-enter \{[^}]*animation: sord-enter /);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^}]*\.sord-enter[^}]*animation: none/);
 });

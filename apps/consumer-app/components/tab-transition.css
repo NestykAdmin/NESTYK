@@ -1,0 +1,31 @@
+/* Slide between menus (Jom 25 Nov 2026): a short slide and fade from the menu item's side. The end state has no
+   transform, so nothing inside (sticky or fixed parts) is affected once it has played. */
+.tab-slide {
+  /* The wrapper stays after the slide: it passes the page's height through like no wrapper at all, so a page that
+     fills the screen and scrolls inside (the add-room form) still does (recheck 25 Nov 2026). */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  animation: tab-slide-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.tab-slide-right {
+  --tab-slide-from: 24px;
+}
+.tab-slide-left {
+  --tab-slide-from: -24px;
+}
+@keyframes tab-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--tab-slide-from, 24px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-slide { animation: none; }
+}

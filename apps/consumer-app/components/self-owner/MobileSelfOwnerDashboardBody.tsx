@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import {
   AccountDeletionNotice,
@@ -10,6 +10,7 @@ import {
   tokens,
   useMobileTheme,
 } from '@nestyk/ui/native';
+import { MobileSkeletonCards } from './MobileSkeletonCards';
 import { interpolate, type DashboardSectionStatus } from '@nestyk/feature-listing';
 import {
   SELF_OWNER_LOCALE_TAG,
@@ -81,7 +82,8 @@ export function MobileSelfOwnerDashboardBody({ snapshot, initials = '', deletion
   const isReady = (status: DashboardSectionStatus) => status === 'available' || status === 'demo';
   const ready = (status: DashboardSectionStatus, content: React.ReactNode) => {
     if (status === 'error') return <Text style={[styles.small, { color: subtle.dangerFg }]}>{copy.sectionError}</Text>;
-    if (status === 'loading') return <ActivityIndicator color={theme.spinner} accessibilityLabel={t.common.loading} />;
+    // Skeleton cards like the web overview (Jom 25 Nov 2026), not a spinner.
+    if (status === 'loading') return <MobileSkeletonCards count={2} lines={2} />;
     if (status === 'not_configured') return <Text style={mutedText}>{copy.comingSoon}</Text>;
     return content;
   };

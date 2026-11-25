@@ -18,7 +18,7 @@ function load(filename) {
   const localRequire = (name) => {
     if (name === 'expo-constants') return { __esModule: true, default: { expoConfig: { extra: {} } } }; // self-owner-maps-key.ts
     if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useRef: () => ({ current: null }), useSyncExternalStore: (_s, get) => get(), useEffect: () => {}, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
-    if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 }, Platform: { OS: 'ios' }, Alert: { alert() {} } };
+    if (name === 'react-native') return { Animated: { View: 'AnimatedView', Value: class { constructor(v) { this.v = v; } setValue() {} interpolate() { return this; } }, timing: () => ({ start() {}, stop() {} }), loop: () => ({ start() {}, stop() {} }), sequence: () => ({ start() {}, stop() {} }), delay: () => ({ start() {}, stop() {} }) }, Easing: { inOut: (f) => f, out: (f) => f, ease: (x) => x, cubic: (x) => x }, AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(false) }, Modal: ({ visible, children }) => (visible ? children : null), useWindowDimensions: () => ({ width: 1440, height: 900 }), View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, hairlineWidth: 1 }, Platform: { OS: 'ios' }, Alert: { alert() {} } };
     // The room detail modal (Jom 20 Nov 2026) is closed in these tests.
     if (name === 'react-native-safe-area-context') return { SafeAreaProvider: ({ children }) => children, SafeAreaView: ({ children }) => children, initialWindowMetrics: null };
     if (name === 'expo-image-picker') return {};
@@ -115,12 +115,14 @@ test('native fallback of SelfOwnerRoomsPage renders the phone screen', () => {
   assert.equal(element.type, screen().MobileSelfOwnerRoomsScreen);
 });
 
-test('loading shows a spinner, chips without counts and no result count', () => {
+// Skeleton cards instead of a spinner on the phone (Jom 25 Nov 2026), like the web grid's skeleton.
+test('loading shows skeleton cards, chips without counts and no result count', () => {
   locale = 'th';
   const all = copyOf();
   const tree = render({ status: 'loading', rooms: [] });
-  const spinner = tree.find(node => node?.type === 'ActivityIndicator');
-  assert.equal(spinner.props.accessibilityLabel, all.common.loading);
+  assert.equal(tree.filter(node => node?.type === 'ActivityIndicator').length, 0);
+  const skeleton = tree.find(node => node?.props?.testID === 'so-skeleton');
+  assert.equal(skeleton.props.accessibilityLabel, all.common.loading);
   assert.ok(!texts(tree).some(text => text === '…' || text === '0'));
   assert.ok(!texts(tree).includes(all.selfOwnerRooms.resultCount.replace('{n}', '0')));
   assert.ok(!texts(tree).includes(all.selfOwnerDashboard.noRooms));

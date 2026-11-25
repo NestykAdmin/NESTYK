@@ -20,6 +20,8 @@ import {
 } from '../../lib/self-owner-contracts';
 import { contractDetailView, contractParty } from './contract-detail-rows';
 import { MobileSelfOwnerPager } from './MobileSelfOwnerPager';
+import { MobileSkeletonCards } from './MobileSkeletonCards';
+import { MobileLoadError } from './MobileLoadError';
 import { SELF_OWNER_ROOMS_PAGE_SIZE, clampPage } from '../../lib/self-owner-rooms';
 import type { SelfOwnerContractsPageProps } from './SelfOwnerContractsPage.types';
 
@@ -210,7 +212,9 @@ export function MobileSelfOwnerRoomContracts({
  * one card per room (contract kinds, Jom 24 Nov 2026); a card opens all the room's contracts. Demo data until NESTYK
  * admin creates contracts.
  */
-export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initialFilter = 'all', initialQuery = '', initialPage = 1 }: SelfOwnerContractsPageProps) {
+export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initialFilter = 'all', initialQuery = '', initialPage = 1, status = 'demo', onRetry }: SelfOwnerContractsPageProps) {
+  // Counts, the result count and the pager only once the contracts are in (Jom 25 Nov 2026).
+  const ready = status !== 'loading' && status !== 'error';
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const so = t.selfOwnerContracts;
@@ -234,6 +238,8 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
   const small = [styles.small, { color: muted }];
 
   const list = () => {
+    if (status === 'loading') return <MobileSkeletonCards count={4} />;
+    if (status === 'error') return <MobileLoadError onRetry={onRetry} retryTestID="soc-retry" />;
     if (contracts.length === 0) return <Text style={small}>{so.empty}</Text>;
     if (shown.length === 0) {
       return (
@@ -314,14 +320,14 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
               style={[styles.chip, { borderColor: on ? ink : theme.border, backgroundColor: on ? ink : theme.surface }]}
             >
               <Text style={[styles.small, { color: on ? theme.surface : ink }]}>{key === 'all' ? so.filterAll : so.status[key]}</Text>
-              <Text style={[styles.small, { color: on ? theme.surface : muted }]}>{String(counts[key])}</Text>
+              {ready ? <Text style={[styles.small, { color: on ? theme.surface : muted }]}>{String(counts[key])}</Text> : null}
             </Pressable>
           );
         })}
       </View>
-      <Text style={small}>{interpolate(so.count, { n: results.length })}</Text>
+      {ready ? <Text style={small}>{interpolate(so.count, { n: results.length })}</Text> : null}
       <View style={styles.list}>{list()}</View>
-      <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, results.length))} testIDPrefix="soc-page" />
+      {ready ? <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, results.length))} testIDPrefix="soc-page" /> : null}
       <Modal visible={!!open} animationType="slide" onRequestClose={() => setSelected(null)}>
         {open ? <MobileSelfOwnerRoomContracts room={open} all={contracts} onClose={() => setSelected(null)} /> : null}
       </Modal>

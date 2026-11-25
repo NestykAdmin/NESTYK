@@ -10,6 +10,8 @@ import { selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } fr
 import type { SelfOwnerIncomePageProps } from './SelfOwnerIncomePage.types';
 import { LeadSelectField } from '../LeadSelectField';
 import { MobileSelfOwnerPager } from './MobileSelfOwnerPager';
+import { MobileSkeletonCards } from './MobileSkeletonCards';
+import { MobileLoadError } from './MobileLoadError';
 import { SELF_OWNER_ROOMS_PAGE_SIZE, clampPage } from '../../lib/self-owner-rooms';
 
 const STATE_INTENT: Record<SelfOwnerRentState, StatusIntent> = { paid: 'done', due: 'neutral', overdue: 'crit' };
@@ -24,7 +26,9 @@ function indexOf(months: SelfOwnerIncomePageProps['months'], month?: SelfOwnerIn
  * Self owner income on the phone (UI round, 24 Nov 2026, ClickUp z8rcteng6f): pick a month, see the total, received
  * and overdue rent, and which rooms paid. Read only; demo data, same rows as the Dashboard's rent section.
  */
-export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1 }: SelfOwnerIncomePageProps) {
+export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1, status = 'demo', onRetry }: SelfOwnerIncomePageProps) {
+  // Amounts, rows and month changes only once the rent is in (Jom 25 Nov 2026).
+  const ready = status !== 'loading' && status !== 'error';
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const inc = t.selfOwnerIncome;
@@ -59,7 +63,7 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
   // Arrows step one month; the month itself is a select field, newest first (Jom 24 Nov 2026).
   const monthOptions = months.map((m, i) => ({ value: i, label: nameOf(m) })).reverse();
   const navButton = (label: string, icon: 'chevron-left' | 'chevron-right', next: number) => {
-    const disabled = next < 0 || next >= months.length;
+    const disabled = !ready || next < 0 || next >= months.length;
     return (
       <Pressable
         accessibilityRole="button"
@@ -92,6 +96,7 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
           icon="calendar"
           value={index}
           options={monthOptions}
+          disabled={!ready}
           onChange={(next) => {
             if (next != null) setIndex(next);
           }}
@@ -99,20 +104,27 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
         />
         {navButton(inc.nextMonth, 'chevron-right', index + 1)}
       </View>
-      <View style={styles.summary}>
-        {([
-          [inc.summaryTotal, sum.total, ink],
-          [inc.summaryReceived, sum.received, subtle.successFg ?? ink],
-          [inc.summaryOutstanding, sum.overdue, subtle.dangerFg ?? ink],
-        ] as const).map(([name, amount, color]) => (
-          <View key={name} style={[styles.tile, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-            <Text style={small}>{name}</Text>
-            <Text style={[styles.amount, { color }]}>{money(amount)}</Text>
-          </View>
-        ))}
-      </View>
+      {status === 'loading' ? <MobileSkeletonCards count={3} lines={1} /> : null}
+      {ready ? (
+        <View style={styles.summary}>
+          {([
+            [inc.summaryTotal, sum.total, ink],
+            [inc.summaryReceived, sum.received, subtle.successFg ?? ink],
+            [inc.summaryOutstanding, sum.overdue, subtle.dangerFg ?? ink],
+          ] as const).map(([name, amount, color]) => (
+            <View key={name} style={[styles.tile, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+              <Text style={small}>{name}</Text>
+              <Text style={[styles.amount, { color }]}>{money(amount)}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.list}>
-        {rows.length === 0 ? (
+        {status === 'loading' ? (
+          <MobileSkeletonCards count={3} />
+        ) : status === 'error' ? (
+          <MobileLoadError onRetry={onRetry} retryTestID="soi-retry" />
+        ) : rows.length === 0 ? (
           <Text style={small}>{inc.empty}</Text>
         ) : (
           pageRows.map((r) => (
@@ -132,7 +144,7 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
           ))
         )}
       </View>
-      <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, rows.length))} testIDPrefix="soi-page" />
+      {ready ? <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, rows.length))} testIDPrefix="soi-page" /> : null}
     </View>
   );
 }

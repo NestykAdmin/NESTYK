@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, Text, View } from 'react-native';
+import { MobileSkeletonCards } from './MobileSkeletonCards';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { MobileRoomDetailBody, interpolate } from '@nestyk/feature-listing';
 import { MobileSectionHeader, tokens, useMobileTheme } from '@nestyk/ui/native';
@@ -96,8 +97,9 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
             ) : null}
           </View>
           {room && status === 'loading' ? (
-            <View style={{ padding: 24 }}>
-              <ActivityIndicator color={theme.spinner} accessibilityLabel={t.common.loading} />
+            // Skeleton cards like the lists (Jom 25 Nov 2026), not a spinner.
+            <View style={{ padding: 16 }}>
+              <MobileSkeletonCards count={3} />
             </View>
           ) : !room || !detail ? (
             <View style={{ padding: 24 }}>

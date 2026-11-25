@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
+import { WebSkeleton } from "../agent-web/ui/WebState";
 import { Modal } from "react-native";
 import { WebContentContainer } from "@nestyk/ui/web-content";
 import { AgentRoomDesktopBody, interpolate } from "@nestyk/feature-listing";
@@ -104,7 +105,7 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
     <Modal visible={roomId !== null} transparent animationType="none" onRequestClose={handleBack} accessibilityLabel={editing ? editHeaderTitle || copy.editRoom : copy.details}>
       <div className="ard-modal-backdrop">
         <section
-          className="aw-shell ard-dialog"
+          className="aw-shell ard-dialog sord-enter"
           data-theme={theme.mode}
           onKeyDownCapture={(event) => {
             if (event.key === "Escape" && event.currentTarget.contains(event.target as Node)) {
@@ -160,8 +161,10 @@ export function SelfOwnerRoomDetailModal({ roomId, onClose, ownerContact }: Self
             </WebContentContainer>
           </header>
           {room && status === "loading" ? (
-            <div className="ard-state" aria-busy="true">
-              <p>{t.common.loading}</p>
+            // A skeleton shaped like the detail (photos, then rows) while the API answers (Jom 25 Nov 2026).
+            <div className="sord-skeleton so-skeleton-delay" aria-busy="true">
+              <div className="sord-skeleton-photo" aria-hidden="true" />
+              <WebSkeleton rows={4} columns={3} />
             </div>
           ) : !room || !detail ? (
             <div className="ard-state" role="alert">

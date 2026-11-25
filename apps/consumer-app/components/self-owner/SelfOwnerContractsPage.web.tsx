@@ -218,7 +218,7 @@ export function SelfOwnerRoomContractsDialog({
  * Self owner contracts web page: one row per room (contract kinds, Jom 24 Nov 2026), showing the room's current
  * contract; a row opens every contract of that room. Read only; contracts come from NESTYK admin, demo data until then.
  */
-export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter = "all", initialQuery = "", initialPage = 1 }: SelfOwnerContractsPageProps) {
+export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter = "all", initialQuery = "", initialPage = 1, status = "demo", onRetry }: SelfOwnerContractsPageProps) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const so = t.selfOwnerContracts;
@@ -243,6 +243,8 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
     rootRef.current?.closest(".aw-page-scroll")?.scrollTo({ top: 0 });
   };
   const filtered = !!query.trim() || filter !== "all";
+  // Counts and the pager only once the contracts are in (no "0 rooms" while loading or after an error).
+  const ready = status !== "loading" && status !== "error";
   const open = selected ? rooms.find((room) => room.roomId === selected) ?? null : null;
   const clearAll = () => {
     setQuery("");
@@ -280,7 +282,7 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
   ];
 
   return (
-    <div className="awr-page" ref={rootRef} data-testid="self-owner-contracts-page">
+    <div className="awr-page so-skeleton-delay" ref={rootRef} data-testid="self-owner-contracts-page">
       {isDemoPreview ? (
         <div className="sor-head">
           <p className="sor-demo" role="note">
@@ -313,15 +315,17 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
               setPage(1);
             }}
           >
-            <option value="all">{`${so.filterLabel}: ${so.filterAll} (${counts.all})`}</option>
+            <option value="all">{ready ? `${so.filterLabel}: ${so.filterAll} (${counts.all})` : `${so.filterLabel}: ${so.filterAll}`}</option>
             {STATUSES.map((key) => (
-              <option key={key} value={key}>{`${so.status[key]} (${counts[key]})`}</option>
+              <option key={key} value={key}>{ready ? `${so.status[key]} (${counts[key]})` : so.status[key]}</option>
             ))}
           </AgentSelect>
         </div>
-        <span className="awr-count" aria-live="polite">
-          {interpolate(so.count, { n: results.length })}
-        </span>
+        {ready ? (
+          <span className="awr-count" aria-live="polite">
+            {interpolate(so.count, { n: results.length })}
+          </span>
+        ) : null}
       </div>
       <div className="awr-results">
         <div className="awr-table-card">
@@ -330,7 +334,9 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
             columns={columns}
             rows={shown}
             rowKey={(r) => r.roomId}
-            status="ready"
+            status={status === "loading" ? "loading" : status === "error" ? "error" : "ready"}
+            onRetry={onRetry}
+            skeletonRows={6}
             filtered={filtered}
             onClearFilters={clearAll}
             empty={{ title: so.empty }}
@@ -340,7 +346,7 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
           />
         </div>
       </div>
-      <SelfOwnerWebPager current={current} pages={pages} total={results.length} size={size} onPage={goToPage} />
+      {ready ? <SelfOwnerWebPager current={current} pages={pages} total={results.length} size={size} onPage={goToPage} /> : null}
       {open ? <SelfOwnerRoomContractsDialog room={open} all={contracts} onClose={() => setSelected(null)} /> : null}
     </div>
   );

@@ -26,7 +26,9 @@ export function monthIndex(months: SelfOwnerIncomePageProps["months"], month?: S
  * Self owner income web page (UI round, 24 Nov 2026, ClickUp z8rcteng6f): which rooms paid this month's rent and which
  * have not. Read only; demo data until the admin side and its API exist. Same rows as the Dashboard's rent section.
  */
-export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1 }: SelfOwnerIncomePageProps) {
+export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1, status = "demo", onRetry }: SelfOwnerIncomePageProps) {
+  // Amounts, rows and month changes only once the rent is in (Jom 25 Nov 2026).
+  const ready = status !== "loading" && status !== "error";
   const { t, locale } = useLocale();
   const inc = t.selfOwnerIncome;
   const shared = t.selfOwnerDashboard;
@@ -92,7 +94,7 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
       className="soi-month-btn"
       aria-label={label}
       title={label}
-      disabled={next < 0 || next >= months.length}
+      disabled={!ready || next < 0 || next >= months.length}
       onClick={() => setIndex(next)}
     >
       <MobileIcon name={icon} size={18} color="currentColor" />
@@ -100,7 +102,7 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
   );
 
   return (
-    <div className="awr-page" data-testid="self-owner-income-page">
+    <div className="awr-page so-skeleton-delay" data-testid="self-owner-income-page">
       {isDemoPreview ? (
         <div className="sor-head">
           <p className="sor-demo" role="note">
@@ -113,7 +115,7 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
       <div className="soi-month">
         {navButton(inc.prevMonth, "chevron-left", index - 1)}
         <div className="awr-status-select">
-          <AgentSelect aria-label={inc.month} value={String(index)} onChange={(event) => setIndex(Number(event.target.value))}>
+          <AgentSelect aria-label={inc.month} value={String(index)} disabled={!ready} onChange={(event) => setIndex(Number(event.target.value))}>
             {months.map((m, i) => ({ m, i })).reverse().map(({ m, i }) => (
               <option key={`${m.year}-${m.month}`} value={String(i)}>{nameOf(m)}</option>
             ))}
@@ -121,30 +123,36 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
         </div>
         {navButton(inc.nextMonth, "chevron-right", index + 1)}
       </div>
-      <div className="soi-summary">
-        {([
-          [inc.summaryTotal, sum.total, ""],
-          [inc.summaryReceived, sum.received, " is-received"],
-          [inc.summaryOutstanding, sum.overdue, " is-overdue"],
-        ] as const).map(([name, amount, tone]) => (
-          <div key={name} className={`soi-tile${tone}`}>
-            <span>{name}</span>
-            <strong>{money(amount)}</strong>
-          </div>
-        ))}
-      </div>
+      {status === "error" ? null : (
+        <div className="soi-summary so-skeleton-delay" aria-busy={status === "loading" || undefined}>
+          {([
+            [inc.summaryTotal, sum.total, ""],
+            [inc.summaryReceived, sum.received, " is-received"],
+            [inc.summaryOutstanding, sum.overdue, " is-overdue"],
+          ] as const).map(([name, amount, tone]) => (
+            <div key={name} className={`soi-tile${tone}`}>
+              <span>{name}</span>
+              {ready ? <strong>{money(amount)}</strong> : <span className="awu-skeleton-bar" aria-hidden="true" />}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="awr-table-card">
         <WebTable
           label={monthLabel}
           columns={columns}
           rows={pageRows}
           rowKey={(r) => r.id}
-          status="ready"
+          status={status === "loading" ? "loading" : status === "error" ? "error" : "ready"}
+          onRetry={onRetry}
+          skeletonRows={6}
           empty={{ title: inc.empty }}
           testID="self-owner-income-table"
         />
       </div>
-      <SelfOwnerWebPager current={current} pages={pages} total={rows.length} size={size} onPage={(next) => setPage(clampPage(next, rows.length, size))} />
+      {ready ? (
+        <SelfOwnerWebPager current={current} pages={pages} total={rows.length} size={size} onPage={(next) => setPage(clampPage(next, rows.length, size))} />
+      ) : null}
     </div>
   );
 }

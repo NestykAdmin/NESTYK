@@ -25,7 +25,7 @@ function load(filename) {
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
     if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileStatusPill: 'MobileStatusPill', MobileSectionHeader: 'MobileSectionHeader', MobileFilterChip: 'MobileFilterChip', MobileButton: 'MobileButton', MobileInput: 'MobileInput', MobileBottomSheet: 'MobileBottomSheet', SelectionCheck: 'SelectionCheck', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens };
     if (name === '@nestyk/ui/cookie-consent') return { cookieConsentAllows: () => false };
-    if (name === 'react-native') return { Modal: ({ visible, children }) => (visible ? children : null), ScrollView: 'ScrollView', TextInput: 'TextInput', View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: v => v, hairlineWidth: 1 }, Platform: { OS: 'ios' } };
+    if (name === 'react-native') return { Animated: { View: 'AnimatedView', Value: class { constructor(v) { this.v = v; } setValue() {} interpolate() { return this; } }, timing: () => ({ start() {}, stop() {} }), loop: () => ({ start() {}, stop() {} }), sequence: () => ({ start() {}, stop() {} }), delay: () => ({ start() {}, stop() {} }) }, Easing: { inOut: (f) => f, out: (f) => f, ease: (x) => x, cubic: (x) => x }, AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(false) }, Modal: ({ visible, children }) => (visible ? children : null), ScrollView: 'ScrollView', TextInput: 'TextInput', View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: v => v, hairlineWidth: 1 }, Platform: { OS: 'ios' } };
     if (name === 'react-native-safe-area-context') return { SafeAreaView: ({ children }) => children };
     if (name === '@nestyk/feature-listing') return { ...load(`${root}/packages/feature-listing/src/dashboard/types.ts`), interpolate };
     if (!name.startsWith('.')) return require(name);
@@ -522,4 +522,70 @@ test('phone documents and income: ten a page with previous / next', () => {
   assert.equal(byTestId(income, 'soi-row-').length, 10);
   assert.ok(texts(income).includes(interpolate(rooms.pageOf, { page: 1, pages: 3 })));
   assert.equal(byTestId(incomePhone(), 'soi-page-').length, 0, 'the demo month fits one page');
+});
+
+// ---- Loading and error (Jom 25 Nov 2026): skeletons while loading (shown after a short wait), error + retry ----
+const statesOf = (t, id) => t.filter(n => n?.props?.['data-testid'] === id);
+const webStates = () => copyOf().agent.dashboard.webStates;
+
+test('web documents: loading shows the table skeleton and no counts; error shows retry', () => {
+  locale = 'th';
+  const loading = contractsWeb({ contracts: [], status: 'loading' });
+  assert.equal(statesOf(loading, 'state.loading').length, 1);
+  assert.equal(roomRows(loading).length, 0);
+  assert.ok(!texts(loading).some(t => /\d+ ห้อง/.test(t)), 'no room count while loading');
+  assert.ok(!texts(loading).includes(copyOf().selfOwnerContracts.empty));
+  assert.ok(loading.find(n => n?.props?.['data-testid'] === 'self-owner-contracts-page').props.className.includes('so-skeleton-delay'));
+  let retried = 0;
+  const failed = contractsWeb({ contracts: [], status: 'error', onRetry: () => { retried += 1; } });
+  assert.equal(statesOf(failed, 'state.error').length, 1);
+  failed.find(n => n?.type === 'button' && label(n) === webStates().retry).props.onClick();
+  assert.equal(retried, 1);
+});
+
+test('web income: loading shows skeleton tiles and table, arrows off; error hides the tiles', () => {
+  locale = 'th';
+  const page = (props) => nodes(web('SelfOwnerIncomePage.web.tsx').SelfOwnerIncomePage({ contracts: [], months: months(), isDemoPreview: true, now, ...props }));
+  const loading = page({ status: 'loading' });
+  assert.equal(statesOf(loading, 'state.loading').length, 1);
+  assert.equal(byClass(loading, 'soi-tile').length, 3);
+  assert.ok(byClass(loading, 'soi-tile').every(tile => nodes(tile.props.children).some(n => n?.props?.className === 'awu-skeleton-bar')));
+  assert.ok(!texts(loading).some(t => t.startsWith('฿')), 'no amounts while loading');
+  assert.ok(byClass(loading, 'soi-month-btn').every(b => b.props.disabled === true));
+  const failed = page({ status: 'error', onRetry() {} });
+  assert.equal(statesOf(failed, 'state.error').length, 1);
+  assert.equal(byClass(failed, 'soi-tile').length, 0);
+});
+
+test('phone documents and income: skeleton cards while loading; error text with retry', () => {
+  locale = 'th';
+  const ws = webStates();
+  const docs = contractsPhone({ contracts: [], status: 'loading' });
+  assert.equal(docs.filter(n => n?.props?.testID === 'so-skeleton').length, 1);
+  assert.equal(byTestId(docs, 'soc-card-').length, 0);
+  assert.ok(!texts(docs).includes('0'), 'chips without counts');
+  assert.ok(!texts(docs).includes(copyOf().selfOwnerContracts.empty));
+  let retried = 0;
+  const docsFailed = contractsPhone({ contracts: [], status: 'error', onRetry: () => { retried += 1; } });
+  assert.ok(texts(docsFailed).includes(ws.errorTitle));
+  byTestId(docsFailed, 'soc-retry')[0].props.onPress();
+  assert.equal(retried, 1);
+  const income = incomePhone({ contracts: [], status: 'loading' });
+  assert.equal(income.filter(n => n?.props?.testID === 'so-skeleton').length, 2, 'summary and list');
+  assert.equal(byTestId(income, 'soi-row-').length, 0);
+  assert.ok(!texts(income).some(t => t.startsWith('฿')));
+  const incomeFailed = incomePhone({ contracts: [], status: 'error', onRetry() {} });
+  assert.ok(texts(incomeFailed).includes(ws.errorTitle));
+  assert.equal(byTestId(incomeFailed, 'soi-retry').length, 1);
+  assert.equal(byTestId(contractsPhone({ contracts: [], status: 'error' }), 'soc-retry').length, 0, 'no retry button without onRetry');
+});
+
+test('phone skeleton cards: one labelled block, the asked number of cards', () => {
+  locale = 'th';
+  const tree = nodes(phone('MobileSkeletonCards.tsx').MobileSkeletonCards({ count: 3 }));
+  const root = tree.find(n => n?.props?.testID === 'so-skeleton');
+  assert.equal(root.props.accessibilityLabel, copyOf().common.loading);
+  assert.equal(byTestId(tree, 'so-skeleton-card').length, 3);
+  const css = fs.readFileSync(path.join(__dirname, 'self-owner', 'self-owner-rooms.css'), 'utf8');
+  assert.match(css, /\.so-skeleton-delay \.awu-skeleton \{[^}]*animation: so-skeleton-in [^}]*300ms/);
 });

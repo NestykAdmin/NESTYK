@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@nestyk/i18n';
 import { MobileButton, MobileIcon, MobileInput, tokens, useMobileTheme } from '@nestyk/ui/native';
+import { MobileSkeletonCards } from './MobileSkeletonCards';
 import { interpolate } from '@nestyk/feature-listing';
 import {
   SELF_OWNER_ROOMS_PAGE_SIZE,
@@ -53,7 +54,7 @@ export function MobileSelfOwnerRoomsScreen({
 
   const list = () => {
     if (status === 'error') return <Text style={[styles.small, { color: subtle.dangerFg }]}>{shared.sectionError}</Text>;
-    if (status === 'loading') return <ActivityIndicator color={theme.spinner} accessibilityLabel={t.common.loading} />;
+    if (status === 'loading') return <MobileSkeletonCards count={3} />;
     if (rooms.length === 0) return <Text style={small}>{shared.noRooms}</Text>;
     if (results.length === 0) {
       return (
