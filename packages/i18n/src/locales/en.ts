@@ -614,6 +614,7 @@ export const en: TranslationSchema = {
     paid: 'Paid',
     due: 'Not due yet',
     overdue: '{n} days overdue',
+    filterOverdue: 'Overdue',
     paidOn: 'Paid {date}',
     dueOn: 'Due {date}',
     month: 'Month',

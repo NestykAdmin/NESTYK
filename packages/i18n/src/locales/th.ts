@@ -614,6 +614,7 @@ export const th: TranslationSchema = {
     paid: 'จ่ายแล้ว',
     due: 'ยังไม่ถึงกำหนด',
     overdue: 'เลยกำหนด {n} วัน',
+    filterOverdue: 'เลยกำหนด',
     paidOn: 'จ่ายเมื่อ {date}',
     dueOn: 'ครบกำหนด {date}',
     month: 'เดือน',

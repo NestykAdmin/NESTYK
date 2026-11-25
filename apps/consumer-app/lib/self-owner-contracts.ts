@@ -76,6 +76,20 @@ export type SelfOwnerRent = {
   overdueDays?: number;
 };
 
+/** Income status filter (Jom 25 Nov 2026): overdue first, the rooms to chase. */
+export type SelfOwnerRentFilter = 'all' | SelfOwnerRentState;
+export const SELF_OWNER_RENT_FILTERS: SelfOwnerRentFilter[] = ['all', 'overdue', 'due', 'paid'];
+
+export function countSelfOwnerRent(rows: SelfOwnerRent[]): Record<SelfOwnerRentFilter, number> {
+  const counts: Record<SelfOwnerRentFilter, number> = { all: rows.length, overdue: 0, due: 0, paid: 0 };
+  for (const row of rows) counts[row.state] += 1;
+  return counts;
+}
+
+export function filterSelfOwnerRent(rows: SelfOwnerRent[], filter: SelfOwnerRentFilter): SelfOwnerRent[] {
+  return filter === 'all' ? rows : rows.filter((row) => row.state === filter);
+}
+
 export type SelfOwnerMonth = { year: number; month: number };
 
 /** A contract with this many days or fewer left is "ending soon". */

@@ -616,6 +616,8 @@ export interface TranslationSchema {
     paid: string;
     due: string;
     overdue: string;
+    /** Status filter word, no day count (Jom 25 Nov 2026). */
+    filterOverdue: string;
     paidOn: string;
     dueOn: string;
     /** Month dropdown label; the arrows either side step one month (Jom 24 Nov 2026). */

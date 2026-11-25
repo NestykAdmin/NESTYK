@@ -614,6 +614,7 @@ export const ja: TranslationSchema = {
     paid: '支払済み',
     due: '期日前',
     overdue: '{n} 日遅延',
+    filterOverdue: '遅延',
     paidOn: '{date} 支払済み',
     dueOn: '期日 {date}',
     month: '月',

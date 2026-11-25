@@ -1,4 +1,4 @@
-import type { SelfOwnerContract, SelfOwnerMonth } from '../../lib/self-owner-contracts';
+import type { SelfOwnerContract, SelfOwnerMonth, SelfOwnerRentFilter } from '../../lib/self-owner-contracts';
 
 export type SelfOwnerIncomePageProps = {
   contracts: SelfOwnerContract[];
@@ -9,6 +9,8 @@ export type SelfOwnerIncomePageProps = {
   initialMonth?: SelfOwnerMonth;
   /** Today (tests); the clock when left out. */
   now?: Date;
+  /** The status filter shown first (tests); all when left out. */
+  initialFilter?: SelfOwnerRentFilter;
   /** The page of rows shown first (tests); page 1 when left out. */
   initialPage?: number;
   /** Load state (Jom 25 Nov 2026): loading → skeleton, error → message + retry; demo and ready show the rows. */

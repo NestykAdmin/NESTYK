@@ -9,7 +9,15 @@ import type { StatusIntent } from "../agent-web/ui/statusIntent";
 import { SELF_OWNER_LOCALE_TAG, summarizeRent } from "../../lib/self-owner-dashboard";
 import { SelfOwnerWebPager } from "./SelfOwnerWebPager";
 import { SELF_OWNER_ROOMS_WEB_PAGE_SIZE, clampPage } from "../../lib/self-owner-rooms";
-import { selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from "../../lib/self-owner-contracts";
+import {
+  SELF_OWNER_RENT_FILTERS,
+  countSelfOwnerRent,
+  filterSelfOwnerRent,
+  selfOwnerRentForMonth,
+  type SelfOwnerRent,
+  type SelfOwnerRentFilter,
+  type SelfOwnerRentState,
+} from "../../lib/self-owner-contracts";
 import type { SelfOwnerIncomePageProps } from "./SelfOwnerIncomePage.types";
 import "../agent-web/agent-rooms.css";
 import "./self-owner-rooms.css";
@@ -26,15 +34,18 @@ export function monthIndex(months: SelfOwnerIncomePageProps["months"], month?: S
  * Self owner income web page (UI round, 24 Nov 2026, ClickUp z8rcteng6f): which rooms paid this month's rent and which
  * have not. Read only; demo data until the admin side and its API exist. Same rows as the Dashboard's rent section.
  */
-export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1, status = "demo", onRetry }: SelfOwnerIncomePageProps) {
+export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialMonth, now, initialFilter = "all", initialPage = 1, status = "demo", onRetry }: SelfOwnerIncomePageProps) {
   // Amounts, rows and month changes only once the rent is in (Jom 25 Nov 2026).
   const ready = status !== "loading" && status !== "error";
   const { t, locale } = useLocale();
   const inc = t.selfOwnerIncome;
   const shared = t.selfOwnerDashboard;
+  const roomsCopy = t.selfOwnerRooms;
   const tag = SELF_OWNER_LOCALE_TAG[locale as keyof typeof SELF_OWNER_LOCALE_TAG] ?? SELF_OWNER_LOCALE_TAG.th;
   const [index, setMonthIndex] = useState(() => monthIndex(months, initialMonth));
   const [page, setPage] = useState(initialPage);
+  // The status filter stays when the month changes, to follow overdue rooms month by month (Jom 25 Nov 2026).
+  const [filter, setFilter] = useState<SelfOwnerRentFilter>(initialFilter);
   // Another month starts again from page 1.
   const setIndex = (next: number) => {
     setMonthIndex(next);
@@ -45,12 +56,20 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
     () => (shownMonth ? selfOwnerRentForMonth(contracts, shownMonth.year, shownMonth.month, now) : []),
     [contracts, shownMonth, now],
   );
-  // The summary adds up the whole month; the table shows 24 rows a page, like "my rooms" (Jom 25 Nov 2026).
+  // The summary adds up the whole month, whatever the filter; the table shows 24 rows a page, like "my rooms" (Jom 25 Nov 2026).
   const sum = summarizeRent(rows);
+  const counts = countSelfOwnerRent(rows);
+  const shown = filterSelfOwnerRent(rows, filter);
   const size = SELF_OWNER_ROOMS_WEB_PAGE_SIZE;
-  const pages = Math.max(1, Math.ceil(rows.length / size));
-  const current = clampPage(page, rows.length, size);
-  const pageRows = rows.slice((current - 1) * size, current * size);
+  const pages = Math.max(1, Math.ceil(shown.length / size));
+  const current = clampPage(page, shown.length, size);
+  const pageRows = shown.slice((current - 1) * size, current * size);
+  const filterName = (key: SelfOwnerRentFilter) =>
+    key === "all" ? `${roomsCopy.filterLabel}: ${roomsCopy.filterAll}` : key === "overdue" ? inc.filterOverdue : inc[key];
+  const pickFilter = (next: SelfOwnerRentFilter) => {
+    setFilter(next);
+    setPage(1);
+  };
   const money = (amount: number) => t.agent.listings.rentAmount.replace("{price}", amount.toLocaleString(tag));
   const day = (ymd: string) => new Date(`${ymd}T00:00:00+07:00`).toLocaleDateString(tag, { day: "numeric", month: "short", timeZone: "Asia/Bangkok" });
   const nameOf = (m: { year: number; month: number }) =>
@@ -111,17 +130,27 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
           </p>
         </div>
       ) : null}
-      {/* Arrows step one month; the month itself is a dropdown, newest first (Jom 24 Nov 2026). */}
-      <div className="soi-month">
-        {navButton(inc.prevMonth, "chevron-left", index - 1)}
+      <div className="soi-toolbar">
+        {/* Arrows step one month; the month itself is a dropdown, newest first (Jom 24 Nov 2026). */}
+        <div className="soi-month">
+          {navButton(inc.prevMonth, "chevron-left", index - 1)}
+          <div className="awr-status-select">
+            <AgentSelect aria-label={inc.month} value={String(index)} disabled={!ready} onChange={(event) => setIndex(Number(event.target.value))}>
+              {months.map((m, i) => ({ m, i })).reverse().map(({ m, i }) => (
+                <option key={`${m.year}-${m.month}`} value={String(i)}>{nameOf(m)}</option>
+              ))}
+            </AgentSelect>
+          </div>
+          {navButton(inc.nextMonth, "chevron-right", index + 1)}
+        </div>
+        {/* Status filter with counts, like the documents page (Jom 25 Nov 2026). */}
         <div className="awr-status-select">
-          <AgentSelect aria-label={inc.month} value={String(index)} disabled={!ready} onChange={(event) => setIndex(Number(event.target.value))}>
-            {months.map((m, i) => ({ m, i })).reverse().map(({ m, i }) => (
-              <option key={`${m.year}-${m.month}`} value={String(i)}>{nameOf(m)}</option>
+          <AgentSelect aria-label={roomsCopy.filterLabel} value={filter} disabled={!ready} onChange={(event) => pickFilter(event.target.value as SelfOwnerRentFilter)}>
+            {SELF_OWNER_RENT_FILTERS.map((key) => (
+              <option key={key} value={key}>{ready ? `${filterName(key)} (${counts[key]})` : filterName(key)}</option>
             ))}
           </AgentSelect>
         </div>
-        {navButton(inc.nextMonth, "chevron-right", index + 1)}
       </div>
       {status === "error" ? null : (
         <div className="soi-summary so-skeleton-delay" aria-busy={status === "loading" || undefined}>
@@ -146,12 +175,14 @@ export function SelfOwnerIncomePage({ contracts, months, isDemoPreview, initialM
           status={status === "loading" ? "loading" : status === "error" ? "error" : "ready"}
           onRetry={onRetry}
           skeletonRows={6}
+          filtered={filter !== "all"}
+          onClearFilters={() => pickFilter("all")}
           empty={{ title: inc.empty }}
           testID="self-owner-income-table"
         />
       </div>
       {ready ? (
-        <SelfOwnerWebPager current={current} pages={pages} total={rows.length} size={size} onPage={(next) => setPage(clampPage(next, rows.length, size))} />
+        <SelfOwnerWebPager current={current} pages={pages} total={shown.length} size={size} onPage={(next) => setPage(clampPage(next, shown.length, size))} />
       ) : null}
     </div>
   );

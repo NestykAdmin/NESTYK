@@ -589,3 +589,83 @@ test('phone skeleton cards: one labelled block, the asked number of cards', () =
   const css = fs.readFileSync(path.join(__dirname, 'self-owner', 'self-owner-rooms.css'), 'utf8');
   assert.match(css, /\.so-skeleton-delay \.awu-skeleton \{[^}]*animation: so-skeleton-in [^}]*300ms/);
 });
+
+// ---- Income status filter (Jom 25 Nov 2026): find the rooms to chase. All / overdue / not due yet / paid, with counts. ----
+const incomeRowsOf = (t) => t.filter(n => n?.type === 'tr' && String(n.props['data-testid'] ?? '').startsWith('self-owner-income-table.row.'));
+
+test('income status filter: counts every state; a filter keeps only that state', () => {
+  const rows = lib().selfOwnerRentForMonth(contracts(), 2026, 11, now);
+  const counts = lib().countSelfOwnerRent(rows);
+  assert.deepEqual(lib().SELF_OWNER_RENT_FILTERS, ['all', 'overdue', 'due', 'paid']);
+  assert.equal(counts.all, rows.length);
+  for (const state of ['paid', 'due', 'overdue']) {
+    assert.equal(counts[state], rows.filter(r => r.state === state).length, state);
+    assert.deepEqual(lib().filterSelfOwnerRent(rows, state), rows.filter(r => r.state === state), state);
+  }
+  assert.ok(counts.overdue > 0 && counts.paid > 0, 'demo month has paid and overdue rooms');
+  assert.deepEqual(lib().filterSelfOwnerRent(rows, 'all'), rows);
+});
+
+test('web income: status dropdown with counts narrows the rows; the summary still adds up the whole month', () => {
+  locale = 'th';
+  const inc = copyOf().selfOwnerIncome;
+  const rooms = copyOf().selfOwnerRooms;
+  const rows = lib().selfOwnerRentForMonth(contracts(), 2026, 11, now);
+  const counts = lib().countSelfOwnerRent(rows);
+  const select = (t) => t.find(n => n?.type === 'select' && n.props['aria-label'] === rooms.filterLabel);
+  const optionsOf = (t) => nodes(select(t).props.children).filter(n => n?.type === 'option');
+  const tree = incomeWeb();
+  assert.equal(select(tree).props.value, 'all');
+  assert.deepEqual(optionsOf(tree).map(o => o.props.value), ['all', 'overdue', 'due', 'paid']);
+  assert.deepEqual(optionsOf(tree).map(label), [
+    `${rooms.filterLabel}: ${rooms.filterAll} (${counts.all})`,
+    `${inc.filterOverdue} (${counts.overdue})`,
+    `${inc.due} (${counts.due})`,
+    `${inc.paid} (${counts.paid})`,
+  ]);
+  const overdue = incomeWeb({ initialFilter: 'overdue' });
+  assert.equal(incomeRowsOf(overdue).length, counts.overdue);
+  const total = rows.reduce((n, r) => n + r.amount, 0);
+  assert.ok(texts(overdue).includes(`฿${total.toLocaleString('en-US')}`), 'the total tile is the whole month');
+  // A month with no row in that state: the filtered empty state with "clear filters", not "no rent this month".
+  const none = incomeWeb({ initialMonth: months()[0], initialFilter: 'overdue' });
+  assert.equal(incomeRowsOf(none).length, 0);
+  assert.ok(none.some(n => n?.props?.['data-testid'] === 'state.filtered'));
+  // While loading: no counts, and the dropdown is off.
+  const loading = incomeWeb({ status: 'loading' });
+  assert.equal(select(loading).props.disabled, true);
+  assert.equal(label(optionsOf(loading)[0]), `${rooms.filterLabel}: ${rooms.filterAll}`);
+});
+
+test('phone income: status chips with counts narrow the cards; no match shows clear filters', () => {
+  locale = 'th';
+  const inc = copyOf().selfOwnerIncome;
+  const rooms = copyOf().selfOwnerRooms;
+  const rows = lib().selfOwnerRentForMonth(contracts(), 2026, 11, now);
+  const counts = lib().countSelfOwnerRent(rows);
+  const tree = incomePhone();
+  const chips = byTestId(tree, 'soi-filter-');
+  assert.deepEqual(chips.map(c => c.props.testID), ['soi-filter-all', 'soi-filter-overdue', 'soi-filter-due', 'soi-filter-paid']);
+  assert.deepEqual(chips.map(c => c.props.accessibilityState.selected), [true, false, false, false]);
+  assert.deepEqual(chips.map(c => texts(nodes(c.props.children))), [
+    [rooms.filterAll, String(counts.all)],
+    [inc.filterOverdue, String(counts.overdue)],
+    [inc.due, String(counts.due)],
+    [inc.paid, String(counts.paid)],
+  ]);
+  const overdue = incomePhone({ initialFilter: 'overdue' });
+  assert.equal(byTestId(overdue, 'soi-row-').length, counts.overdue);
+  assert.equal(byTestId(overdue, 'soi-filter-overdue')[0].props.accessibilityState.selected, true);
+  const none = incomePhone({ initialMonth: months()[0], initialFilter: 'overdue' });
+  assert.equal(byTestId(none, 'soi-row-').length, 0);
+  assert.ok(texts(none).includes(rooms.noMatch));
+  assert.ok(!texts(none).includes(inc.empty));
+  assert.equal(byTestId(none, 'soi-clear').length, 1);
+  // While loading the chips show no counts.
+  assert.deepEqual(byTestId(incomePhone({ status: 'loading' }), 'soi-filter-').map(c => texts(nodes(c.props.children)).length), [1, 1, 1, 1]);
+});
+
+test('income filter copy: "overdue" without a day count, in every locale', () => {
+  const want = { th: 'เลยกำหนด', en: 'Overdue', ja: '遅延', zh: '逾期' };
+  for (const [l, word] of Object.entries(want)) assert.equal(copyOf(l).selfOwnerIncome.filterOverdue, word, l);
+});

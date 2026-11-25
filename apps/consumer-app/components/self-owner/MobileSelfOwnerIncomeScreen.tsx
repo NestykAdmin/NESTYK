@@ -6,7 +6,15 @@ import { interpolate } from '@nestyk/feature-listing';
 import { StatusBadge } from '../agent-web/ui/StatusBadge';
 import type { StatusIntent } from '../agent-web/ui/statusIntent';
 import { SELF_OWNER_LOCALE_TAG, summarizeRent } from '../../lib/self-owner-dashboard';
-import { selfOwnerRentForMonth, type SelfOwnerRent, type SelfOwnerRentState } from '../../lib/self-owner-contracts';
+import {
+  SELF_OWNER_RENT_FILTERS,
+  countSelfOwnerRent,
+  filterSelfOwnerRent,
+  selfOwnerRentForMonth,
+  type SelfOwnerRent,
+  type SelfOwnerRentFilter,
+  type SelfOwnerRentState,
+} from '../../lib/self-owner-contracts';
 import type { SelfOwnerIncomePageProps } from './SelfOwnerIncomePage.types';
 import { LeadSelectField } from '../LeadSelectField';
 import { MobileSelfOwnerPager } from './MobileSelfOwnerPager';
@@ -26,18 +34,21 @@ function indexOf(months: SelfOwnerIncomePageProps['months'], month?: SelfOwnerIn
  * Self owner income on the phone (UI round, 24 Nov 2026, ClickUp z8rcteng6f): pick a month, see the total, received
  * and overdue rent, and which rooms paid. Read only; demo data, same rows as the Dashboard's rent section.
  */
-export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, initialMonth, now, initialPage = 1, status = 'demo', onRetry }: SelfOwnerIncomePageProps) {
+export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, initialMonth, now, initialFilter = 'all', initialPage = 1, status = 'demo', onRetry }: SelfOwnerIncomePageProps) {
   // Amounts, rows and month changes only once the rent is in (Jom 25 Nov 2026).
   const ready = status !== 'loading' && status !== 'error';
   const { t, locale } = useLocale();
   const { theme } = useMobileTheme();
   const inc = t.selfOwnerIncome;
   const shared = t.selfOwnerDashboard;
+  const roomsCopy = t.selfOwnerRooms;
   const tag = SELF_OWNER_LOCALE_TAG[locale as keyof typeof SELF_OWNER_LOCALE_TAG] ?? SELF_OWNER_LOCALE_TAG.th;
   const ink = theme.screenTitle;
   const muted = theme.textSecondary;
   const [index, setMonthIndex] = useState(() => indexOf(months, initialMonth));
   const [page, setPage] = useState(initialPage);
+  // The status filter stays when the month changes, to follow overdue rooms month by month (Jom 25 Nov 2026).
+  const [filter, setFilter] = useState<SelfOwnerRentFilter>(initialFilter);
   // Another month starts again from page 1.
   const setIndex = (next: number) => {
     setMonthIndex(next);
@@ -48,11 +59,18 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
     () => (shownMonth ? selfOwnerRentForMonth(contracts, shownMonth.year, shownMonth.month, now) : []),
     [contracts, shownMonth, now],
   );
-  // The summary adds up the whole month; the list shows ten rows a page, like "my rooms" (Jom 25 Nov 2026).
+  // The summary adds up the whole month, whatever the filter; the list shows ten rows a page, like "my rooms" (Jom 25 Nov 2026).
   const sum = summarizeRent(rows);
-  const pages = Math.max(1, Math.ceil(rows.length / SELF_OWNER_ROOMS_PAGE_SIZE));
-  const current = clampPage(page, rows.length);
-  const pageRows = rows.slice((current - 1) * SELF_OWNER_ROOMS_PAGE_SIZE, current * SELF_OWNER_ROOMS_PAGE_SIZE);
+  const counts = countSelfOwnerRent(rows);
+  const shown = filterSelfOwnerRent(rows, filter);
+  const pages = Math.max(1, Math.ceil(shown.length / SELF_OWNER_ROOMS_PAGE_SIZE));
+  const current = clampPage(page, shown.length);
+  const pageRows = shown.slice((current - 1) * SELF_OWNER_ROOMS_PAGE_SIZE, current * SELF_OWNER_ROOMS_PAGE_SIZE);
+  const pickFilter = (next: SelfOwnerRentFilter) => {
+    setFilter(next);
+    setPage(1);
+  };
+  const filterName = (key: SelfOwnerRentFilter) => (key === 'all' ? roomsCopy.filterAll : key === 'overdue' ? inc.filterOverdue : inc[key]);
   const money = (amount: number) => t.agent.listings.rentAmount.replace('{price}', amount.toLocaleString(tag));
   const day = (ymd: string) => new Date(`${ymd}T00:00:00+07:00`).toLocaleDateString(tag, { day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' });
   const nameOf = (m: { year: number; month: number }) =>
@@ -119,6 +137,25 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
           ))}
         </View>
       ) : null}
+      {/* Status chips with counts, like the documents page (Jom 25 Nov 2026). */}
+      <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={roomsCopy.filterLabel}>
+        {SELF_OWNER_RENT_FILTERS.map((key) => {
+          const on = filter === key;
+          return (
+            <Pressable
+              key={key}
+              testID={`soi-filter-${key}`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              onPress={() => pickFilter(key)}
+              style={[styles.chip, { borderColor: on ? ink : theme.border, backgroundColor: on ? ink : theme.surface }]}
+            >
+              <Text style={[styles.small, { color: on ? theme.surface : ink }]}>{filterName(key)}</Text>
+              {ready ? <Text style={[styles.small, { color: on ? theme.surface : muted }]}>{String(counts[key])}</Text> : null}
+            </Pressable>
+          );
+        })}
+      </View>
       <View style={styles.list}>
         {status === 'loading' ? (
           <MobileSkeletonCards count={3} />
@@ -126,6 +163,13 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
           <MobileLoadError onRetry={onRetry} retryTestID="soi-retry" />
         ) : rows.length === 0 ? (
           <Text style={small}>{inc.empty}</Text>
+        ) : shown.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={small}>{roomsCopy.noMatch}</Text>
+            <Pressable testID="soi-clear" accessibilityRole="button" onPress={() => pickFilter('all')} style={[styles.outline, { borderColor: theme.border }]}>
+              <Text style={[styles.small, { color: ink }]}>{roomsCopy.clearFilters}</Text>
+            </Pressable>
+          </View>
         ) : (
           pageRows.map((r) => (
             <View key={r.id} testID={`soi-row-${r.id}`} style={[styles.card, { borderColor: theme.border, backgroundColor: theme.surface }]}>
@@ -144,7 +188,7 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
           ))
         )}
       </View>
-      {ready ? <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, rows.length))} testIDPrefix="soi-page" /> : null}
+      {ready ? <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, shown.length))} testIDPrefix="soi-page" /> : null}
     </View>
   );
 }
@@ -160,6 +204,10 @@ const styles = StyleSheet.create({
   tile: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
   amount: { fontFamily: tokens.typography.native.bodyBold, fontSize: 17, lineHeight: 24 },
   list: { gap: 10 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
+  empty: { alignItems: 'flex-start', gap: 10 },
+  outline: { minHeight: 40, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 10, borderWidth: 1 },
   card: { gap: 6, padding: 14, borderRadius: 14, borderWidth: 1 },
   body: { fontFamily: tokens.typography.native.body, fontSize: 15, lineHeight: 22 },
   small: { fontFamily: tokens.typography.native.body, fontSize: 13, lineHeight: 19 },
