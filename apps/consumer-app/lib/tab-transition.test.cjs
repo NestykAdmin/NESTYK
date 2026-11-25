@@ -76,3 +76,11 @@ test('the slide wrapper passes the height through: grows to fill, shrinks to fit
   assert.match(native, /flexShrink: 1/);
   assert.match(native, /minHeight: 0/);
 });
+
+// Jom 25 Nov 2026: faster — 140 ms on web and phone (was 200 ms), same 24 px.
+test('the slide lasts 140 ms on web and phone', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../components/tab-transition.css'), 'utf8');
+  assert.match(css, /animation: tab-slide-in 140ms /);
+  const native = fs.readFileSync(path.join(__dirname, '../components/TabTransition.tsx'), 'utf8');
+  assert.match(native, /duration: 140,/);
+});

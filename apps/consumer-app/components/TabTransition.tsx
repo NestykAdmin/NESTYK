@@ -4,7 +4,7 @@ import type { TabSlideDirection } from '../lib/tab-transition';
 
 /**
  * Phone version of TabTransition.web.tsx: one menu's page (keyed per menu by the shell) slides and fades in once from
- * `direction`, 200 ms; nothing moves when the phone asks for reduced motion. No direction → the page as before.
+ * `direction`, 140 ms; nothing moves when the phone asks for reduced motion. No direction → the page as before.
  */
 export function TabTransition({ direction, children }: { direction: TabSlideDirection | null; children?: React.ReactNode }) {
   const [side] = useState(direction);
@@ -13,7 +13,7 @@ export function TabTransition({ direction, children }: { direction: TabSlideDire
   useEffect(() => {
     if (!side) return;
     let cancelled = false;
-    const run = Animated.timing(progress, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    const run = Animated.timing(progress, { toValue: 1, duration: 140, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     void AccessibilityInfo.isReduceMotionEnabled()
       .catch(() => false)
       .then((reduce) => {
