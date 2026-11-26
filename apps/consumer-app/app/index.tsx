@@ -57,7 +57,8 @@ import { countByTab } from '../lib/admin-viewing-requests';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
 import { selfOwnerRoomStore, useSelfOwnerRooms } from '../lib/self-owner-rooms';
-import { useSelfOwnerContracts, useSelfOwnerIncome } from '../lib/self-owner-contracts';
+import { selfOwnerContractStore, useSelfOwnerContracts, useSelfOwnerIncome } from '../lib/self-owner-contracts';
+import { selfOwnerContractsApi } from '../lib/self-owner-contracts-api';
 import { selfOwnerRoomsApi } from '../lib/self-owner-rooms-api';
 import { SelfOwnerListingEditor } from '../components/self-owner/SelfOwnerListingEditor';
 import { AgentRoomsScreen } from '../components/AgentRoomsScreen';
@@ -1135,6 +1136,8 @@ export function AppHomeScreen() {
   useEffect(() => {
     if (selfOwnerAccount != null) selfOwnerRoomStore.connect(selfOwnerRoomsApi, String(selfOwnerAccount));
     else if (!isAuthenticated) selfOwnerRoomStore.disconnect();
+    if (selfOwnerAccount != null) selfOwnerContractStore.connect(selfOwnerContractsApi, String(selfOwnerAccount));
+    else if (!isAuthenticated) selfOwnerContractStore.disconnect();
   }, [selfOwnerAccount, isAuthenticated]);
   const selfOwnerRooms = useSelfOwnerRooms();
   // Contracts and income are read only and demo until NESTYK admin creates contracts (Jom 24 Nov 2026).
@@ -1336,10 +1339,10 @@ export function AppHomeScreen() {
     if (activeRole === 'self_owner' && activeTab === 'contracts') {
       // Read-only contracts (24 Nov 2026, ClickUp z8rcteng6e): NESTYK admin will create them; demo until then.
       return isSelfOwnerWeb ? (
-        <SelfOwnerContractsPage contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status} />
+        <SelfOwnerContractsPage contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status === 'available' || selfOwnerContracts.status === 'not_configured' ? 'ready' : selfOwnerContracts.status} />
       ) : (
         <View style={styles.bodyContainer}>
-          <MobileSelfOwnerContractsScreen contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status} />
+          <MobileSelfOwnerContractsScreen contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status === 'available' || selfOwnerContracts.status === 'not_configured' ? 'ready' : selfOwnerContracts.status} />
         </View>
       );
     }

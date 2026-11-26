@@ -33,7 +33,7 @@ import { TabTransition } from '../TabTransition';
 import { useStepSlide } from './useStepSlide';
 
 const FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'ending_soon', 'active', 'ended'];
-const STATUS_INTENT: Record<SelfOwnerContractStatus, StatusIntent> = { active: 'done', ending_soon: 'attn', awaiting_signature: 'prog', ended: 'neutral' };
+const STATUS_INTENT: Record<SelfOwnerContractStatus, StatusIntent> = { active: 'done', ending_soon: 'attn', awaiting_signature: 'prog', processing: 'prog', ended: 'neutral' };
 const { subtle } = tokens.colors;
 
 function useFormat() {

@@ -39,6 +39,7 @@ export const CONTRACT_STATUS_INTENT: Record<SelfOwnerContractStatus, StatusInten
   active: "done",
   ending_soon: "attn",
   awaiting_signature: "prog",
+  processing: "prog",
   ended: "neutral",
 };
 

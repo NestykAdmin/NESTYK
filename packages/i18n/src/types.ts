@@ -669,7 +669,8 @@ export interface TranslationSchema {
     colPeriod: string;
     colRent: string;
     colStatus: string;
-    status: { active: string; ending_soon: string; awaiting_signature: string; ended: string };
+    status: { active: string; ending_soon: string; awaiting_signature: string; processing: string; ended: string };
+    signFailed: string;
     daysLeft: string;
     period: string;
     detailTitle: string;
