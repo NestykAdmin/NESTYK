@@ -4,7 +4,13 @@
 -- The two deposit guards compare the new column too (a NULL rent_room_id on both sides must not pass as "same room").
 -- Existing rows all have rent_room_id, so the new CHECKs hold for them. Both guard functions keep their body, search_path
 -- and language from the baseline (20261014100838_baseline.sql); only the lines named above change.
--- Undo (only once no lease or tenancy uses a self owner room: delete or move those rows first):
+-- Undo (only once no lease or tenancy uses a self owner room: delete or move those rows first). Run it all in one
+-- transaction, in this order: the two functions first (their new bodies read self_owner_room_id, so the column must still
+-- exist until they are replaced), then the indexes, constraints and columns.
+--   BEGIN;
+--   CREATE OR REPLACE FUNCTION public.protect_deposit_contract_link() ... (body from 20261014100838_baseline.sql);
+--   CREATE OR REPLACE FUNCTION public.validate_deposit_transfer() ...      (body from 20261014100838_baseline.sql);
+--   -- (triggers stay as they are)
 --   ALTER TABLE public.room_tenancies DROP CONSTRAINT chk_room_tenancies_one_room;
 --   DROP INDEX public.uq_room_tenancies_one_active_per_self_owner_room;
 --   ALTER TABLE public.room_tenancies DROP COLUMN self_owner_room_id;   -- drops its FK and index too
@@ -12,7 +18,7 @@
 --   ALTER TABLE public.lease_contracts DROP CONSTRAINT chk_lease_contracts_one_room;
 --   ALTER TABLE public.lease_contracts DROP COLUMN self_owner_room_id;  -- drops its FK and index too
 --   ALTER TABLE public.lease_contracts ALTER COLUMN rent_room_id SET NOT NULL;
---   then CREATE OR REPLACE both functions below with the bodies from 20261014100838_baseline.sql (triggers stay as they are).
+--   COMMIT;
 
 ALTER TABLE public.lease_contracts ALTER COLUMN rent_room_id DROP NOT NULL;
 ALTER TABLE public.lease_contracts ADD COLUMN self_owner_room_id integer;

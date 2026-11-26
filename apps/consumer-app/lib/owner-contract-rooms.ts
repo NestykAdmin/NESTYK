@@ -21,6 +21,14 @@ export type OwnerRoomCard = {
   needsOwner: boolean;
 };
 
+/**
+ * The rows of /contracts/mine for one workspace: the user's own side only (`myParties`); the landlord inbox (owner)
+ * also leaves out self owner rooms, whose contracts live on the self owner pages.
+ */
+export function partyRowsFor<T extends Pick<PartyContract, "myParties" | "selfOwnerRoomId">>(rows: T[], mode: "owner" | "tenant"): T[] {
+  return rows.filter((row) => (row.myParties ?? []).includes(mode) && !(mode === "owner" && row.selfOwnerRoomId != null));
+}
+
 /** Owner still has to sign this copy. */
 export function ownerMustSign(row: PartyContract) {
   return (

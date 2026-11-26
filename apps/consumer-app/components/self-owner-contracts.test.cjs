@@ -243,7 +243,7 @@ const party = (over = {}) => ({
   id: 41, tenantId: 7, leadId: 3, rentRoomId: null, selfOwnerRoomId: 5, agreementTypeName: 'สัญญาเช่า', formKind: 'lease',
   reservationFee: null, status: 'awaiting_signatures', startDate: '2026-12-01', endDate: '2027-11-30', bookingDate: null, moveInDate: null,
   monthlyRent: 15000, deposit: 30000, endReasonCode: null, ownerSignedAt: null, tenantSignedAt: '2026-11-25T05:00:00.000Z', agentSignedAt: null,
-  data: { tenantPhone: '081-234-5678', advanceMonths: '1', depositMonths: '2' },
+  data: { startDate: '2026-12-01', endDate: '2027-11-30', monthlyRent: 15000, deposit: 30000, leaseAgreement: { tenantPhone: '081-234-5678', advanceMonths: '1', depositMonths: '2' } },
   property: 'The Line', room: 'ห้อง 2101', tenant: 'คุณกานต์', myParties: ['owner'], ...over,
 });
 const fakeBackend = (over = {}) => ({
@@ -303,9 +303,63 @@ test('reservation and broker appointment map their own fields', () => {
   const r = fromPartyContract(party({ formKind: 'reservation', reservationFee: 15000, moveInDate: '2026-12-01', endDate: null }), TODAY);
   assert.deepEqual(r.reservation, { moveInDate: '2026-12-01', bookingFee: 15000 });
   assert.equal(r.endDate, '2026-12-01');
-  const b = fromPartyContract(party({ formKind: 'broker_appointment', endDate: null, tenant: '', agentSignedAt: '2026-11-20T05:00:00.000Z', data: { brokerCompany: 'Urban Nest', brokerContact: 'Jenny', brokerPhone: '02-660-7171', commissionMonths: '1' } }), TODAY);
+  const b = fromPartyContract(party({ formKind: 'broker_appointment', endDate: null, tenant: '', monthlyRent: null, agentSignedAt: '2026-11-20T05:00:00.000Z', data: { startDate: '2026-12-01', brokerAppointment: { brokerCompany: 'Urban Nest', brokerContact: 'Jenny', brokerPhone: '02-660-7171', monthlyRent: '22000', commissionFee: '', commissionMonths: '1' } } }), TODAY);
   assert.deepEqual(b.broker, { company: 'Urban Nest', contact: 'Jenny', phone: '02-660-7171', commission: { months: 1 } });
   assert.equal(b.signatures.broker, '2026-11-20');
+  assert.equal(b.monthlyRent, 22000, 'a broker appointment has its rent only in the form');
+  const fee = fromPartyContract(party({ formKind: 'broker_appointment', endDate: null, data: { brokerAppointment: { brokerCompany: 'X', commissionFee: '12,000', commissionMonths: '' } } }), TODAY);
+  assert.deepEqual(fee.broker.commission, { amount: 12000 });
+  // Older rows (and the demo-era fixtures) with the fields at the top of data still map.
+  const flat = fromPartyContract(party({ data: { tenantPhone: '089-000-0000', advanceMonths: '2', depositMonths: '3' } }), TODAY);
+  assert.deepEqual([flat.tenantPhone, flat.advanceRentMonths, flat.depositMonths], ['089-000-0000', 2, 3]);
+});
+
+// Final review (26 Nov 2026): the contracts as the seed planner (and the agent's saveDraft) store them, with each form
+// nested in data (leaseAgreement / leaseRenewal / reservationLetter / brokerAppointment). Built from the planner itself
+// so the app mapping and the seed cannot drift.
+const { planSelfOwnerContracts } = require('../../api/scripts/self-owner-contracts-plan.cjs');
+const seedRooms = [
+  { id: 41, ownerUserId: 9, roomNumber: '2101', property: 'Aria Sathorn', monthlyRent: 25000 },
+  { id: 42, ownerUserId: 9, roomNumber: '805', property: 'Noble Ploenchit', monthlyRent: 18000 },
+  { id: 43, ownerUserId: 9, roomNumber: '1204', property: 'Lumpini Place', monthlyRent: 12000 },
+];
+/** One planned row as GET /contracts/mine serializes it for the owner (serialize + forParty in agent-contracts.service.ts). */
+const servedOf = (c, i) => {
+  const signedAt = (who) => c.signatures.find((s) => s.party === who)?.signedAt ?? null;
+  return {
+    id: 100 + i, tenantId: c.tenantIndex + 1, leadId: c.leadIndex + 1, rentRoomId: c.rent_room_id, selfOwnerRoomId: c.self_owner_room_id,
+    formKind: c.formKind, agreementTypeName: c.formKind, reservationFee: c.reservation_fee == null ? null : Number(c.reservation_fee),
+    status: c.status, startDate: c.start_date, endDate: c.end_date, bookingDate: null, moveInDate: c.move_in_date,
+    monthlyRent: c.monthly_rent == null ? null : Number(c.monthly_rent), deposit: c.deposit == null ? null : Number(c.deposit),
+    endReasonCode: c.end?.reasonCode ?? null, ownerSignedAt: signedAt('owner'), tenantSignedAt: signedAt('tenant'), agentSignedAt: signedAt('agent'),
+    data: c.data, property: c.party_snapshot.property, room: c.party_snapshot.room, tenant: c.party_snapshot.tenantName, myParties: ['owner'],
+  };
+};
+const seeded = () => {
+  const { contracts } = planSelfOwnerContracts({ adminId: 5, ownerUserId: 9, tenantUserId: 7, rooms: seedRooms, today: TODAY });
+  const mapped = contracts.map((c, i) => [c, load().fromPartyContract(servedOf(c, i), TODAY)]);
+  return (key) => mapped.find(([c]) => c.key === key)[1];
+};
+
+test('seed rows: a lease maps its tenant phone, advance and deposit from data.leaseAgreement', () => {
+  const lease = seeded()('lease-a');
+  assert.deepEqual([lease.kind, lease.monthlyRent, lease.tenantPhone, lease.advanceRentMonths, lease.depositMonths], ['lease', 25000, '0990000002', 1, 2]);
+});
+
+test('seed rows: a renewal carries the deposit (data.leaseRenewal.depositCarried) as months of rent', () => {
+  const renewal = seeded()('renewal-b');
+  assert.deepEqual([renewal.kind, renewal.monthlyRent, renewal.depositMonths], ['renewal', 18000, 2]);
+});
+
+test('seed rows: a reservation maps phone, advance, deposit and the booking fee from data.reservationLetter', () => {
+  const r = seeded()('reservation-a');
+  assert.deepEqual([r.kind, r.tenantPhone, r.advanceRentMonths, r.depositMonths, r.reservation.bookingFee], ['reservation', '0990000002', 1, 2, 25000]);
+});
+
+test('seed rows: a broker appointment maps the broker, the commission and the rent from data.brokerAppointment', () => {
+  const b = seeded()('broker-c');
+  assert.deepEqual(b.broker, { company: 'NESTYK', contact: 'QA Admin', phone: '0990000006', commission: { months: 1 } });
+  assert.equal(b.monthlyRent, 12000);
 });
 
 test('store: connect loads, then status available', async () => {
@@ -381,6 +435,25 @@ test('store: a 409 sign failure loads the list again', async () => {
   await tick();
   assert.equal(result.message, 'สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม');
   assert.equal(loads, 2);
+});
+
+// Final review (26 Nov 2026): any sign failure loads the list again, so a contract already signed in another tab, or
+// signed by the server before the network dropped, does not stay signable.
+test('store: a 400 or a network sign failure loads the list again too', async () => {
+  const store = storeOf();
+  let loads = 0;
+  let error = Object.assign(new Error('ฝ่ายนี้ลงนามแล้ว'), { status: 400 });
+  const signed = party({ status: 'awaiting_agent_review', ownerSignedAt: '2026-11-26T03:00:00.000Z' });
+  store.connect(fakeBackend({ list: async () => { loads += 1; return [loads === 1 ? party() : signed]; }, sign: async () => { throw error; } }), 'u1');
+  await tick();
+  assert.equal((await store.sign('41', 'png')).message, 'ฝ่ายนี้ลงนามแล้ว');
+  await tick();
+  assert.equal(loads, 2, '400 reloads');
+  assert.equal(store.getState().contracts[0].status, 'processing', 'the reload shows the contract as signed');
+  error = Object.assign(new Error('Failed to fetch'), { status: 0, code: 'NETWORK_ERROR' });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).ok, false);
+  await tick();
+  assert.equal(loads, 3, 'a network failure reloads');
 });
 
 test('store: document url comes from the API when connected', async () => {

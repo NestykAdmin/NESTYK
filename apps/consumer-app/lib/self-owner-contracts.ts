@@ -358,14 +358,27 @@ const amountOf = (value: unknown): number => monthsOf(value);
 /**
  * One API contract as the owner's contract, or null when it is not the owner's own-room contract (the owner is not a
  * party of it, it has no self owner room) or it was cancelled. `today` is the Bangkok day (YYYY-MM-DD).
- * Data keys (apps/api/src/agent/contracts): tenantPhone, advanceMonths, depositMonths (lease); brokerCompany,
- * brokerContact, brokerPhone, commissionMonths, commissionFee (broker appointment).
+ * The forms sit nested in `data`, one per kind, as the agent's saveDraft and the seed planner
+ * (apps/api/scripts/self-owner-contracts-plan.cjs) store them: `leaseAgreement` (lease-agreement.ts: tenantPhone,
+ * advanceMonths, depositMonths), `leaseRenewal` (lease-renewal.ts: depositCarried, an amount; no phone, no advance),
+ * `reservationLetter` (reservation-letter.ts: tenantPhone, advanceMonths, depositMonths, reservationPayment) and
+ * `brokerAppointment` (broker-appointment.ts: brokerCompany, brokerContact, brokerPhone, monthlyRent, commissionMonths,
+ * commissionFee; the monthly_rent column is null for an appointment). The same keys at the top of `data` are the fallback.
  */
 export function fromPartyContract(c: PartyContract, today: string): SelfOwnerContract | null {
   if (!c.myParties.includes('owner') || c.selfOwnerRoomId == null) return null;
   if (c.status === 'cancelled') return null;
   const kind = c.formKind;
   const data = (c.data ?? {}) as Record<string, unknown>;
+  const nestedKey = { lease: 'leaseAgreement', renewal: 'leaseRenewal', reservation: 'reservationLetter', broker_appointment: 'brokerAppointment' }[kind];
+  const nested = data[nestedKey];
+  const form = nested && typeof nested === 'object' && !Array.isArray(nested) ? (nested as Record<string, unknown>) : {};
+  /** The form's value, else the same key at the top of `data`. */
+  const field = (key: string): unknown => (textOf(form[key]) !== '' ? form[key] : data[key]);
+  const monthlyRent = c.monthlyRent ?? amountOf(field('monthlyRent'));
+  // A renewal carries the previous deposit as an amount: shown as months of rent like the other kinds.
+  const carried = kind === 'renewal' ? amountOf(form.depositCarried) || (c.deposit ?? 0) : 0;
+  const depositMonths = monthsOf(field('depositMonths')) || (carried > 0 && monthlyRent > 0 ? Math.round((carried / monthlyRent) * 100) / 100 : 0);
   const startDate = c.startDate;
   const endDate = c.endDate ?? (kind === 'reservation' ? c.moveInDate ?? startDate : kind === 'broker_appointment' ? twelveMonthsFrom(startDate) : startDate);
   let status: SelfOwnerContractStatus;
@@ -404,25 +417,25 @@ export function fromPartyContract(c: PartyContract, today: string): SelfOwnerCon
     roomTitle: c.room ?? c.property,
     project: c.property,
     tenantName: kind === 'broker_appointment' ? '' : c.tenant,
-    tenantPhone: textOf(data.tenantPhone),
+    tenantPhone: textOf(field('tenantPhone')),
     startDate,
     endDate,
-    monthlyRent: c.monthlyRent ?? 0,
-    advanceRentMonths: monthsOf(data.advanceMonths),
-    depositMonths: monthsOf(data.depositMonths),
+    monthlyRent,
+    advanceRentMonths: monthsOf(field('advanceMonths')),
+    depositMonths,
     status,
     signatures,
   };
   if (daysLeft !== undefined) contract.daysLeft = daysLeft;
   if (c.endReasonCode === 'reservation_fulfilled') contract.endReason = 'reservation_fulfilled';
-  if (kind === 'reservation') contract.reservation = { moveInDate: c.moveInDate ?? endDate, bookingFee: c.reservationFee ?? amountOf(data.reservationFee) };
+  if (kind === 'reservation') contract.reservation = { moveInDate: c.moveInDate ?? endDate, bookingFee: c.reservationFee ?? (amountOf(data.reservationFee) || amountOf(form.reservationPayment)) };
   if (kind === 'broker_appointment') {
-    const months = monthsOf(data.commissionMonths);
+    const months = monthsOf(field('commissionMonths'));
     contract.broker = {
-      company: textOf(data.brokerCompany),
-      contact: textOf(data.brokerContact),
-      phone: textOf(data.brokerPhone),
-      commission: months > 0 ? { months } : { amount: amountOf(data.commissionFee) },
+      company: textOf(field('brokerCompany')),
+      contact: textOf(field('brokerContact')),
+      phone: textOf(field('brokerPhone')),
+      commission: months > 0 ? { months } : { amount: amountOf(field('commissionFee')) },
     };
   }
   return contract;
@@ -524,8 +537,9 @@ function createContractStore() {
         return { ok: true };
       } catch (error) {
         const e = error as { message?: unknown; status?: unknown; code?: unknown } | null;
-        // 409: the contract changed under the owner; load it again so the page shows what is there now.
-        if (e?.status === 409 && generation === connection) void load();
+        // Any failure: the contract may have changed (409), been signed in another tab (400 "ฝ่ายนี้ลงนามแล้ว") or been
+        // signed by the server before the answer was lost; load it again so the page shows what is there now.
+        if (generation === connection) void load();
         // Only the API's own (Thai) message is shown: no answer, a server error or a raw "HTTP ..." text is the page's copy.
         const raw = typeof e?.message === 'string' ? e.message.trim() : '';
         const technical = e?.code === 'NETWORK_ERROR' || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500) || raw.startsWith('HTTP ');

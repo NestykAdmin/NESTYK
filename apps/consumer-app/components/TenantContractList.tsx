@@ -30,13 +30,14 @@ import {
   ownerRoomMatches,
   ownerTenantStayDates,
   ownedRoomsMissingFrom,
+  partyRowsFor,
   type OwnedRoomRef,
   type OwnerRoomAction,
 } from "../lib/owner-contract-rooms";
 import { tenantWorkspaceCopy } from "../lib/tenant-workspace-copy";
 
 export function TenantContractList({
-  rows,
+  rows: allRows,
   ownedRooms = [],
   selectedRoom,
   history = false,
@@ -54,6 +55,8 @@ export function TenantContractList({
 }) {
   const { theme, isDark } = useMobileTheme();
   const { t, locale } = useLocale();
+  // Only this workspace's side of /contracts/mine (a self owner's own room is not "your room" as a tenant).
+  const rows = partyRowsFor(allRows, mode);
   const copy = tenantWorkspaceCopy(locale);
   const [roomQuery, setRoomQuery] = useState("");
   const [tenantQuery, setTenantQuery] = useState("");

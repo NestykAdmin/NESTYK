@@ -72,8 +72,10 @@ export function PartyContractsScreen({
       listMyContracts(),
       mode === "owner" ? listMyOwnedRooms().catch(() => [] as OwnedRoom[]) : Promise.resolve([] as OwnedRoom[]),
     ])
-      .then(([next, rooms]) => {
+      .then(([all, rooms]) => {
         if (!cancelled) {
+          // Only this workspace's side (myParties); the landlord inbox leaves self owner rooms to the self owner pages.
+          const next = all.filter((row) => (row.myParties ?? []).includes(mode) && !(mode === "owner" && row.selfOwnerRoomId != null));
           setRows(next);
           setOwnedRooms(rooms);
           const current = openedRef.current;

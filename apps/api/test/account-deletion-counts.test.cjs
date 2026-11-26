@@ -80,12 +80,17 @@ test('an unpaid bill and a bill whose slip waits for the agent are told apart', 
 
 // QA A2/D3: the "account deleted" email goes out only after the login and the profile are really gone.
 const emailModule = require('../src/auth/account-deleted-email.ts');
-function deletion({ loginError = null, failTransaction = false, avatar = null, roomPhotoUrls = [] } = {}) {
+function deletion({ loginError = null, failTransaction = false, avatar = null, roomPhotoUrls = [], referencedRooms = [] } = {}) {
   const events = [];
   const user = { id: 5, email: 'ann@example.test', supabase_user_id: 'sb-5', avatar_url: avatar };
   emailModule.notifyAccountDeleted = async (email) => { events.push(`email ${email}`); return true; };
   const counts = async (sql) => {
     events.push('check blockers');
+    // Final review (26 Nov 2026): the own rooms a lease or a tenancy points at (ON DELETE RESTRICT), locked.
+    if (/FROM public\.self_owner_rooms r/.test(sql) && /lease_contracts/.test(sql)) {
+      events.push(`read referenced own rooms${/l\.self_owner_room_id = r\.id/.test(sql) && /y\.self_owner_room_id = r\.id/.test(sql) && /room_tenancies y/.test(sql) && /FOR UPDATE OF r/.test(sql) ? ' (leases and tenancies, locked)' : ''}`);
+      return referencedRooms.map((id) => ({ id }));
+    }
     if (/self_owner_room_medias/.test(sql)) { events.push(`read own room photos ${/room_medias a/.test(sql) ? 'not in agent rooms' : 'all'}`); return roomPhotoUrls.map((media_url) => ({ media_url })); }
     return /tenant_bills/.test(sql) ? [{ unpaid: 0, review: 0 }] : /contract_deposit_settlements/.test(sql) ? [{ n: 0 }] : [];
   };
@@ -98,11 +103,17 @@ function deletion({ loginError = null, failTransaction = false, avatar = null, r
         getRepository: (entity) => ({
           findOne: async ({ lock }) => { events.push(`lock user ${lock?.mode}`); return structuredClone(user); },
           delete: async (where) => {
+            const except = where.id ? ` except ${where.id.type}:${where.id.value.join(',')}` : '';
             events.push(entity?.name === 'SavedRoomEntity' ? `remove saved rooms ${where.user_id}`
-              : entity?.name === 'SelfOwnerRoomEntity' ? `remove own rooms ${where.owner_user_id}` : 'remove roles');
+              : entity?.name === 'SelfOwnerRoomEntity' ? `remove own rooms ${where.owner_user_id}${except}`
+                : entity?.name === 'SelfOwnerRoomMediaEntity' ? `remove own room media rows ${where.room_id.type}:${where.room_id.value.join(',')}` : 'remove roles');
           },
-          update: async (_id, patch) => {
+          update: async (where, patch) => {
             if (failTransaction) throw new Error('database down');
+            if (entity?.name === 'SelfOwnerRoomEntity') {
+              events.push(`anonymize own rooms ${where.id.type}:${where.id.value.join(',')} ${JSON.stringify(patch)}`);
+              return;
+            }
             events.push('anonymize user'); Object.assign(user, patch);
           },
         }),
@@ -122,7 +133,7 @@ function deletion({ loginError = null, failTransaction = false, avatar = null, r
 test('the deleted email is sent after the login and the profile are gone, and never when deleting fails', async () => {
   const ok = deletion();
   assert.deepEqual(await ok.auth.deleteAccount(5), { deleted: true });
-  assert.deepEqual(ok.events.filter((e) => !e.startsWith('check')), ['lock user pessimistic_write', 'delete login', 'remove roles', 'remove saved rooms 5', 'read own room photos not in agent rooms', 'remove own rooms 5', 'anonymize user', 'email ann@example.test']);
+  assert.deepEqual(ok.events.filter((e) => !e.startsWith('check')), ['lock user pessimistic_write', 'delete login', 'remove roles', 'remove saved rooms 5', 'read own room photos not in agent rooms', 'read referenced own rooms (leases and tenancies, locked)', 'remove own rooms 5', 'anonymize user', 'email ann@example.test']);
 
   const login = deletion({ loginError: { message: 'Supabase is down' } });
   await assert.rejects(() => login.auth.deleteAccount(5), (e) => e.getStatus() === 503);
@@ -175,6 +186,36 @@ test('the self owner room photos leave the bucket once the account is deleted, a
   const none = deletion();
   await none.auth.deleteAccount(5);
   assert.ok(!none.events.some((e) => e.startsWith('remove room photos')));
+});
+
+// Final review (26 Nov 2026): lease_contracts.self_owner_room_id and room_tenancies.self_owner_room_id are ON DELETE
+// RESTRICT. A self owner room a lease or a tenancy points at stays for the contract's record, anonymized (no contact,
+// unlisted, no photos); only the other rooms are deleted. Agent rooms are not touched (they are not the user's rows).
+test('own rooms a lease or a tenancy points at are anonymized and kept; the others are deleted', async () => {
+  const urls = ['https://x.supabase.co/storage/v1/object/public/property-images/5/a.jpg'];
+  const h = deletion({ referencedRooms: [41, 43], roomPhotoUrls: urls });
+  assert.deepEqual(await h.auth.deleteAccount(5), { deleted: true });
+  const steps = h.events.filter((e) => !e.startsWith('check'));
+  assert.deepEqual(steps, [
+    'lock user pessimistic_write', 'delete login', 'remove roles', 'remove saved rooms 5', 'read own room photos not in agent rooms',
+    'read referenced own rooms (leases and tenancies, locked)',
+    'remove own room media rows in:41,43',
+    `anonymize own rooms in:41,43 ${JSON.stringify({ contact_name: '', contact_phone: '', contact_line_id: null, contact_facebook: null, visibility: 'private' })}`,
+    'remove own rooms 5 except not:41,43',
+    'anonymize user', 'email ann@example.test', `remove room photos 5 ${urls.join(',')}`,
+  ]);
+  // No referenced room: every own room goes, as before.
+  const none = deletion();
+  await none.auth.deleteAccount(5);
+  assert.ok(none.events.includes('remove own rooms 5'));
+  assert.ok(!none.events.some((e) => e.startsWith('anonymize own rooms') || e.startsWith('remove own room media rows')));
+});
+
+test('a booking letter of a self owner room counts its lease as started (same room on either column)', async () => {
+  const { auth, queries } = service();
+  await auth.deletionPreview(5);
+  const sql = queries.find((q) => /lease_started/.test(q.sql)).sql;
+  assert.match(sql, /\(l\.rent_room_id = c\.rent_room_id OR l\.self_owner_room_id = c\.self_owner_room_id\)/);
 });
 
 test('the scheduled deletion job runs on one API instance at a time (advisory lock)', async () => {
