@@ -13,6 +13,7 @@ import type { AgentTenantBilling, BillLateFee, BillReservationCredit, FinancialD
 import { TenantEntity } from '../entities/tenant.entity';
 import { RoomTenancyEntity } from '../entities/room-tenancy.entity';
 import { financialTotals } from '../agent/contracts/financial-document';
+import { AGENT_ROOM_ONLY } from "../agent/contracts/contract-room";
 import { closeEndedLease } from "../agent/contracts/contract-closure";
 import { LeaseContractEntity } from "../entities/lease-contract.entity";
 import { TenantBillEntity } from "../entities/tenant-bill.entity";
@@ -241,7 +242,8 @@ export class TenantBillingService {
       .leftJoin("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.tenant", "tenant")
       .where("(c.status = 'active' OR (c.agreement_kind = 'renewal' AND c.document_url IS NOT NULL AND c.status IN ('awaiting_signatures', 'awaiting_agent_review')))")
-      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')");
+      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
+      .andWhere(AGENT_ROOM_ONLY);
   }
 
   private async insertBills(leases: LeaseContractEntity[], today: string) {
@@ -312,6 +314,7 @@ export class TenantBillingService {
       .leftJoin("c.agreement_type", "agreementType")
       .select("c.id", "id")
       .where("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
+      .andWhere(AGENT_ROOM_ONLY)
       // One parameter, two types: a date column and a JSON text value (left uncast, Postgres refuses text < date).
       // AC-8.7: also the ended leases still waiting for a decision (their stay may be over now).
       .andWhere(`((c.status = 'active' AND (c.end_date < CAST(:today AS date) OR (c.data->'endsOn'->>'date') < CAST(:today AS text)))

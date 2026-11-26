@@ -121,7 +121,7 @@ import {
   CONTRACT_DOCUMENT_KINDS,
   ContractDocumentStorageService,
 } from "./contract-document-storage.service";
-import { requireRentRoomId } from "./contract-room";
+import { AGENT_ROOM_ONLY, requireRentRoomId } from "./contract-room";
 
 export const WITNESS_SIGNATURE_REQUIRED = "ต้องให้พยานลงนามในสัญญาเช่าก่อน จึงจะสร้างเอกสารได้ (นายหน้าเป็นพยานได้)";
 export const brokerAppointmentKey = (roomId: number, tenantId: number) => `${roomId}:${tenantId}`;
@@ -494,7 +494,8 @@ export class AgentContractsService {
       .leftJoinAndSelect("c.template", "template")
       .leftJoinAndSelect("c.tenant", "tenant")
       .leftJoinAndSelect("c.end_reason", "endReason")
-      .where("c.created_by_user_id = :agentId", { agentId });
+      .where("c.created_by_user_id = :agentId", { agentId })
+      .andWhere(AGENT_ROOM_ONLY);
   }
   /**
    * D1 (AC-3.2): which room + tenant pairs of this agent have a valid broker appointment: generated
