@@ -121,6 +121,7 @@ import {
   CONTRACT_DOCUMENT_KINDS,
   ContractDocumentStorageService,
 } from "./contract-document-storage.service";
+import { requireRentRoomId } from "./contract-room";
 
 export const WITNESS_SIGNATURE_REQUIRED = "ต้องให้พยานลงนามในสัญญาเช่าก่อน จึงจะสร้างเอกสารได้ (นายหน้าเป็นพยานได้)";
 export const brokerAppointmentKey = (roomId: number, tenantId: number) => `${roomId}:${tenantId}`;
@@ -538,6 +539,8 @@ export class AgentContractsService {
    */
   private async assertReservationAppointment(c: LeaseContractEntity) {
     if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "reservation") return;
+    // signAsParty reaches this: a self owner contract has no agent, so no broker appointment to require.
+    if (c.rent_room_id === null) return;
     if (!(await this.hasBrokerAppointment(c.created_by_user_id, c.rent_room_id, c.tenant_id)))
       throw new BadRequestException({ code: "BROKER_APPOINTMENT_REQUIRED", message: BROKER_APPOINTMENT_REQUIRED });
   }
@@ -2196,7 +2199,7 @@ export class AgentContractsService {
   /** D11: the lease and the not cancelled reservations of the same lead and room (where the power of attorney may be attached). */
   private async dealAgreementIds(manager: EntityManager, agentId: number, lease: LeaseContractEntity) {
     const rows = await manager.find(LeaseContractEntity, {
-      where: { created_by_user_id: agentId, lead_id: lease.lead_id, rent_room_id: lease.rent_room_id },
+      where: { created_by_user_id: agentId, lead_id: lease.lead_id, rent_room_id: requireRentRoomId(lease) },
       relations: { template: true, agreement_type: true },
     });
     return [lease.id, ...rows
@@ -3611,7 +3614,7 @@ export class AgentContractsService {
     if (!initial) throw new NotFoundException('ไม่พบสัญญา');
     await this.db.transaction(async manager => {
       const lead = await manager.findOne(LeadEntity, { where: { id: initial.lead_id, created_by_user_id: agentId }, lock: { mode: 'pessimistic_write' } });
-      const room = await manager.findOne(RentRoomEntity, { where: { id: initial.rent_room_id, created_by_user_id: agentId }, lock: { mode: 'pessimistic_write' } });
+      const room = await manager.findOne(RentRoomEntity, { where: { id: requireRentRoomId(initial), created_by_user_id: agentId }, lock: { mode: 'pessimistic_write' } });
       const c = await manager.findOne(LeaseContractEntity, {
         where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
       });

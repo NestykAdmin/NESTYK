@@ -17,6 +17,7 @@
     "test:contract-closure": "node --test test/contract-closure.test.cjs test/tenant-bills.test.cjs test/contract-closure.integration.cjs",
     "test:contract-deposits": "node --test test/contract-end-deposits.integration.cjs",
     "test:schema": "node --test test/schema-drift.test.cjs",
+    "test:self-owner-contracts-db": "node --test test/self-owner-contracts.integration.cjs",
     "test:roles": "node --test test/role-catalog.test.cjs",
     "test:room-photos": "node --test test/room-photos.test.cjs",
     "test:agent-listings": "node --test test/agent-listings.test.cjs test/room-share-links.test.cjs",

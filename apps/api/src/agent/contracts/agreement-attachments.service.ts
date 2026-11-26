@@ -212,7 +212,8 @@ export class AgreementAttachmentsService {
     const groups = attachmentChecklist(requirements, docs);
     // D14 (AC-3.8): a reservation whose offer names another agent also needs the signed co-broke file. It is needed
     // before the letter is issued, not before signing, so it is listed but does not count for readyToSign.
-    const coBroke = (await coBrokeRequired(this.db, c))
+    // Party endpoints reach this too: a self owner lease has no agent room, hence no offer and no co-broke file.
+    const coBroke = c.rent_room_id !== null && (await coBrokeRequired(this.db, { template_id: c.template_id, lead_id: c.lead_id, rent_room_id: c.rent_room_id }))
       ? attachmentChecklist([CO_BROKE_REQUIREMENT as unknown as AgreementDocumentRequirementEntity], docs)
       : [];
     let reusable: AgreementDocumentEntity[] = [];

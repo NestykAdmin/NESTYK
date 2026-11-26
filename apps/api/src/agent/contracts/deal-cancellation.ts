@@ -15,6 +15,7 @@ import { bangkokToday } from "../../billing/rent-schedule";
 import { asIsoDate, isIsoDate, shiftIsoDate } from "./lease-term";
 import { financialTotals } from "./financial-document";
 import type { ContractDocumentStorageService } from "./contract-document-storage.service";
+import { requireRentRoomId } from "./contract-room";
 
 /**
  * D5 (AC-C.1 to C.4, Aof 26 Oct 2026): the agent cancels a deal (its booking letter and lease) before the room is
@@ -108,7 +109,7 @@ type DealRow = LeaseContractEntity & { formKind: string | null };
 /** The deal's booking letters and leases (same agent, lead, room and tenant), with their form, oldest first. */
 async function dealRows(manager: EntityManager, c: LeaseContractEntity, lock: boolean): Promise<DealRow[]> {
   const rows = await manager.find(LeaseContractEntity, {
-    where: { created_by_user_id: c.created_by_user_id, lead_id: c.lead_id, rent_room_id: c.rent_room_id, tenant_id: c.tenant_id },
+    where: { created_by_user_id: c.created_by_user_id, lead_id: c.lead_id, rent_room_id: requireRentRoomId(c), tenant_id: c.tenant_id },
     order: { id: "ASC" },
     ...(lock ? { lock: { mode: "pessimistic_write" as const } } : {}),
   });
@@ -225,7 +226,7 @@ export async function cancelDeal(
     for (const file of files ?? []) evidence.push((await documents.uploadAttachment(agentId, id, file)).path);
     return await db.transaction(async (manager) => {
       const lead = await manager.findOne(LeadEntity, { where: { id: initial.lead_id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" } });
-      const room = await manager.findOne(RentRoomEntity, { where: { id: initial.rent_room_id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" } });
+      const room = await manager.findOne(RentRoomEntity, { where: { id: requireRentRoomId(initial), created_by_user_id: agentId }, lock: { mode: "pessimistic_write" } });
       if (!lead || !room) throw new NotFoundException("ไม่พบลีดหรือห้องของดีลนี้");
       const rows = await dealRows(manager, initial, true);
       const c = rows.find((row) => row.id === id);
@@ -272,7 +273,7 @@ export async function cancelDeal(
       const amounts = dealMoney(b.atFault, money.booking, money.deposit, b.notifiedOn);
       const main = [...open].reverse().find((row) => row.formKind === "lease") ?? open[open.length - 1];
       const saved = await manager.save(DealCancellationEntity, manager.create(DealCancellationEntity, {
-        agent_user_id: agentId, lead_id: c.lead_id, rent_room_id: c.rent_room_id, tenant_id: c.tenant_id ?? null,
+        agent_user_id: agentId, lead_id: c.lead_id, rent_room_id: requireRentRoomId(c), tenant_id: c.tenant_id ?? null,
         lease_contract_id: main.id, contract_ids: ids, at_fault: b.atFault, reason: b.reason, evidence_paths: evidence,
         notified_on: b.notifiedOn, booking_received: amounts.bookingReceived.toFixed(2), deposit_received: amounts.depositReceived.toFixed(2),
         forfeited_amount: amounts.forfeitedAmount.toFixed(2), refund_amount: amounts.refundAmount.toFixed(2),

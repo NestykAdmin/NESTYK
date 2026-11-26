@@ -175,7 +175,8 @@ const formKind = (c: LeaseContractEntity) => c.template?.form_kind ?? c.agreemen
  * (same lead, room and agent, not cancelled) once its receipt is issued. Leases without one are left out.
  */
 export async function reservationCredits(db: Db, leases: LeaseContractEntity[]) {
-  const wanted = [...new Map(leases.filter((c) => c && isNewLease(c) && c.lead_id != null && c.rent_room_id != null)
+  // The guard narrows rent_room_id: a self owner lease (null) has no agent reservation and is left out, as before.
+  const wanted = [...new Map(leases.filter((c): c is LeaseContractEntity & { rent_room_id: number } => !!c && isNewLease(c) && c.lead_id != null && c.rent_room_id != null)
     .map((c) => [c.id, c])).values()];
   const out = new Map<number, number>();
   if (!wanted.length) return out;
@@ -271,6 +272,8 @@ export class TenantBillingService {
         if (c.room_tenancy_id && moveIn <= today && (!c.end_date || today <= c.end_date)) {
           // Step 28 (B0b): the previous tenant's stay is released by the closing job; until then the room keeps
           // one active stay (unique index), so this one waits instead of failing every lease's bills tonight.
+          // A self owner lease has no agent room: nothing here to wait for (the agent's billing scan leaves it out anyway).
+          if (c.rent_room_id === null) continue;
           const occupied = await manager.count(RoomTenancyEntity, {
             where: { rent_room_id: c.rent_room_id, status: 'active', id: Not(c.room_tenancy_id) },
           });

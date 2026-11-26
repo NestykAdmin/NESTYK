@@ -16,6 +16,7 @@ import { asIsoDate, isIsoDate } from "./lease-term";
 import { bangkokToday } from "../../billing/rent-schedule";
 import { DEAL_CANCELLATION_REASONS } from "./deal-cancellation";
 import { RESERVATION_FULFILLED_REASON } from "./reservation-fulfilment";
+import { requireRentRoomId } from "./contract-room";
 
 const ENDED = ["cancelled", "expired", "terminated"];
 
@@ -70,7 +71,7 @@ export async function closeLeaseContract(db: DataSource, agentId: number, id: nu
       where: { id: initial.lead_id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
     });
     const room = await manager.findOne(RentRoomEntity, {
-      where: { id: initial.rent_room_id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
+      where: { id: requireRentRoomId(initial), created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
     });
     const c = await manager.findOne(LeaseContractEntity, {
       where: { id, created_by_user_id: agentId }, lock: { mode: "pessimistic_write" },
@@ -243,11 +244,14 @@ export function endedStayRelease(input: { end: string | null; notRenewing: Ended
 export async function closeEndedLease(db: DataSource, id: number, today = bangkokToday()): Promise<string | null> {
   const initial = await db.getRepository(LeaseContractEntity).findOneBy({ id });
   if (!initial || !["active", "expired"].includes(initial.status)) return null;
+  // A self owner lease has no agent room; the agent's daily close leaves it alone (it must not throw inside the nightly job).
+  const roomId = initial.rent_room_id;
+  if (roomId === null) return null;
   return db.transaction(async manager => {
     // Same lock order as closing by hand: lead, room, contract.
     const lead = initial.lead_id != null
       ? await manager.findOne(LeadEntity, { where: { id: initial.lead_id }, lock: { mode: "pessimistic_write" } }) : null;
-    await manager.findOne(RentRoomEntity, { where: { id: initial.rent_room_id }, lock: { mode: "pessimistic_write" } });
+    await manager.findOne(RentRoomEntity, { where: { id: roomId }, lock: { mode: "pessimistic_write" } });
     const c = await manager.findOne(LeaseContractEntity, { where: { id, status: initial.status }, lock: { mode: "pessimistic_write" } });
     if (!c || c.lead_id !== initial.lead_id || c.rent_room_id !== initial.rent_room_id) return null;
     const template = await manager.findOneBy(AgreementTemplateEntity, { id: c.template_id });

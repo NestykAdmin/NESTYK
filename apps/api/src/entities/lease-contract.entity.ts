@@ -4,6 +4,7 @@ import { Entity, Column, ManyToOne, JoinColumn, Check, Index, Unique } from "typ
 import { SerialTimestampEntity } from "./base.entity";
 import { RoomTenancyEntity } from "./room-tenancy.entity";
 import { RentRoomEntity } from "./rent-room.entity";
+import { SelfOwnerRoomEntity } from "./self-owner-room.entity";
 import { TenantEntity } from "./tenant.entity";
 import { LeadEntity } from "./lead.entity";
 import { PropertyOwnerEntity } from "./property-owner.entity";
@@ -32,10 +33,12 @@ export type LeaseContractStatus =
 @Index("idx_lease_contracts_owner_user_id", ["owner_user_id"], { where: "(owner_user_id IS NOT NULL)" })
 @Index("idx_lease_contracts_rent_room_id", ["rent_room_id"])
 @Index("idx_lease_contracts_room_tenancy_id", ["room_tenancy_id"])
+@Index("idx_lease_contracts_self_owner_room_id", ["self_owner_room_id"])
 @Index("idx_lease_contracts_status_updated_at", ["status", "updated_at"])
 @Index("idx_lease_contracts_tenant_id", ["tenant_id"])
 @Check("chk_agreement_data", "((jsonb_typeof(data) = 'object'::text) AND (jsonb_typeof(party_snapshot) = 'object'::text))")
 @Check("chk_agreement_lineage", "((((agreement_kind)::text = 'new'::text) AND (previous_agreement_id IS NULL)) OR (((agreement_kind)::text = 'renewal'::text) AND (previous_agreement_id IS NOT NULL) AND (root_agreement_id IS NOT NULL) AND (previous_agreement_id <> id) AND (root_agreement_id <> id)))")
+@Check("chk_lease_contracts_one_room", "(num_nonnulls(rent_room_id, self_owner_room_id) = 1)")
 @Check("chk_lease_contracts_status", "((status IS NOT NULL) AND ((status)::text = ANY ((ARRAY['draft'::character varying, 'awaiting_signatures'::character varying, 'awaiting_agent_review'::character varying, 'awaiting_deposit'::character varying, 'awaiting_handover'::character varying, 'active'::character varying, 'cancelled'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[])))")
 @Check("chk_reservation_fee_nonnegative", "(reservation_fee >= (0)::numeric)")
 @Index("idx_contract_end_reason", ["end_reason_id"])
@@ -81,8 +84,12 @@ export class LeaseContractEntity extends SerialTimestampEntity {
   @Column({ type: "int" })
   room_tenancy_id: number;
 
-  @Column({ type: "int" })
-  rent_room_id: number;
+  // Exactly one of rent_room_id (agent room) and self_owner_room_id (self owner room) is set (chk_lease_contracts_one_room).
+  @Column({ type: "int", nullable: true })
+  rent_room_id: number | null;
+
+  @Column({ type: "int", nullable: true })
+  self_owner_room_id: number | null;
 
   @Column({ type: "int" })
   tenant_id: number;
@@ -192,7 +199,11 @@ export class LeaseContractEntity extends SerialTimestampEntity {
 
   @ManyToOne(() => RentRoomEntity, { onDelete: "RESTRICT" })
   @JoinColumn({ name: "rent_room_id", foreignKeyConstraintName: "lease_contracts_rent_room_id_fkey" })
-  rent_room: RentRoomEntity;
+  rent_room: RentRoomEntity | null;
+
+  @ManyToOne(() => SelfOwnerRoomEntity, { onDelete: "RESTRICT", nullable: true })
+  @JoinColumn({ name: "self_owner_room_id", foreignKeyConstraintName: "lease_contracts_self_owner_room_id_fkey" })
+  self_owner_room: SelfOwnerRoomEntity | null;
 
   @ManyToOne(() => TenantEntity, { onDelete: "RESTRICT" })
   @JoinColumn({ name: "tenant_id", foreignKeyConstraintName: "lease_contracts_tenant_id_fkey" })
