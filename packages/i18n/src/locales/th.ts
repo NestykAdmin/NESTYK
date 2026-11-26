@@ -672,6 +672,7 @@ export const th: TranslationSchema = {
     colStatus: 'สถานะ',
     status: { active: 'มีผล', ending_soon: 'ใกล้หมด', awaiting_signature: 'รอเซ็น', processing: 'เซ็นครบแล้ว รอ NESTYK ดำเนินการ', ended: 'สิ้นสุดแล้ว' },
     signFailed: 'ลงนามไม่สำเร็จ กรุณาลองอีกครั้ง',
+    signSending: 'กำลังลงนาม…',
     daysLeft: 'เหลือ {n} วัน',
     period: '{start} – {end}',
     detailTitle: 'รายละเอียดสัญญา',

@@ -672,6 +672,7 @@ export const ja: TranslationSchema = {
     colStatus: 'ステータス',
     status: { active: '有効', ending_soon: 'まもなく終了', awaiting_signature: '署名待ち', processing: '全員署名済み、NESTYKが手続き中', ended: '終了' },
     signFailed: '署名できませんでした。もう一度お試しください。',
+    signSending: '署名中…',
     daysLeft: '残り {n} 日',
     period: '{start} – {end}',
     detailTitle: '契約の詳細',

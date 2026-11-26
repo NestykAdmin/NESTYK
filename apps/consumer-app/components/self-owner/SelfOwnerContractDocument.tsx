@@ -1,39 +1,40 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Asset } from 'expo-asset';
 import { useLocale } from '@nestyk/i18n';
 import { tokens, useMobileTheme } from '@nestyk/ui/native';
 import { MobileSkeletonCards } from './MobileSkeletonCards';
-import { loadPdfDataUrl, parsePdfMessage, selfOwnerPdfHtml } from '../../lib/self-owner-pdf';
+import { loadDocumentDataUrl, parsePdfMessage, selfOwnerPdfHtml } from '../../lib/self-owner-pdf';
 
-const assetUrl = (source: number | string) => (typeof source === 'string' ? source : Asset.fromModule(source).uri);
 
 /**
  * A self owner contract file on the phone (Jom 25 Nov 2026, option B): the shared PDF viewer, continuous mode, in a
  * WebView fed the file as a data URL; `onReachedEnd` fires once the owner has scrolled to the end. One page-shaped
  * skeleton covers both loads (the file, then the viewer) until the viewer says it is ready.
  */
-export function SelfOwnerContractDocument({ source, onReachedEnd, fill = false }: { source: number | string; onReachedEnd?: () => void; /** Fill the space left (the parent sets the size). */ fill?: boolean }) {
+export function SelfOwnerContractDocument({ load, onReachedEnd, fill = false, initialFailed = false }: { /** The file's URL (or a data URL); called on every attempt, so a retry asks for a fresh link. */ load: () => Promise<string>; onReachedEnd?: () => void; /** Shows the failed state first (tests). */ initialFailed?: boolean; /** Fill the space left (the parent sets the size). */ fill?: boolean }) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const so = t.selfOwnerContracts;
   const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(initialFailed);
   const [ready, setReady] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // The caller's `load` may be a new function each render; the latest one is used by each attempt.
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
     setReady(false);
-    loadPdfDataUrl(source, assetUrl)
+    loadDocumentDataUrl(() => loadRef.current())
       .then((url) => !cancelled && setDataUrl(url))
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
     };
-  }, [source, attempt]);
+  }, [attempt]);
 
   const html = useMemo(() => (dataUrl ? selfOwnerPdfHtml(dataUrl) : null), [dataUrl]);
   return (

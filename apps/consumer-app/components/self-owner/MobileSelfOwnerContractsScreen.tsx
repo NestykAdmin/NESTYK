@@ -13,11 +13,13 @@ import {
   isFulfilledReservation,
   isRentContract,
   applySelfOwnerSignatures,
+  selfOwnerContractStore,
   selfOwnerToday,
   type SelfOwnerContract,
   type SelfOwnerContractFilter,
   type SelfOwnerContractStatus,
   type SelfOwnerRoomContracts,
+  type SelfOwnerSignResult,
 } from '../../lib/self-owner-contracts';
 import { contractDetailView, contractParty } from './contract-detail-rows';
 import { MobileSelfOwnerPager } from './MobileSelfOwnerPager';
@@ -28,11 +30,11 @@ import type { SelfOwnerContractsPageProps } from './SelfOwnerContractsPage.types
 import { MobileSelfOwnerContractSigning } from './MobileSelfOwnerContractSigning';
 import { MobileSelfOwnerContractSignFlow } from './MobileSelfOwnerContractSignFlow';
 import { SelfOwnerContractDocument } from './SelfOwnerContractDocument';
-import { selfOwnerDocumentOf } from './demo-documents';
+import { selfOwnerDocumentLoader, selfOwnerHasDocument } from './document-loader';
 import { TabTransition } from '../TabTransition';
 import { useStepSlide } from './useStepSlide';
 
-const FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'ending_soon', 'active', 'ended'];
+const FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'processing', 'ending_soon', 'active', 'ended'];
 const STATUS_INTENT: Record<SelfOwnerContractStatus, StatusIntent> = { active: 'done', ending_soon: 'attn', awaiting_signature: 'prog', processing: 'prog', ended: 'neutral' };
 const { subtle } = tokens.colors;
 
@@ -54,6 +56,8 @@ export function MobileSelfOwnerRoomContracts({
   all,
   onClose,
   onSign,
+  isDemoPreview = true,
+  loadDocument = selfOwnerDocumentLoader,
   initialContractId = null,
   initialSigning = false,
   initialView,
@@ -63,8 +67,12 @@ export function MobileSelfOwnerRoomContracts({
   /** Every contract, to find the one a renewal renews. */
   all: SelfOwnerContract[];
   onClose: () => void;
-  /** The owner signs a contract awaiting signatures (Jom 25 Nov 2026, demo). */
-  onSign: (contractId: string) => void;
+  /** The owner signs a contract awaiting signatures; `ok: false` keeps the sign page open with its message. */
+  onSign: (contractId: string, signaturePng: string) => Promise<SelfOwnerSignResult> | SelfOwnerSignResult | void;
+  /** Demo contracts: sample-file and "not saved" notes, the bundled sample files; the API has neither. */
+  isDemoPreview?: boolean;
+  /** The URL of a contract's file (a fresh one on every call). */
+  loadDocument?: (contractId: string) => Promise<string>;
   initialContractId?: string | null;
   /** Opens the sign page of the initial contract (tests). */
   initialSigning?: boolean;
@@ -90,11 +98,11 @@ export function MobileSelfOwnerRoomContracts({
     setModeState(next);
   };
   const setSigning = (next: boolean) => setMode(next ? 'sign' : 'detail');
-  const file = open ? selfOwnerDocumentOf(open.id) : undefined;
+  const hasFile = open ? selfOwnerHasDocument(open.id, isDemoPreview) : false;
   const signing = mode === 'sign';
-  const reading = mode === 'document' && file !== undefined;
+  const reading = mode === 'document' && hasFile;
   // The file fills the modal (reading it, or the sign page's first step); the modal itself does not scroll then.
-  const fileFills = reading || (signing && file !== undefined && !padOpen);
+  const fileFills = reading || (signing && hasFile && !padOpen);
   // The list, a contract, then its file or sign page: the whole screen, header included, slides in from the side it
   // comes from, like moving to another page in a phone app (Jom 25 Nov 2026).
   const slide = useStepSlide(!open ? 0 : mode === 'detail' ? 1 : 2);
@@ -137,13 +145,15 @@ export function MobileSelfOwnerRoomContracts({
           contentContainerStyle={[styles.sheetBody, fileFills ? styles.fillBody : null]}
           scrollEnabled={!padOpen && !fileFills}
         >
-          {open && reading && file !== undefined ? (
+          {open && reading ? (
             <>
-              <View style={[styles.row, { backgroundColor: subtle.brandBg, borderRadius: 8, padding: 8 }]}>
-                <MobileIcon name="info" size={14} color={subtle.warningFg} />
-                <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{so.sampleDocument}</Text>
-              </View>
-              <SelfOwnerContractDocument source={file} fill />
+              {isDemoPreview ? (
+                <View style={[styles.row, { backgroundColor: subtle.brandBg, borderRadius: 8, padding: 8 }]}>
+                  <MobileIcon name="info" size={14} color={subtle.warningFg} />
+                  <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{so.sampleDocument}</Text>
+                </View>
+              ) : null}
+              <SelfOwnerContractDocument load={() => loadDocument(open.id)} fill />
             </>
           ) : open && signing ? (
             <MobileSelfOwnerContractSignFlow
@@ -153,6 +163,8 @@ export function MobileSelfOwnerRoomContracts({
               fmt={fmt}
               today={selfOwnerToday(now)}
               onSign={onSign}
+              isDemoPreview={isDemoPreview}
+              loadDocument={loadDocument}
               onDone={() => setSigning(false)}
               onStepChange={(step) => setPadOpen(step === 'sign')}
             />
@@ -230,11 +242,11 @@ export function MobileSelfOwnerRoomContracts({
                   <Pressable
                     testID="soc-document"
                     accessibilityRole="button"
-                    accessibilityLabel={file === undefined ? `${so.viewDocument}, ${so.noDocument}` : so.viewDocument}
-                    accessibilityState={{ disabled: file === undefined }}
-                    disabled={file === undefined}
+                    accessibilityLabel={!hasFile ? `${so.viewDocument}, ${so.noDocument}` : so.viewDocument}
+                    accessibilityState={{ disabled: !hasFile }}
+                    disabled={!hasFile}
                     onPress={() => setMode('document')}
-                    style={[styles.outline, styles.row, { borderColor: theme.border, opacity: file === undefined ? 0.5 : 1 }]}
+                    style={[styles.outline, styles.row, { borderColor: theme.border, opacity: !hasFile ? 0.5 : 1 }]}
                   >
                     <MobileIcon name="file-text" size={16} color={ink} />
                     <Text style={[styles.small, { color: ink }]}>{so.viewDocument}</Text>
@@ -295,7 +307,15 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
   // The owner's signatures of this session (demo, Jom 25 Nov 2026): the card, the room's list and the detail follow them.
   const [signedOn, setSignedOn] = useState<Record<string, string>>(() => initialSignedOn ?? {});
   const withSignatures = useMemo(() => applySelfOwnerSignatures(contracts, signedOn, selfOwnerToday()), [contracts, signedOn]);
-  const sign = (contractId: string) => setSignedOn((previous) => ({ ...previous, [contractId]: selfOwnerToday() }));
+  // Demo: the signature is kept on this screen only. Connected: the API signs, the store holds the answer; any failure
+  // comes back as `ok: false` with a message the sign page shows (a technical English message becomes the Thai one).
+  const sign = async (contractId: string, signaturePng: string): Promise<SelfOwnerSignResult> => {
+    if (isDemoPreview) {
+      setSignedOn((previous) => ({ ...previous, [contractId]: selfOwnerToday() }));
+      return { ok: true };
+    }
+    return selfOwnerContractStore.sign(contractId, signaturePng, so.signFailed);
+  };
   const roomList = useMemo(() => groupSelfOwnerContracts(withSignatures), [withSignatures]);
   const counts = useMemo(() => countSelfOwnerRooms(roomList), [roomList]);
   const results = useMemo(() => filterSelfOwnerRooms(roomList, query, filter), [roomList, query, filter]);
@@ -397,7 +417,7 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
       <View style={styles.list}>{list()}</View>
       {ready ? <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, results.length))} testIDPrefix="soc-page" /> : null}
       <Modal visible={!!open} animationType="slide" onRequestClose={() => setSelected(null)}>
-        {open ? <MobileSelfOwnerRoomContracts room={open} all={withSignatures} onClose={() => setSelected(null)} onSign={sign} /> : null}
+        {open ? <MobileSelfOwnerRoomContracts room={open} all={withSignatures} onClose={() => setSelected(null)} onSign={sign} isDemoPreview={isDemoPreview} /> : null}
       </Modal>
     </View>
   );

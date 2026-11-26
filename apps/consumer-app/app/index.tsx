@@ -1339,10 +1339,10 @@ export function AppHomeScreen() {
     if (activeRole === 'self_owner' && activeTab === 'contracts') {
       // Read-only contracts (24 Nov 2026, ClickUp z8rcteng6e): NESTYK admin will create them; demo until then.
       return isSelfOwnerWeb ? (
-        <SelfOwnerContractsPage contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status === 'available' || selfOwnerContracts.status === 'not_configured' ? 'ready' : selfOwnerContracts.status} />
+        <SelfOwnerContractsPage contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status === 'available' || selfOwnerContracts.status === 'not_configured' ? 'ready' : selfOwnerContracts.status} onRetry={() => void selfOwnerContractStore.refresh()} />
       ) : (
         <View style={styles.bodyContainer}>
-          <MobileSelfOwnerContractsScreen contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status === 'available' || selfOwnerContracts.status === 'not_configured' ? 'ready' : selfOwnerContracts.status} />
+          <MobileSelfOwnerContractsScreen contracts={selfOwnerContracts.contracts} isDemoPreview={selfOwnerContracts.isDemoPreview} status={selfOwnerContracts.status === 'available' || selfOwnerContracts.status === 'not_configured' ? 'ready' : selfOwnerContracts.status} onRetry={() => void selfOwnerContractStore.refresh()} />
         </View>
       );
     }

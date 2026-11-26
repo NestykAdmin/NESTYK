@@ -672,6 +672,7 @@ export const en: TranslationSchema = {
     colStatus: 'Status',
     status: { active: 'Active', ending_soon: 'Ending soon', awaiting_signature: 'Awaiting signature', processing: 'Signed by all, NESTYK is processing', ended: 'Ended' },
     signFailed: 'Could not sign. Please try again.',
+    signSending: 'Signing…',
     daysLeft: '{n} days left',
     period: '{start} – {end}',
     detailTitle: 'Contract details',

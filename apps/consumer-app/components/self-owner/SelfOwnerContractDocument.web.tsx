@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Asset } from "expo-asset";
 import { useLocale } from "@nestyk/i18n";
-import { loadPdfDataUrl, parsePdfMessage, selfOwnerPdfHtml } from "../../lib/self-owner-pdf";
+import { loadDocumentDataUrl, parsePdfMessage, selfOwnerPdfHtml } from "../../lib/self-owner-pdf";
 
-const assetUrl = (source: number | string) => (typeof source === "string" ? source : Asset.fromModule(source).uri);
 /** Line widths of the skeleton page: a title, then text (Jom 25 Nov 2026). */
 const SKELETON_LINES = ["45%", "30%", "92%", "88%", "95%", "70%", "90%", "84%", "60%"];
 
@@ -12,13 +10,16 @@ const SKELETON_LINES = ["45%", "30%", "92%", "88%", "95%", "70%", "90%", "84%", 
  * sandboxed frame fed the file as a data URL; `onReachedEnd` fires once the owner has scrolled to the end. One
  * page-shaped skeleton covers both loads (the file, then the viewer) until the viewer says it is ready.
  */
-export function SelfOwnerContractDocument({ source, onReachedEnd, fill = false }: { source: number | string; onReachedEnd?: () => void; /** Fill the space left (the phone layout on the web). */ fill?: boolean }) {
+export function SelfOwnerContractDocument({ load, onReachedEnd, fill = false, initialFailed = false }: { /** The file's URL (or a data URL); called on every attempt, so a retry asks for a fresh link. */ load: () => Promise<string>; onReachedEnd?: () => void; /** Shows the failed state first (tests). */ initialFailed?: boolean; /** Fill the space left (the phone layout on the web). */ fill?: boolean }) {
   const { t } = useLocale();
   const so = t.selfOwnerContracts;
   const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(initialFailed);
   const [ready, setReady] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // The caller's `load` may be a new function each render; the latest one is used by each attempt.
+  const loadRef = useRef(load);
+  loadRef.current = load;
   const frame = useRef<HTMLIFrameElement | null>(null);
   const endHandler = useRef(onReachedEnd);
   endHandler.current = onReachedEnd;
@@ -27,13 +28,13 @@ export function SelfOwnerContractDocument({ source, onReachedEnd, fill = false }
     let cancelled = false;
     setFailed(false);
     setReady(false);
-    loadPdfDataUrl(source, assetUrl)
+    loadDocumentDataUrl(() => loadRef.current())
       .then((url) => !cancelled && setDataUrl(url))
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
     };
-  }, [source, attempt]);
+  }, [attempt]);
 
   useEffect(() => {
     const listen = (event: MessageEvent) => {

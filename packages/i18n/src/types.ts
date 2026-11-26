@@ -671,6 +671,8 @@ export interface TranslationSchema {
     colStatus: string;
     status: { active: string; ending_soon: string; awaiting_signature: string; processing: string; ended: string };
     signFailed: string;
+    /** The confirm button while the signature goes to the API. */
+    signSending: string;
     daysLeft: string;
     period: string;
     detailTitle: string;

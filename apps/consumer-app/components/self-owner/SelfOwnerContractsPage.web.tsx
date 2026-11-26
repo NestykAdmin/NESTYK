@@ -15,11 +15,13 @@ import {
   isFulfilledReservation,
   isRentContract,
   applySelfOwnerSignatures,
+  selfOwnerContractStore,
   selfOwnerToday,
   type SelfOwnerContract,
   type SelfOwnerContractFilter,
   type SelfOwnerContractStatus,
   type SelfOwnerRoomContracts,
+  type SelfOwnerSignResult,
 } from "../../lib/self-owner-contracts";
 import { contractDetailView, contractParty } from "./contract-detail-rows";
 import { SelfOwnerWebPager } from "./SelfOwnerWebPager";
@@ -30,11 +32,11 @@ import { SelfOwnerContractSignFlow } from "./SelfOwnerContractSignFlow.web";
 import { SelfOwnerContractDocument } from "./SelfOwnerContractDocument.web";
 import { useStepSlide } from "./useStepSlide";
 import { FadeIn } from "./FadeIn.web";
-import { selfOwnerDocumentOf } from "./demo-documents";
+import { selfOwnerDocumentLoader, selfOwnerHasDocument } from "./document-loader";
 import "../agent-web/agent-rooms.css";
 import "./self-owner-rooms.css";
 
-const STATUSES: SelfOwnerContractStatus[] = ["awaiting_signature", "ending_soon", "active", "ended"];
+const STATUSES: SelfOwnerContractStatus[] = ["awaiting_signature", "processing", "ending_soon", "active", "ended"];
 export const CONTRACT_STATUS_INTENT: Record<SelfOwnerContractStatus, StatusIntent> = {
   active: "done",
   ending_soon: "attn",
@@ -80,6 +82,8 @@ export function SelfOwnerRoomContractsDialog({
   all,
   onClose,
   onSign,
+  isDemoPreview = true,
+  loadDocument = selfOwnerDocumentLoader,
   initialContractId = null,
   initialSigning = false,
   initialView,
@@ -89,8 +93,12 @@ export function SelfOwnerRoomContractsDialog({
   /** Every contract, to find the one a renewal renews. */
   all: SelfOwnerContract[];
   onClose: () => void;
-  /** The owner signs a contract awaiting signatures (Jom 25 Nov 2026, demo). */
-  onSign: (contractId: string) => void;
+  /** The owner signs a contract awaiting signatures; `ok: false` keeps the sign page open with its message. */
+  onSign: (contractId: string, signaturePng: string) => Promise<SelfOwnerSignResult> | SelfOwnerSignResult | void;
+  /** Demo contracts: sample-file and "not saved" notes, the bundled sample files; the API has neither. */
+  isDemoPreview?: boolean;
+  /** The URL of a contract's file (a fresh one on every call). */
+  loadDocument?: (contractId: string) => Promise<string>;
   initialContractId?: string | null;
   /** Opens the sign page of the initial contract (tests). */
   initialSigning?: boolean;
@@ -117,8 +125,8 @@ export function SelfOwnerRoomContractsDialog({
   const screenKey = open ? `${mode}:${open.id}` : "list";
   const period = (c: SelfOwnerContract) => interpolate(so.period, { start: fmt.day(c.startDate), end: fmt.day(c.endDate) });
 
-  const file = open ? selfOwnerDocumentOf(open.id) : undefined;
-  if (open && file !== undefined && mode === "document") {
+  const hasFile = open ? selfOwnerHasDocument(open.id, isDemoPreview) : false;
+  if (open && hasFile && mode === "document") {
     return (
       <WebDialog open size="lg" title={so.viewDocument} description={`${so.kind[open.kind]} · ${open.roomTitle}`} onClose={onClose} testID="self-owner-contract-document">
         <FadeIn key={screenKey} active={slide !== null}>
@@ -126,11 +134,13 @@ export function SelfOwnerRoomContractsDialog({
             <MobileIcon name="chevron-left" size={16} color="currentColor" />
             {so.back}
           </button>
-          <p className="soc-pad-demo" role="note">
-            <MobileIcon name="info" size={14} color="currentColor" />
-            {so.sampleDocument}
-          </p>
-          <SelfOwnerContractDocument source={file} />
+          {isDemoPreview ? (
+            <p className="soc-pad-demo" role="note">
+              <MobileIcon name="info" size={14} color="currentColor" />
+              {so.sampleDocument}
+            </p>
+          ) : null}
+          <SelfOwnerContractDocument load={() => loadDocument(open.id)} />
         </FadeIn>
       </WebDialog>
     );
@@ -143,7 +153,7 @@ export function SelfOwnerRoomContractsDialog({
             <MobileIcon name="chevron-left" size={16} color="currentColor" />
             {so.back}
           </button>
-          <SelfOwnerContractSignFlow key={open.id} contract={open} all={all} fmt={fmt} today={selfOwnerToday(now)} onSign={onSign} onDone={() => setSigning(false)} />
+          <SelfOwnerContractSignFlow key={open.id} contract={open} all={all} fmt={fmt} today={selfOwnerToday(now)} onSign={onSign} isDemoPreview={isDemoPreview} loadDocument={loadDocument} onDone={() => setSigning(false)} />
         </FadeIn>
       </WebDialog>
     );
@@ -162,9 +172,9 @@ export function SelfOwnerRoomContractsDialog({
             type="button"
             className="awu-btn"
             data-testid="soc-document"
-            disabled={file === undefined}
-            aria-disabled={file === undefined}
-            title={file === undefined ? so.noDocument : undefined}
+            disabled={!hasFile}
+            aria-disabled={!hasFile}
+            title={!hasFile ? so.noDocument : undefined}
             onClick={() => setMode("document")}
           >
             <MobileIcon name="file-text" size={16} color="currentColor" />
@@ -306,7 +316,15 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
   // The owner's signatures of this session (demo, Jom 25 Nov 2026): the row, the room's list and the detail follow them.
   const [signedOn, setSignedOn] = useState<Record<string, string>>(() => initialSignedOn ?? {});
   const withSignatures = useMemo(() => applySelfOwnerSignatures(contracts, signedOn, selfOwnerToday()), [contracts, signedOn]);
-  const sign = (contractId: string) => setSignedOn((previous) => ({ ...previous, [contractId]: selfOwnerToday() }));
+  // Demo: the signature is kept on this page only. Connected: the API signs, the store holds the answer; any failure
+  // comes back as `ok: false` with a message the sign page shows (a technical English message becomes the Thai one).
+  const sign = async (contractId: string, signaturePng: string): Promise<SelfOwnerSignResult> => {
+    if (isDemoPreview) {
+      setSignedOn((previous) => ({ ...previous, [contractId]: selfOwnerToday() }));
+      return { ok: true };
+    }
+    return selfOwnerContractStore.sign(contractId, signaturePng, so.signFailed);
+  };
   const rooms = useMemo(() => groupSelfOwnerContracts(withSignatures), [withSignatures]);
   const counts = useMemo(() => countSelfOwnerRooms(rooms), [rooms]);
   const results = useMemo(() => filterSelfOwnerRooms(rooms, query, filter), [rooms, query, filter]);
@@ -420,7 +438,7 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
         </div>
       </div>
       {ready ? <SelfOwnerWebPager current={current} pages={pages} total={results.length} size={size} onPage={goToPage} /> : null}
-      {open ? <SelfOwnerRoomContractsDialog room={open} all={withSignatures} onClose={() => setSelected(null)} onSign={sign} /> : null}
+      {open ? <SelfOwnerRoomContractsDialog room={open} all={withSignatures} onClose={() => setSelected(null)} onSign={sign} isDemoPreview={isDemoPreview} /> : null}
     </div>
   );
 }

@@ -41,3 +41,13 @@ export async function loadPdfDataUrl(source: number | string, urlOf: PdfAssetUrl
   if (!response.ok) throw new Error(`pdf ${response.status}`);
   return `data:application/pdf;base64,${pdfBase64(await response.arrayBuffer())}`;
 }
+
+/**
+ * The file of a contract as a data URL for the sandboxed viewer. `load` gives the file's URL (a bundled asset on the demo,
+ * a signed link from the API; or already a data URL) and is called on every attempt: a signed link can expire, so a
+ * retry must ask for a new one. Rejects when `load` rejects or the file cannot be fetched.
+ */
+export async function loadDocumentDataUrl(load: () => Promise<string>): Promise<string> {
+  const url = await load();
+  return url.startsWith('data:') ? url : loadPdfDataUrl(url, (source) => String(source));
+}

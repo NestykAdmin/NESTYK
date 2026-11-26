@@ -671,6 +671,7 @@ export const zh: TranslationSchema = {
     colStatus: '状态',
     status: { active: '生效中', ending_soon: '即将到期', awaiting_signature: '待签署', processing: '已全部签署，NESTYK处理中', ended: '已结束' },
     signFailed: '签署失败，请重试。',
+    signSending: '正在签署…',
     daysLeft: '剩余 {n} 天',
     period: '{start} – {end}',
     detailTitle: '合同详情',

@@ -357,6 +357,21 @@ test('store: sign failure returns the API message and keeps the contract unsigne
   assert.equal(store.getState().contracts[0].status, 'awaiting_signature');
 });
 
+test('store: a server error or a raw "HTTP ..." message never reaches the owner as English text', async () => {
+  const store = storeOf();
+  const fail = (message, extra = {}) => Object.assign(new Error(message), extra);
+  let error = fail('Internal server error', { status: 500 });
+  store.connect(fakeBackend({ sign: async () => { throw error; } }), 'u1');
+  await tick();
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ลองใหม่', '5xx');
+  error = fail('Bad gateway', { status: 502 });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ลองใหม่', '502');
+  error = fail('HTTP 404', { status: 404 });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ลองใหม่', 'a message that starts with HTTP');
+  error = fail('ฝ่ายนี้ลงนามแล้ว', { status: 409 });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ฝ่ายนี้ลงนามแล้ว', 'the API Thai message stays');
+});
+
 test('store: a 409 sign failure loads the list again', async () => {
   const store = storeOf();
   let loads = 0;

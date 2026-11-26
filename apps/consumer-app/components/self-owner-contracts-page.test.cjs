@@ -11,6 +11,8 @@ const root = path.resolve(__dirname, '../../..');
 const theme = { mode: 'light', background: '#F8FAFC', surface: '#fff', screenTitle: '#211E1E', textSecondary: '#64748B', border: '#E5E7EB' };
 let locale = 'th';
 let sequence = 0;
+// Every state setter call of the components under test (the stubbed useState keeps no state): lets a test see what a handler set.
+const stateLog = [];
 const cache = new Map();
 // The signature pad draws on a canvas / web view; the tests only need its props (Jom 25 Nov 2026, contract signing).
 cache.set(path.join(__dirname, 'ContractSignaturePad.tsx'), { exports: { ContractSignaturePad: 'ContractSignaturePad' } });
@@ -25,7 +27,7 @@ function load(filename) {
   const localRequire = (name) => {
     if (name === 'expo-constants') return { __esModule: true, default: { expoConfig: { extra: {} } } };
     if (name.endsWith('.css')) return {};
-    if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useSyncExternalStore: (_s, get) => get(), useEffect() {}, useRef: () => ({ current: null }), useId: () => `test-${sequence++}`, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}] };
+    if (name === 'react') return { ...React, useMemo: fn => fn(), useCallback: fn => fn, useSyncExternalStore: (_s, get) => get(), useEffect() {}, useRef: () => ({ current: null }), useId: () => `test-${sequence++}`, useState: initial => { const value = typeof initial === 'function' ? initial() : initial; return [value, (next) => { stateLog.push(typeof next === 'function' ? next(value) : next); }]; } };
     if (name === '@nestyk/i18n') return { useLocale: () => ({ locale, t: load(`${root}/packages/i18n/src/locales/${locale}.ts`)[locale] }) };
     if (name === '@nestyk/ui/native') return { useMobileTheme: () => ({ theme }), MobileIcon: () => null, MobileStatusPill: 'MobileStatusPill', MobileSectionHeader: 'MobileSectionHeader', MobileFilterChip: 'MobileFilterChip', MobileButton: 'MobileButton', MobileInput: 'MobileInput', MobileBottomSheet: 'MobileBottomSheet', SelectionCheck: 'SelectionCheck', tokens: load(`${root}/packages/ui/src/theme/tokens.ts`).tokens };
     if (name === '@nestyk/ui/cookie-consent') return { cookieConsentAllows: () => false };
@@ -314,7 +316,7 @@ test('phone contracts: chips count rooms, one card per room with its current con
   const so = copyOf().selfOwnerContracts;
   const tree = contractsPhone();
   const chips = byTestId(tree, 'soc-filter-');
-  assert.equal(chips.length, 5);
+  assert.equal(chips.length, 6, 'all, awaiting, processing, ending soon, active, ended');
   assert.ok(texts(nodes(chips[0].props.children)).includes('11'));
   const cards = byTestId(tree, 'soc-card-');
   assert.equal(cards.length, 10, 'ten rooms a page on the phone (11 demo rooms)');
@@ -1007,14 +1009,14 @@ test('step slides: forward from the right, back from the left, nothing on the fi
 test('pdf skeleton: a page-shaped placeholder until the viewer is ready, web and phone', () => {
   locale = 'th';
   const so = copyOf().selfOwnerContracts;
-  const webDoc = nodes(web('SelfOwnerContractDocument.web.tsx').SelfOwnerContractDocument({ source: 'asset:lease-2101' }));
+  const webDoc = nodes(web('SelfOwnerContractDocument.web.tsx').SelfOwnerContractDocument({ load: () => Promise.resolve('asset:lease-2101') }));
   const box = dataId(webDoc, 'soc-pdf')[0];
   assert.equal(box.props['aria-busy'], true);
   const skeleton = dataId(webDoc, 'soc-pdf-skeleton')[0];
   assert.equal(skeleton.props['aria-label'], so.documentLoading);
   assert.ok(webDoc.filter(n => n?.props?.className === 'awu-skeleton-bar').length >= 6, 'text lines');
   assert.ok(!texts(webDoc).includes(so.documentLoading), 'no loading text over the skeleton');
-  const phoneDoc = nodes(phone('SelfOwnerContractDocument.tsx').SelfOwnerContractDocument({ source: 'asset:lease-2101' }));
+  const phoneDoc = nodes(phone('SelfOwnerContractDocument.tsx').SelfOwnerContractDocument({ load: () => Promise.resolve('asset:lease-2101') }));
   assert.equal(tid(phoneDoc, 'soc-pdf-skeleton').length, 1);
   const css = fs.readFileSync(path.join(__dirname, 'self-owner', 'self-owner-rooms.css'), 'utf8');
   assert.match(css, /\.soc-pdf-skeleton \{[^}]*animation: so-skeleton-in [^}]*300ms/);
@@ -1029,4 +1031,166 @@ test('the "signed" mark pops in once (web CSS), and nothing moves with reduced m
   assert.match(css, /prefers-reduced-motion: reduce\)[^@]*\.soc-sign-done-mark[^}]*animation: none/);
   const done = flowWeb({ contract: lib().signSelfOwnerContract(byId(contracts(), 'c-r2-renewal'), today), initialStep: 'done' });
   assert.equal(done.filter(n => n?.props?.className === 'soc-sign-done-mark').length, 1);
+});
+
+// ---- Task 6 (plan self-owner-contracts-api): the pages sign and open files for real (web + phone). ----
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const padOf = (tree) => tree.find(n => n?.type === 'ContractSignaturePad');
+const signable = () => byId(contracts(), 'c-r2-renewal');
+const flows = [
+  ['web', (props) => flowWeb(props), (tree, id) => dataId(tree, id), (n) => n.props.onClick, 'disabled'],
+  ['phone', (props) => flowPhone(props), (tree, id) => tid(tree, id), (n) => n.props.onPress, 'disabled'],
+];
+
+for (const [name, flow, find] of flows) {
+  test(`${name} sign success shows done`, async () => {
+    locale = 'th';
+    const calls = [];
+    const tree = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: false, onSign: async (id, png) => { calls.push([id, png]); return { ok: true }; } });
+    stateLog.length = 0;
+    padOf(tree).props.onOK('data:image/png;base64,AAAA');
+    await settle();
+    assert.deepEqual(calls, [['c-r2-renewal', 'data:image/png;base64,AAAA']]);
+    assert.ok(stateLog.includes('done'), 'goes to the done step');
+  });
+
+  test(`${name} sign failure keeps the sign step`, async () => {
+    locale = 'th';
+    const tree = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: false, onSign: async () => ({ ok: false, message: 'ฝ่ายนี้ลงนามแล้ว' }) });
+    stateLog.length = 0;
+    padOf(tree).props.onOK('data:image/png;base64,AAAA');
+    await settle();
+    assert.ok(!stateLog.includes('done'), 'does not say signed');
+    assert.ok(stateLog.includes('ฝ่ายนี้ลงนามแล้ว'), 'the error is the API message');
+    // A rejected promise is a failure too, with the localized text.
+    const thrown = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: false, onSign: async () => { throw new Error('boom'); } });
+    stateLog.length = 0;
+    padOf(thrown).props.onOK('data:image/png;base64,AAAA');
+    await settle();
+    assert.ok(!stateLog.includes('done'));
+    assert.ok(stateLog.includes(copyOf().selfOwnerContracts.signFailed));
+  });
+
+  test(`${name} the error stays on the sign step even when the contract reads signed after a reload`, () => {
+    locale = 'th';
+    const signed = lib().signSelfOwnerContract(signable(), today);
+    const tree = flow({ contract: signed, initialStep: 'sign', initialError: 'ฝ่ายนี้ลงนามแล้ว', isDemoPreview: false });
+    assert.ok(padOf(tree), 'the pad is still there');
+    assert.ok(texts(tree).includes('ฝ่ายนี้ลงนามแล้ว'));
+  });
+
+  test(`${name} confirm is disabled while signing`, async () => {
+    locale = 'th';
+    const so = copyOf().selfOwnerContracts;
+    const calls = [];
+    const idle = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: false });
+    assert.equal(find(idle, 'soc-sign-confirm')[0].props.disabled ?? false, false);
+    const busy = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: false, initialSending: true });
+    for (const id of ['soc-sign-confirm', 'soc-sign-previous', 'soc-sign-clear']) assert.equal(find(busy, id)[0].props.disabled, true, id);
+    assert.ok(texts(busy).includes(so.signSending), 'shows the sending state');
+    // A second tap while the request is out sends nothing more.
+    const tree = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: false, onSign: async (id) => { calls.push(id); return { ok: true }; } });
+    padOf(tree).props.onOK('data:image/png;base64,AAAA');
+    padOf(tree).props.onOK('data:image/png;base64,AAAA');
+    await settle();
+    assert.equal(calls.length, 1);
+  });
+
+  test(`${name} document failure blocks accept`, () => {
+    locale = 'th';
+    const contract = signable();
+    const tree = flow({ contract, isDemoPreview: false, loadDocument: () => Promise.reject(new Error('expired')) });
+    assert.equal(find(tree, 'soc-pdf').length, 1, 'the API contract has a file to open');
+    assert.equal(find(tree, 'soc-sign-accept')[0].props.disabled ?? find(tree, 'soc-sign-accept')[0].props.accessibilityState?.disabled, true);
+    assert.equal(find(tree, 'soc-sign-next')[0].props.disabled, true);
+  });
+
+  test(`${name} demo note hidden with the API`, () => {
+    locale = 'th';
+    const so = copyOf().selfOwnerContracts;
+    const api = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: false });
+    assert.ok(!texts(api).includes(so.demoSignNote));
+    const demo = flow({ contract: signable(), initialStep: 'sign', initialAccepted: true, isDemoPreview: true });
+    assert.ok(texts(demo).includes(so.demoSignNote));
+    const review = flow({ contract: signable(), isDemoPreview: false, initialReachedEnd: true });
+    assert.ok(!texts(review).includes(so.sampleDocument), 'the sample-file note is demo only');
+    assert.ok(texts(flow({ contract: byId(contracts(), 'c-r5'), isDemoPreview: true })).includes(so.sampleDocument));
+  });
+}
+
+test('web and phone: demo note bar hidden with the API', () => {
+  locale = 'th';
+  assert.equal(contractsWeb({ isDemoPreview: false }).filter(n => n?.props?.role === 'note').length, 0);
+  assert.equal(contractsWeb({ isDemoPreview: true }).filter(n => n?.props?.role === 'note').length, 1);
+  assert.equal(byTestId(contractsPhone({ isDemoPreview: false }), 'soc-demo').length, 0);
+  assert.equal(byTestId(contractsPhone({ isDemoPreview: true }), 'soc-demo').length, 1);
+});
+
+test('processing contract has no sign button, shows its badge and the signer list', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  const processing = { ...signable(), id: 'c-proc', status: 'processing', signatures: { owner: today, tenant: today } };
+  const room = { ...groups().find(g => g.roomId === 'r2'), contracts: [processing], current: processing, status: 'processing' };
+  const webTree = nodes(web('SelfOwnerContractsPage.web.tsx').SelfOwnerRoomContractsDialog({ room, all: [processing], onClose() {}, onSign() {}, initialContractId: 'c-proc' }));
+  assert.equal(dataId(webTree, 'soc-sign').length, 0);
+  assert.equal(dataId(webTree, 'soc-signer-owner').length + dataId(webTree, 'soc-signer-tenant').length, 2);
+  assert.ok(webTree.some(n => n?.type === 'MobileStatusPill' && n.props.label === so.status.processing));
+  assert.ok(!texts(webTree).includes(so.waitingOthers));
+  const phoneTree = nodes(phone('MobileSelfOwnerContractsScreen.tsx').MobileSelfOwnerRoomContracts({ room, all: [processing], onClose() {}, onSign() {}, initialContractId: 'c-proc' }));
+  assert.equal(tid(phoneTree, 'soc-sign').length, 0);
+  assert.equal(byTestId(phoneTree, 'soc-signer-').length, 2);
+  assert.ok(pillLabels(phoneTree).includes(so.status.processing));
+});
+
+test('processing filter: a chip on the phone and an option on the web, counted', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  const base = contracts();
+  const list = base.map(c => (c.id === 'c-r2-renewal' ? { ...c, status: 'processing', signatures: { owner: today, tenant: today } } : c));
+  const chips = byTestId(contractsPhone({ contracts: list }), 'soc-filter-');
+  assert.deepEqual(chips.map(c => c.props.testID), ['soc-filter-all', 'soc-filter-awaiting_signature', 'soc-filter-processing', 'soc-filter-ending_soon', 'soc-filter-active', 'soc-filter-ended']);
+  const select = contractsWeb({ contracts: list }).find(n => n?.props?.['aria-label'] === so.filterLabel && Array.isArray(n.props.children));
+  const options = nodes(select.props.children).filter(n => n?.type === 'option').map(o => o.props.value);
+  assert.deepEqual(options, ['all', 'awaiting_signature', 'processing', 'ending_soon', 'active', 'ended']);
+  const rooms = lib().groupSelfOwnerContracts(list);
+  assert.equal(lib().filterSelfOwnerRooms(rooms, '', 'processing').length, rooms.filter(r => r.status === 'processing').length);
+});
+
+test('document loading: a rejected load or a failed fetch fails; a retry asks for a fresh URL', async () => {
+  const { loadDocumentDataUrl } = pdfLib();
+  const realFetch = global.fetch;
+  try {
+    const urls = [];
+    global.fetch = async (url) => { urls.push(url); return url.includes('expired') ? { ok: false, status: 403 } : { ok: true, arrayBuffer: async () => new Uint8Array([37, 80, 68, 70]).buffer }; };
+    await assert.rejects(loadDocumentDataUrl(() => Promise.reject(new Error('no url'))));
+    await assert.rejects(loadDocumentDataUrl(() => Promise.resolve('https://files.test/expired.pdf')), /403/);
+    let asked = 0;
+    const load = async () => { asked += 1; return asked === 1 ? 'https://files.test/expired.pdf' : 'https://files.test/fresh.pdf'; };
+    await assert.rejects(loadDocumentDataUrl(load));
+    assert.equal(await loadDocumentDataUrl(load), 'data:application/pdf;base64,JVBERg==');
+    assert.equal(asked, 2, 'the retry called load again');
+    assert.equal(urls.at(-1), 'https://files.test/fresh.pdf');
+    const before = urls.length;
+    assert.equal(await loadDocumentDataUrl(async () => 'data:application/pdf;base64,AAAA'), 'data:application/pdf;base64,AAAA');
+    assert.equal(urls.length, before, 'a data URL is not fetched');
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test('document viewer: the failed state shows the message and a retry, web and phone', () => {
+  locale = 'th';
+  const so = copyOf().selfOwnerContracts;
+  const retry = copyOf().agent.dashboard.webStates.retry;
+  const webDoc = nodes(web('SelfOwnerContractDocument.web.tsx').SelfOwnerContractDocument({ load: () => Promise.reject(new Error('x')), initialFailed: true }));
+  assert.ok(texts(webDoc).includes(so.documentFailed));
+  assert.ok(webDoc.some(n => n?.type === 'button' && label(n) === retry));
+  assert.equal(dataId(webDoc, 'soc-pdf-skeleton').length, 0);
+  const phoneDoc = nodes(phone('SelfOwnerContractDocument.tsx').SelfOwnerContractDocument({ load: () => Promise.reject(new Error('x')), initialFailed: true }));
+  assert.ok(texts(phoneDoc).includes(so.documentFailed));
+  assert.ok(phoneDoc.some(n => n?.props?.accessibilityRole === 'button' && texts(nodes(n.props.children)).includes(retry)));
+});
+
+test('signing copy: the sending text exists in every locale', () => {
+  for (const l of ['th', 'en', 'ja', 'zh']) assert.ok(copyOf(l).selfOwnerContracts.signSending, l);
 });

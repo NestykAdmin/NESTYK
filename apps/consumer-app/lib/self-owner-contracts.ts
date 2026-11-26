@@ -526,7 +526,10 @@ function createContractStore() {
         const e = error as { message?: unknown; status?: unknown; code?: unknown } | null;
         // 409: the contract changed under the owner; load it again so the page shows what is there now.
         if (e?.status === 409 && generation === connection) void load();
-        const message = typeof e?.message === 'string' && e.message.trim() && e.code !== 'NETWORK_ERROR' ? e.message : fallbackMessage;
+        // Only the API's own (Thai) message is shown: no answer, a server error or a raw "HTTP ..." text is the page's copy.
+        const raw = typeof e?.message === 'string' ? e.message.trim() : '';
+        const technical = e?.code === 'NETWORK_ERROR' || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500) || raw.startsWith('HTTP ');
+        const message = raw && !technical ? raw : fallbackMessage;
         return { ok: false, message };
       }
     },

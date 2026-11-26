@@ -3,12 +3,12 @@ import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View 
 import { useLocale } from '@nestyk/i18n';
 import { MobileIcon, tokens, useMobileTheme } from '@nestyk/ui/native';
 import { interpolate } from '@nestyk/feature-listing';
-import type { SelfOwnerContract } from '../../lib/self-owner-contracts';
+import type { SelfOwnerContract, SelfOwnerSignResult } from '../../lib/self-owner-contracts';
 import { ContractSignaturePad, type ContractSignaturePadHandle } from '../ContractSignaturePad';
 import { contractDetailView, contractSigningView } from './contract-detail-rows';
 import { MobileSelfOwnerSignerList } from './MobileSelfOwnerContractSigning';
 import { SelfOwnerContractDocument } from './SelfOwnerContractDocument';
-import { selfOwnerDocumentOf } from './demo-documents';
+import { selfOwnerDocumentLoader, selfOwnerHasDocument } from './document-loader';
 import { FadeIn } from './FadeIn';
 import { useStepSlide } from './useStepSlide';
 
@@ -51,23 +51,36 @@ export function MobileSelfOwnerContractSignFlow({
   onSign,
   onDone,
   onStepChange,
+  isDemoPreview = true,
+  loadDocument = selfOwnerDocumentLoader,
   initialStep = 'review',
   initialAccepted = false,
   initialReachedEnd = false,
+  initialError = '',
+  initialSending = false,
 }: {
   /** The contract as the page has it now (signed once `onSign` went through). */
   contract: SelfOwnerContract;
   all: SelfOwnerContract[];
   fmt: { money: (amount: number) => string; day: (ymd: string) => string };
   today: string;
-  onSign: (contractId: string) => void;
+  /** Sends the owner's signature (PNG data URL); `ok: false` keeps this page on the sign step with `message` shown. */
+  onSign: (contractId: string, signaturePng: string) => Promise<SelfOwnerSignResult> | SelfOwnerSignResult | void;
   /** Back to the contract detail. */
   onDone: () => void;
+  /** Demo contracts: the sample-file and "not saved" notes show; with the API they do not. */
+  isDemoPreview?: boolean;
+  /** The URL of the contract's file (a fresh one on every call). */
+  loadDocument?: (contractId: string) => Promise<string>;
   onStepChange?: (step: SelfOwnerSignStep) => void;
   initialStep?: SelfOwnerSignStep;
   initialAccepted?: boolean;
   /** The owner has turned to the file's last page (tests). */
   initialReachedEnd?: boolean;
+  /** The sign step shows this error first (tests). */
+  initialError?: string;
+  /** The sign step shows the request as out (tests). */
+  initialSending?: boolean;
 }) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
@@ -76,18 +89,40 @@ export function MobileSelfOwnerContractSignFlow({
   const muted = theme.textSecondary;
   const [step, setStepState] = useState<SelfOwnerSignStep>(initialStep);
   const [accepted, setAccepted] = useState(initialAccepted);
-  const [error, setError] = useState('');
-  const file = selfOwnerDocumentOf(contract.id);
+  const [error, setError] = useState(initialError);
+  const [sending, setSending] = useState(initialSending);
+  const sendingNow = useRef(false);
+  const hasFile = selfOwnerHasDocument(contract.id, isDemoPreview);
   // With a file, the tick waits until the owner turned to its last page (Jom 25 Nov 2026).
-  const [reachedEnd, setReachedEnd] = useState(initialReachedEnd || file === undefined);
+  const [reachedEnd, setReachedEnd] = useState(initialReachedEnd || !hasFile);
   const pad = useRef<ContractSignaturePadHandle>(null);
   const signing = contractSigningView(contract, so, fmt.day);
   const view = contractDetailView(contract, all, so, fmt, today);
-  const shown: SelfOwnerSignStep = signing.canSign ? step : 'done';
+  // A failed sign stays on its step with the error, even when the contract has been reloaded and reads signed meanwhile
+  // (the other tab signed): the owner reads why, then goes back.
+  const failedHere = step === 'sign' && error !== '';
+  const shown: SelfOwnerSignStep = signing.canSign || failedHere ? step : 'done';
   const setStep = (next: SelfOwnerSignStep) => {
     setError('');
     setStepState(next);
     onStepChange?.(next);
+  };
+  // The pad's image goes to the API; only an `ok` answer moves on, anything else shows its message and allows a retry.
+  const submit = async (image: string) => {
+    if (sendingNow.current) return;
+    sendingNow.current = true;
+    setSending(true);
+    setError('');
+    let result: SelfOwnerSignResult | void;
+    try {
+      result = await onSign(contract.id, image);
+    } catch {
+      result = { ok: false, message: so.signFailed };
+    }
+    sendingNow.current = false;
+    setSending(false);
+    if (result && result.ok) setStep('done');
+    else setError((result && !result.ok && result.message) || so.signFailed);
   };
   const stepLabel = (n: number, name: string) => interpolate(so.signStep, { n, total: 2, name });
   // Each step fades in (Jom 25 Nov 2026).
@@ -133,23 +168,25 @@ export function MobileSelfOwnerContractSignFlow({
 
   return (
     <FadeIn key={shown} active={slide !== null} fill>
-      <View testID="soc-sign-flow" style={[styles.root, shown === 'review' && file !== undefined ? styles.grow : null]}>
+      <View testID="soc-sign-flow" style={[styles.root, shown === 'review' && hasFile ? styles.grow : null]}>
         {shown === 'review' ? (
           <>
             <Text style={[styles.small, { color: muted }]}>{stepLabel(1, so.signStepReview)}</Text>
-            {file !== undefined ? (
+            {hasFile ? (
               <>
                 <View>
                   <Text style={[styles.small, { color: muted }]}>{so.kind[contract.kind]}</Text>
                   <Text style={[styles.title, { color: ink }]}>{view.period}</Text>
                   <Text style={[styles.small, { color: muted }]}>{view.room}</Text>
                 </View>
-                <View style={[styles.demo, { backgroundColor: subtle.brandBg }]}>
-                  <MobileIcon name="info" size={14} color={subtle.warningFg} />
-                  <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{so.sampleDocument}</Text>
-                </View>
+                {isDemoPreview ? (
+                  <View style={[styles.demo, { backgroundColor: subtle.brandBg }]}>
+                    <MobileIcon name="info" size={14} color={subtle.warningFg} />
+                    <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{so.sampleDocument}</Text>
+                  </View>
+                ) : null}
                 {/* The file fills the space left; the modal does not scroll around it, so there is one scroll only. */}
-                <SelfOwnerContractDocument source={file} onReachedEnd={() => setReachedEnd(true)} fill />
+                <SelfOwnerContractDocument load={() => loadDocument(contract.id)} onReachedEnd={() => setReachedEnd(true)} fill />
                 <View style={styles.read}>
                   {reachedEnd ? <MobileIcon name="check" size={14} color={subtle.successFg ?? ink} /> : null}
                   <Text style={[styles.small, styles.flex, { color: reachedEnd ? subtle.successFg ?? ink : muted }]}>{reachedEnd ? so.readDone : so.readToEnd}</Text>
@@ -197,10 +234,12 @@ export function MobileSelfOwnerContractSignFlow({
           <>
             <Text style={[styles.small, { color: muted }]}>{stepLabel(2, so.signStepSign)}</Text>
             <Text style={[styles.small, { color: ink }]}>{so.signHint}</Text>
-            <View style={[styles.demo, { backgroundColor: subtle.brandBg }]}>
-              <MobileIcon name="info" size={14} color={subtle.warningFg} />
-              <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{so.demoSignNote}</Text>
-            </View>
+            {isDemoPreview ? (
+              <View style={[styles.demo, { backgroundColor: subtle.brandBg }]}>
+                <MobileIcon name="info" size={14} color={subtle.warningFg} />
+                <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{so.demoSignNote}</Text>
+              </View>
+            ) : null}
             {error ? (
               <Text accessibilityRole="alert" style={[styles.small, { color: subtle.dangerFg }]}>
                 {error}
@@ -209,17 +248,14 @@ export function MobileSelfOwnerContractSignFlow({
             <View style={[styles.canvas, { borderColor: theme.border }]}>
               <ContractSignaturePad
                 ref={pad}
-                onOK={() => {
-                  setStep('done');
-                  onSign(contract.id);
-                }}
+                onOK={(image) => void submit(image)}
                 onEmpty={() => setError(so.signEmpty)}
               />
             </View>
             <View style={styles.actions}>
-              {button('soc-sign-previous', so.previousStep, () => setStep('review'))}
-              {button('soc-sign-clear', so.clearSignature, () => pad.current?.clearSignature())}
-              {button('soc-sign-confirm', so.confirmSignature, () => pad.current?.readSignature(), true)}
+              {button('soc-sign-previous', so.previousStep, () => setStep('review'), false, sending)}
+              {button('soc-sign-clear', so.clearSignature, () => pad.current?.clearSignature(), false, sending)}
+              {button('soc-sign-confirm', sending ? so.signSending : so.confirmSignature, () => pad.current?.readSignature(), true, sending)}
             </View>
           </>
         )}
