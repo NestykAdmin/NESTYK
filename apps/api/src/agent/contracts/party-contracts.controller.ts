@@ -31,7 +31,8 @@ import { ContractRemindersService } from "../reminders/contract-reminders.servic
 
 @Controller("contracts")
 @UseGuards(AuthGuard, RolesGuard)
-@Roles("tenant", "landlord")
+// self_owner: the owner of a self owner room is the landlord side of its contracts (partiesFor checks the room is theirs).
+@Roles("tenant", "landlord", "self_owner")
 export class PartyContractsController {
   constructor(
     private readonly contracts: AgentContractsService,

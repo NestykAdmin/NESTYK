@@ -19,6 +19,7 @@ import {
 import { LeaseContractEntity } from "../../entities/lease-contract.entity";
 import { ContractDocumentStorageService } from "./contract-document-storage.service";
 import { CO_BROKE_REQUIREMENT, coBrokeRequired } from "./deal-offers.service";
+import { contractRoom, sameContractRoom } from "./contract-room";
 
 const subjects = ["tenant", "owner", "property", "representative"];
 /** True once the stamped reservation letter PDF has been written. */
@@ -213,7 +214,8 @@ export class AgreementAttachmentsService {
     // D14 (AC-3.8): a reservation whose offer names another agent also needs the signed co-broke file. It is needed
     // before the letter is issued, not before signing, so it is listed but does not count for readyToSign.
     // Party endpoints reach this too: a self owner lease has no agent room, hence no offer and no co-broke file.
-    const coBroke = c.rent_room_id !== null && (await coBrokeRequired(this.db, { template_id: c.template_id, lead_id: c.lead_id, rent_room_id: c.rent_room_id }))
+    const room = contractRoom(c);
+    const coBroke = room?.source === "agent" && (await coBrokeRequired(this.db, { template_id: c.template_id, lead_id: c.lead_id, rent_room_id: room.roomId }))
       ? attachmentChecklist([CO_BROKE_REQUIREMENT as unknown as AgreementDocumentRequirementEntity], docs)
       : [];
     let reusable: AgreementDocumentEntity[] = [];
@@ -221,7 +223,7 @@ export class AgreementAttachmentsService {
       const previous = await this.contract(agentId, c.previous_agreement_id);
       if (
         previous.tenant_id === c.tenant_id &&
-        previous.rent_room_id === c.rent_room_id
+        sameContractRoom(previous, c)
       )
         reusable = await this.rows(previous.id);
     }
@@ -445,7 +447,7 @@ export class AgreementAttachmentsService {
     const previous = await this.contract(agentId, c.previous_agreement_id);
     if (
       previous.tenant_id !== c.tenant_id ||
-      previous.rent_room_id !== c.rent_room_id
+      !sameContractRoom(previous, c)
     )
       throw new BadRequestException("ผู้เช่าหรือห้องไม่ตรงกับสัญญาเดิม");
     const docs = await this.rows(previous.id);

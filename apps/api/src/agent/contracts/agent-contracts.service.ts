@@ -121,7 +121,7 @@ import {
   CONTRACT_DOCUMENT_KINDS,
   ContractDocumentStorageService,
 } from "./contract-document-storage.service";
-import { AGENT_ROOM_ONLY, requireRentRoomId } from "./contract-room";
+import { AGENT_ROOM_ONLY, NO_PROPERTY, contractRoom, requireRentRoomId, type ContractRoom } from "./contract-room";
 
 export const WITNESS_SIGNATURE_REQUIRED = "ต้องให้พยานลงนามในสัญญาเช่าก่อน จึงจะสร้างเอกสารได้ (นายหน้าเป็นพยานได้)";
 export const brokerAppointmentKey = (roomId: number, tenantId: number) => `${roomId}:${tenantId}`;
@@ -505,17 +505,19 @@ export class AgentContractsService {
    */
   async activeBrokerAppointments(
     agentId: number,
-    filter: { roomIds?: number[]; tenantIds?: number[] } = {},
+    filter: { roomIds?: number[]; tenantIds?: number[]; source?: ContractRoom["source"] } = {},
     manager?: EntityManager,
   ): Promise<Set<string>> {
     if ((filter.roomIds && !filter.roomIds.length) || (filter.tenantIds && !filter.tenantIds.length)) return new Set();
+    // Room ids of agent rooms (default) or of self owner rooms: the two tables have their own ids.
+    const roomColumn = filter.source === "self_owner" ? "c.self_owner_room_id" : "c.rent_room_id";
     let query = (manager ?? this.db)
       .getRepository(LeaseContractEntity)
       .createQueryBuilder("c")
       .leftJoin("c.agreement_type", "agreementType")
       .leftJoin("c.template", "template")
       // distinct(true), not "DISTINCT ..." inside select(): TypeORM puts addSelect columns first, which breaks the SQL.
-      .select("c.rent_room_id", "roomId")
+      .select(roomColumn, "roomId")
       .addSelect("c.tenant_id", "tenantId")
       .distinct(true)
       .where("c.created_by_user_id = :agentId", { agentId })
@@ -523,15 +525,22 @@ export class AgentContractsService {
       .andWhere("COALESCE(template.form_kind, agreementType.form_kind) = 'broker_appointment'")
       // Same term as BROKER_APPOINTMENT_TERM_YEARS in agreement-hold.ts (account deletion counts it the same way).
       .andWhere("c.start_date + INTERVAL '1 year' > CAST(:today AS date)", { today: bangkokDate() });
-    if (filter.roomIds) query = query.andWhere("c.rent_room_id IN (:...roomIds)", { roomIds: filter.roomIds });
+    if (filter.roomIds) query = query.andWhere(`${roomColumn} IN (:...roomIds)`, { roomIds: filter.roomIds });
     if (filter.tenantIds) query = query.andWhere("c.tenant_id IN (:...tenantIds)", { tenantIds: filter.tenantIds });
     const rows: Array<{ roomId: number | string; tenantId: number | string }> = await query.getRawMany();
     return new Set(rows.map((row) => brokerAppointmentKey(Number(row.roomId), Number(row.tenantId))));
   }
 
-  private async hasBrokerAppointment(agentId: number, roomId: number, tenantId: number, manager?: EntityManager) {
-    const found = await this.activeBrokerAppointments(agentId, { roomIds: [roomId], tenantIds: [tenantId] }, manager);
-    return found.has(brokerAppointmentKey(roomId, tenantId));
+  /** `room` is the contract's room (contractRoom): a self owner room matches appointments on self_owner_room_id. */
+  private async hasBrokerAppointment(
+    agentId: number,
+    room: Pick<ContractRoom, "source" | "roomId">,
+    tenantId: number,
+    manager?: EntityManager,
+  ) {
+    const found = await this.activeBrokerAppointments(
+      agentId, { roomIds: [room.roomId], tenantIds: [tenantId], source: room.source }, manager);
+    return found.has(brokerAppointmentKey(room.roomId, tenantId));
   }
 
   /**
@@ -540,9 +549,9 @@ export class AgentContractsService {
    */
   private async assertReservationAppointment(c: LeaseContractEntity) {
     if ((c.template?.form_kind ?? c.agreement_type?.form_kind) !== "reservation") return;
-    // signAsParty reaches this: a self owner contract has no agent, so no broker appointment to require.
-    if (c.rent_room_id === null) return;
-    if (!(await this.hasBrokerAppointment(c.created_by_user_id, c.rent_room_id, c.tenant_id)))
+    // Same rule for a self owner room (signAsParty reaches this): the creator's active appointment of that room and tenant.
+    const room = contractRoom(c);
+    if (!room || !(await this.hasBrokerAppointment(c.created_by_user_id, room, c.tenant_id)))
       throw new BadRequestException({ code: "BROKER_APPOINTMENT_REQUIRED", message: BROKER_APPOINTMENT_REQUIRED });
   }
 
@@ -679,16 +688,29 @@ export class AgentContractsService {
       .createQueryBuilder("c")
       .leftJoinAndSelect("c.rent_room", "room")
       .leftJoinAndSelect("room.property", "property")
+      // Self owner contracts: the room's owner is the landlord party (partiesFor, listForUser).
+      .leftJoinAndSelect("c.self_owner_room", "selfOwnerRoom")
+      .leftJoinAndSelect("selfOwnerRoom.property", "selfOwnerProperty")
       .leftJoinAndSelect("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.template", "template")
       .leftJoinAndSelect("c.tenant", "tenant")
       .leftJoinAndSelect("c.end_reason", "endReason");
     return withCancelled ? query.where("TRUE") : query.where("c.status <> 'cancelled'");
   }
+  /**
+   * The sides this user holds on a contract loaded by inboxQuery. Every party endpoint gates on it (contractForParty,
+   * documentForParty, signAsParty, listForUser). On a self owner contract the owner side also needs the room to be
+   * the user's (self_owner_rooms.owner_user_id), so owner_user_id alone never opens someone else's room.
+   */
   private partiesFor(userId: number, c: LeaseContractEntity) {
     const parties: ContractParty[] = [];
     if (c.tenant?.user_id === userId && c.tenant_delivered_at) parties.push("tenant");
-    if (c.owner_user_id === userId && c.owner_delivered_at) parties.push("owner");
+    if (
+      c.owner_user_id === userId &&
+      c.owner_delivered_at &&
+      (c.self_owner_room_id == null || c.self_owner_room?.owner_user_id === userId)
+    )
+      parties.push("owner");
     return parties;
   }
   private reservationDocument(c: LeaseContractEntity) {
@@ -856,12 +878,14 @@ export class AgentContractsService {
       (path && signed.get(path)) || null;
     const financial = c.data?.financialDocuments as Partial<Record<string, FinancialDocumentInput>> | undefined;
     const payment = c.data?.reservationPayment as { slipPath?: string; submittedAt?: string; returnNote?: string } | undefined;
+    const room = contractRoom(c);
     return {
       id: c.id,
       tenantId: c.tenant_id,
       leadId: c.lead_id,
       // D2 round 2: the deal's room, so the contract screen finds the deal's offer.
       rentRoomId: c.rent_room_id ?? null,
+      selfOwnerRoomId: c.self_owner_room_id ?? null,
       contractNo: c.contract_no || `EC-${c.id}`,
       templateId: c.template_id ?? null,
       templateVersion: c.template?.version ?? null,
@@ -869,12 +893,9 @@ export class AgentContractsService {
       previousAgreementId: c.previous_agreement_id ?? null,
       rootAgreementId: c.root_agreement_id ?? c.id,
       data: c.data ?? {},
-      property:
-        (c.party_snapshot?.property as string) ||
-        c.rent_room?.property?.name ||
-        c.rent_room?.listing_title ||
-        "ไม่ระบุโครงการ",
-      room: (c.party_snapshot?.room as string) || c.rent_room?.room_id || null,
+      // The snapshot taken when the contract was made wins; the room (agent or self owner) is the fallback.
+      property: (c.party_snapshot?.property as string) || room?.property || NO_PROPERTY,
+      room: (c.party_snapshot?.room as string) || room?.roomNumber || null,
       tenant:
         (c.party_snapshot?.tenantName as string) ||
         c.tenant?.name ||
@@ -2996,7 +3017,8 @@ export class AgentContractsService {
     // Step 28 (B3, D5): a cancelled deal stays in the parties' list with who caused it and the money (forParty).
     const rows = await this.inboxQuery(true)
       .andWhere(
-        `((tenant.user_id = :userId AND c.tenant_delivered_at IS NOT NULL) OR (c.owner_user_id = :userId AND c.owner_delivered_at IS NOT NULL))`,
+        // Same sides as partiesFor: the owner side of a self owner contract needs the room to be the user's.
+        `((tenant.user_id = :userId AND c.tenant_delivered_at IS NOT NULL) OR (c.owner_user_id = :userId AND c.owner_delivered_at IS NOT NULL AND (c.self_owner_room_id IS NULL OR selfOwnerRoom.owner_user_id = :userId)))`,
         { userId },
       )
       .orderBy("c.id", "DESC")
@@ -3738,7 +3760,7 @@ export class AgentContractsService {
       const lead = await this.db.getRepository(LeadEntity).findOneBy({ id: b.leadId, created_by_user_id: agentId });
       if (!lead) throw new NotFoundException("ไม่พบผู้เช่า");
       // A lead without a room or tenant is refused inside the transaction (and reservationDefaults 404s before any login).
-      if (lead.rent_room_id != null && lead.tenant_id != null && !(await this.hasBrokerAppointment(agentId, lead.rent_room_id, lead.tenant_id)))
+      if (lead.rent_room_id != null && lead.tenant_id != null && !(await this.hasBrokerAppointment(agentId, { source: "agent", roomId: lead.rent_room_id }, lead.tenant_id)))
         throw new BadRequestException({ code: "BROKER_APPOINTMENT_REQUIRED", message: BROKER_APPOINTMENT_REQUIRED });
     }
     const rawData =
@@ -3907,7 +3929,7 @@ export class AgentContractsService {
         throw new BadRequestException(
           "ต้องจองห้องและสร้างผู้เช่าจาก Lead ก่อนทำสัญญา",
         );
-      if (needsAppointment && !(await this.hasBrokerAppointment(agentId, lead.rent_room_id, lead.tenant_id, manager)))
+      if (needsAppointment && !(await this.hasBrokerAppointment(agentId, { source: "agent", roomId: lead.rent_room_id }, lead.tenant_id, manager)))
         throw new BadRequestException({ code: "BROKER_APPOINTMENT_REQUIRED", message: BROKER_APPOINTMENT_REQUIRED });
       const tenant = await manager.findOneBy(TenantEntity, {
         id: lead.tenant_id,
