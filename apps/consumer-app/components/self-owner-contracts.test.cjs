@@ -336,7 +336,7 @@ const servedOf = (c, i) => {
   };
 };
 const seeded = () => {
-  const { contracts } = planSelfOwnerContracts({ adminId: 5, ownerUserId: 9, tenantUserId: 7, rooms: seedRooms, today: TODAY });
+  const { contracts } = planSelfOwnerContracts({ adminId: 5, ownerUserId: 9, tenantUserId: 7, rooms: seedRooms, today: TODAY, withBills: false });
   const mapped = contracts.map((c, i) => [c, load().fromPartyContract(servedOf(c, i), TODAY)]);
   return (key) => mapped.find(([c]) => c.key === key)[1];
 };

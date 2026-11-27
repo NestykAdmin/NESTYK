@@ -753,6 +753,7 @@ export const th: TranslationSchema = {
     due: 'ยังไม่ถึงกำหนด',
     overdue: 'เลยกำหนด {n} วัน',
     filterOverdue: 'เลยกำหนด',
+    awaiting_review: 'รอยืนยัน',
     paidOn: 'จ่ายเมื่อ {date}',
     dueOn: 'ครบกำหนด {date}',
     month: 'เดือน',

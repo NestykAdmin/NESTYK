@@ -760,6 +760,8 @@ export interface TranslationSchema {
     overdue: string;
     /** Status filter word, no day count (Jom 25 Nov 2026). */
     filterOverdue: string;
+    /** Slip sent, not confirmed yet (self owner bills, 27 Nov 2026). */
+    awaiting_review: string;
     paidOn: string;
     dueOn: string;
     /** Month dropdown label; the arrows either side step one month (Jom 24 Nov 2026). */

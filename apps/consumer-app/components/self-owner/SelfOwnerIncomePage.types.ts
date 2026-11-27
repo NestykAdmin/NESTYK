@@ -1,7 +1,9 @@
-import type { SelfOwnerContract, SelfOwnerMonth, SelfOwnerRentFilter } from '../../lib/self-owner-contracts';
+import type { SelfOwnerContract, SelfOwnerMonth, SelfOwnerRent, SelfOwnerRentFilter } from '../../lib/self-owner-contracts';
 
 export type SelfOwnerIncomePageProps = {
   contracts: SelfOwnerContract[];
+  /** Rows of a month (real bills when signed in); the demo rows from `contracts` when left out. */
+  rowsFor?: (year: number, month: number) => SelfOwnerRent[];
   /** Months that can be shown, oldest first (the last is this month). */
   months: SelfOwnerMonth[];
   isDemoPreview: boolean;

@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import type { DashboardSectionStatus } from '@nestyk/feature-listing';
-import type { PartyContract } from '@nestyk/types';
+import type { PartyContract, TenantBill } from '@nestyk/types';
 import { createSelfOwnerRoomsDemo, type SelfOwnerRoom } from './self-owner-rooms';
 
 /**
@@ -70,7 +70,8 @@ export const isFulfilledReservation = (contract: SelfOwnerContract): boolean =>
 /** Leases and renewals carry rent, can end soon and are the room's current contract. */
 export const isRentContract = (contract: SelfOwnerContract): boolean => contract.kind === 'lease' || contract.kind === 'renewal';
 
-export type SelfOwnerRentState = 'paid' | 'due' | 'overdue';
+/** `awaiting_review`: the tenant sent a slip, NESTYK has not confirmed it yet (Jom 27 Nov 2026). */
+export type SelfOwnerRentState = 'paid' | 'awaiting_review' | 'due' | 'overdue';
 
 export type SelfOwnerRent = {
   id: string;
@@ -82,17 +83,17 @@ export type SelfOwnerRent = {
   state: SelfOwnerRentState;
   /** YYYY-MM-DD */
   dueDate: string;
-  /** YYYY-MM-DD; only when paid. */
+  /** YYYY-MM-DD; when paid, or when the slip went in (awaiting review): the day the tenant sent the slip. */
   paidAt?: string;
   overdueDays?: number;
 };
 
 /** Income status filter (Jom 25 Nov 2026): overdue first, the rooms to chase. */
 export type SelfOwnerRentFilter = 'all' | SelfOwnerRentState;
-export const SELF_OWNER_RENT_FILTERS: SelfOwnerRentFilter[] = ['all', 'overdue', 'due', 'paid'];
+export const SELF_OWNER_RENT_FILTERS: SelfOwnerRentFilter[] = ['all', 'overdue', 'awaiting_review', 'due', 'paid'];
 
 export function countSelfOwnerRent(rows: SelfOwnerRent[]): Record<SelfOwnerRentFilter, number> {
-  const counts: Record<SelfOwnerRentFilter, number> = { all: rows.length, overdue: 0, due: 0, paid: 0 };
+  const counts: Record<SelfOwnerRentFilter, number> = { all: rows.length, overdue: 0, awaiting_review: 0, due: 0, paid: 0 };
   for (const row of rows) counts[row.state] += 1;
   return counts;
 }
@@ -571,10 +572,134 @@ export function useSelfOwnerContracts(): { status: DashboardSectionStatus; isDem
 }
 
 /** The owner's rent income: the contracts and the months that can be shown (demo for now). */
-export function useSelfOwnerIncome(): { status: 'demo'; isDemoPreview: true; contracts: SelfOwnerContract[]; months: SelfOwnerMonth[] } {
+// ---- Income on real bills (plan 2026-11-27-self-owner-bills-api, Task 4) ----
+
+const isSelfOwnerBill = (b: TenantBill) => b.selfOwnerRoomId != null;
+
+/**
+ * The owner's rows of one month from GET /bills/received (bills of self owner rooms only). The paid date is the day
+ * the tenant sent the slip (Jom 27 Nov 2026), else the confirmation day; a sent slip waits as "awaiting review"
+ * whatever the due date; overdue counts days from the due date.
+ */
+export function rentRowsFromBills(bills: TenantBill[], year: number, month: number, today: string): SelfOwnerRent[] {
+  const period = `${year}-${pad(month)}`;
+  return bills
+    .filter((b) => isSelfOwnerBill(b) && b.period === period)
+    .map((b) => {
+      const base = { id: `b-${b.id}`, roomTitle: b.room || b.property, project: b.property, tenantName: b.tenantName, amount: b.amount, dueDate: b.dueDate };
+      const slipDay = b.slipSubmittedAt ? bangkokDay(b.slipSubmittedAt) : undefined;
+      if (b.status === 'paid') return { ...base, state: 'paid' as const, paidAt: slipDay ?? (b.paidAt ? bangkokDay(b.paidAt) : undefined) };
+      if (b.awaitingReview) return { ...base, state: 'awaiting_review' as const, paidAt: slipDay };
+      if (b.status === 'overdue' || b.dueDate < today) return { ...base, state: 'overdue' as const, overdueDays: Math.max(0, daysBetween(b.dueDate, today)) };
+      return { ...base, state: 'due' as const };
+    });
+}
+
+/** Months with bills of self owner rooms, from the oldest period to this month (never after it); this month alone when none. */
+export function incomeMonthsFromBills(bills: TenantBill[], now: Date = new Date()): SelfOwnerMonth[] {
+  const [thisYear, thisMonth] = bangkokToday(now).split('-').map(Number);
+  const last = thisYear * 12 + thisMonth - 1;
+  const periods = bills.filter(isSelfOwnerBill).map((b) => b.period).sort();
+  const [y, m] = (periods[0] ?? `${thisYear}-${pad(thisMonth)}`).split('-').map(Number);
+  const months: SelfOwnerMonth[] = [];
+  for (let index = Math.min(y * 12 + m - 1, last); index <= last; index++) months.push({ year: Math.floor(index / 12), month: (index % 12) + 1 });
+  return months;
+}
+
+/** What the income store needs from the API (lib/self-owner-income-api.ts). */
+export interface SelfOwnerIncomeBackend {
+  /** POST /bills/received/refresh: issues the bills due today; its failure does not stop the list. */
+  refresh(): Promise<unknown>;
+  /** GET /bills/received */
+  list(): Promise<TenantBill[]>;
+}
+
+type IncomeStoreState = { source: 'demo' | 'api'; status: DashboardSectionStatus; bills: TenantBill[] };
+
+function createIncomeStore() {
+  let state: IncomeStoreState = { source: 'demo', status: 'demo', bills: [] };
+  let backend: SelfOwnerIncomeBackend | null = null;
+  let accountKey: string | null = null;
+  let loadId = 0;
+  const listeners = new Set<() => void>();
+  const set = (next: Partial<IncomeStoreState>) => {
+    state = { ...state, ...next };
+    listeners.forEach((listener) => listener());
+  };
+  const load = async (): Promise<void> => {
+    const source = backend;
+    if (!source) return;
+    const id = ++loadId;
+    await source.refresh().catch(() => undefined);
+    try {
+      const bills = await source.list();
+      if (id !== loadId || backend !== source) return;
+      set({ status: 'available', bills });
+    } catch {
+      if (id !== loadId || backend !== source) return;
+      set({ status: 'error' });
+    }
+  };
+  return {
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getState: (): IncomeStoreState => state,
+    /** Use the API for this account; the same account again is a no-op, another account loads its own bills. */
+    connect(next: SelfOwnerIncomeBackend, account: string): void {
+      if (backend === next && accountKey === account) return;
+      backend = next;
+      accountKey = account;
+      loadId++;
+      set({ source: 'api', status: 'loading', bills: [] });
+      void load();
+    },
+    /** Load again (retry, pull to refresh); nothing to do on the demo. */
+    refresh: (): Promise<void> => load(),
+    /** Signed out: back to the demo. */
+    disconnect(): void {
+      backend = null;
+      accountKey = null;
+      loadId++;
+      set({ source: 'demo', status: 'demo', bills: [] });
+    },
+  };
+}
+
+export const selfOwnerIncomeStore = createIncomeStore();
+
+/**
+ * The owner's rent income. Signed in: bills of their self owner rooms from the API; otherwise the demo contracts.
+ * `rowsFor(year, month)` gives the rows of a month; `months` the months that can be shown, oldest first.
+ */
+export function useSelfOwnerIncome(): {
+  status: DashboardSectionStatus;
+  isDemoPreview: boolean;
+  contracts: SelfOwnerContract[];
+  months: SelfOwnerMonth[];
+  rowsFor: (year: number, month: number) => SelfOwnerRent[];
+} {
+  const state = useSyncExternalStore(selfOwnerIncomeStore.subscribe, selfOwnerIncomeStore.getState, selfOwnerIncomeStore.getState);
   return useMemo(() => {
     const now = new Date();
+    if (state.source === 'api') {
+      const today = bangkokToday(now);
+      return {
+        status: state.status,
+        isDemoPreview: false,
+        contracts: [],
+        months: incomeMonthsFromBills(state.bills, now),
+        rowsFor: (year: number, month: number) => rentRowsFromBills(state.bills, year, month, today),
+      };
+    }
     const contracts = createSelfOwnerContractsDemo(now);
-    return { status: 'demo' as const, isDemoPreview: true as const, contracts, months: selfOwnerIncomeMonths(contracts, now) };
-  }, []);
+    return {
+      status: 'demo' as const,
+      isDemoPreview: true,
+      contracts,
+      months: selfOwnerIncomeMonths(contracts, now),
+      rowsFor: (year: number, month: number) => selfOwnerRentForMonth(contracts, year, month, now),
+    };
+  }, [state]);
 }

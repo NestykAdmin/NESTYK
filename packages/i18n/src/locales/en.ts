@@ -753,6 +753,7 @@ export const en: TranslationSchema = {
     due: 'Not due yet',
     overdue: '{n} days overdue',
     filterOverdue: 'Overdue',
+    awaiting_review: 'Awaiting confirmation',
     paidOn: 'Paid {date}',
     dueOn: 'Due {date}',
     month: 'Month',

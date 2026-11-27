@@ -753,6 +753,7 @@ export const ja: TranslationSchema = {
     due: '期日前',
     overdue: '{n} 日遅延',
     filterOverdue: '遅延',
+    awaiting_review: '確認待ち',
     paidOn: '{date} 支払済み',
     dueOn: '期日 {date}',
     month: '月',

@@ -22,7 +22,7 @@ import { MobileSkeletonCards } from './MobileSkeletonCards';
 import { MobileLoadError } from './MobileLoadError';
 import { SELF_OWNER_ROOMS_PAGE_SIZE, clampPage } from '../../lib/self-owner-rooms';
 
-const STATE_INTENT: Record<SelfOwnerRentState, StatusIntent> = { paid: 'done', due: 'neutral', overdue: 'crit' };
+const STATE_INTENT: Record<SelfOwnerRentState, StatusIntent> = { paid: 'done', awaiting_review: 'prog', due: 'neutral', overdue: 'crit' };
 const { subtle } = tokens.colors;
 
 function indexOf(months: SelfOwnerIncomePageProps['months'], month?: SelfOwnerIncomePageProps['initialMonth']): number {
@@ -34,7 +34,7 @@ function indexOf(months: SelfOwnerIncomePageProps['months'], month?: SelfOwnerIn
  * Self owner income on the phone (UI round, 24 Nov 2026, ClickUp z8rcteng6f): pick a month, see the total, received
  * and overdue rent, and which rooms paid. Read only; demo data, same rows as the Dashboard's rent section.
  */
-export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, initialMonth, now, initialFilter = 'all', initialPage = 1, status = 'demo', onRetry }: SelfOwnerIncomePageProps) {
+export function MobileSelfOwnerIncomeScreen({ contracts, rowsFor, months, isDemoPreview, initialMonth, now, initialFilter = 'all', initialPage = 1, status = 'demo', onRetry }: SelfOwnerIncomePageProps) {
   // Amounts, rows and month changes only once the rent is in (Jom 25 Nov 2026).
   const ready = status !== 'loading' && status !== 'error';
   const { t, locale } = useLocale();
@@ -56,8 +56,8 @@ export function MobileSelfOwnerIncomeScreen({ contracts, months, isDemoPreview, 
   };
   const shownMonth = months[index] ?? months[months.length - 1];
   const rows = useMemo(
-    () => (shownMonth ? selfOwnerRentForMonth(contracts, shownMonth.year, shownMonth.month, now) : []),
-    [contracts, shownMonth, now],
+    () => (shownMonth ? (rowsFor ? rowsFor(shownMonth.year, shownMonth.month) : selfOwnerRentForMonth(contracts, shownMonth.year, shownMonth.month, now)) : []),
+    [contracts, rowsFor, shownMonth, now],
   );
   // The summary adds up the whole month, whatever the filter; the list shows ten rows a page, like "my rooms" (Jom 25 Nov 2026).
   const sum = summarizeRent(rows);

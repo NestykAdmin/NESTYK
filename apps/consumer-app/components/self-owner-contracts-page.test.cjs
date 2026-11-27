@@ -611,7 +611,7 @@ const incomeRowsOf = (t) => t.filter(n => n?.type === 'tr' && String(n.props['da
 test('income status filter: counts every state; a filter keeps only that state', () => {
   const rows = lib().selfOwnerRentForMonth(contracts(), 2026, 11, now);
   const counts = lib().countSelfOwnerRent(rows);
-  assert.deepEqual(lib().SELF_OWNER_RENT_FILTERS, ['all', 'overdue', 'due', 'paid']);
+  assert.deepEqual(lib().SELF_OWNER_RENT_FILTERS, ['all', 'overdue', 'awaiting_review', 'due', 'paid']);
   assert.equal(counts.all, rows.length);
   for (const state of ['paid', 'due', 'overdue']) {
     assert.equal(counts[state], rows.filter(r => r.state === state).length, state);
@@ -631,10 +631,11 @@ test('web income: status dropdown with counts narrows the rows; the summary stil
   const optionsOf = (t) => nodes(select(t).props.children).filter(n => n?.type === 'option');
   const tree = incomeWeb();
   assert.equal(select(tree).props.value, 'all');
-  assert.deepEqual(optionsOf(tree).map(o => o.props.value), ['all', 'overdue', 'due', 'paid']);
+  assert.deepEqual(optionsOf(tree).map(o => o.props.value), ['all', 'overdue', 'awaiting_review', 'due', 'paid']);
   assert.deepEqual(optionsOf(tree).map(label), [
     `${rooms.filterLabel}: ${rooms.filterAll} (${counts.all})`,
     `${inc.filterOverdue} (${counts.overdue})`,
+    `${inc.awaiting_review} (${counts.awaiting_review})`,
     `${inc.due} (${counts.due})`,
     `${inc.paid} (${counts.paid})`,
   ]);
@@ -660,11 +661,12 @@ test('phone income: status chips with counts narrow the cards; no match shows cl
   const counts = lib().countSelfOwnerRent(rows);
   const tree = incomePhone();
   const chips = byTestId(tree, 'soi-filter-');
-  assert.deepEqual(chips.map(c => c.props.testID), ['soi-filter-all', 'soi-filter-overdue', 'soi-filter-due', 'soi-filter-paid']);
-  assert.deepEqual(chips.map(c => c.props.accessibilityState.selected), [true, false, false, false]);
+  assert.deepEqual(chips.map(c => c.props.testID), ['soi-filter-all', 'soi-filter-overdue', 'soi-filter-awaiting_review', 'soi-filter-due', 'soi-filter-paid']);
+  assert.deepEqual(chips.map(c => c.props.accessibilityState.selected), [true, false, false, false, false]);
   assert.deepEqual(chips.map(c => texts(nodes(c.props.children))), [
     [rooms.filterAll, String(counts.all)],
     [inc.filterOverdue, String(counts.overdue)],
+    [inc.awaiting_review, String(counts.awaiting_review)],
     [inc.due, String(counts.due)],
     [inc.paid, String(counts.paid)],
   ]);
@@ -677,7 +679,7 @@ test('phone income: status chips with counts narrow the cards; no match shows cl
   assert.ok(!texts(none).includes(inc.empty));
   assert.equal(byTestId(none, 'soi-clear').length, 1);
   // While loading the chips show no counts.
-  assert.deepEqual(byTestId(incomePhone({ status: 'loading' }), 'soi-filter-').map(c => texts(nodes(c.props.children)).length), [1, 1, 1, 1]);
+  assert.deepEqual(byTestId(incomePhone({ status: 'loading' }), 'soi-filter-').map(c => texts(nodes(c.props.children)).length), [1, 1, 1, 1, 1]);
 });
 
 test('income filter copy: "overdue" without a day count, in every locale', () => {

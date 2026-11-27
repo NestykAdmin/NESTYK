@@ -57,7 +57,8 @@ import { countByTab } from '../lib/admin-viewing-requests';
 import { useAgentDashboard } from '../lib/agent-dashboard';
 import { useSelfOwnerDashboard } from '../lib/self-owner-dashboard';
 import { selfOwnerRoomStore, useSelfOwnerRooms } from '../lib/self-owner-rooms';
-import { selfOwnerContractStore, useSelfOwnerContracts, useSelfOwnerIncome } from '../lib/self-owner-contracts';
+import { selfOwnerContractStore, selfOwnerIncomeStore, useSelfOwnerContracts, useSelfOwnerIncome } from '../lib/self-owner-contracts';
+import { selfOwnerIncomeApi } from '../lib/self-owner-income-api';
 import { selfOwnerContractsApi } from '../lib/self-owner-contracts-api';
 import { selfOwnerRoomsApi } from '../lib/self-owner-rooms-api';
 import { SelfOwnerListingEditor } from '../components/self-owner/SelfOwnerListingEditor';
@@ -1138,6 +1139,8 @@ export function AppHomeScreen() {
     else if (!isAuthenticated) selfOwnerRoomStore.disconnect();
     if (selfOwnerAccount != null) selfOwnerContractStore.connect(selfOwnerContractsApi, String(selfOwnerAccount));
     else if (!isAuthenticated) selfOwnerContractStore.disconnect();
+    if (selfOwnerAccount != null) selfOwnerIncomeStore.connect(selfOwnerIncomeApi, String(selfOwnerAccount));
+    else if (!isAuthenticated) selfOwnerIncomeStore.disconnect();
   }, [selfOwnerAccount, isAuthenticated]);
   const selfOwnerRooms = useSelfOwnerRooms();
   // Contracts and income are read only and demo until NESTYK admin creates contracts (Jom 24 Nov 2026).
@@ -1350,10 +1353,10 @@ export function AppHomeScreen() {
     if (activeRole === 'self_owner' && activeTab === 'income') {
       // Read-only rent income (24 Nov 2026, ClickUp z8rcteng6f): which rooms paid this month; same rows as the Dashboard.
       return isSelfOwnerWeb ? (
-        <SelfOwnerIncomePage contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} status={selfOwnerIncome.status} />
+        <SelfOwnerIncomePage contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} rowsFor={selfOwnerIncome.rowsFor} isDemoPreview={selfOwnerIncome.isDemoPreview} status={selfOwnerIncome.status === 'available' || selfOwnerIncome.status === 'not_configured' ? 'ready' : selfOwnerIncome.status} onRetry={() => void selfOwnerIncomeStore.refresh()} />
       ) : (
         <View style={styles.bodyContainer}>
-          <MobileSelfOwnerIncomeScreen contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} isDemoPreview={selfOwnerIncome.isDemoPreview} status={selfOwnerIncome.status} />
+          <MobileSelfOwnerIncomeScreen contracts={selfOwnerIncome.contracts} months={selfOwnerIncome.months} rowsFor={selfOwnerIncome.rowsFor} isDemoPreview={selfOwnerIncome.isDemoPreview} status={selfOwnerIncome.status === 'available' || selfOwnerIncome.status === 'not_configured' ? 'ready' : selfOwnerIncome.status} onRetry={() => void selfOwnerIncomeStore.refresh()} />
         </View>
       );
     }
