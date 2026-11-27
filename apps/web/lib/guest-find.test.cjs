@@ -22,7 +22,7 @@ test('/find: a pick fills the box only; "ดูห้อง" and recent searches
   const pick = page.slice(page.indexOf('const pickLocation'), page.indexOf('const open = '));
   assert.equal(/router\.push/.test(pick), false, 'picking a place never leaves the page');
   assert.match(page, /const open = \(input: HomeSearchInput\) => \{\s*const next = addRecentSearch\(readRecent\(\), input\);\s*saveRecent\(next\);\s*router\.push\(homeSearchHref\(input\)\);/);
-  assert.match(page, /onClick=\{submit\} data-testid="find\.submit"/);
+  assert.match(page, /onClick=\{submit\}\s*disabled=\{!place\}[\s\S]*?data-testid="find\.submit"/);
   assert.match(page, /onClick=\{\(\) => open\(item\)\} data-testid="find\.recent"/);
   assert.match(page, /menuRole = 'radiogroup'/);
   assert.match(page, /menuRole=\{customPrice \? 'group' : 'radiogroup'\}/, 'the custom range is not a radio group (review R5)');
@@ -58,4 +58,36 @@ test('every language has the /find words', () => {
       assert.match(block, new RegExp(`\\n    ${key}: '[^']+',`), `${lang} ${key}`);
     }
   }
+});
+
+// Mos 27 Nov 2026: no search without a place. "ดูห้อง" waits for a place, the footer types open /find with the type,
+// and no link opens /search without a place (those now go home).
+test('/find: "ดูห้อง" is off until a place is picked, and a type from the address is chosen already', () => {
+  const page = read('app/components/guest/SearchStart.tsx');
+  assert.match(page, /disabled=\{!place\}/);
+  assert.match(page, /aria-describedby=\{place \? undefined : `\$\{id\}-need`\}/);
+  assert.match(page, /const submit = \(\) => \{\s*if \(!place\) \{\s*openPlaceBox\(`\$\{id\}-place`\);\s*return;\s*\}/);
+  assert.match(page, /setType\(findStartType\(window\.location\.search\)\)/);
+  assert.match(page, /picked=\{place !== null\}/);
+  assert.doesNotMatch(page, /kind === 'keyword'/);
+  assert.match(css, /\.nk-find__go:disabled \{/);
+  const panel = read('app/components/guest/SearchPanel.tsx');
+  assert.match(panel, /if \(!place\) \{\s*openPlaceBox\(`\$\{id\}-q`\);\s*return;\s*\}/, 'desktop "ค้นหา" without a place opens the place list');
+  assert.doesNotMatch(panel, /kind === 'keyword'|\{ keyword \}/);
+  assert.match(read('app/components/guest/GuestFooter.tsx'), /href: findHref\(type\)/);
+});
+
+test('no link opens /search without a place', () => {
+  for (const file of [
+    'app/components/guest/ViewingRequestsList.tsx',
+    'app/[locale]/(marketplace)/areas/page.tsx',
+    'app/[locale]/(marketplace)/rooms/[id]/page.tsx',
+    'app/[locale]/(marketplace)/rooms/[id]/not-found.tsx',
+    'app/components/guest/GuestFooter.tsx',
+  ]) {
+    assert.doesNotMatch(read(file), /['"`]\/search['"`?]/, file);
+  }
+  const room = read('app/[locale]/(marketplace)/rooms/[id]/page.tsx');
+  assert.match(room, /const nearbySearch = roomNearbySearch\(room\);/);
+  assert.doesNotMatch(room, /searchHref\(\{ keyword:/);
 });

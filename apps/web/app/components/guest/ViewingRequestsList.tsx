@@ -7,6 +7,7 @@ import { buildPublicRoomSpecs, formatPublicPrice } from '@nestyk/feature-listing
 import { Link } from '../../../i18n/navigation';
 import { roomDisplayTitle } from '../../../lib/guest-home';
 import { localePath } from '../../../lib/guest-site';
+import { onRefresh } from '../../../lib/guest-pull';
 import { guestSessionToken } from '../../../lib/guest-supabase';
 import {
   cancelViewingRequest,
@@ -67,6 +68,17 @@ export function ViewingRequestsList({ locale }: { locale: string }) {
     return () => controller.abort();
   }, [userId, load]);
 
+  // Pull to refresh in the app: the requests load again; a failed load keeps the list shown.
+  useEffect(() => {
+    if (!userId) return;
+    return onRefresh(window, async () => {
+      const auth = await guestSessionToken();
+      const requests = auth && auth.userId === userId ? await fetchMyViewingRequests(auth.token) : null;
+      if (requests) setList({ status: 'ready', requests });
+      return Boolean(requests);
+    });
+  }, [userId]);
+
   if (session.status === 'signedOut') {
     return (
       <section className="nk-card nk-empty" aria-labelledby="vr-gate-title" data-testid="viewingRequests.signIn">
@@ -116,7 +128,7 @@ export function ViewingRequestsList({ locale }: { locale: string }) {
         </h2>
         <p className="nk-empty__text">{copy.emptyBody}</p>
         <div className="nk-empty__actions">
-          <Link href="/search" className="nk-btn nk-btn--primary">
+          <Link href="/" className="nk-btn nk-btn--primary">
             {copy.browse}
           </Link>
         </div>
@@ -144,7 +156,7 @@ export function ViewingRequestsList({ locale }: { locale: string }) {
       ) : (
         <p className="nk-vr-list__none" data-testid="viewingRequests.noOpen">
           <span>{copy.noOpen}</span>
-          <Link href="/search" className="nk-btn nk-btn--outline nk-btn--sm">
+          <Link href="/" className="nk-btn nk-btn--outline nk-btn--sm">
             {copy.browse}
           </Link>
         </p>

@@ -3,6 +3,7 @@ import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, homeSearchHref, type HomeSearchIn
 /**
  * Recent searches of the mobile search page /find (Mos 25 Nov 2026, canvas page "searchnew"). Kept on this device only
  * (localStorage, RECENT_KEY), never sent anywhere; "near me" alone is not kept, so no position of the guest is stored.
+ * A search without a place (typed text, filters only) is not kept either (Mos 27 Nov 2026).
  * Pure rules: lib/guest-recent.test.cjs loads this file bare.
  */
 
@@ -34,7 +35,7 @@ function position(value: unknown): RecentSearch['nearGps'] {
     : undefined;
 }
 
-/** Only the known fields with sane values; null when nothing is left or only "near me" (no place name) remains. */
+/** Only the known fields with sane values; null without a place (an area, or a named place with its position). */
 function clean(value: unknown): RecentSearch | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
@@ -57,7 +58,7 @@ function clean(value: unknown): RecentSearch | null {
   if (minPrice !== undefined) out.minPrice = minPrice;
   if (maxPrice !== undefined) out.maxPrice = maxPrice;
   if (bedrooms) out.bedrooms = bedrooms;
-  return Object.keys(out).length ? out : null;
+  return out.area || out.nearGps ? out : null;
 }
 
 /** The list after a search: this one first, no repeats (same results link), at most RECENT_MAX. */

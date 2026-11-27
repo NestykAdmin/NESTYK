@@ -242,10 +242,12 @@ export interface GuestCopy {
   tabs: {
     label: string;
     home: string;
-    search: string;
+    /** Commute check (coming soon: shown, cannot be pressed). Design A, Mos 27 Nov 2026. */
+    commute: string;
     saved: string;
+    viewingRequests: string;
     profile: string;
-    /** In the app the 4th tab is "More" (step 2, design W, Mos 24 Nov 2026). */
+    /** In the app the last tab is "More" (step 2, design W, Mos 24 Nov 2026). */
     more: string;
   };
   /** Mobile search page /find (Mos 25 Nov 2026, canvas "searchnew" D2–D6): place, recent searches, dropdown filters. */
@@ -261,8 +263,18 @@ export interface GuestCopy {
     showRooms: string;
     /** Name of the filter summary row on /find while typing (screen readers), followed by the summary. */
     editFilters: string;
+    /** Under "ดูห้อง" while no place is picked (screen readers; the button is off until then, Mos 27 Nov 2026). */
+    needPlace: string;
   };
   /** The app-only top bar of the guest web inside the app (design W): avatar → app menu, bell → notifications. */
+  /** Pull to refresh in the app (Mos 25 Nov 2026, canvas "ptr"). */
+  pull: {
+    hint: string;
+    release: string;
+    loading: string;
+    done: string;
+    failed: string;
+  };
   appBar: {
     myMenu: string;
     notifications: string;
@@ -569,9 +581,9 @@ export interface GuestCopy {
     denied: string;
     unavailable: string;
     areasHeading: string;
-    /** "{text}": what was typed, searched as a free keyword. */
-    searchFor: string;
-    searchForHint: string;
+    /** "{text}": what was typed, when no station, area or place matches it (Mos 27 Nov 2026: text is not a place). */
+    noMatch: string;
+    noMatchHint: string;
     nearMeChip: string;
     /** Results heading of a "near me" search. */
     nearMeTitle: string;

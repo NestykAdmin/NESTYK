@@ -12,11 +12,11 @@ import { ListingTabs } from '../../components/guest/ListingTabs';
 import { PropertyTypeTiles } from '../../components/guest/PropertyTypeTiles';
 import { RoomCard } from '../../components/guest/RoomCard';
 import { SearchPanel } from '../../components/guest/SearchPanel';
-import { bangkokToday, HOME_RAILS, searchHrefIfReady } from '../../../lib/guest-home';
+import { bangkokToday, findHref, HOME_RAILS } from '../../../lib/guest-home';
 import { homeAreaGroups } from '../../../lib/guest-areas';
 import { loadHomeData } from '../../../lib/guest-rooms';
 import { guestPageMetadata } from '../../../lib/guest-seo';
-import { isGuestPageReady, localePath, NEAR_TRANSIT_READY } from '../../../lib/guest-site';
+import { localePath, NEAR_TRANSIT_READY } from '../../../lib/guest-site';
 import '../guest-areas.css';
 
 type Props = { params: Promise<{ locale: string }> };
@@ -78,8 +78,8 @@ export default async function HomePage({ params }: Props) {
   const { bangkok, province } = homeAreaGroups(areas ?? []);
   const areasHref = localePath(locale, '/areas');
   const today = bangkokToday();
-  const searchPath = searchHrefIfReady({}, isGuestPageReady('search'));
-  const searchHref = searchPath ? localePath(locale, searchPath) : null;
+  // A search needs a place (Mos 27 Nov 2026): links that know none open /find, where the guest picks one.
+  const searchHref = localePath(locale, findHref());
   const soon = copy.nav.comingSoon;
   const retry = { label: copy.states.retry, href: localePath(locale, '/') };
 

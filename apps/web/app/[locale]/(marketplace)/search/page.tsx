@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { getTranslations, type SupportedLocale } from '@nestyk/i18n';
 import { criteriaFromSearchParams } from '@nestyk/feature-search';
 import type { PublicRoomSearchResult } from '@nestyk/types';
@@ -16,6 +17,7 @@ import { loadSearchResults } from '../../../../lib/guest-rooms';
 import {
   activeFilterChips,
   firstLoad,
+  hasSearchPlace,
   normalizeSearchCriteria,
   searchHref,
   searchTitle,
@@ -40,11 +42,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 /**
  * Search results (S4.2, design v2.3 SearchWebV23; ≤ 960px SearchMobileV22 + SearchSheetV22).
  * The URL holds the whole search, so a link can be shared and the server renders the first rooms.
+ * A search always has a place (Mos 27 Nov 2026): without one the guest goes back to the home page, where it starts.
  */
 export default async function SearchPage({ params, searchParams }: Props) {
   const { locale } = await params;
   const t = getTranslations(locale as SupportedLocale).guest;
   const criteria = normalizeSearchCriteria(criteriaFromSearchParams(await searchParams));
+  if (!hasSearchPlace(criteria)) redirect(localePath(locale, '/'));
   const today = bangkokToday();
   const areaNames = t.areaNames as Record<string, string>;
   const title = searchTitle(criteria, {

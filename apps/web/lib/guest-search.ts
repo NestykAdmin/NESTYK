@@ -240,22 +240,30 @@ export function publicSearchUrl(query: PublicRoomSearchQuery): string {
   return `/api/public/rooms/search?${publicSearchParams(query).toString()}`;
 }
 
-/** Every filter off. The keyword and the order stay unless `keyword` is set ("ล้างตัวกรอง" on an empty result). */
+/**
+ * Whether the search has a place (Mos 27 Nov 2026): an area, a position (a picked place or station, "near me", a map
+ * area) or a station filter. Typed text and filters alone are not a place; the search page sends those home.
+ */
+export function hasSearchPlace(criteria: Pick<GuestSearchCriteria, 'area' | 'nearGps' | 'stationName'>): boolean {
+  return Boolean(criteria.area || criteria.nearGps || criteria.stationName);
+}
+
+/**
+ * Every filter off ("ล้างตัวกรอง"). The place and the order stay (a search always has a place); a station filter stays
+ * only when it is the place. The keyword of an old link stays unless `keyword` is set.
+ */
 export function clearedFilters(criteria: GuestSearchCriteria, options: { keyword?: boolean } = {}): GuestSearchCriteria {
+  const stationIsPlace = Boolean(criteria.stationName) && !criteria.area && !criteria.nearGps;
   return withFilters(criteria, {
     keyword: options.keyword ? undefined : criteria.keyword,
-    area: undefined,
     propertyType: undefined,
     minPrice: undefined,
     maxPrice: undefined,
     bedrooms: undefined,
     moveIn: undefined,
     quick: [],
-    stationType: undefined,
-    stationName: undefined,
-    nearGps: undefined,
-    placeName: undefined,
-    nearMap: undefined,
+    stationType: stationIsPlace ? criteria.stationType : undefined,
+    stationName: stationIsPlace ? criteria.stationName : undefined,
     durationMonths: undefined,
   });
 }

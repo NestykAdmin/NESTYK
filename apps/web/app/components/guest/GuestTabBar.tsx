@@ -4,21 +4,23 @@ import React from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { Link, usePathname } from '../../../i18n/navigation';
 import { activeTabKey, GUEST_TABS, isGuestPageReady, showsTabBar, type GuestTabKey } from '../../../lib/guest-site';
-import { HeartIcon, HomeIcon, MoreIcon, SearchIcon, UserIcon } from './GuestIcons';
+import { CalendarIcon, HeartIcon, HomeIcon, MoreIcon, RouteIcon, UserIcon } from './GuestIcons';
 import { roleStyle } from './GuestRole';
 import { useGuestSession } from './GuestSession';
 
 const ICONS: Record<GuestTabKey, React.ComponentType<{ size?: number }>> = {
   home: HomeIcon,
-  search: SearchIcon,
+  commute: RouteIcon,
   saved: HeartIcon,
+  viewingRequests: CalendarIcon,
   profile: UserIcon,
 };
 
 /**
- * Bottom tab bar of the mobile web (S2.4), the same 4 tabs as the app. Shown at 960px and below (guest.css).
- * A tab whose page is not built yet is dimmed and cannot be pressed.
- * Inside the NESTYK app the 4th tab reads "More" (guest.css swaps .nk-web-only / .nk-app-only by html[data-nk-app]).
+ * Bottom tab bar of the mobile web and the app (S2.4; design A, Mos 27 Nov 2026): หน้าแรก · เดินทาง · รายการโปรด ·
+ * นัดดูห้อง · โปรไฟล์. Shown at 960px and below (guest.css). A tab whose page is not built yet is dimmed, carries a
+ * "เร็ว ๆ นี้" pill and cannot be pressed. Inside the NESTYK app the last tab reads "More" (guest.css swaps
+ * .nk-web-only / .nk-app-only by html[data-nk-app]).
  */
 export function GuestTabBar() {
   const { t } = useLocale();
@@ -49,7 +51,7 @@ export function GuestTabBar() {
             {label}
           </>
         );
-        // Inside the app the 4th tab is "More" (step 2, design W): the account is the app bar's avatar there.
+        // Inside the app the last tab is "More" (step 2, design W): the account is the app bar's avatar there.
         const content =
           tab.key === 'profile' ? (
             <>
@@ -73,6 +75,9 @@ export function GuestTabBar() {
               aria-label={fillTemplate(t.guest.nav.soonItem, { label })}
               data-testid={`guest.tab.${tab.key}`}
             >
+              <span className="nk-tab__soon" aria-hidden="true">
+                {t.guest.nav.comingSoon}
+              </span>
               {content}
             </span>
           );

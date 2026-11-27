@@ -2,8 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 import type { TranslationSchema } from '@nestyk/i18n';
 import type { PropertyType } from '@nestyk/types';
-import { HOME_PROPERTY_TYPES, searchHrefIfReady } from '../../../lib/guest-home';
-import { isGuestPageReady, localePath } from '../../../lib/guest-site';
+import { findHref, HOME_PROPERTY_TYPES } from '../../../lib/guest-home';
+import { localePath } from '../../../lib/guest-site';
 import { ApartmentIcon, CondoIcon, HouseIcon, TownhomeIcon } from './GuestIcons';
 
 type GuestCopy = TranslationSchema['guest'];
@@ -42,8 +42,8 @@ export function PropertyTypeTiles({ copy, locale, variant }: { copy: GuestCopy; 
             </span>
           </>
         );
-        // Townhome has no rooms yet; every type waits for the search page (S4.2, R4).
-        const href = SOON.includes(type) ? null : searchHrefIfReady({ type }, isGuestPageReady('search'));
+        // Townhome has no rooms yet. A type is not a place: /find opens with the type chosen (Mos 27 Nov 2026).
+        const href = SOON.includes(type) ? null : findHref(type);
         if (!href) {
           return (
             <span key={type} className="nk-types__item nk-types__item--soon">

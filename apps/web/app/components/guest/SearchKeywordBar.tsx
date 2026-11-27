@@ -6,14 +6,12 @@ import type { GuestSearchCriteria } from '@nestyk/feature-search';
 import { locationLabel, locationPatch, type LocationChoice, type LocationLabelKind } from '../../../lib/guest-location';
 import { shownQuickFilters } from '../../../lib/guest-site';
 import { ChevronRightIcon, CloseIcon, LocateIcon, MapIcon, PinIcon, SearchIcon, TrainIcon } from './GuestIcons';
-import { LocationCombobox } from './LocationCombobox';
+import { LocationCombobox, openPlaceBox } from './LocationCombobox';
 import { SearchFilterSheet } from './SearchFilterSheet';
 import { useSearchNavigation } from './SearchNavigation';
 
 type QuickChip = 'nearTransit' | 'moveInReady' | 'petFriendly' | 'shortTerm';
 const QUICK_CHIPS: readonly QuickChip[] = ['nearTransit', 'moveInReady', 'petFriendly', 'shortTerm'];
-/** New text in the box replaces the place the box showed (Mos 20 Nov 2026). */
-const NO_PLACE = { area: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined } as const;
 /** Icon at the left of the box for what the search is about (station, place, near me, area, keyword). */
 const LABEL_ICON: Record<LocationLabelKind, typeof SearchIcon> = {
   station: TrainIcon,
@@ -66,20 +64,20 @@ export function SearchKeywordBar({
   const [text, setText] = useState(label.text);
   // A new search from elsewhere (a chip, Back) shows its own label.
   useEffect(() => setText(label.text), [label.text]);
+  // A search always keeps a place (Mos 27 Nov 2026): typed text never replaces it, a new pick does.
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // The label unchanged keeps the current search; a station must not turn into the keyword "MRT ไฟฉาย".
-    if (text === label.text) return;
-    update({ ...locationPatch({ kind: 'keyword', text }), ...NO_PLACE });
+    // The label unchanged keeps the current search; other text needs a pick from the list first.
+    if (text !== label.text) openPlaceBox(`${id}-q`);
   };
+  // ✕ empties the box and opens the list; the search keeps its place until a new one is picked.
   const clear = () => {
     setText('');
-    if (label.kind !== 'none') update({ keyword: undefined, ...NO_PLACE });
+    openPlaceBox(`${id}-q`);
   };
   const LeadIcon = text === label.text ? LABEL_ICON[label.kind] : SearchIcon;
-  // A station, place, area or "near me" replaces the search's place; a keyword from the box replaces it too.
-  const pickLocation = (choice: LocationChoice) =>
-    update(choice.kind === 'keyword' ? { ...locationPatch(choice), ...NO_PLACE } : locationPatch(choice));
+  // A station, place, area or "near me" replaces the search's place.
+  const pickLocation = (choice: LocationChoice) => update(locationPatch(choice));
 
   const onMap = variant === 'map';
   const tid = onMap ? 'searchMap' : 'searchPage';
@@ -102,6 +100,7 @@ export function SearchKeywordBar({
             value={text}
             onValueChange={setText}
             onPick={pickLocation}
+            picked={text === label.text && label.kind !== 'none'}
             placeholder={copy.search.keywordPlaceholder}
             inputClassName="nk-input nk-input--icon nk-input--clearable"
             testId={`${tid}.keyword`}

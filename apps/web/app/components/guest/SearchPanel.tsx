@@ -9,7 +9,7 @@ import { locationPatch, type LocationChoice } from '../../../lib/guest-location'
 import { FIND_FROM_SITE } from '../../../lib/guest-recent';
 import { isGuestPageReady, shownQuickFilters } from '../../../lib/guest-site';
 import { SearchIcon } from './GuestIcons';
-import { LocationCombobox } from './LocationCombobox';
+import { LocationCombobox, openPlaceBox } from './LocationCombobox';
 import { PricePopover } from './PricePopover';
 import type { Price } from './PriceRangeField';
 
@@ -24,8 +24,8 @@ export function SearchPanel() {
   const router = useRouter();
   const id = useId();
   const [keyword, setKeyword] = useState('');
-  // An area or "near me" picked in the keyword box; typing again turns the box back into a plain keyword.
-  const [place, setPlace] = useState<Exclude<LocationChoice, { kind: 'keyword' }> | null>(null);
+  // The place picked in the box; typing again clears it. A search needs one (Mos 27 Nov 2026).
+  const [place, setPlace] = useState<LocationChoice | null>(null);
   const submitRef = useRef<HTMLButtonElement>(null);
   const [type, setType] = useState('');
   const [price, setPrice] = useState<Price>({ minPrice: undefined, maxPrice: undefined });
@@ -49,14 +49,14 @@ export function SearchPanel() {
   };
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    go(place ? locationPatch(place) : { keyword });
-  };
-  const pickLocation = (choice: LocationChoice) => {
-    if (choice.kind === 'keyword') {
-      setPlace(null);
-      go({ keyword: choice.text });
+    // No place yet: "ค้นหา" opens the place list instead of a search without one.
+    if (!place) {
+      openPlaceBox(`${id}-q`);
       return;
     }
+    go(locationPatch(place));
+  };
+  const pickLocation = (choice: LocationChoice) => {
     // Phones show only the keyword row (no search button), so a picked place searches at once; on wider screens it
     // fills the box and the other fields can still be set before "ค้นหา".
     if (!submitRef.current || submitRef.current.offsetParent === null) {
@@ -114,6 +114,7 @@ export function SearchPanel() {
                 setPlace(null);
               }}
               onPick={pickLocation}
+              picked={place !== null}
               placeholder={copy.search.keywordPlaceholder}
               inputClassName="nk-input nk-input--icon"
               testId="guestHome.searchKeyword"

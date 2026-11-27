@@ -11,19 +11,23 @@ const recent = require('./guest-recent.ts');
 const sukhumvit = { area: 'sukhumvit', type: 'condo', minPrice: 10000, maxPrice: 20000, bedrooms: 'one' };
 
 test('a new search goes first, the same search is not kept twice, at most 5', () => {
+  const asok = { placeName: 'BTS อโศก', nearGps: { latitude: 13.7371, longitude: 100.5605, radiusKm: 1.5 } };
   let list = [];
-  list = recent.addRecentSearch(list, { keyword: 'อโศก' });
+  list = recent.addRecentSearch(list, asok);
   list = recent.addRecentSearch(list, sukhumvit);
-  assert.deepEqual(list.map((item) => item.area ?? item.keyword), ['sukhumvit', 'อโศก']);
-  list = recent.addRecentSearch(list, { keyword: '  อโศก ' });
-  assert.deepEqual(list.map((item) => item.area ?? item.keyword), ['อโศก', 'sukhumvit'], 'the same search moves to the top');
-  for (let i = 0; i < 7; i += 1) list = recent.addRecentSearch(list, { keyword: `k${i}` });
+  assert.deepEqual(list.map((item) => item.area ?? item.placeName), ['sukhumvit', 'BTS อโศก']);
+  list = recent.addRecentSearch(list, { ...asok, placeName: ' BTS อโศก ' });
+  assert.deepEqual(list.map((item) => item.area ?? item.placeName), ['BTS อโศก', 'sukhumvit'], 'the same search moves to the top');
+  for (let i = 0; i < 7; i += 1) list = recent.addRecentSearch(list, { area: `a${i}` });
   assert.equal(list.length, recent.RECENT_MAX);
   assert.equal(recent.RECENT_MAX, 5);
 });
 
-test('nothing chosen, or only "near me", is not kept (no position of the guest is stored)', () => {
+// Mos 27 Nov 2026: a search always has a place, so a recent search without one (typed text, filters only) is not kept.
+test('nothing chosen, no place, or only "near me", is not kept (no position of the guest is stored)', () => {
   assert.deepEqual(recent.addRecentSearch([], {}), []);
+  assert.deepEqual(recent.addRecentSearch([], { keyword: 'อโศก' }), [], 'typed text is not a place');
+  assert.deepEqual(recent.addRecentSearch([], { type: 'condo', bedrooms: 'one' }), [], 'filters without a place');
   assert.deepEqual(recent.addRecentSearch([], { nearGps: { latitude: 13.7, longitude: 100.5, radiusKm: 5 } }), []);
   assert.deepEqual(recent.addRecentSearch([], { nearGps: { latitude: 13.7, longitude: 100.5, radiusKm: 5 }, type: 'condo' }), [], 'near me + filters: not kept as a different search (review R7)');
   const station = { nearGps: { latitude: 13.7466, longitude: 100.5393, radiusKm: 1 }, placeName: 'BTS อโศก' };
@@ -36,16 +40,17 @@ test('what is read back from the device is checked: bad entries and fields are d
   const raw = JSON.stringify([
     sukhumvit,
     { keyword: 42 },
-    { type: 'castle', keyword: 'x' },
+    { type: 'castle', area: 'ari-phayathai' },
     { nearGps: { latitude: 'a', longitude: 1, radiusKm: 1 }, placeName: 'P' },
     null,
-    { keyword: 'y', extra: '<script>' },
+    { area: 'silom-sathorn', extra: '<script>' },
+    { keyword: 'สีลม', type: 'condo' },
   ]);
   const list = recent.parseRecentSearches(raw);
   assert.deepEqual(list[0], sukhumvit);
-  assert.deepEqual(list[1], { keyword: 'x' }, 'unknown type dropped, the rest kept');
-  assert.deepEqual(list[2], { keyword: 'y' }, 'unknown fields dropped');
-  assert.equal(list.length, 3);
+  assert.deepEqual(list[1], { area: 'ari-phayathai' }, 'unknown type dropped, the rest kept');
+  assert.deepEqual(list[2], { area: 'silom-sathorn' }, 'unknown fields dropped');
+  assert.equal(list.length, 3, 'an old entry without a place is dropped (Mos 27 Nov 2026)');
   assert.equal(recent.parseRecentSearches(JSON.stringify([sukhumvit, sukhumvit])).length, 1, 'repeats dropped (review R7)');
 });
 

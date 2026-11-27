@@ -58,8 +58,9 @@ test('only an in-site path becomes `next`; anything else leaves the link plain',
   assert.equal(site.safeGuestNext('/' + 'x'.repeat(512)), null, 'longer than the consumer-app accepts (512): dropped');
 });
 
-test('the header menu has the 5 items of design v2.3 in order, and pages not built yet are "coming soon"', () => {
-  assert.deepEqual(site.GUEST_NAV.map((item) => item.key), ['search', 'areas', 'commute', 'articles', 'about']);
+// Mos 27 Nov 2026 (design A): no "ค้นหา" in the menus; the search starts from the home page and needs a place.
+test('the header menu has no search item, and pages not built yet are "coming soon"', () => {
+  assert.deepEqual(site.GUEST_NAV.map((item) => item.key), ['areas', 'commute', 'articles', 'about']);
   for (const item of site.GUEST_NAV) {
     assert.equal(typeof item.href, 'string');
     assert.ok(item.href.startsWith('/'), `${item.key} href is an in-site path`);
@@ -69,18 +70,23 @@ test('the header menu has the 5 items of design v2.3 in order, and pages not bui
   for (const key of ['commute', 'articles', 'about']) assert.equal(site.isGuestPageReady(key), false, key);
 });
 
-test('the tab bar has 4 tabs like the app, and every ready tab opens a page that exists', () => {
-  assert.deepEqual(site.GUEST_TABS.map((tab) => tab.key), ['home', 'search', 'saved', 'profile']);
-  assert.deepEqual(site.GUEST_TABS.map((tab) => tab.href), ['/', '/search', '/saved', '/profile']);
-  for (const key of ['home', 'search', 'saved', 'profile']) assert.equal(site.isGuestPageReady(key), true, key);
+test('the tab bar has the 5 tabs of design A (Mos 27 Nov 2026); "เดินทาง" is coming soon', () => {
+  assert.deepEqual(site.GUEST_TABS.map((tab) => tab.key), ['home', 'commute', 'saved', 'viewingRequests', 'profile']);
+  assert.deepEqual(site.GUEST_TABS.map((tab) => tab.href), ['/', '/commute', '/saved', '/viewing-requests', '/profile']);
+  for (const key of ['home', 'saved', 'viewingRequests', 'profile']) assert.equal(site.isGuestPageReady(key), true, key);
+  assert.equal(site.isGuestPageReady('commute'), false);
 });
 
 test('the active tab follows the path, and a deeper page keeps its section active', () => {
   assert.equal(site.activeTabKey('/'), 'home');
   assert.equal(site.activeTabKey('/saved'), 'saved');
   assert.equal(site.activeTabKey('/profile'), 'profile');
-  assert.equal(site.activeTabKey('/search'), 'search');
-  assert.equal(site.activeTabKey('/search/map'), 'search');
+  assert.equal(site.activeTabKey('/viewing-requests'), 'viewingRequests');
+  // The search pages belong to the home tab: the search starts there.
+  assert.equal(site.activeTabKey('/search'), 'home');
+  assert.equal(site.activeTabKey('/search/map'), 'home');
+  assert.equal(site.activeTabKey('/find'), 'home');
+  assert.equal(site.activeTabKey('/finder'), null);
   assert.equal(site.activeTabKey('/rooms/sample-asok-01'), null);
   // S7.3: the room page has its own bottom bar (price + viewing request) instead of the tab bar.
   assert.equal(site.showsTabBar('/rooms/sample-asok-01'), false);
@@ -149,4 +155,21 @@ test('shownQuickFilters leaves out "near BTS/MRT" while rooms have no station da
   assert.equal(site.NEAR_TRANSIT_READY, false);
   assert.deepEqual(site.shownQuickFilters(['nearTransit', 'moveInReady', 'petFriendly', 'shortTerm']), ['moveInReady', 'petFriendly', 'shortTerm']);
   assert.deepEqual(site.shownQuickFilters(['petFriendly', 'shortTerm']), ['petFriendly', 'shortTerm']);
+});
+
+// Design A (Mos 27 Nov 2026): หน้าแรก · เดินทาง (soon, cannot be pressed) · รายการโปรด · นัดดูห้อง · โปรไฟล์ / เพิ่มเติม.
+test('the tab bar draws 5 tabs with their icons, and the soon tab shows a "เร็ว ๆ นี้" pill', () => {
+  const bar = fs.readFileSync(path.join(__dirname, '../app/components/guest/GuestTabBar.tsx'), 'utf8');
+  assert.match(bar, /home: HomeIcon,\s*commute: RouteIcon,\s*saved: HeartIcon,\s*viewingRequests: CalendarIcon,\s*profile: UserIcon,/);
+  assert.match(bar, /<span className="nk-tab__soon" aria-hidden="true">\s*\{t\.guest\.nav\.comingSoon\}\s*<\/span>/);
+  assert.match(fs.readFileSync(path.join(__dirname, '../app/components/guest/GuestIcons.tsx'), 'utf8'), /export const RouteIcon = \(props: IconProps\) => \(/);
+  const css = fs.readFileSync(path.join(__dirname, '../app/[locale]/guest.css'), 'utf8');
+  assert.match(css, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
+  assert.match(css, /\.nk-tab__soon \{/);
+  for (const lang of ['th', 'en', 'ja', 'zh']) {
+    const copy = fs.readFileSync(path.join(__dirname, `../../../packages/i18n/src/locales/guest/${lang}.ts`), 'utf8');
+    const block = copy.slice(copy.indexOf('  tabs: {'), copy.indexOf('  find: {'));
+    for (const key of ['home', 'commute', 'saved', 'viewingRequests', 'profile', 'more']) assert.match(block, new RegExp(`\\n    ${key}: '[^']+',`), `${lang} ${key}`);
+    assert.doesNotMatch(block, /\n    search: /, `${lang}: no search tab`);
+  }
 });

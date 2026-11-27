@@ -150,7 +150,8 @@ test('a picked place is named in the heading and chip; removing the chip drops t
   const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ฉัน', nearPlaceChip: 'ใกล้ {place} · {km} กม.' });
   assert.equal(chips[0].label, 'ใกล้ Central World · 3 กม.');
   assert.equal(chips[0].href, '/search?type=condo');
-  assert.equal(search.searchHref(search.clearedFilters(c)), '/search');
+  // "ล้างตัวกรอง" keeps the place: a search always has one (Mos 27 Nov 2026).
+  assert.equal(search.searchHref(search.clearedFilters(c)), search.searchHref(parse('lat=13.7466&lng=100.5393&r=3&place=Central%20World')));
 });
 
 test('price slider runs 0 – 100,000 in steps of 1,000; the far ends mean "no limit"', () => {
@@ -194,7 +195,7 @@ test('the price button on the home search shows the chosen range, or "any price"
 
 // SEO-1 area pages (Mos 20 Nov 2026) and review R3: "see all rooms" on an area page opens /search?area=<slug>.
 // The area reaches the API, shows as a removable chip and in the title, and "clear filters" drops it.
-test('area: sent to the API, shown as a chip and in the title, cleared with the other filters', () => {
+test('area: sent to the API, shown as a chip and in the title, kept when the other filters are cleared', () => {
   const areaLabels = { ...labels, areaChip: 'ทำเล: {name}', areaTitle: 'ห้องเช่า {name}', areaNames: { sukhumvit: 'สุขุมวิท' } };
   const c = parse('area=sukhumvit&type=condo');
   assert.equal(search.toPublicQuery(c, 1, 12).area, 'sukhumvit');
@@ -203,7 +204,7 @@ test('area: sent to the API, shown as a chip and in the title, cleared with the 
   assert.equal(chips[0].href, '/search?type=condo');
   assert.equal(search.searchTitle(parse('area=sukhumvit'), areaLabels), 'ห้องเช่า สุขุมวิท');
   assert.equal(search.searchTitle(parse('area=sukhumvit&q=อโศก'), areaLabels), 'ผลการค้นหา “อโศก”', 'a keyword still wins');
-  assert.equal(search.searchHref(search.clearedFilters(c)), '/search');
+  assert.equal(search.searchHref(search.clearedFilters(c)), '/search?area=sukhumvit', 'the place stays');
   // An unknown slug keeps its own text rather than an empty chip.
   assert.equal(search.activeFilterChips(parse('area=old-area'), areaLabels)[0].label, 'ทำเล: old-area');
 });
@@ -217,7 +218,7 @@ test('a map area has its own heading and chip, and clearing removes it', () => {
   const chips = search.activeFilterChips(c, { ...labels, nearMeChip: 'ใกล้ฉัน', mapAreaChip: 'บริเวณแผนที่' });
   assert.equal(chips[0].label, 'บริเวณแผนที่');
   assert.equal(chips[0].href, '/search?view=map&type=condo');
-  assert.equal(search.searchHref(search.clearedFilters(c)), '/search?view=map');
+  assert.equal(search.searchHref(search.clearedFilters(c)), search.searchHref(parse('view=map&lat=13.74&lng=100.56&r=2.3&near=map')), 'the map area stays');
 });
 
 // Mos 20 Nov 2026: each filter is a dropdown whose button shows what is chosen.
@@ -243,4 +244,34 @@ test('filterSummaries gives the button text of each filter dropdown', () => {
     moveIn: 'เข้าอยู่ได้ทันที',
     more: 'เลี้ยงสัตว์ได้, เช่าระยะสั้น',
   });
+});
+
+// Mos 27 Nov 2026: the search page needs a place picked from the list (an area, a station, a Google place, "near me"
+// or a map area). Typed text alone is not a place, and no place sends the guest back to the home page.
+test('hasSearchPlace: an area, a position or a station is a place; a keyword or filters alone are not', () => {
+  for (const qs of ['area=sukhumvit', 'lat=13.7&lng=100.5', 'lat=13.7466&lng=100.5393&r=3&place=Central%20World', 'view=map&lat=13.74&lng=100.56&r=2.3&near=map', 'st=BTS&station=%E0%B8%AD%E0%B9%82%E0%B8%A8%E0%B8%81']) {
+    assert.equal(search.hasSearchPlace(parse(qs)), true, qs);
+  }
+  for (const qs of ['', 'q=%E0%B8%AA%E0%B8%B5%E0%B8%A5%E0%B8%A1', 'type=condo&min=10000', 'st=BTS', 'view=map', 'mode=buy']) {
+    assert.equal(search.hasSearchPlace(parse(qs)), false, qs || '(empty)');
+  }
+});
+
+test('clearing the filters drops a station filter when the search has another place, and keeps it when it is the place', () => {
+  const both = parse('area=sukhumvit&st=BTS&station=%E0%B8%AD%E0%B9%82%E0%B8%A8%E0%B8%81&type=condo');
+  assert.equal(search.searchHref(search.clearedFilters(both)), '/search?area=sukhumvit');
+  const only = parse('st=BTS&station=%E0%B8%AD%E0%B9%82%E0%B8%A8%E0%B8%81&type=condo');
+  const kept = search.clearedFilters(only);
+  assert.equal(kept.stationName, 'อโศก');
+  assert.equal(kept.stationType, 'BTS');
+  assert.equal(kept.propertyType, undefined);
+  assert.equal(search.hasSearchPlace(kept), true);
+});
+
+test('the search page sends a search without a place back to the home page', () => {
+  const page = fs.readFileSync(require('node:path').join(__dirname, '../app/[locale]/(marketplace)/search/page.tsx'), 'utf8');
+  assert.match(page, /import \{ redirect \} from 'next\/navigation';/);
+  assert.match(page, /if \(!hasSearchPlace\(criteria\)\) redirect\(localePath\(locale, '\/'\)\);/);
+  // Before any search is sent to the API.
+  assert.ok(page.indexOf('hasSearchPlace(criteria)') < page.indexOf('loadSearchResults('));
 });

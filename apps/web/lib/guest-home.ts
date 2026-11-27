@@ -110,6 +110,21 @@ export function publicApiBase(value: string | undefined = process.env.API_URL): 
 }
 
 /**
+ * The mobile search page /find, with a property type already chosen when the link knows one (the footer types,
+ * Mos 27 Nov 2026: a search needs a place, so these open /find instead of the results).
+ */
+export function findHref(type?: string): string {
+  const known = HOME_PROPERTY_TYPES.find((value) => value === type);
+  return known ? `/find?${new URLSearchParams({ type: known }).toString()}` : '/find';
+}
+
+/** The property type /find starts with, read from its address (`?type=`); '' when there is none or it is unknown. */
+export function findStartType(search: string): string {
+  const type = new URLSearchParams(search).get('type');
+  return HOME_PROPERTY_TYPES.find((value) => value === type) ?? '';
+}
+
+/**
  * Link to /search, or null while the search page is not built (R4, Mos 11 Nov 2026). Callers pass
  * isGuestPageReady('search') so the links open by themselves when S4.2 turns the page on.
  */

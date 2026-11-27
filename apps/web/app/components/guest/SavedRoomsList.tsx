@@ -5,6 +5,7 @@ import { fillTemplate, useLocale } from '@nestyk/i18n';
 import type { PublicRoomCard } from '@nestyk/types';
 import { Link } from '../../../i18n/navigation';
 import { bangkokToday } from '../../../lib/guest-home';
+import { onRefresh } from '../../../lib/guest-pull';
 import { fetchSavedRooms } from '../../../lib/guest-saved';
 import { isSavedSort, SAVED_SORT_OPTIONS, sortSavedCards, type SavedSort } from '../../../lib/guest-saved-sort';
 import { guestSessionToken } from '../../../lib/guest-supabase';
@@ -48,6 +49,17 @@ export function SavedRoomsList({ locale }: { locale: string }) {
       setList(cards ? { status: 'ready', cards, today: bangkokToday() } : { status: 'error' });
     })();
     return () => controller.abort();
+  }, [userId]);
+
+  // Pull to refresh in the app: the list loads again (rooms unsaved here go); a failed load keeps the list shown.
+  useEffect(() => {
+    if (!userId) return;
+    return onRefresh(window, async () => {
+      const auth = await guestSessionToken();
+      const cards = auth && auth.userId === userId ? await fetchSavedRooms(auth.token) : null;
+      if (cards) setList({ status: 'ready', cards, today: bangkokToday() });
+      return Boolean(cards);
+    });
   }, [userId]);
 
   if (session.status === 'signedOut') {

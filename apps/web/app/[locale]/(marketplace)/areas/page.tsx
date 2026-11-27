@@ -74,7 +74,7 @@ export default async function AreasPage({ params }: Props) {
         </section>
       ) : null}
       {!bangkok.length && !province.length ? (
-        <EmptyState title={copy.emptyTitle} body={copy.emptyBody} action={{ label: t.nav.search, href: localePath(locale, '/search') }} />
+        <EmptyState title={copy.emptyTitle} body={copy.emptyBody} action={{ label: t.nav.search, href: localePath(locale, '/') }} />
       ) : null}
     </div>
   );

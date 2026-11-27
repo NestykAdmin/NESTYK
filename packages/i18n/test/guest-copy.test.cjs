@@ -76,7 +76,7 @@ test('the guest group is wired into every full locale bundle', () => {
 
 test('the v2.3 shell copy is there: tabs, saved, profile, cookie link and the placeholders it fills', () => {
   for (const [code, copy] of Object.entries(copies)) {
-    for (const key of ['label', 'home', 'search', 'saved', 'profile']) assert.ok(copy.tabs[key], `${code} tabs.${key}`);
+    for (const key of ['label', 'home', 'commute', 'saved', 'viewingRequests', 'profile', 'more']) assert.ok(copy.tabs[key], `${code} tabs.${key}`);
     for (const key of ['title', 'emptyTitle', 'emptyBody', 'browse']) assert.ok(copy.saved[key], `${code} saved.${key}`);
     for (const key of ['signIn', 'register', 'language', 'privacy', 'terms', 'cookies', 'call', 'email']) assert.ok(copy.profile[key], `${code} profile.${key}`);
     assert.ok(copy.footer.cookieSettings, `${code} footer.cookieSettings`);

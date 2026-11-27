@@ -28,6 +28,7 @@ import { RoomPriceCards, RoomTermProvider, RoomViewingButton, RoomViewingCard } 
 import { bangkokToday, roomDisplayTitle } from '../../../../../lib/guest-home';
 import { loadNearbyRooms, loadRoomDetail } from '../../../../../lib/guest-rooms';
 import { searchHref } from '../../../../../lib/guest-search';
+import { roomNearbySearch } from '../../../../../lib/guest-location';
 import { jsonLdScript, roomJsonLd } from '../../../../../lib/guest-room-seo';
 import { guestPageMetadata, guestSiteOrigin, roomPageIndex } from '../../../../../lib/guest-seo';
 import { localePath } from '../../../../../lib/guest-site';
@@ -118,13 +119,11 @@ export default async function RoomPage({ params }: Props) {
   const nearTransit = room.nearestStation != null && room.nearestStation.distanceMeters <= NEAR_TRANSIT_METERS;
   const nearby = await loadNearbyRooms(room);
   const nearbyPlace = room.nearestStation ? `${room.nearestStation.type} ${room.nearestStation.name}` : room.district ?? '';
-  const nearbyHref = localePath(
-    locale,
-    room.nearestStation
-      ? searchHref({ stationType: room.nearestStation.type, stationName: room.nearestStation.name })
-      : searchHref({ keyword: room.district ?? undefined }),
-  );
-  const resultsHref = localePath(locale, '/search');
+  // "ดูทั้งหมด" opens a search with a place (Mos 27 Nov 2026); without one the link is left out.
+  const nearbySearch = roomNearbySearch(room);
+  const nearbyHref = nearbySearch ? localePath(locale, searchHref(nearbySearch)) : null;
+  // Back to the results goes back in history when the guest came from them; otherwise home, where the search starts.
+  const resultsHref = localePath(locale, '/');
   const saveRoom = { title, priceText: lowest ? `${lowest} ${t.card.perMonthLong}` : null, coverImageUrl: room.coverImageUrl };
   // The room in the viewing request form (plain data: the buttons are client components).
   const viewingRoom = { ...saveRoom, id: room.id };
@@ -314,9 +313,11 @@ export default async function RoomPage({ params }: Props) {
             <h2 id="rp-nearby" className="nk-rp-h2">
               {fillTemplate(copy.nearbyTitle, { place: nearbyPlace })}
             </h2>
-            <a href={nearbyHref} className="nk-link-more">
-              {copy.nearbyAll}
-            </a>
+            {nearbyHref ? (
+              <a href={nearbyHref} className="nk-link-more">
+                {copy.nearbyAll}
+              </a>
+            ) : null}
           </div>
           <div className="nk-rp-nearby__grid">
             {nearby.map((card) => (

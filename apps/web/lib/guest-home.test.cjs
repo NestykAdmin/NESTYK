@@ -72,19 +72,20 @@ test('the home page has no roles section and no reviews or articles (Mos 11 Nov 
 
 test('links to /search stay closed until the search page is ready (R4, Mos 11 Nov 2026)', () => {
   assert.equal(home.searchHrefIfReady({ type: 'condo' }, false), null);
-  assert.equal(home.searchHrefIfReady({ type: 'condo' }, true), '/search?type=condo');
-  assert.equal(home.searchHrefIfReady({}, true), '/search');
+  assert.equal(home.searchHrefIfReady({ area: 'sukhumvit' }, true), '/search?area=sukhumvit');
+  const panel = fs.readFileSync(path.join(__dirname, '..', 'app', 'components', 'guest', 'SearchPanel.tsx'), 'utf8');
+  assert.match(panel, /isGuestPageReady\('search'\)/);
+});
+
+// Mos 27 Nov 2026: home links that know no place ("ดูประกาศทั้งหมด", "ค้นหาตามสถานี", the closing button and the type
+// tiles) open /find, where the guest picks the place; none opens /search without one.
+test('home links without a place open /find, a type tile with its type chosen', () => {
   const root = path.join(__dirname, '..', 'app');
-  const files = [
-    path.join(root, '[locale]', '(marketplace)', 'page.tsx'),
-    path.join(root, 'components', 'guest', 'SearchPanel.tsx'),
-    path.join(root, 'components', 'guest', 'PropertyTypeTiles.tsx'),
-  ];
-  for (const file of files) {
-    const source = fs.readFileSync(file, 'utf8');
-    assert.ok(!/homeSearchHref\(|'\/search'/.test(source), `${path.basename(file)} must use searchHrefIfReady`);
-    assert.match(source, /isGuestPageReady\('search'\)/, path.basename(file));
-  }
+  const page = fs.readFileSync(path.join(root, '[locale]', '(marketplace)', 'page.tsx'), 'utf8');
+  assert.match(page, /const searchHref = localePath\(locale, findHref\(\)\);/);
+  const tiles = fs.readFileSync(path.join(root, 'components', 'guest', 'PropertyTypeTiles.tsx'), 'utf8');
+  assert.match(tiles, /const href = SOON\.includes\(type\) \? null : findHref\(type\);/);
+  for (const source of [page, tiles]) assert.ok(!/homeSearchHref\(|searchHrefIfReady\(|'\/search'/.test(source));
 });
 
 test('"today" for move-in dates is the date in Bangkok, not UTC (R5)', () => {
@@ -111,4 +112,15 @@ test('a production server without API_URL is reported, not silently pointed at l
   assert.equal(home.apiUrlMissing('not a url', 'production'), true);
   assert.equal(home.apiUrlMissing('https://api.nestyk.com', 'production'), false);
   assert.equal(home.apiUrlMissing(undefined, 'development'), false);
+});
+
+// Mos 27 Nov 2026: a search needs a place, so links that only know a property type (the footer) open /find with the
+// type already chosen, and the guest picks the place there.
+test('findHref opens /find with a known property type, and /find reads it back from the address', () => {
+  assert.equal(home.findHref(), '/find');
+  assert.equal(home.findHref('condo'), '/find?type=condo');
+  assert.equal(home.findHref('castle'), '/find', 'an unknown type is dropped');
+  assert.equal(home.findStartType('?type=apartment'), 'apartment');
+  assert.equal(home.findStartType('?type=castle&x=1'), '');
+  assert.equal(home.findStartType(''), '');
 });

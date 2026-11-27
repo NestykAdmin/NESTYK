@@ -456,6 +456,22 @@ a.nk-nav__item:hover {
   color: var(--nk-color-placeholder);
   cursor: default;
 }
+/* "เร็ว ๆ นี้" over a tab that is not built yet (design A, Mos 27 Nov 2026, canvas "Tab5A"). */
+.nk-tab__soon {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  padding: 0 5px;
+  color: var(--nk-color-text-secondary);
+  background: var(--nk-color-neutral-bg);
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-pill);
+}
 
 /* Footer (desktop and tablet; mobile shows these items on the profile page) */
 .nk-footer {
@@ -843,7 +859,7 @@ summary.nk-row:hover {
     min-height: 64px;
     padding: var(--nk-space-1);
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     background: var(--nk-color-surface);
     border: 1px solid var(--nk-color-border);
     border-radius: 20px;
@@ -5240,6 +5256,13 @@ html[data-nk-app] .nk-hero__logo {
   justify-content: center;
   font-size: var(--nk-text-md);
 }
+/* Off until a place is picked (Mos 27 Nov 2026: no search without a place). */
+.nk-find__go:disabled {
+  background: var(--nk-color-neutral-bg);
+  border-color: var(--nk-color-border);
+  color: var(--nk-color-text-disabled);
+  cursor: not-allowed;
+}
 .nk-find__clear {
   min-height: var(--nk-tap);
   padding: 0 var(--nk-space-2);
@@ -5269,5 +5292,89 @@ html[data-nk-app] .nk-hero__logo {
     position: static;
     padding: var(--nk-space-4) 0 0;
     border-top: 0;
+  }
+}
+
+/* ===== Pull to refresh in the app (Mos 25 Nov 2026, canvas page "ptr", design A) =====
+   The page under the app bar follows the finger (`top`, not a transform: bars fixed to the screen inside the page stay
+   put); the gap that opens between the app bar and the page is ink, with the yellow smile. The app bar stays put:
+   moving it too (a transform next to `top`) let the two drift apart while pulling. The WebView's own bounce is off so the two do not fight. */
+html[data-nk-app] {
+  overscroll-behavior-y: none;
+}
+.nk-ptr {
+  display: none;
+}
+html[data-nk-app][data-nk-pull] .nk-ptr {
+  position: absolute;
+  top: calc(-1 * var(--nk-pull, 0px));
+  left: 0;
+  right: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  height: var(--nk-pull, 0px);
+  padding-bottom: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  background: var(--nk-color-ink);
+}
+html[data-nk-app][data-nk-pull] .nk-main {
+  position: relative;
+  top: var(--nk-pull, 0px);
+}
+html[data-nk-app][data-nk-pull="settle"] :is(.nk-main, .nk-ptr) {
+  transition: top 0.25s ease, height 0.25s ease;
+}
+.nk-ptr__label {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}
+.nk-ptr__arc.is-loading .nk-ptr__fill {
+  stroke-dasharray: 34 100;
+  animation: nk-ptr-run 0.9s linear infinite;
+}
+@keyframes nk-ptr-run {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -134;
+  }
+}
+.nk-ptr-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nk-safe-bottom) + 96px);
+  z-index: 60;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--nk-color-ink);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(33, 30, 30, 0.25);
+  pointer-events: none;
+}
+.nk-ptr-toast svg {
+  color: var(--nk-color-brand);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-nk-app][data-nk-pull="settle"] :is(.nk-main, .nk-ptr) {
+    transition: none;
+  }
+  .nk-ptr__arc.is-loading .nk-ptr__fill {
+    animation: none;
+    stroke-dasharray: 100 100;
   }
 }

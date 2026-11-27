@@ -1,5 +1,5 @@
-// Location search (Mos 20 Nov 2026): the keyword box suggests "near me", areas whose name or places match, and the
-// typed text as a free keyword. Areas come from the copy (guest.areaNames / guest.areaInfo) in the page's language.
+// Location search (Mos 20 Nov 2026): the keyword box suggests "near me" and areas whose name or places match. Since
+// Mos 27 Nov 2026 typed text is not a place: the guest picks from the list (Enter picks the first suggestion). Areas come from the copy (guest.areaNames / guest.areaInfo) in the page's language.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -38,11 +38,10 @@ test('an empty box offers "near me" and the first popular areas', () => {
   assert.ok(!list.some((item) => item.kind === 'keyword'));
 });
 
-test('a place inside an area finds the area ("อโศก" → สุขุมวิท), and the text is still offered as a keyword', () => {
+test('a place inside an area finds the area ("อโศก" → สุขุมวิท); the text is not offered as a keyword', () => {
   const list = loc.locationSuggestions('อโศก', areas);
-  assert.deepEqual(list.map((item) => item.kind), ['nearMe', 'area', 'keyword']);
+  assert.deepEqual(list.map((item) => item.kind), ['nearMe', 'area']);
   assert.equal(list[1].slug, 'sukhumvit');
-  assert.deepEqual(list[2], { kind: 'keyword', text: 'อโศก' });
 });
 
 test('matching ignores spaces, case, dashes, dots and ฯ', () => {
@@ -62,17 +61,37 @@ test('a name match ranks above a places match, and at most 5 areas show', () => 
   assert.equal(loc.locationSuggestions('ทำเล', many).filter((item) => item.kind === 'area').length, loc.LOCATION_POPULAR_LIMIT);
 });
 
-test('text with no area match still offers "near me" and the keyword', () => {
-  assert.deepEqual(loc.locationSuggestions('Ideo Mobi', areas), [{ kind: 'nearMe' }, { kind: 'keyword', text: 'Ideo Mobi' }]);
+test('text with no area match offers only "near me"', () => {
+  assert.deepEqual(loc.locationSuggestions('Ideo Mobi', areas), [{ kind: 'nearMe' }]);
 });
 
-// An area or "near me" replaces the place (and the typed text that led to it); a keyword only sets the keyword, so it
-// narrows an area or "near me" already chosen, as the search box did before (both show as chips on /search).
+// Enter in the box picks the first suggestion shown, in the list order: stations, areas, then Google places.
+test('Enter picks the first group that has a suggestion, or nothing', () => {
+  assert.equal(loc.firstSuggestionGroup({ stations: 2, areas: 1, places: 3 }), 'station');
+  assert.equal(loc.firstSuggestionGroup({ stations: 0, areas: 1, places: 3 }), 'area');
+  assert.equal(loc.firstSuggestionGroup({ stations: 0, areas: 0, places: 3 }), 'place');
+  assert.equal(loc.firstSuggestionGroup({ stations: 0, areas: 0, places: 0 }), null);
+});
+
+// Room page "ดูทั้งหมด" under nearby rooms: a search with a place (Mos 27 Nov 2026), never the district as typed text.
+test('the nearby search of a room: its station, else around the room with the district name, else none', () => {
+  const station = { type: 'BTS', name: 'อโศก', distanceMeters: 300 };
+  assert.deepEqual(loc.roomNearbySearch({ nearestStation: station, district: 'วัฒนา', latitude: 13.7, longitude: 100.5 }), { stationType: 'BTS', stationName: 'อโศก' });
+  assert.deepEqual(loc.roomNearbySearch({ nearestStation: null, district: ' วัฒนา ', latitude: 13.737123, longitude: 100.560456 }), {
+    nearGps: { latitude: 13.7371, longitude: 100.5605, radiusKm: loc.PLACE_RADIUS_KM },
+    placeName: 'วัฒนา',
+    nearMap: undefined,
+    keyword: undefined,
+    area: undefined,
+  });
+  assert.equal(loc.roomNearbySearch({ nearestStation: null, district: null, latitude: 13.7, longitude: 100.5 }), null, 'no name: it would read "near me"');
+  assert.equal(loc.roomNearbySearch({ nearestStation: null, district: 'วัฒนา', latitude: null, longitude: null }), null);
+});
+
+// An area or "near me" replaces the place (and any keyword of an old link).
 // The position is rounded to about 100 m before it goes into the URL (the link can be shared or kept in history).
-test('a choice becomes the search: an area or "near me" replaces the place, a keyword narrows it', () => {
+test('a choice becomes the search: an area or "near me" replaces the place', () => {
   assert.deepEqual(loc.locationPatch({ kind: 'area', slug: 'sukhumvit' }), { area: 'sukhumvit', keyword: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined });
-  assert.deepEqual(loc.locationPatch({ kind: 'keyword', text: '  Ideo  ' }), { keyword: 'Ideo' });
-  assert.deepEqual(loc.locationPatch({ kind: 'keyword', text: '   ' }), { keyword: undefined });
   assert.deepEqual(loc.locationPatch({ kind: 'nearMe', latitude: 13.73712, longitude: 100.56012 }), {
     nearGps: { latitude: 13.737, longitude: 100.56, radiusKm: loc.NEAR_ME_RADIUS_KM },
     placeName: undefined,
@@ -167,17 +186,30 @@ test('locationLabel names what the search is about, in the same order as the pag
   assert.deepEqual(loc.locationLabel({}, labels), { kind: 'none', text: '' });
 });
 
-test('the search bar shows the label, its icon and a clear button that drops the place too', () => {
+// Mos 27 Nov 2026: the results always keep a place. ✕ empties the box and opens the list; the place changes only
+// when a new one is picked, and typed text never replaces it.
+test('the search bar shows the label and its icon; ✕ empties the box without dropping the place', () => {
   const bar = read('app/components/guest/SearchKeywordBar.tsx');
   assert.match(bar, /locationLabel\(criteria,/);
   assert.match(bar, /data-testid=\{`\$\{tid\}\.clear`\}/);
-  assert.match(bar, /update\(\{ keyword: undefined, \.\.\.NO_PLACE \}\)/);
-  // Submitting the label unchanged keeps the place search instead of turning it into a keyword.
-  assert.match(bar, /if \(text === label\.text\) return;/);
-  // New text in the box replaces the place it showed (typed and submitted, or the "ค้นหา “…”" row).
-  
-  assert.match(bar, /update\(\{ \.\.\.locationPatch\(\{ kind: 'keyword', text \}\), \.\.\.NO_PLACE \}\)/);
-  assert.match(bar, /choice\.kind === 'keyword' \? \{ \.\.\.locationPatch\(choice\), \.\.\.NO_PLACE \} : locationPatch\(choice\)/);
+  assert.match(bar, /const clear = \(\) => \{\s*setText\(''\);\s*openPlaceBox\(`\$\{id\}-q`\);\s*\};/);
+  assert.match(bar, /const pickLocation = \(choice: LocationChoice\) => update\(locationPatch\(choice\)\);/);
+  assert.doesNotMatch(bar, /kind: 'keyword'|NO_PLACE/);
+  assert.match(bar, /picked=\{text === label\.text && label\.kind !== 'none'\}/);
+});
+
+test('the box never turns typed text into a search: Enter picks the first suggestion, no match says so', () => {
+  const box = read('app/components/guest/LocationCombobox.tsx');
+  assert.doesNotMatch(box, /kind: 'keyword'|location\.keyword|searchFor/);
+  assert.match(box, /firstSuggestionGroup\(\{ stations: stations\.length, areas: areaItems\.length, places: places\.length \}\)/);
+  assert.match(box, /if \(event\.key === 'Enter' && !event\.nativeEvent\.isComposing && !picked && !event\.currentTarget\.getAttribute\('aria-activedescendant'\)\) \{\s*event\.preventDefault\(\);\s*pickFirst\(\);/);
+  assert.match(box, /data-testid="location\.noMatch"/);
+  assert.match(box, /export function openPlaceBox\(inputId: string\)/);
+  for (const lang of ['th', 'en', 'ja', 'zh']) {
+    const copy = read(`../../packages/i18n/src/locales/guest/${lang}.ts`);
+    assert.match(copy, /\n    noMatch: '[^']*\{text\}[^']*',/, `${lang} noMatch`);
+    assert.match(copy, /\n    noMatchHint: '[^']+',/, `${lang} noMatchHint`);
+  }
 });
 
 // Map search (S4.3): a map area shows as "บริเวณแผนที่", and picking anything else ends it.
@@ -189,7 +221,6 @@ test('a map area labels the box, and every location pick clears the map-area fla
   assert.ok('nearMap' in loc.locationPatch({ kind: 'area', slug: 'ratchada-rama9' }));
   assert.ok('nearMap' in loc.locationPatch({ kind: 'nearMe', latitude: 13.7, longitude: 100.5 }));
   assert.ok('nearMap' in loc.locationPatch({ kind: 'place', name: 'BTS อโศก', latitude: 13.7, longitude: 100.5, station: true }));
-  assert.match(read('app/components/guest/SearchKeywordBar.tsx'), /const NO_PLACE = \{ area: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined \} as const;/);
 });
 
 test('phone sheet: closing it does not reopen it when focus goes back to the box (Mos 24 Nov 2026)', () => {

@@ -55,30 +55,39 @@ export function shownQuickFilters<T extends string>(codes: readonly T[]): T[] {
   return codes.filter((code) => NEAR_TRANSIT_READY || code !== 'nearTransit');
 }
 
-export type GuestNavKey = 'search' | 'areas' | 'commute' | 'articles' | 'about';
+export type GuestNavKey = 'areas' | 'commute' | 'articles' | 'about';
 
-/** Header menu: all 5 items are always shown (Mos 11 Nov 2026). */
+/**
+ * Header menu: every item is always shown (Mos 11 Nov 2026). No "ค้นหา" (Mos 27 Nov 2026, design A): the search starts
+ * from the home page and needs a place.
+ */
 export const GUEST_NAV: readonly { key: GuestNavKey; href: string }[] = [
-  { key: 'search', href: '/search' },
   { key: 'areas', href: '/areas' },
   { key: 'commute', href: '/commute' },
   { key: 'articles', href: '/articles' },
   { key: 'about', href: '/about' },
 ];
 
-export type GuestTabKey = 'home' | 'search' | 'saved' | 'profile';
+export type GuestTabKey = 'home' | 'commute' | 'saved' | 'viewingRequests' | 'profile';
 
-/** Bottom tab bar of the mobile web, the same 4 tabs as the app. */
+/**
+ * Bottom tab bar of the mobile web and the app (Mos 27 Nov 2026, design A): หน้าแรก · เดินทาง (coming soon) · รายการโปรด ·
+ * นัดดูห้อง · โปรไฟล์ (เพิ่มเติม in the app). No search tab: the search starts from the home page.
+ */
 export const GUEST_TABS: readonly { key: GuestTabKey; href: string }[] = [
   { key: 'home', href: '/' },
-  { key: 'search', href: '/search' },
+  { key: 'commute', href: '/commute' },
   { key: 'saved', href: '/saved' },
+  { key: 'viewingRequests', href: '/viewing-requests' },
   { key: 'profile', href: '/profile' },
 ];
 
-/** The tab of a path without the locale prefix ("/search/map" → search). Null for pages outside the tabs. */
+/** The search pages (/search, /find) belong to the home tab, where the search starts. */
+const HOME_TAB_PATHS = /^\/(search|find)(\/|$)/;
+
+/** The tab of a path without the locale prefix ("/saved/x" → saved). Null for pages outside the tabs. */
 export function activeTabKey(pathname: string): GuestTabKey | null {
-  if (pathname === '/' || pathname === '') return 'home';
+  if (pathname === '/' || pathname === '' || HOME_TAB_PATHS.test(pathname)) return 'home';
   const tab = GUEST_TABS.find((item) => item.href !== '/' && (pathname === item.href || pathname.startsWith(`${item.href}/`)));
   return tab ? tab.key : null;
 }

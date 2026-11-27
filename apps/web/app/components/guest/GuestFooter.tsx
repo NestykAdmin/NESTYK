@@ -12,6 +12,7 @@ import {
   mapsUrl,
   telHref,
 } from '../../../lib/guest-site';
+import { findHref } from '../../../lib/guest-home';
 import { GuestSocialLinks } from './GuestSocialLinks';
 
 const LOGO_HEIGHT = 36;
@@ -102,7 +103,7 @@ export function GuestFooter({ locale }: { locale: SupportedLocale }) {
             title={copy.findTitle}
             soonLabel={soon}
             columnSoon={!searchReady}
-            items={PROPERTY_TYPES.map((type) => ({ key: type, label: t.propertyType[type], href: `/search?type=${type}` }))}
+            items={PROPERTY_TYPES.map((type) => ({ key: type, label: t.propertyType[type], href: findHref(type) }))}
           />
           <Column
             locale={locale}

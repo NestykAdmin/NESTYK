@@ -6,6 +6,7 @@ import { guestAccountUrl } from '../../../lib/guest-site';
 import { GuestAppBar, GuestAppNavigator } from './GuestAppBar';
 import { GuestFooter } from './GuestFooter';
 import { GuestHeader } from './GuestHeader';
+import { GuestPullRefresh } from './GuestPullRefresh';
 import { GuestSessionProvider } from './GuestSession';
 import { GuestTabBar } from './GuestTabBar';
 import { SavedRoomsProvider, SavedRoomsToast } from './SavedRooms';
@@ -33,6 +34,8 @@ export function GuestShell({ locale, children }: { locale: SupportedLocale; chil
           <GuestAppNavigator />
           <GuestHeader />
           <main id="main" className="nk-main">
+            {/* In the app only: pull to refresh (Mos 25 Nov 2026, canvas "ptr", design A). Inside the page: it moves with it. */}
+            <GuestPullRefresh />
             {children}
           </main>
           <GuestFooter locale={locale} />

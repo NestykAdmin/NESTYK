@@ -11,7 +11,7 @@ export default function RoomNotFound() {
   const copy = t.guest.room;
   return (
     <div className="nk-page" data-testid="roomPage.notFound">
-      <EmptyState title={copy.notFoundTitle} body={copy.notFoundText} action={{ label: copy.notFoundCta, href: localePath(locale, '/search') }} />
+      <EmptyState title={copy.notFoundTitle} body={copy.notFoundText} action={{ label: copy.notFoundCta, href: localePath(locale, '/') }} />
     </div>
   );
 }

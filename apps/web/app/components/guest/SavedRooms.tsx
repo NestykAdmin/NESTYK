@@ -10,6 +10,7 @@ import {
   withSaved,
   type SavedToggleResult,
 } from '../../../lib/guest-saved';
+import { onRefresh } from '../../../lib/guest-pull';
 import { guestSessionToken } from '../../../lib/guest-supabase';
 import { CloseIcon, HeartIcon } from './GuestIcons';
 import { useGuestSession } from './GuestSession';
@@ -113,6 +114,19 @@ export function SavedRoomsProvider({ children }: { children: React.ReactNode }) 
       setStatus(loaded ? 'ready' : 'error');
     });
     return () => controller.abort();
+  }, [userId, setIds, setStatus]);
+
+  // Pull to refresh in the app (GuestPullRefresh): the hearts load again; a failed load keeps the ones shown.
+  useEffect(() => {
+    if (!userId) return;
+    return onRefresh(window, async () => {
+      const loaded = await loadIds(userId);
+      if (loaded && userRef.current === userId) {
+        setIds(loaded);
+        setStatus('ready');
+      }
+      return Boolean(loaded);
+    });
   }, [userId, setIds, setStatus]);
 
   const toggle = useCallback(

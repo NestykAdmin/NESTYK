@@ -143,6 +143,15 @@ export const CalendarIcon = (props: IconProps) => (
   </Line>
 );
 
+/** A route between two points: the "เดินทาง" (commute) tab, design A (Mos 27 Nov 2026). */
+export const RouteIcon = (props: IconProps) => (
+  <Line {...props}>
+    <circle cx="6" cy="18" r="2.5" />
+    <circle cx="18" cy="6" r="2.5" />
+    <path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5" />
+  </Line>
+);
+
 export const SunIcon = (props: IconProps) => (
   <Line {...props}>
     <circle cx="12" cy="12" r="4" />

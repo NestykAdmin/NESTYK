@@ -2,7 +2,8 @@ import { RAIL_LINES, railStationName, type GuestSearchCriteria } from '@nestyk/f
 
 /**
  * Location search (Mos 20 Nov 2026): the keyword box on the home page and the search page suggests "near me", the
- * areas whose name or places match what was typed, and the text itself as a free keyword. Areas come from the copy
+ * areas whose name or places match what was typed. Typed text alone is not a place (Mos 27 Nov 2026): the guest picks
+ * from the list, and Enter picks the first suggestion (firstSuggestionGroup). Areas come from the copy
  * (guest.areaNames, guest.areaInfo) in the page's language, so no API call is needed while typing.
  * Pure helpers: lib/guest-location.test.cjs loads this file bare.
  */
@@ -27,11 +28,10 @@ export interface LocationArea {
   places: string;
 }
 
-export type LocationSuggestion = { kind: 'nearMe' } | ({ kind: 'area' } & LocationArea) | { kind: 'keyword'; text: string };
+export type LocationSuggestion = { kind: 'nearMe' } | ({ kind: 'area' } & LocationArea);
 
 export type LocationChoice =
   | { kind: 'area'; slug: string }
-  | { kind: 'keyword'; text: string }
   | { kind: 'nearMe'; latitude: number; longitude: number }
   | { kind: 'place'; name: string; latitude: number; longitude: number; station: boolean };
 
@@ -72,7 +72,7 @@ export function locationSuggestions(query: string, areas: readonly LocationArea[
     .sort((a, b) => a.rank - b.rank || a.index - b.index)
     .slice(0, LOCATION_POPULAR_LIMIT)
     .map(({ area }) => ({ kind: 'area' as const, ...area }));
-  return [{ kind: 'nearMe' }, ...matches, { kind: 'keyword', text }];
+  return [{ kind: 'nearMe' }, ...matches];
 }
 
 function rounded(value: number, decimals: number): number {
@@ -80,10 +80,7 @@ function rounded(value: number, decimals: number): number {
   return Math.round(value * factor) / factor;
 }
 
-/**
- * The search change for a choice. An area or "near me" replaces the place and the text typed to find it; a keyword
- * only sets the keyword, so it narrows a place already chosen (each shows as its own chip on /search).
- */
+/** The search change for a choice: it replaces the place, and the keyword of an old link. */
 export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchCriteria, 'area' | 'keyword' | 'nearGps' | 'placeName' | 'nearMap'>> {
   // Any pick ends a map area (S4.3), so a later "near me" is not read back as "บริเวณแผนที่".
   if (choice.kind === 'area') return { area: choice.slug, keyword: undefined, nearGps: undefined, placeName: undefined, nearMap: undefined };
@@ -113,7 +110,33 @@ export function locationPatch(choice: LocationChoice): Partial<Pick<GuestSearchC
       area: undefined,
     };
   }
-  return { keyword: choice.text.trim().slice(0, 100) || undefined };
+  return {};
+}
+
+/** Enter in the place box picks the first suggestion shown, in the list's order: stations, areas, Google places. */
+export function firstSuggestionGroup(counts: { stations: number; areas: number; places: number }): 'station' | 'area' | 'place' | null {
+  if (counts.stations > 0) return 'station';
+  if (counts.areas > 0) return 'area';
+  if (counts.places > 0) return 'place';
+  return null;
+}
+
+export interface NearbyRoom {
+  nearestStation: { type: NonNullable<GuestSearchCriteria['stationType']>; name: string } | null;
+  district: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/**
+ * The search behind "ดูทั้งหมด" under a room's nearby rooms: its nearest station, else around the room named by its
+ * district. Null without either (a position without a name would read "near me"), and the link is then left out.
+ */
+export function roomNearbySearch(room: NearbyRoom): Partial<GuestSearchCriteria> | null {
+  if (room.nearestStation) return { stationType: room.nearestStation.type, stationName: room.nearestStation.name };
+  const name = room.district?.trim();
+  if (!name || room.latitude == null || room.longitude == null) return null;
+  return locationPatch({ kind: 'place', name, latitude: room.latitude, longitude: room.longitude, station: false });
 }
 
 export type LocationLabelKind = 'station' | 'place' | 'mapArea' | 'nearMe' | 'area' | 'keyword' | 'none';

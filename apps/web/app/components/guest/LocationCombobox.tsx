@@ -14,6 +14,7 @@ import {
   type RailStation,
 } from '@nestyk/feature-search';
 import {
+  firstSuggestionGroup,
   locationAreas,
   locationSuggestions,
   NEAR_ME_RADIUS_KM,
@@ -61,8 +62,13 @@ interface Props {
   /** Text in the box. */
   value: string;
   onValueChange: (text: string) => void;
-  /** An area, a station, a place, "near me" (after the browser gave the position) or the typed text as a keyword. */
+  /** An area, a station, a place or "near me" (after the browser gave the position). Typed text is never a pick. */
   onPick: (choice: LocationChoice) => void;
+  /**
+   * The box shows the place the search already has: Enter then submits the form as before. Otherwise Enter picks the
+   * first suggestion (Mos 27 Nov 2026: no search without a place).
+   */
+  picked?: boolean;
   placeholder: string;
   inputClassName: string;
   name?: string;
@@ -81,10 +87,26 @@ interface PageOnly {
   handle?: React.Ref<LocationPageHandle>;
 }
 
+/** Asks a place box on wide screens to open its list (a script's click does not open Ariakit's popover). */
+const OPEN_EVENT = 'nk:open-place';
+
+/**
+ * Focus a place box and open its suggestions (the full-screen search on phones, the list on wide screens): for a
+ * search button pressed before a place was picked.
+ */
+export function openPlaceBox(inputId: string): void {
+  if (typeof document === 'undefined') return;
+  const input = document.getElementById(inputId);
+  if (!(input instanceof HTMLInputElement)) return;
+  input.focus();
+  input.click();
+  input.dispatchEvent(new Event(OPEN_EVENT));
+}
+
 /**
  * Location box (Mos 20 Nov 2026, canvas page "ช่องค้นหารวม"): "near my location" and "choose from rail lines" first,
- * then stations from our list, areas, Google places (through /place-search, when this deploy has a Places key) and the
- * text as a keyword. Built on Ariakit's combobox (keyboard, screen readers, and a popover that flips or shrinks at the
+ * then stations from our list, areas and Google places (through /place-search, when this deploy has a Places key).
+ * Typed text alone is not a place (Mos 27 Nov 2026): Enter picks the first suggestion, and no match says so. Built on Ariakit's combobox (keyboard, screen readers, and a popover that flips or shrinks at the
  * edge of the screen). Phones open a full-screen search instead of a popover.
  */
 export function LocationCombobox(props: Props) {
@@ -160,6 +182,7 @@ function LocationBox({
   inputClassName,
   name,
   testId,
+  picked = false,
   mode,
   onClose,
   idle,
@@ -179,6 +202,8 @@ function LocationBox({
   const [places, setPlaces] = useState<PlaceSuggestion[]>([]);
   const [placeBusy, setPlaceBusy] = useState<string | null>(null);
   const [placeFailed, setPlaceFailed] = useState<string | null>(null);
+  // True while Google is asked: "no match" waits for its answer.
+  const [placeLoading, setPlaceLoading] = useState(false);
   // Off for the rest of the page once the site answers that it has no Places key (503).
   const placesOn = useRef(true);
   const session = useRef<string | null>(null);
@@ -190,7 +215,6 @@ function LocationBox({
   );
   const base = useMemo(() => locationSuggestions(value, areas), [value, areas]);
   const areaItems = base.filter((item): item is Extract<typeof item, { kind: 'area' }> => item.kind === 'area');
-  const keyword = base.find((item): item is Extract<typeof item, { kind: 'keyword' }> => item.kind === 'keyword');
   const stations = useMemo(() => matchRailStations(value), [value]);
   const isOpen = mode !== 'popover' || open;
   const suggesting = mode !== 'page' || (typing && value.trim() !== '');
@@ -198,6 +222,13 @@ function LocationBox({
   useEffect(() => {
     onSuggestingChange?.(mode === 'page' && suggesting && view === 'list');
   }, [mode, suggesting, view, onSuggestingChange]);
+  useEffect(() => {
+    const input = inputRef.current;
+    if (mode !== 'popover' || !input) return;
+    const open = () => setOpen(true);
+    input.addEventListener(OPEN_EVENT, open);
+    return () => input.removeEventListener(OPEN_EVENT, open);
+  }, [mode]);
   useImperativeHandle(handle, () => ({
     stopTyping: () => {
       setTyping(false);
@@ -211,12 +242,17 @@ function LocationBox({
     // Page mode: Google is asked only while the guest types (review R1: a picked name in the box is not a question).
     if (!isOpen || !suggesting || view !== 'list' || !placesOn.current || input.length < PLACE_INPUT_MIN) {
       setPlaces([]);
+      setPlaceLoading(false);
       return;
     }
     const controller = new AbortController();
+    setPlaceLoading(true);
     const timer = setTimeout(async () => {
       session.current ??= newSession();
-      if (!session.current) return;
+      if (!session.current) {
+        setPlaceLoading(false);
+        return;
+      }
       try {
         const { status: code, data } = await postJson<{ places: PlaceSuggestion[] }>(
           '/place-search/autocomplete',
@@ -227,6 +263,8 @@ function LocationBox({
         setPlaces(data?.places ?? []);
       } catch {
         if (!controller.signal.aborted) setPlaces([]);
+      } finally {
+        if (!controller.signal.aborted) setPlaceLoading(false);
       }
     }, PLACE_DEBOUNCE_MS);
     return () => {
@@ -279,6 +317,16 @@ function LocationBox({
       setPlaceBusy(null);
     }
   };
+
+  // Enter without a highlighted suggestion: the first one shown (Mos 27 Nov 2026), never the text as a keyword.
+  const pickFirst = () => {
+    if (!value.trim() || view !== 'list') return;
+    const group = firstSuggestionGroup({ stations: stations.length, areas: areaItems.length, places: places.length });
+    if (group === 'station') pickStation(stations[0].line, stations[0].station);
+    else if (group === 'area') finish({ kind: 'area', slug: areaItems[0].slug });
+    else if (group === 'place') void pickPlace(places[0]);
+  };
+  const noMatch = value.trim() !== '' && !stations.length && !areaItems.length && !places.length && !placeLoading;
 
   const stationName = (station: RailStation) => (locale === 'th' ? station.th : station.en);
   const interchangeText = (hit: RailHit) => {
@@ -427,16 +475,16 @@ function LocationBox({
         </Ariakit.ComboboxGroup>
       ) : null}
 
-      {keyword ? (
-        <Ariakit.ComboboxItem className="nk-loc__option" setValueOnClick={false} onClick={() => finish({ kind: 'keyword', text: keyword.text })} data-testid="location.keyword">
+      {noMatch ? (
+        <div className="nk-loc__option nk-loc__empty" role="status" data-testid="location.noMatch">
           <span className="nk-loc__icon" aria-hidden="true">
             <SearchIcon size={18} />
           </span>
           <span className="nk-loc__text">
-            <span className="nk-loc__title">{fillTemplate(copy.location.searchFor, { text: keyword.text })}</span>
-            <span className="nk-loc__sub">{copy.location.searchForHint}</span>
+            <span className="nk-loc__title">{fillTemplate(copy.location.noMatch, { text: value.trim() })}</span>
+            <span className="nk-loc__sub">{copy.location.noMatchHint}</span>
           </span>
-        </Ariakit.ComboboxItem>
+        </div>
       ) : null}
     </>
   );
@@ -507,6 +555,11 @@ function LocationBox({
       onKeyDown={(event) => {
         // Page mode: Escape hides the suggestions and brings back the recent searches and filters (review R3).
         if (mode === 'page' && event.key === 'Escape') setTyping(false);
+        // A highlighted suggestion is Ariakit's to pick; otherwise the first one, and the form is not sent without it.
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing && !picked && !event.currentTarget.getAttribute('aria-activedescendant')) {
+          event.preventDefault();
+          pickFirst();
+        }
       }}
       data-testid={testId}
     />

@@ -4,13 +4,13 @@ import React, { forwardRef, useEffect, useId, useRef, useState } from 'react';
 import { fillTemplate, useLocale } from '@nestyk/i18n';
 import { isRentPreset } from '@nestyk/feature-search';
 import { useRouter } from '../../../i18n/navigation';
-import { BEDROOM_CHOICES, HOME_PROPERTY_TYPES, homeSearchHref, type HomeSearchInput } from '../../../lib/guest-home';
+import { BEDROOM_CHOICES, findStartType, HOME_PROPERTY_TYPES, homeSearchHref, type HomeSearchInput } from '../../../lib/guest-home';
 import { locationPatch, type LocationChoice } from '../../../lib/guest-location';
 import { keyboardOffset } from '../../../lib/guest-keyboard';
 import { addRecentSearch, FIND_FROM_SITE, parseRecentSearches, RECENT_KEY, recentSearchLabel, type RecentSearch } from '../../../lib/guest-recent';
 import { RENT_PRESET_CHOICES, presetLabel, priceRangeLabel, type PriceWords } from '../../../lib/guest-search';
 import { BedIcon, CheckIcon, ClockIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, CondoIcon, SlidersIcon } from './GuestIcons';
-import { LocationPageBox, type LocationPageHandle } from './LocationCombobox';
+import { LocationPageBox, openPlaceBox, type LocationPageHandle } from './LocationCombobox';
 import { PriceRangeField, type Price } from './PriceRangeField';
 
 type Field = 'type' | 'price' | 'beds';
@@ -91,6 +91,8 @@ function Option({ selected, onSelect, testId, children }: { selected: boolean; o
  * Mobile search page /find (Mos 25 Nov 2026, canvas page "searchnew", boards D2–D6): the place box with "near me" and
  * the rail lines, recent searches (this device only), the type / monthly rent / bedrooms dropdowns, and "ล้าง" /
  * "ดูห้อง" at the bottom. Picking a place fills the box; only "ดูห้อง" (or a recent search) opens the results.
+ * A search needs a place (Mos 27 Nov 2026): "ดูห้อง" stays off until one is picked. A link may bring a property type
+ * (`?type=`, the footer), which starts chosen.
  */
 export function SearchStart() {
   const { t } = useLocale();
@@ -111,7 +113,10 @@ export function SearchStart() {
   const placeBox = useRef<LocationPageHandle>(null);
   const toggles = useRef<Record<Field, HTMLButtonElement | null>>({ type: null, price: null, beds: null });
 
-  useEffect(() => setRecent(readRecent()), []);
+  useEffect(() => {
+    setRecent(readRecent());
+    setType(findStartType(window.location.search));
+  }, []);
 
   // The bottom bar rides above the on-screen keyboard (iOS keeps the page height and only the visible area shrinks),
   // and the page keeps room under the list for the bar, whose height changes with the filter summary.
@@ -179,11 +184,6 @@ export function SearchStart() {
   };
 
   const pickLocation = (choice: LocationChoice) => {
-    if (choice.kind === 'keyword') {
-      setPlace(null);
-      setKeyword(choice.text);
-      return;
-    }
     setPlace(choice);
     setKeyword(
       choice.kind === 'area'
@@ -200,8 +200,11 @@ export function SearchStart() {
     router.push(homeSearchHref(input));
   };
   const submit = () => {
-    const location = place ? locationPatch(place) : { keyword: keyword.trim() || undefined };
-    open({ ...location, type: type || undefined, minPrice: price.minPrice, maxPrice: price.maxPrice, bedrooms: bedrooms || undefined });
+    if (!place) {
+      openPlaceBox(`${id}-place`);
+      return;
+    }
+    open({ ...locationPatch(place), type: type || undefined, minPrice: price.minPrice, maxPrice: price.maxPrice, bedrooms: bedrooms || undefined });
   };
   const clearAll = () => {
     setKeyword('');
@@ -370,6 +373,7 @@ export function SearchStart() {
             setPlace(null);
           }}
           onPick={pickLocation}
+          picked={place !== null}
           placeholder={copy.search.keywordPlaceholder}
           inputClassName="nk-input nk-input--icon"
           testId="find.place"
@@ -394,9 +398,19 @@ export function SearchStart() {
         <button type="button" className="nk-link-btn nk-find__clear" onClick={clearAll} data-testid="find.clear">
           {find.clearAll}
         </button>
-        <button type="button" className="nk-btn nk-btn--primary nk-find__go" onClick={submit} data-testid="find.submit">
+        <button
+          type="button"
+          className="nk-btn nk-btn--primary nk-find__go"
+          onClick={submit}
+          disabled={!place}
+          aria-describedby={place ? undefined : `${id}-need`}
+          data-testid="find.submit"
+        >
           {find.showRooms}
         </button>
+        <span id={`${id}-need`} className="nk-sr-only">
+          {find.needPlace}
+        </span>
       </div>
     </div>
   );
