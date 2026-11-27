@@ -48,14 +48,16 @@ const BASE_CSS = `
 /**
  * The <html> document shared by the app's two root layouts: the guest pages under
  * app/[locale] (lang follows the URL) and the share/sign pages under app/(share) (Thai).
+ * `headScript`: a small inline script that must run before the first frame (guest page change animation).
  */
-export function RootDocument({ lang, children }: { lang: string; children: React.ReactNode }) {
+export function RootDocument({ lang, headScript, children }: { lang: string; headScript?: string; children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: inside the NESTYK app, the app marks <html> (data-nk-app and the screen edges) before
     // the page loads (guest web step 2). Only this element's own attributes; its children are still checked.
     <html lang={lang} className={`${mitr.variable} ${baloo2.variable} ${notoSansThai.variable}`} suppressHydrationWarning>
       <head>
         <style dangerouslySetInnerHTML={{ __html: BASE_CSS }} />
+        {headScript ? <script dangerouslySetInnerHTML={{ __html: headScript }} /> : null}
       </head>
       <body style={{ margin: 0, padding: 0, backgroundColor: '#F8FAFC' }}>{children}</body>
     </html>

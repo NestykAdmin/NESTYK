@@ -6,6 +6,7 @@ import { getTranslations } from '@nestyk/i18n';
 import { routing } from '../../i18n/routing';
 import { guestSiteIndexable, guestSiteOrigin } from '../../lib/guest-seo';
 import { RootDocument } from '../../lib/root-document';
+import { NAV_REVEAL_SCRIPT } from '../../lib/guest-transition';
 import { GuestLocaleProvider } from '../components/GuestLocaleProvider';
 import './guest.css';
 
@@ -35,7 +36,8 @@ export default async function GuestRootLayout({ children, params }: Props) {
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();
   return (
-    <RootDocument lang={locale}>
+    // NAV_REVEAL_SCRIPT: page change animation on full page loads (design A, Mos 27 Nov 2026).
+    <RootDocument lang={locale} headScript={NAV_REVEAL_SCRIPT}>
       <GuestLocaleProvider locale={locale}>{children}</GuestLocaleProvider>
     </RootDocument>
   );

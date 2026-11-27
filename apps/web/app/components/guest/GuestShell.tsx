@@ -6,6 +6,7 @@ import { guestAccountUrl } from '../../../lib/guest-site';
 import { GuestAppBar, GuestAppNavigator } from './GuestAppBar';
 import { GuestFooter } from './GuestFooter';
 import { GuestHeader } from './GuestHeader';
+import { GuestPageTransition } from './GuestPageTransition';
 import { GuestPullRefresh } from './GuestPullRefresh';
 import { GuestSessionProvider } from './GuestSession';
 import { GuestTabBar } from './GuestTabBar';
@@ -33,6 +34,8 @@ export function GuestShell({ locale, children }: { locale: SupportedLocale; chil
           <GuestAppBar />
           <GuestAppNavigator />
           <GuestHeader />
+          {/* Phones and the app: page change animation (design A, Mos 27 Nov 2026). */}
+          <GuestPageTransition />
           <main id="main" className="nk-main">
             {/* In the app only: pull to refresh (Mos 25 Nov 2026, canvas "ptr", design A). Inside the page: it moves with it. */}
             <GuestPullRefresh />

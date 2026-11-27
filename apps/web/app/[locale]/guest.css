@@ -5378,3 +5378,288 @@ html[data-nk-app][data-nk-pull="settle"] :is(.nk-main, .nk-ptr) {
     stroke-dasharray: 100 100;
   }
 }
+
+/* ===== Page outlines while a page loads, design A (Mos 27 Nov 2026, canvas "skeleton") =====
+   app/components/guest/PageSkeletons.tsx, from the routes' loading.tsx. */
+.nk-skel {
+  min-height: 70vh;
+}
+.nk-skel__inner {
+  max-width: var(--nk-content-width);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--nk-space-4) var(--nk-space-6);
+}
+.nk-skel__top {
+  background: var(--nk-color-surface);
+  border-bottom: 1px solid var(--nk-color-border);
+}
+.nk-skel__bar {
+  display: flex;
+  gap: var(--nk-space-2);
+  padding-bottom: 0;
+}
+.nk-skel__box {
+  display: block;
+  background: var(--nk-color-track);
+  border-radius: var(--nk-radius-md);
+}
+.nk-skel__field {
+  flex: 1;
+  height: 46px;
+}
+.nk-skel__go {
+  flex: none;
+  width: 46px;
+  height: 46px;
+}
+.nk-skel__chips {
+  display: flex;
+  gap: var(--nk-space-2);
+  overflow: hidden;
+}
+.nk-skel__chip {
+  flex: none;
+  width: 88px;
+  height: 32px;
+  border-radius: var(--nk-radius-pill);
+}
+.nk-skel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-skel__count {
+  width: 30%;
+}
+.nk-skel__title {
+  width: 70%;
+  height: 24px;
+}
+.nk-skel__room {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
+.nk-skel__photo {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--nk-radius-lg);
+}
+.nk-skel__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-3);
+}
+.nk-skel__facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nk-space-2);
+}
+.nk-skel__fact {
+  height: 56px;
+}
+.nk-skel__price {
+  display: none;
+}
+.nk-skel .nk-skeleton,
+.nk-skel__box {
+  background: linear-gradient(90deg, var(--nk-color-track) 0%, var(--nk-color-neutral-bg) 50%, var(--nk-color-track) 100%);
+  background-size: 200% 100%;
+  animation: nk-skel-shine 1.2s linear infinite;
+}
+.nk-skel--part {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nk-space-4);
+}
+.nk-skel__tabs {
+  display: flex;
+  gap: var(--nk-space-2);
+}
+.nk-skel__tab {
+  width: 88px;
+  height: 40px;
+  border-radius: var(--nk-radius-md);
+}
+.nk-area--skeleton .nk-area__body {
+  flex: 1;
+  justify-content: center;
+  gap: var(--nk-space-2);
+}
+.nk-area--skeleton .nk-skeleton {
+  width: 80%;
+}
+.nk-area--skeleton .nk-skeleton--short {
+  width: 50%;
+}
+/* Photos of room and area cards shine while they load (a few seconds at most; the photo covers it once it is in). */
+.nk-room__media,
+.nk-area__media {
+  background: linear-gradient(90deg, var(--nk-color-track) 0%, var(--nk-color-neutral-bg) 50%, var(--nk-color-track) 100%);
+  background-size: 200% 100%;
+  animation: nk-skel-shine 1.2s linear 4;
+}
+@media (max-width: 960px) {
+  .nk-skel__inner {
+    padding: var(--nk-space-3) var(--nk-space-4);
+  }
+  /* The room photo runs edge to edge on phones, like the page. */
+  .nk-skel--room .nk-skel__inner {
+    padding: 0 0 calc(var(--nk-tabbar-height) + var(--nk-space-4));
+  }
+  .nk-skel__photo {
+    aspect-ratio: auto;
+    height: 300px;
+    border-radius: 0;
+  }
+  .nk-skel__text {
+    padding: 0 var(--nk-space-4);
+  }
+  .nk-skel__price {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    box-sizing: border-box;
+    min-height: var(--nk-tabbar-height);
+    padding: var(--nk-space-3) var(--nk-space-5) max(var(--nk-space-3), var(--nk-safe-bottom));
+    display: flex;
+    align-items: center;
+    gap: var(--nk-space-3);
+    background: var(--nk-color-surface);
+    border-top: 1px solid var(--nk-color-border);
+  }
+  .nk-skel__price .nk-skeleton--price {
+    flex: 1;
+  }
+  .nk-skel__cta {
+    width: 140px;
+    height: 48px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nk-skel .nk-skeleton,
+  .nk-skel__box,
+  .nk-room__media,
+  .nk-area__media {
+    animation: none;
+  }
+}
+@keyframes nk-skel-shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+/* ===== End page outlines ===== */
+
+/* ===== Page change animation, design A (Mos 27 Nov 2026, canvas "pageanim") =====
+   lib/guest-transition.ts picks the direction: a deeper page slides in from the right (push), going back slides it
+   away (back), tabs and pages of the same level fade. <html data-nk-nav> drives the view transition (in-page changes
+   and full page loads alike); <html data-nk-enter> moves only the page that comes in (.nk-route, the template) where
+   there is no view transition. Phones and the app only, never with reduced motion. */
+@media (max-width: 960px) and (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+
+  /* A fade keeps the bars where they are; a push or back takes them along with the page. */
+  html[data-nk-nav="fade"] .nk-tabbar {
+    view-transition-name: nk-tabbar;
+  }
+  html[data-nk-nav="fade"] .nk-appbar {
+    view-transition-name: nk-appbar;
+  }
+  ::view-transition-group(nk-tabbar),
+  ::view-transition-group(nk-appbar),
+  ::view-transition-old(nk-tabbar),
+  ::view-transition-new(nk-tabbar),
+  ::view-transition-old(nk-appbar),
+  ::view-transition-new(nk-appbar) {
+    animation: none;
+  }
+
+  html[data-nk-nav="push"]::view-transition-old(root) {
+    animation: nk-nav-shift-out 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  html[data-nk-nav="push"]::view-transition-new(root) {
+    animation: nk-nav-slide-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    box-shadow: -12px 0 24px rgba(33, 30, 30, 0.18);
+  }
+  /* Back: the page that comes back slides in from the left over the leaving one, which moves right and dims (no
+     layer order on the old picture: WebKit draws it under the new one). */
+  html[data-nk-nav="back"]::view-transition-old(root) {
+    animation: nk-nav-shift-right 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  html[data-nk-nav="back"]::view-transition-new(root) {
+    animation: nk-nav-slide-in-left 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    box-shadow: 12px 0 24px rgba(33, 30, 30, 0.18);
+  }
+  html[data-nk-nav="fade"]::view-transition-old(root) {
+    animation: nk-nav-fade-out 180ms ease both;
+  }
+  html[data-nk-nav="fade"]::view-transition-new(root) {
+    animation: nk-nav-fade-in 180ms ease both;
+  }
+
+  /* No view transition: the page that comes in moves alone. */
+  html[data-nk-enter="push"] .nk-route {
+    animation: nk-enter-push 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  html[data-nk-enter="back"] .nk-route {
+    animation: nk-enter-back 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  html[data-nk-enter="fade"] .nk-route {
+    animation: nk-nav-fade-in 180ms ease both;
+  }
+}
+@keyframes nk-nav-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes nk-nav-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes nk-nav-shift-right {
+  to {
+    transform: translateX(28%);
+    filter: brightness(0.82);
+  }
+}
+@keyframes nk-nav-shift-out {
+  to {
+    transform: translateX(-28%);
+    filter: brightness(0.82);
+  }
+}
+@keyframes nk-nav-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes nk-nav-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes nk-enter-push {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+@keyframes nk-enter-back {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+}
+/* ===== End page change animation ===== */

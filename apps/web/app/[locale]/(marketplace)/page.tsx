@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations, type SupportedLocale } from '@nestyk/i18n';
@@ -11,10 +11,11 @@ import { CalendarIcon, ShieldCheckIcon, SignIcon, SparkIcon, TrainIcon } from '.
 import { ListingTabs } from '../../components/guest/ListingTabs';
 import { PropertyTypeTiles } from '../../components/guest/PropertyTypeTiles';
 import { RoomCard } from '../../components/guest/RoomCard';
+import { HomeAreasSkeleton, HomeListingsSkeleton } from '../../components/guest/PageSkeletons';
 import { SearchPanel } from '../../components/guest/SearchPanel';
 import { bangkokToday, findHref, HOME_RAILS } from '../../../lib/guest-home';
 import { homeAreaGroups } from '../../../lib/guest-areas';
-import { loadHomeData } from '../../../lib/guest-rooms';
+import { loadHomeData, type HomeData } from '../../../lib/guest-rooms';
 import { guestPageMetadata } from '../../../lib/guest-seo';
 import { localePath, NEAR_TRANSIT_READY } from '../../../lib/guest-site';
 import '../guest-areas.css';
@@ -66,6 +67,113 @@ function SearchLink({ href, className, soon, children }: { href: string | null; 
   );
 }
 
+type GuestCopy = ReturnType<typeof getTranslations>['guest'];
+type Retry = { label: string; href: string };
+
+/** "ประกาศแนะนำสำหรับคุณ": waits for the API in its own part (HomeListingsSkeleton meanwhile). */
+async function HomeListings({ data, copy, locale, today, retry }: { data: Promise<HomeData>; copy: GuestCopy; locale: string; today: string; retry: Retry }) {
+  const { rails } = await data;
+  const railLabel: Record<PublicFeaturedRail, string> = {
+    recommended: copy.home.tabRecommended,
+    near_transit: copy.home.tabNearTransit,
+    new: copy.home.tabNew,
+  };
+  return rails ? (
+    <ListingTabs
+      label={copy.home.featuredTitle}
+      testId="guestHome.rails"
+      tabs={HOME_RAILS.filter((rail) => NEAR_TRANSIT_READY || rail !== 'near_transit').map((rail) => ({
+        id: rail,
+        label: railLabel[rail],
+        panel: rails[rail].length ? (
+          <div className="nk-room-grid">
+            {rails[rail].map((card) => (
+              <RoomCard key={card.id} card={card} copy={copy} locale={locale} today={today} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState title={copy.home.listingsEmpty} />
+        ),
+      }))}
+    />
+  ) : (
+    <ErrorState title={copy.states.errorTitle} body={copy.states.errorBody} retry={retry} />
+  );
+}
+
+/** Bangkok areas and province zones: wait for the API in their own part (HomeAreasSkeleton meanwhile). */
+async function HomeAreas({
+  data,
+  copy,
+  locale,
+  areasHref,
+  searchHref,
+  soon,
+  retry,
+}: {
+  data: Promise<HomeData>;
+  copy: GuestCopy;
+  locale: string;
+  areasHref: string;
+  searchHref: string;
+  soon: string;
+  retry: Retry;
+}) {
+  const { areas } = await data;
+  const { bangkok, province } = homeAreaGroups(areas ?? []);
+  return (
+    <>
+      {/* Mos 20 Nov 2026 (canvas HomeZonesWeb): Bangkok areas with "ดูทุกทำเล", then the province zones. */}
+      <div className="nk-areas" data-testid="guestHome.areas">
+        <div className="nk-home-areas__head">
+          <div className="nk-section__head nk-section__head--stack">
+            <h2 className="nk-section__title">{copy.home.areasTitle}</h2>
+            <p className="nk-section__subtitle">{copy.areaPage.groupBangkok}</p>
+          </div>
+          {areas !== null && areas.length ? (
+            <Link href={areasHref} className="nk-link-more">
+              {copy.areaPage.seeAllAreas}
+            </Link>
+          ) : null}
+        </div>
+        {areas === null ? (
+          <ErrorState title={copy.states.errorTitle} body={copy.states.errorBody} retry={retry} />
+        ) : bangkok.length ? (
+          <div className="nk-area-grid nk-home-areas__grid">
+            {bangkok.map((area) => (
+              <AreaCard key={area.slug} area={area} copy={copy} locale={locale} />
+            ))}
+          </div>
+        ) : province.length ? null : (
+          <EmptyState title={copy.home.listingsEmpty} />
+        )}
+        <SearchLink href={searchHref} className="nk-link-more nk-areas__station" soon={soon}>
+          <TrainIcon size={18} />
+          {copy.home.searchByStation}
+        </SearchLink>
+      </div>
+      {province.length ? (
+        <div className="nk-areas" data-testid="guestHome.zones">
+          <div className="nk-home-areas__head">
+            <div className="nk-section__head nk-section__head--stack">
+              <h2 className="nk-section__title nk-home-zones__title">{copy.areaPage.groupProvince}</h2>
+              <p className="nk-section__subtitle">{copy.areaPage.provinceSubtitle}</p>
+            </div>
+            <Link href={areasHref} className="nk-link-more">
+              {copy.areaPage.seeAllZones}
+            </Link>
+          </div>
+          <div className="nk-zone-grid nk-home-zones">
+            {province.map((area) => (
+              <ZoneCard key={area.slug} area={area} copy={copy} locale={locale} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Guest home (S4.1, design v2.3 HomeWebV23 + MobileHomeV23). One page for every width: guest.css switches the
  * mobile layout at 960px (compact hero, type chips, sideways room rail, no footer). Rooms and areas come from the
@@ -74,20 +182,16 @@ function SearchLink({ href, className, soon, children }: { href: string | null; 
 export default async function HomePage({ params }: Props) {
   const { locale } = await params;
   const copy = getTranslations(locale as SupportedLocale).guest;
-  const { rails, areas } = await loadHomeData();
-  const { bangkok, province } = homeAreaGroups(areas ?? []);
+  // Asked once, not waited for here: the top of the page goes out at once and the rooms and areas follow in their own
+  // parts (Mos 27 Nov 2026). A cached page (ISR) is still built whole, and a failed API still keeps the last good page
+  // (R3: loadHomeData throws in production and the parts below rethrow it).
+  const data = loadHomeData();
   const areasHref = localePath(locale, '/areas');
   const today = bangkokToday();
   // A search needs a place (Mos 27 Nov 2026): links that know none open /find, where the guest picks one.
   const searchHref = localePath(locale, findHref());
   const soon = copy.nav.comingSoon;
   const retry = { label: copy.states.retry, href: localePath(locale, '/') };
-
-  const railLabel: Record<PublicFeaturedRail, string> = {
-    recommended: copy.home.tabRecommended,
-    near_transit: copy.home.tabNearTransit,
-    new: copy.home.tabNew,
-  };
 
   return (
     <div className="nk-home">
@@ -150,27 +254,9 @@ export default async function HomePage({ params }: Props) {
               {copy.home.viewAllListings}
             </SearchLink>
           </div>
-          {rails ? (
-            <ListingTabs
-              label={copy.home.featuredTitle}
-              testId="guestHome.rails"
-              tabs={HOME_RAILS.filter((rail) => NEAR_TRANSIT_READY || rail !== 'near_transit').map((rail) => ({
-                id: rail,
-                label: railLabel[rail],
-                panel: rails[rail].length ? (
-                  <div className="nk-room-grid">
-                    {rails[rail].map((card) => (
-                      <RoomCard key={card.id} card={card} copy={copy} locale={locale} today={today} />
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState title={copy.home.listingsEmpty} />
-                ),
-              }))}
-            />
-          ) : (
-            <ErrorState title={copy.states.errorTitle} body={copy.states.errorBody} retry={retry} />
-          )}
+          <Suspense fallback={<HomeListingsSkeleton />}>
+            <HomeListings data={data} copy={copy} locale={locale} today={today} retry={retry} />
+          </Suspense>
         </div>
       </section>
 
@@ -180,53 +266,9 @@ export default async function HomePage({ params }: Props) {
             <h2 className="nk-section__title">{copy.home.typesTitle}</h2>
             <PropertyTypeTiles copy={copy} locale={locale} variant="tiles" />
           </div>
-          {/* Mos 20 Nov 2026 (canvas HomeZonesWeb): Bangkok areas with "ดูทุกทำเล", then the province zones. */}
-          <div className="nk-areas" data-testid="guestHome.areas">
-            <div className="nk-home-areas__head">
-              <div className="nk-section__head nk-section__head--stack">
-                <h2 className="nk-section__title">{copy.home.areasTitle}</h2>
-                <p className="nk-section__subtitle">{copy.areaPage.groupBangkok}</p>
-              </div>
-              {areas !== null && areas.length ? (
-                <Link href={areasHref} className="nk-link-more">
-                  {copy.areaPage.seeAllAreas}
-                </Link>
-              ) : null}
-            </div>
-            {areas === null ? (
-              <ErrorState title={copy.states.errorTitle} body={copy.states.errorBody} retry={retry} />
-            ) : bangkok.length ? (
-              <div className="nk-area-grid nk-home-areas__grid">
-                {bangkok.map((area) => (
-                  <AreaCard key={area.slug} area={area} copy={copy} locale={locale} />
-                ))}
-              </div>
-            ) : province.length ? null : (
-              <EmptyState title={copy.home.listingsEmpty} />
-            )}
-            <SearchLink href={searchHref} className="nk-link-more nk-areas__station" soon={soon}>
-              <TrainIcon size={18} />
-              {copy.home.searchByStation}
-            </SearchLink>
-          </div>
-          {province.length ? (
-            <div className="nk-areas" data-testid="guestHome.zones">
-              <div className="nk-home-areas__head">
-                <div className="nk-section__head nk-section__head--stack">
-                  <h2 className="nk-section__title nk-home-zones__title">{copy.areaPage.groupProvince}</h2>
-                  <p className="nk-section__subtitle">{copy.areaPage.provinceSubtitle}</p>
-                </div>
-                <Link href={areasHref} className="nk-link-more">
-                  {copy.areaPage.seeAllZones}
-                </Link>
-              </div>
-              <div className="nk-zone-grid nk-home-zones">
-                {province.map((area) => (
-                  <ZoneCard key={area.slug} area={area} copy={copy} locale={locale} />
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <Suspense fallback={<HomeAreasSkeleton />}>
+            <HomeAreas data={data} copy={copy} locale={locale} areasHref={areasHref} searchHref={searchHref} soon={soon} retry={retry} />
+          </Suspense>
         </div>
       </section>
 
