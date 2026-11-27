@@ -24,7 +24,7 @@ export class BillRefreshController {
   }
 
   @Post("received/refresh")
-  @Roles("landlord")
+  @Roles("landlord", "self_owner")
   @HttpCode(HttpStatus.OK)
   landlord(@CurrentUser() user: AuthRequestUser) {
     return this.billing.refreshForOwner(user.id);

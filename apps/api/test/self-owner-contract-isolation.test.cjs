@@ -39,11 +39,13 @@ test('agent query excludes self owner contracts', () => {
   assert.ok(qb.sql.some((s) => s.includes('created_by_user_id')), 'still scoped to the agent');
 });
 
-test('rent bill scan skips self owner leases', () => {
+// Bills plan (27 Nov 2026): self owner leases are billed now (see self-owner-bills.test.cjs); the daily close and
+// the reminders still skip them.
+test('rent bill scan includes self owner leases', () => {
   const qb = recorder();
   const service = new TenantBillingService({ getRepository: () => ({ createQueryBuilder: () => qb }) });
   service.activeLeases();
-  assert.ok(qb.sql.some((s) => s.includes(FILTER)), qb.sql.join(' | '));
+  assert.equal(qb.sql.some((s) => s.includes(FILTER)), false, qb.sql.join(' | '));
 });
 
 test('daily close skips self owner leases', async () => {

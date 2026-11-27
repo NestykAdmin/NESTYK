@@ -172,7 +172,7 @@ test('a second late fee receipt is rejected', async () => {
 test('M8 (Aof 29 Oct 2026): only the deal agent issues a late fee; the landlord opens it, the tenant only sends a slip', () => {
   assert.deepEqual(Reflect.getMetadata(ROLES_KEY, AgentBillsController), ['agent']);
   assert.deepEqual(Reflect.getMetadata(ROLES_KEY, TenantBillsController), ['tenant']);
-  assert.deepEqual(Reflect.getMetadata(ROLES_KEY, OwnerBillsController), ['landlord']);
+  assert.deepEqual(Reflect.getMetadata(ROLES_KEY, OwnerBillsController), ['landlord', 'self_owner']); // bills plan 27 Nov 2026: the self owner reads too
   assert.equal(Reflect.getMetadata('path', AgentBillsController.prototype.createLateFee), 'agent/:id/late-fee');
   assert.equal(Reflect.getMetadata('method', AgentBillsController.prototype.createLateFee), 1);
   assert.equal(Reflect.getMetadata('path', TenantBillsController.prototype.uploadLateFeeSlip), 'mine/:id/late-fee/payment-slip');

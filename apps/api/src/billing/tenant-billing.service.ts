@@ -13,7 +13,7 @@ import type { AgentTenantBilling, BillLateFee, BillReservationCredit, FinancialD
 import { TenantEntity } from '../entities/tenant.entity';
 import { RoomTenancyEntity } from '../entities/room-tenancy.entity';
 import { financialTotals } from '../agent/contracts/financial-document';
-import { AGENT_ROOM_ONLY } from "../agent/contracts/contract-room";
+import { AGENT_ROOM_ONLY, contractRoom, sameContractRoom } from "../agent/contracts/contract-room";
 import { closeEndedLease } from "../agent/contracts/contract-closure";
 import { LeaseContractEntity } from "../entities/lease-contract.entity";
 import { TenantBillEntity } from "../entities/tenant-bill.entity";
@@ -131,7 +131,7 @@ export function upcomingRentPeriod(c: LeaseContractEntity, today: string) {
  * its first period, issued as soon as the lease is in effect, for the rent less `reservationCredit` (the booking
  * receipt). At 0 it is paid at once with no slip; a reservation above the rent is left to the parties (AC-2.4).
  */
-export function openRentBills(c: LeaseContractEntity, today: string, reservationCredit: number | null = null) {
+export function openRentBills(c: LeaseContractEntity, today: string, reservationCredit: number | null = null, keepPast = false) {
   const amount = Number(c.monthly_rent ?? 0);
   if (!(amount > 0)) return [];
   const schedule = scheduleInput(c);
@@ -158,7 +158,7 @@ export function openRentBills(c: LeaseContractEntity, today: string, reservation
       })
     : rentPeriodsUntil({ ...schedule, afterFirst: fresh }, today);
   const rows = source
-    .filter((p) => p.graceUntil >= today)
+    .filter((p) => keepPast || p.graceUntil >= today)
     .map((p) => bill(p, amount));
   const first = fresh ? firstRentPeriod(schedule) : null;
   if (!first) return rows;
@@ -166,6 +166,11 @@ export function openRentBills(c: LeaseContractEntity, today: string, reservation
   const due = Math.max(0, Math.round((firstRent - (reservationCredit ?? 0)) * 100) / 100);
   const firstBill = bill({ ...first, issueDate: first.issueDate < today ? first.issueDate : today }, due);
   return [due === 0 ? { ...firstBill, status: "paid" as const, paid_at: new Date() } : firstBill, ...rows];
+}
+
+/** Every rent bill of a lease up to `today`, past periods included: the local QA seed's bill history. */
+export function rentBillHistory(c: LeaseContractEntity, today: string) {
+  return openRentBills(c, today, null, true);
 }
 
 type Db = DataSource | EntityManager;
@@ -176,25 +181,48 @@ const formKind = (c: LeaseContractEntity) => c.template?.form_kind ?? c.agreemen
  * (same lead, room and agent, not cancelled) once its receipt is issued. Leases without one are left out.
  */
 export async function reservationCredits(db: Db, leases: LeaseContractEntity[]) {
-  // The guard narrows rent_room_id: a self owner lease (null) has no agent reservation and is left out, as before.
-  const wanted = [...new Map(leases.filter((c): c is LeaseContractEntity & { rent_room_id: number } => !!c && isNewLease(c) && c.lead_id != null && c.rent_room_id != null)
+  const wanted = [...new Map(leases.filter((c): c is LeaseContractEntity => !!c && isNewLease(c) && c.lead_id != null && !!contractRoom(c))
     .map((c) => [c.id, c])).values()];
   const out = new Map<number, number>();
   if (!wanted.length) return out;
+  // The reservation of the same deal: same agent (or admin), lead and room, on whichever room table the lease uses.
+  const roomOf = (c: LeaseContractEntity) => c.self_owner_room_id != null
+    ? { self_owner_room_id: c.self_owner_room_id } : { rent_room_id: c.rent_room_id as number };
   const rows = await db.getRepository(LeaseContractEntity).find({
-    where: wanted.map((c) => ({ created_by_user_id: c.created_by_user_id, lead_id: c.lead_id, rent_room_id: c.rent_room_id })),
+    where: wanted.map((c) => ({ created_by_user_id: c.created_by_user_id, lead_id: c.lead_id, ...roomOf(c) })),
     relations: { template: true, agreement_type: true },
   });
   for (const c of wanted) {
     const reservation = rows
       .filter((r) => r.created_by_user_id === c.created_by_user_id && r.lead_id === c.lead_id &&
-        r.rent_room_id === c.rent_room_id && r.status !== "cancelled" && !!r.receipt_url && formKind(r) === "reservation")
+        sameContractRoom(r, c) && r.status !== "cancelled" && !!r.receipt_url && formKind(r) === "reservation")
       .sort((a, b) => b.id - a.id)[0];
     const invoice = (reservation?.data?.financialDocuments as { invoice?: FinancialDocumentInput } | undefined)?.invoice;
     const total = invoice?.items?.length ? financialTotals(invoice).total : NaN;
     if (Number.isFinite(total) && total >= 0) out.set(c.id, total);
   }
   return out;
+}
+
+/**
+ * Owner rule for bills and leases (`:userId`). Agent rooms keep the landlord rule exactly; a self owner room counts only
+ * when the user is both the contract's owner and the room's owner (same rule as the contracts' partiesFor).
+ */
+function ownerSql(roomAlias: string, selfRoomAlias: string) {
+  return `((c.self_owner_room_id IS NULL AND (c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND ${roomAlias}.owner_id = :userId)))` +
+    ` OR (c.self_owner_room_id IS NOT NULL AND c.owner_user_id = :userId AND ${selfRoomAlias}.owner_user_id = :userId))`;
+}
+
+/**
+ * Project and room shown on a bill. Agent rooms keep their old labels exactly (empty project, room_id); a self owner
+ * room reads through contractRoom.
+ */
+function billRoomLabels(c: LeaseContractEntity | null | undefined): { property: string; room: string | null } {
+  if (c?.self_owner_room_id != null) {
+    const room = contractRoom(c);
+    return { property: room?.property ?? "", room: room?.roomNumber ?? null };
+  }
+  return { property: c?.rent_room?.property?.name ?? "", room: c?.rent_room?.room_id ?? null };
 }
 
 /** The "rent − reservation" line of a new lease's first bill, or null for any other bill. */
@@ -242,8 +270,7 @@ export class TenantBillingService {
       .leftJoin("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.tenant", "tenant")
       .where("(c.status = 'active' OR (c.agreement_kind = 'renewal' AND c.document_url IS NOT NULL AND c.status IN ('awaiting_signatures', 'awaiting_agent_review')))")
-      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
-      .andWhere(AGENT_ROOM_ONLY);
+      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')");
   }
 
   private async insertBills(leases: LeaseContractEntity[], today: string) {
@@ -274,16 +301,20 @@ export class TenantBillingService {
         if (c.room_tenancy_id && moveIn <= today && (!c.end_date || today <= c.end_date)) {
           // Step 28 (B0b): the previous tenant's stay is released by the closing job; until then the room keeps
           // one active stay (unique index), so this one waits instead of failing every lease's bills tonight.
-          // A self owner lease has no agent room: nothing here to wait for (the agent's billing scan leaves it out anyway).
-          if (c.rent_room_id === null) continue;
+          // The room is an agent room or a self owner room (chk_lease_contracts_one_room): the stay lives on the same one.
+          if (c.self_owner_room_id == null && c.rent_room_id === null) continue;
+          // Not null here (checked above); the cast only tells the compiler what the check proved.
+          const room: { self_owner_room_id: number } | { rent_room_id: number } = c.self_owner_room_id != null
+            ? { self_owner_room_id: c.self_owner_room_id }
+            : { rent_room_id: c.rent_room_id as number };
           const occupied = await manager.count(RoomTenancyEntity, {
-            where: { rent_room_id: c.rent_room_id, status: 'active', id: Not(c.room_tenancy_id) },
+            where: { ...room, status: 'active', id: Not(c.room_tenancy_id) },
           });
           if (occupied) continue;
           // The daily job and the bill refresh POSTs activate occupancy only once the signed stay starts.
           // The parent lock keeps a concurrent closure from reactivating a moved-out tenancy.
           await manager.update(RoomTenancyEntity, { id: c.room_tenancy_id, tenant_id: c.tenant_id,
-            rent_room_id: c.rent_room_id, created_by_user_id: c.created_by_user_id, status: 'prospect' },
+            ...room, created_by_user_id: c.created_by_user_id, status: 'prospect' },
             { status: 'active', move_in_date: moveIn });
         }
       }
@@ -348,7 +379,8 @@ export class TenantBillingService {
   private ownerLeases(userId: number) {
     return this.activeLeases()
       .leftJoin("c.rent_room", "ownerRoom")
-      .andWhere("(c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND ownerRoom.owner_id = :userId))", { userId });
+      .leftJoin("c.self_owner_room", "ownerSelfRoom")
+      .andWhere(ownerSql("ownerRoom", "ownerSelfRoom"), { userId });
   }
 
   async ensureForOwner(userId: number, today = bangkokToday()) {
@@ -375,7 +407,9 @@ export class TenantBillingService {
       .innerJoinAndSelect("b.tenant", "tenant")
       .innerJoinAndSelect("b.lease_contract", "c")
       .leftJoinAndSelect("c.rent_room", "room")
-      .leftJoinAndSelect("room.property", "property");
+      .leftJoinAndSelect("room.property", "property")
+      .leftJoinAndSelect("c.self_owner_room", "selfOwnerRoom")
+      .leftJoinAndSelect("selfOwnerRoom.property", "selfOwnerProperty");
   }
 
   /** Serializes bills with the reservation taken off each new lease's first bill (AC-7.2). */
@@ -416,8 +450,7 @@ export class TenantBillingService {
         [b.tenant?.first_name, b.tenant?.last_name].filter((part) => part?.trim()).join(" ") ||
         b.tenant?.name ||
         "",
-      property: c?.rent_room?.property?.name ?? "",
-      room: c?.rent_room?.room_id ?? null,
+      ...billRoomLabels(c),
       period: b.period,
       documentNo: b.document_no,
       issueDate: b.issue_date,
@@ -433,6 +466,10 @@ export class TenantBillingService {
       paidAt: b.paid_at ? new Date(b.paid_at).toISOString() : null,
       hasPaymentSlip: !!b.payment_slip_path,
       slipSubmitted: !!b.slip_submitted_at,
+      // Self owner bills plan: the paid date shown to the owner is the day the slip was sent (Jom 27 Nov 2026).
+      slipSubmittedAt: b.slip_submitted_at ? new Date(b.slip_submitted_at).toISOString() : null,
+      awaitingReview: b.status !== "paid" && !!b.payment_slip_path && !!b.slip_submitted_at,
+      selfOwnerRoomId: c?.self_owner_room_id ?? null,
       slipReturnReason: text(b.slip_return_note) || null,
       payTo: payTo.bankName || payTo.accountName || payTo.accountNo ? payTo : null,
     };
@@ -474,6 +511,8 @@ export class TenantBillingService {
     const leases = await this.activeLeases()
       .leftJoinAndSelect("c.rent_room", "room")
       .leftJoinAndSelect("room.property", "property")
+      .leftJoinAndSelect("c.self_owner_room", "selfOwnerRoom")
+      .leftJoinAndSelect("selfOwnerRoom.property", "selfOwnerProperty")
       .andWhere("tenant.user_id = :userId", { userId })
       .getMany();
     const next = currentRentContracts(leases, today)
@@ -484,8 +523,7 @@ export class TenantBillingService {
     return {
       billId: null,
       leaseContractId: next.c.id,
-      property: next.c.rent_room?.property?.name ?? "",
-      room: next.c.rent_room?.room_id ?? null,
+      ...billRoomLabels(next.c),
       ...next.period,
       amount: Number(next.c.monthly_rent),
       status: "upcoming",
@@ -495,7 +533,7 @@ export class TenantBillingService {
   async listReceived(userId: number) {
     const today = bangkokToday();
     const rows = await this.billsQuery()
-      .where("(c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND room.owner_id = :userId))", { userId })
+      .where(ownerSql("room", "selfOwnerRoom"), { userId })
       .orderBy("b.due_date", "DESC")
       .addOrderBy("b.id", "DESC")
       .getMany();
@@ -505,7 +543,7 @@ export class TenantBillingService {
   private async owned(userId: number, id: number) {
     const bill = await this.billsQuery()
       .where("b.id = :id", { id })
-      .andWhere("(c.owner_user_id = :userId OR (c.owner_user_id IS NULL AND room.owner_id = :userId))", { userId })
+      .andWhere(ownerSql("room", "selfOwnerRoom"), { userId })
       .getOne();
     if (!bill) throw new NotFoundException("ไม่พบบิล");
     return bill;

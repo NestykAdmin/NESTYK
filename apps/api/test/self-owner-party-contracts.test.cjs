@@ -265,15 +265,14 @@ test('agent rows still serialize from rent_room', async () => {
   assert.deepEqual(service.partiesFor(OWNER, agentRow({ owner_user_id: OWNER, owner_delivered_at: new Date() })), ['owner']);
 });
 
-// Final review (26 Nov 2026): rent bills of self owner leases are not issued by the agent billing, so the tenant's
-// inbox must not promise an upcoming bill for them; an agent lease keeps its next bill.
-test('an active self owner lease has no next rent bill; the same lease on an agent room keeps it', async (t) => {
+// Bills plan (27 Nov 2026): self owner leases are billed like agent leases again, so both show the next rent bill.
+test('an active self owner lease shows its next rent bill, like the same lease on an agent room', async (t) => {
   const rentSchedule = require('../src/billing/rent-schedule.ts');
   t.mock.method(rentSchedule, 'bangkokToday', () => '2026-12-10');
   const active = { status: 'active', start_date: '2026-12-01', end_date: '2027-11-30', data: { leaseAgreement: { advanceMonths: '1' } } };
   const own = serviceFor(selfOwnerRow(active));
   const [selfOwner] = await own.service.listForUser(TENANT_USER);
-  assert.equal(selfOwner.nextRentBill, null);
+  assert.ok(selfOwner.nextRentBill && selfOwner.nextRentBill.period, 'self owner lease shows its next bill');
   const agent = serviceFor(selfOwnerRow({ ...active, self_owner_room_id: null, self_owner_room: null, rent_room_id: 3,
     rent_room: { property: { name: 'Aria' }, listing_title: null, room_id: '1201' } }));
   const [agentLease] = await agent.service.listForUser(TENANT_USER);

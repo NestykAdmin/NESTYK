@@ -66,7 +66,7 @@ test('routes: POST mine/refresh needs the tenant role, POST received/refresh the
       code: Reflect.getMetadata('__httpCode__', handler), roles: Reflect.getMetadata('roles', handler) };
   };
   assert.deepEqual(route('tenant'), { path: 'mine/refresh', method: 1, code: 200, roles: ['tenant'] }); // 1 = POST
-  assert.deepEqual(route('landlord'), { path: 'received/refresh', method: 1, code: 200, roles: ['landlord'] });
+  assert.deepEqual(route('landlord'), { path: 'received/refresh', method: 1, code: 200, roles: ['landlord', 'self_owner'] }); // bills plan 27 Nov 2026
   assert.equal(Reflect.getMetadata('path', BillRefreshController), 'bills');
   assert.ok(Reflect.getMetadata('controllers', BillingModule).includes(BillRefreshController), 'registered in BillingModule');
 });

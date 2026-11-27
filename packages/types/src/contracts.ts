@@ -72,6 +72,12 @@ export interface TenantBill {
   slipSubmitted: boolean;
   /** Agent's return note. `invalid_image` is the legacy fixed reason. Cleared after a new upload. */
   slipReturnReason: string | null;
+  /** When the tenant sent the slip (ISO); the owner's "paid on" date (self owner bills, 27 Nov 2026). */
+  slipSubmittedAt?: string | null;
+  /** Slip sent, not confirmed or returned yet ("รอยืนยัน"). */
+  awaitingReview?: boolean;
+  /** The self owner room of the lease, or null for an agent room. */
+  selfOwnerRoomId?: number | null;
   payTo: { bankName: string; accountName: string; accountNo: string } | null;
 }
 

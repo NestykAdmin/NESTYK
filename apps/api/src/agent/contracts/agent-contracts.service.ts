@@ -3028,10 +3028,8 @@ export class AgentContractsService {
     return rows.map((row) => ({
       ...this.forParty(this.serialize(row, signed), this.partiesFor(userId, row)),
       myParties: this.partiesFor(userId, row),
-      // A self owner lease's rent is not billed by the agent billing: no upcoming bill to show.
       nextRentBill:
         row.status === "active" &&
-        row.self_owner_room_id == null &&
         ["lease", "renewal"].includes(
           row.template?.form_kind ?? row.agreement_type?.form_kind ?? "lease",
         )

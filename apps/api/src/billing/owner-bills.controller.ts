@@ -11,7 +11,7 @@ import { TenantBillingService } from "./tenant-billing.service";
 
 @Controller("bills")
 @UseGuards(AuthGuard, RolesGuard)
-@Roles("landlord")
+@Roles("landlord", "self_owner")
 export class OwnerBillsController {
   constructor(private readonly billing: TenantBillingService) {}
 
