@@ -10,7 +10,7 @@ import type {
 } from '@nestyk/types';
 import { RentRoomEntity } from '../entities/rent-room.entity';
 import { PUBLIC_AREAS, areaOfDistrict } from './public-areas';
-import { PUBLIC_ROOM_RELATIONS, toPublicRoomCard, toPublicRoomDetail } from './public-room-mapper';
+import { toPublicRoomCard, toPublicRoomDetail } from './public-room-mapper';
 import { bangkokToday } from '../billing/rent-schedule';
 import {
   SEARCH_CACHE_MS,
@@ -37,6 +37,26 @@ export const FEATURED_CANDIDATES = 120;
 export const AREA_CANDIDATES = 1000;
 /** The three home rails read the same newest rooms, so one load serves them all for this long. */
 export const FEATURED_CACHE_MS = 60_000;
+/**
+ * A loaded room is kept this long by its id (Mos 27 Nov 2026: search and room pages were slow), the same freshness as
+ * the search summary (SEARCH_CACHE_MS). Whether a room is public is still checked on every call.
+ */
+export const ROOM_CACHE_MS = 30_000;
+/** Most rooms kept at once; the oldest go first. */
+export const ROOM_CACHE_MAX = 500;
+
+/** The room with its building and room type: one row per room, so one joined query. */
+const ROOM_BASE_RELATIONS = ['property', 'property.property_type', 'room_type'];
+/**
+ * Each list of a room in its own query (R1: joining them all multiplies the rows), with what it points to.
+ * Together with ROOM_BASE_RELATIONS this is everything the public mapper reads (PUBLIC_ROOM_RELATIONS).
+ */
+const ROOM_LISTS = [
+  { key: 'medias', relations: ['medias'] },
+  { key: 'price_rows', relations: ['price_rows', 'price_rows.contract_type'] },
+  { key: 'layout_values', relations: ['layout_values', 'layout_values.layout'] },
+  { key: 'facilities', relations: ['facilities', 'facilities.facility'] },
+] as const;
 
 const ROOM_ID = /^[1-9]\d{0,8}$/;
 
@@ -77,6 +97,7 @@ export class PublicRoomsService {
   private readonly logger = new Logger(PublicRoomsService.name);
   private candidates: { loadedAt: number; rooms: Promise<RentRoomEntity[]> } | null = null;
   private searchRows: { loadedAt: number; rows: Promise<SearchCandidateRow[]> } | null = null;
+  private readonly loadedRooms = new Map<number, { loadedAt: number; room: RentRoomEntity }>();
 
   constructor(
     @InjectRepository(RentRoomEntity) private readonly roomsRepo: Repository<RentRoomEntity>,
@@ -96,18 +117,48 @@ export class PublicRoomsService {
   }
 
   /**
-   * Loads whole rooms for the given ids, keeping their order. Each list (photos, prices, layout, facilities) is read
-   * in its own query: joining them all at once multiplies the rows (photos x prices x layout x facilities, R1).
+   * Loads whole rooms for the given ids, keeping their order. Rooms loaded in the last ROOM_CACHE_MS are reused; the
+   * rest are read with their building and room type in one query, and each list (photos, prices, layout,
+   * facilities) in its own query (R1), all at the same time: each find takes its own pooled connection, where
+   * TypeORM's "query" strategy sent every relation one after another over one connection (Mos 27 Nov 2026).
    */
   private async loadRooms(ids: number[]): Promise<RentRoomEntity[]> {
     if (!ids.length) return [];
-    const rooms = await this.roomsRepo.find({
-      where: { id: In(ids) },
-      relations: [...PUBLIC_ROOM_RELATIONS],
-      relationLoadStrategy: 'query',
-    });
-    const byId = new Map(rooms.map((room) => [Number(room.id), room]));
+    const nowMs = this.now().getTime();
+    const byId = new Map<number, RentRoomEntity>();
+    for (const id of ids) {
+      const kept = this.loadedRooms.get(id);
+      if (kept && nowMs - kept.loadedAt < ROOM_CACHE_MS) byId.set(id, kept.room);
+    }
+    const missing = ids.filter((id) => !byId.has(id));
+    if (missing.length) {
+      const where = { id: In(missing) };
+      const [rooms, ...lists] = await Promise.all([
+        this.roomsRepo.find({ where, relations: [...ROOM_BASE_RELATIONS], relationLoadStrategy: 'join' }),
+        ...ROOM_LISTS.map((list) => this.roomsRepo.find({ where, relations: [...list.relations], relationLoadStrategy: 'join' })),
+      ]);
+      const listsById = lists.map((found) => new Map(found.map((room) => [Number(room.id), room])));
+      for (const room of rooms) {
+        const id = Number(room.id);
+        ROOM_LISTS.forEach((list, index) => {
+          const withList = listsById[index].get(id) as Record<string, unknown> | undefined;
+          (room as unknown as Record<string, unknown>)[list.key] = withList?.[list.key] ?? [];
+        });
+        byId.set(id, room);
+        this.keepRoom(id, room, nowMs);
+      }
+    }
     return ids.map((id) => byId.get(id)).filter((room): room is RentRoomEntity => !!room);
+  }
+
+  private keepRoom(id: number, room: RentRoomEntity, nowMs: number): void {
+    this.loadedRooms.delete(id);
+    this.loadedRooms.set(id, { loadedAt: nowMs, room });
+    while (this.loadedRooms.size > ROOM_CACHE_MAX) {
+      const oldest = this.loadedRooms.keys().next().value;
+      if (oldest === undefined) break;
+      this.loadedRooms.delete(oldest);
+    }
   }
 
   /** The newest public rooms, shared by every rail for FEATURED_CACHE_MS. A failed load is dropped at once. */

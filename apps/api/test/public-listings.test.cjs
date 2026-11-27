@@ -9,7 +9,7 @@ require.extensions['.ts'] = (module, filename) => {
   }).outputText, filename);
 };
 const { NotFoundException, BadRequestException } = require('@nestjs/common');
-const { toPublicRoomCard, toPublicRoomDetail, nearestRailStation } = require('../src/public-listings/public-room-mapper.ts');
+const { toPublicRoomCard, toPublicRoomDetail, nearestRailStation, PUBLIC_ROOM_RELATIONS } = require('../src/public-listings/public-room-mapper.ts');
 const { PUBLIC_AREAS, areaOfDistrict } = require('../src/public-listings/public-areas.ts');
 const { PublicRoomsService, pickRail } = require('../src/public-listings/public-rooms.service.ts');
 const { PublicRoomsController, PublicAreasController, PUBLIC_CACHE_CONTROL } = require('../src/public-listings/public-rooms.controller.ts');
@@ -222,6 +222,9 @@ function fakeRepo(rows, { raw, failFind = 0 } = {}) {
   return { calls, finds, repo };
 }
 
+/** Room loads: each load reads the rooms once (with the building and room type) plus one query per list. */
+const roomLoads = (finds) => finds.filter((options) => options.relations.includes('property')).length;
+
 function whereText(calls) {
   return calls.filter(([m]) => m === 'where' || m === 'andWhere').map(([, sql, params]) => `${sql} ${JSON.stringify(params ?? {})}`).join(' | ');
 }
@@ -285,23 +288,74 @@ test('areas count rooms and the lowest price per popular area from one summary q
   assertNoSecrets(areas);
 });
 
-test('featured and detail pick ids first, then load each relation in its own query, never one join of every list (R1)', async () => {
+// Speed (Mos 27 Nov 2026): TypeORM's "query" strategy sends every relation over one connection, one after another
+// (about 10 round trips per load). Now the rooms and each list are separate finds that run at the same time, each on
+// its own pooled connection, and no find joins two lists together (R1: photos x prices x layout x facilities).
+test('featured and detail pick ids first, then load the rooms and each list in parallel finds, never one join of every list (R1)', async () => {
   const rows = [roomRow({ id: 3 }), roomRow({ id: 2 }), roomRow({ id: 1 })];
   for (const run of [(service) => service.featured('new', 8), (service) => service.detail('3')]) {
     const { calls, finds, repo } = fakeRepo(rows);
+    let open = 0;
+    let most = 0;
+    const find = repo.find;
+    repo.find = async (options) => {
+      open += 1;
+      most = Math.max(most, open);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      try {
+        return await find(options);
+      } finally {
+        open -= 1;
+      }
+    };
     const result = await run(new PublicRoomsService(repo, () => NOW));
     assert.equal(calls.filter(([method]) => method === 'leftJoinAndSelect').length, 0, 'no joined lists');
-    assert.equal(finds.length, 1);
-    assert.equal(finds[0].relationLoadStrategy, 'query');
+    assert.equal(finds.length, 5, 'the rooms, then photos, prices, layout and facilities');
+    assert.equal(most, 5, 'all five run at the same time');
+    assert.deepEqual(finds[0].relations, ['property', 'property.property_type', 'room_type']);
+    const lists = ['medias', 'price_rows', 'layout_values', 'facilities'];
+    for (const list of lists) {
+      const own = finds.filter((options) => options.relations.includes(list));
+      assert.equal(own.length, 1, list);
+      assert.equal(own[0].relations.filter((relation) => lists.includes(relation)).length, 1, `${list} is not joined with another list`);
+    }
+    for (const options of finds) assert.equal(options.relationLoadStrategy, 'join');
+    assert.deepEqual([...new Set(finds.flatMap((options) => options.relations))].sort(), [...PUBLIC_ROOM_RELATIONS].sort(), 'everything the mapper reads');
     const ordered = JSON.stringify(calls.filter(([m]) => m === 'orderBy' || m === 'addOrderBy' || m === 'limit'));
-    for (const relation of ['medias', 'price_rows', 'layout_values', 'facilities']) assert.ok(finds[0].relations.includes(relation), relation);
     if (Array.isArray(result)) {
       assert.deepEqual(result.map((card) => card.id), ['3', '2', '1'], 'newest first, as the ids came');
+      assert.equal(result[0].coverImageUrl !== undefined, true);
       // Step 1 picks the newest 120 public rooms (rails choose from these).
       assert.equal(ordered, JSON.stringify([['orderBy', 'room.created_at', 'DESC'], ['addOrderBy', 'room.id', 'DESC'], ['limit', 120]]));
     }
-    else assert.equal(result.id, '3');
+    else {
+      assert.equal(result.id, '3');
+      // The lists reach the page: the same detail as one load of every relation would give.
+      assert.deepEqual(result, toPublicRoomDetail(rows[0], NOW));
+    }
   }
+});
+
+test('a loaded room is kept for 30 seconds by its id, so the next search or room page does not load it again', async () => {
+  let clock = NOW.getTime();
+  const raw = [candidateRow({ id: 1 }), candidateRow({ id: 2 })];
+  const { finds, repo } = fakeRepo([roomRow({ id: 1 }), roomRow({ id: 2 })], { raw });
+  const service = new PublicRoomsService(repo, () => new Date(clock));
+  const first = await service.search({ limit: '1' });
+  assert.equal(roomLoads(finds), 1);
+  const firstId = Number(first.items[0].id);
+  const otherId = firstId === 1 ? 2 : 1;
+  assert.deepEqual(finds[0].where.id.value.map(Number), [firstId]);
+  const both = await service.search({ limit: '2' });
+  assert.equal(both.items.length, 2);
+  assert.equal(roomLoads(finds), 2, 'only the other room is new');
+  assert.deepEqual(finds[finds.length - 5].where.id.value.map(Number), [otherId]);
+  await service.detail('2');
+  assert.equal(roomLoads(finds), 2, 'the room page uses the kept room');
+  assert.equal(ROOM_CACHE_MS, 30_000);
+  clock += 31_000;
+  await service.detail('2');
+  assert.equal(roomLoads(finds), 3, 'loaded again after 30 seconds');
 });
 
 test('the three home rails share one load of the newest rooms for 60 seconds', async () => {
@@ -309,14 +363,14 @@ test('the three home rails share one load of the newest rooms for 60 seconds', a
   const { calls, finds, repo } = fakeRepo([roomRow({ id: 1 })]);
   const service = new PublicRoomsService(repo, () => new Date(clock));
   await Promise.all([service.featured('recommended', 8), service.featured('near_transit', 8), service.featured('new', 8)]);
-  assert.equal(finds.length, 1);
+  assert.equal(roomLoads(finds), 1);
   assert.equal(calls.filter(([method]) => method === 'getRawMany').length, 1);
   clock += 59_000;
   await service.featured('new', 8);
-  assert.equal(finds.length, 1, 'still fresh');
+  assert.equal(roomLoads(finds), 1, 'still fresh');
   clock += 2_000;
   await service.featured('new', 8);
-  assert.equal(finds.length, 2, 'loaded again after 60 seconds');
+  assert.equal(roomLoads(finds), 2, 'loaded again after 60 seconds');
 });
 
 test('a failed load is not kept, so the next visitor tries again', async () => {
@@ -324,7 +378,7 @@ test('a failed load is not kept, so the next visitor tries again', async () => {
   const service = new PublicRoomsService(repo, () => NOW);
   await assert.rejects(() => service.featured('new', 8), /database down/);
   assert.equal((await service.featured('new', 8)).length, 1);
-  assert.equal(finds.length, 2);
+  assert.equal(roomLoads(finds), 2, 'a failed load is not kept, neither its rooms');
 });
 
 test('positions are rounded to about 100 m, for the room and for the building it falls back to (R2)', () => {
@@ -353,6 +407,7 @@ test('public routes need no sign-in and are cached for a short time', () => {
 
 const search = require('../src/public-listings/public-search.ts');
 const { parsePublicSearch, searchCandidates, toSearchCandidate, SEARCH_CANDIDATES, SEARCH_RADIUS_MIN_KM, SEARCH_CACHE_MS } = search;
+const { ROOM_CACHE_MS } = require('../src/public-listings/public-rooms.service.ts');
 const { bangkokToday } = require('../src/billing/rent-schedule.ts');
 const { SEARCH_CACHE_CONTROL } = require('../src/public-listings/public-rooms.controller.ts');
 
@@ -562,7 +617,7 @@ test('search service: every search within 30 seconds reads the same summary rows
   const service = new PublicRoomsService(repo, () => new Date(clock));
   await Promise.all([service.search({}), service.search({ type: 'house' }), service.search({ q: 'random' })]);
   assert.equal(calls.filter(([method]) => method === 'getRawMany').length, 1);
-  assert.equal(finds.length, 2, 'only the pages with rooms load rooms');
+  assert.equal(roomLoads(finds), 2, 'only the pages with rooms load rooms');
   assert.equal(SEARCH_CACHE_MS, 30_000);
   clock += 29_000;
   await service.search({ sort: 'newest' });
