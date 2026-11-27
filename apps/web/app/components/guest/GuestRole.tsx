@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { useLocale } from '@nestyk/i18n';
-import { roleTileColors } from '@nestyk/ui';
+// The tokens entry point only: the package root pulls every app component into the guest pages (Mos 27 Nov 2026).
+import { roleTileColors } from '@nestyk/ui/tokens';
 import { CheckIcon, HandshakeIcon, HomeIcon, KeyIcon, SearchIcon } from './GuestIcons';
 
 /**

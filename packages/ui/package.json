@@ -9,6 +9,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./tokens": {
+      "types": "./src/theme/tokens.ts",
+      "default": "./src/theme/tokens.ts"
+    },
     "./native": {
       "types": "./src/native.ts",
       "default": "./src/native.ts"

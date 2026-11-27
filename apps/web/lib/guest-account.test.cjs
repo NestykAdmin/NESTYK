@@ -89,7 +89,7 @@ test('mobile: the profile tab shows the initials, the profile page shows the acc
 
 test('role switcher like the admin web (Mos 20 Nov 2026): role tiles, a current-role row, then a role list', () => {
   const role = read(guest, 'GuestRole.tsx');
-  assert.match(role, /import \{ roleTileColors \} from '@nestyk\/ui'/, 'the same tile colours as the admin web and the app');
+  assert.match(role, /import \{ roleTileColors \} from '@nestyk\/ui\/tokens'/, 'the same tile colours as the admin web and the app');
   assert.match(role, /roleTileColors\(role, false\)/);
   assert.match(role, /--nk-role-ring/);
   assert.match(role, /export function RoleTile/);
