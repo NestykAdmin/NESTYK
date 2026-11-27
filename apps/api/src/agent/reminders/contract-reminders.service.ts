@@ -9,6 +9,7 @@ import { ContractReminderEntity } from "../../entities/contract-reminder.entity"
 import { ContractDepositSettlementEntity } from "../../entities/contract-deposit-settlement.entity";
 import { DealCancellationEntity } from "../../entities/deal-cancellation.entity";
 import { bangkokToday } from "../../billing/rent-schedule";
+import { AGENT_ROOM_ONLY } from "../contracts/contract-room";
 import { asIsoDate } from "../contracts/lease-term";
 import { dueReminders, reminderEmail, type DueReminder, type ReminderContract, type ReminderRefund } from "./contract-reminders";
 import { resendMailer, type ReminderMailer } from "./reminder-email";
@@ -35,6 +36,8 @@ export class ContractRemindersService {
     const rows = await this.db.getRepository(LeaseContractEntity).find({
       where: {
         status: Not(In(CLOSED)),
+        // Self owner contracts have no agent; only the landlord's own view (owner_user_id) may include them.
+        ...(where.landlordUserId == null ? { self_owner_room_id: IsNull() } : {}),
         ...(where.agentId != null ? { created_by_user_id: where.agentId } : {}),
         ...(where.landlordUserId != null ? { owner_user_id: where.landlordUserId } : {}),
       },
@@ -87,6 +90,7 @@ export class ContractRemindersService {
       .leftJoinAndSelect("c.rent_room", "room")
       .leftJoinAndSelect("room.property", "property")
       .where("dc.refund_amount > 0 AND dc.refunded_on IS NULL")
+      .andWhere(AGENT_ROOM_ONLY)
       .andWhere(agentId != null ? "dc.agent_user_id = :agentId" : "TRUE", { agentId })
       .orderBy("dc.id", "ASC")
       .getMany();

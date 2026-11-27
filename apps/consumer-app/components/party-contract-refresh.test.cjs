@@ -15,7 +15,7 @@ function deferred() {
 
 function harness(party) {
   const states = [], refs = [], effectDeps = [], effects = [], requests = [], settled = [];
-  let stateIndex = 0, refIndex = 0, effectIndex = 0, refresh, detail;
+  let stateIndex = 0, refIndex = 0, effectIndex = 0, refresh, detail, list;
   const contract = { id: 11, property: 'Project', room: '101', formKind: 'reservation', status: 'draft', myParties: [party], invoiceUrl: 'old-invoice.pdf', receiptUrl: null };
   const props = {
     mode: party,
@@ -47,7 +47,7 @@ function harness(party) {
       MobileButton: ({ children }) => React.createElement('button', {}, children),
     };
     if (name === './PartyContractDetail') return { PartyContractDetail: props => { detail = props; return React.createElement('span', {}, `${props.contract.invoiceUrl} ${props.contract.receiptUrl ?? ''}`); } };
-    if (name === './TenantContractList') return { TenantContractList: () => null };
+    if (name === './TenantContractList') return { TenantContractList: (p) => { list = p; return null; } };
     if (name === './LandlordDealOffers') return { LandlordDealOffers: () => null };
     if (name === './ContractReminderList') return { ContractReminderList: () => null };
     if (name === '../lib/reminders-api') return { listLandlordReminders: async () => [] };
@@ -74,7 +74,7 @@ function harness(party) {
     await new Promise(resolve => setImmediate(resolve));
     render(); detail.onReloadSettled(0); render(); runEffects();
   }
-  return { props, requests, settled, render, runEffects, initialLoad, get refresh() { return refresh; }, get detail() { return detail; } };
+  return { props, requests, settled, render, runEffects, initialLoad, get refresh() { return refresh; }, get detail() { return detail; }, get list() { return list; } };
 }
 
 for (const party of ['owner', 'tenant']) {
@@ -110,3 +110,22 @@ test('failed contract refresh keeps the open detail and stops after both request
   assert.equal(h.detail.refreshError, 'Network unavailable');
   assert.equal(h.refresh.refreshing, false);
 });
+
+// Final review (26 Nov 2026, self owner contracts): /contracts/mine lists every side of the user. The tenant workspace
+// shows only rows where they are the tenant (not their own self owner room's lease); the landlord inbox only owner rows
+// of agent rooms (self owner contracts live on the self owner pages).
+for (const [party, expected] of [['owner', [21]], ['tenant', [23]]]) {
+  test(`${party} workspace lists only its own side of /contracts/mine`, async () => {
+    const h = harness(party);
+    h.props.opened = null;
+    h.render(); h.runEffects();
+    h.requests[0].resolve([
+      { id: 21, property: 'Aria', room: '1201', formKind: 'lease', status: 'active', myParties: ['owner'], rentRoomId: 3, selfOwnerRoomId: null },
+      { id: 22, property: 'Ideo Q', room: '805', formKind: 'lease', status: 'active', myParties: ['owner'], rentRoomId: null, selfOwnerRoomId: 40 },
+      { id: 23, property: 'Noble', room: '12', formKind: 'lease', status: 'active', myParties: ['tenant'], rentRoomId: null, selfOwnerRoomId: 41 },
+    ]);
+    await new Promise(resolve => setImmediate(resolve));
+    h.render();
+    assert.deepEqual(h.list.rows.map(row => row.id), expected);
+  });
+}

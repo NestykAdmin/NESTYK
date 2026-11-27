@@ -12,11 +12,14 @@ import {
   groupSelfOwnerContracts,
   isFulfilledReservation,
   isRentContract,
+  applySelfOwnerSignatures,
+  selfOwnerContractStore,
   selfOwnerToday,
   type SelfOwnerContract,
   type SelfOwnerContractFilter,
   type SelfOwnerContractStatus,
   type SelfOwnerRoomContracts,
+  type SelfOwnerSignResult,
 } from '../../lib/self-owner-contracts';
 import { contractDetailView, contractParty } from './contract-detail-rows';
 import { MobileSelfOwnerPager } from './MobileSelfOwnerPager';
@@ -24,9 +27,15 @@ import { MobileSkeletonCards } from './MobileSkeletonCards';
 import { MobileLoadError } from './MobileLoadError';
 import { SELF_OWNER_ROOMS_PAGE_SIZE, clampPage } from '../../lib/self-owner-rooms';
 import type { SelfOwnerContractsPageProps } from './SelfOwnerContractsPage.types';
+import { MobileSelfOwnerContractSigning } from './MobileSelfOwnerContractSigning';
+import { MobileSelfOwnerContractSignFlow } from './MobileSelfOwnerContractSignFlow';
+import { SelfOwnerContractDocument } from './SelfOwnerContractDocument';
+import { selfOwnerDocumentLoader, selfOwnerHasDocument } from './document-loader';
+import { TabTransition } from '../TabTransition';
+import { useStepSlide } from './useStepSlide';
 
-const FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'ending_soon', 'active', 'ended'];
-const STATUS_INTENT: Record<SelfOwnerContractStatus, StatusIntent> = { active: 'done', ending_soon: 'attn', awaiting_signature: 'prog', ended: 'neutral' };
+const FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'processing', 'ending_soon', 'active', 'ended'];
+const STATUS_INTENT: Record<SelfOwnerContractStatus, StatusIntent> = { active: 'done', ending_soon: 'attn', awaiting_signature: 'prog', processing: 'prog', ended: 'neutral' };
 const { subtle } = tokens.colors;
 
 function useFormat() {
@@ -46,14 +55,29 @@ export function MobileSelfOwnerRoomContracts({
   room,
   all,
   onClose,
+  onSign,
+  isDemoPreview = true,
+  loadDocument = selfOwnerDocumentLoader,
   initialContractId = null,
+  initialSigning = false,
+  initialView,
   now,
 }: {
   room: SelfOwnerRoomContracts;
   /** Every contract, to find the one a renewal renews. */
   all: SelfOwnerContract[];
   onClose: () => void;
+  /** The owner signs a contract awaiting signatures; `ok: false` keeps the sign page open with its message. */
+  onSign: (contractId: string, signaturePng: string) => Promise<SelfOwnerSignResult> | SelfOwnerSignResult | void;
+  /** Demo contracts: sample-file and "not saved" notes, the bundled sample files; the API has neither. */
+  isDemoPreview?: boolean;
+  /** The URL of a contract's file (a fresh one on every call). */
+  loadDocument?: (contractId: string) => Promise<string>;
   initialContractId?: string | null;
+  /** Opens the sign page of the initial contract (tests). */
+  initialSigning?: boolean;
+  /** Opens the initial contract's file (tests). */
+  initialView?: 'document';
   /** "Today" for the progress bar; defaults to now. */
   now?: Date;
 }) {
@@ -65,6 +89,28 @@ export function MobileSelfOwnerRoomContracts({
   const muted = theme.textSecondary;
   const [selectedId, setSelectedId] = useState<string | null>(initialContractId);
   const open = selectedId ? room.contracts.find((c) => c.id === selectedId) ?? null : null;
+  // The separate sign page (option B, Jom 25 Nov 2026) replaces the detail in this modal; no scrolling while the
+  // signature pad is open, so drawing does not move the page.
+  const [mode, setModeState] = useState<'detail' | 'sign' | 'document'>(initialSigning ? 'sign' : initialView ?? 'detail');
+  const [padOpen, setPadOpen] = useState(false);
+  const setMode = (next: 'detail' | 'sign' | 'document') => {
+    setPadOpen(false);
+    setModeState(next);
+  };
+  const setSigning = (next: boolean) => setMode(next ? 'sign' : 'detail');
+  const hasFile = open ? selfOwnerHasDocument(open.id, isDemoPreview) : false;
+  const signing = mode === 'sign';
+  const reading = mode === 'document' && hasFile;
+  // The file fills the modal (reading it, or the sign page's first step); the modal itself does not scroll then.
+  const fileFills = reading || (signing && hasFile && !padOpen);
+  // The list, a contract, then its file or sign page: the whole screen, header included, slides in from the side it
+  // comes from, like moving to another page in a phone app (Jom 25 Nov 2026).
+  const slide = useStepSlide(!open ? 0 : mode === 'detail' ? 1 : 2);
+  const screenKey = open ? `${mode}:${open.id}` : 'list';
+  const pick = (id: string | null) => {
+    setSigning(false);
+    setSelectedId(id);
+  };
   const period = (c: SelfOwnerContract) => interpolate(so.period, { start: fmt.day(c.startDate), end: fmt.day(c.endDate) });
   const status = (c: SelfOwnerContract) => (
     <View style={styles.row}>
@@ -75,134 +121,165 @@ export function MobileSelfOwnerRoomContracts({
 
   return (
     <View style={[styles.sheet, { backgroundColor: theme.background }]}>
-      <View style={[styles.sheetHeader, { borderBottomColor: theme.border }]}>
-        {open ? (
-          <Pressable testID="soc-back" accessibilityRole="button" accessibilityLabel={so.back} onPress={() => setSelectedId(null)} hitSlop={8}>
-            <MobileIcon name="chevron-left" size={20} color={ink} />
+      <TabTransition key={screenKey} direction={slide}>
+        <View style={[styles.sheetHeader, { borderBottomColor: theme.border }]}>
+          {open ? (
+            <Pressable testID="soc-back" accessibilityRole="button" accessibilityLabel={so.back} onPress={() => (signing || reading ? setMode('detail') : pick(null))} hitSlop={8}>
+              <MobileIcon name="chevron-left" size={20} color={ink} />
+            </Pressable>
+          ) : null}
+          <Text style={[styles.title, { color: ink }]} numberOfLines={1}>
+            {open ? (signing ? so.signAction : reading ? so.viewDocument : so.kind[open.kind]) : interpolate(so.roomContractsTitle, { room: room.roomTitle })}
+          </Text>
+          <Pressable
+            testID="soc-close"
+            accessibilityRole="button"
+            accessibilityLabel={t.agent.dashboard.webWorkspace.close}
+            onPress={onClose}
+            hitSlop={8}
+          >
+            <MobileIcon name="close" size={20} color={ink} />
           </Pressable>
-        ) : null}
-        <Text style={[styles.title, { color: ink }]} numberOfLines={1}>
-          {open ? so.kind[open.kind] : interpolate(so.roomContractsTitle, { room: room.roomTitle })}
-        </Text>
-        <Pressable
-          testID="soc-close"
-          accessibilityRole="button"
-          accessibilityLabel={t.agent.dashboard.webWorkspace.close}
-          onPress={onClose}
-          hitSlop={8}
+        </View>
+        <ScrollView
+          contentContainerStyle={[styles.sheetBody, fileFills ? styles.fillBody : null]}
+          scrollEnabled={!padOpen && !fileFills}
         >
-          <MobileIcon name="close" size={20} color={ink} />
-        </Pressable>
-      </View>
-      <ScrollView contentContainerStyle={styles.sheetBody}>
-        {open ? (
-          (() => {
-            // Layout A (Jom 24 Nov 2026): period and progress, the other party, money tiles, then the rest.
-            const view = contractDetailView(open, all, so, fmt, selfOwnerToday(now));
-            return (
-              <>
-                <View style={styles.row}>
-                  <View style={[styles.kind, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    <Text style={[styles.small, { color: ink }]}>{so.kind[open.kind]}</Text>
-                  </View>
-                  <StatusBadge label={isFulfilledReservation(open) ? so.fulfilled : so.status[open.status]} intent={STATUS_INTENT[open.status]} />
+          {open && reading ? (
+            <>
+              {isDemoPreview ? (
+                <View style={[styles.row, { backgroundColor: subtle.brandBg, borderRadius: 8, padding: 8 }]}>
+                  <MobileIcon name="info" size={14} color={subtle.warningFg} />
+                  <Text style={[styles.small, styles.flex, { color: subtle.warningFg }]}>{so.sampleDocument}</Text>
                 </View>
-                <View>
-                  <Text style={[styles.period, { color: ink }]}>{view.period}</Text>
-                  <Text style={[styles.small, { color: muted }]}>{view.room}</Text>
-                </View>
-                {view.progress ? (
-                  <View testID="soc-progress" accessibilityRole="progressbar" accessibilityLabel={view.progressLabel} accessibilityValue={{ min: 1, max: view.progress.months, now: view.progress.month }}>
-                    <View style={[styles.track, { backgroundColor: theme.border }]}>
-                      <View style={[styles.bar, { width: `${Math.round(view.progress.ratio * 100)}%` }]} />
+              ) : null}
+              <SelfOwnerContractDocument load={() => loadDocument(open.id)} fill />
+            </>
+          ) : open && signing ? (
+            <MobileSelfOwnerContractSignFlow
+              key={open.id}
+              contract={open}
+              all={all}
+              fmt={fmt}
+              today={selfOwnerToday(now)}
+              onSign={onSign}
+              isDemoPreview={isDemoPreview}
+              loadDocument={loadDocument}
+              onDone={() => setSigning(false)}
+              onStepChange={(step) => setPadOpen(step === 'sign')}
+            />
+          ) : open ? (
+            (() => {
+              // Layout A (Jom 24 Nov 2026): period and progress, the other party, money tiles, then the rest.
+              const view = contractDetailView(open, all, so, fmt, selfOwnerToday(now));
+              return (
+                <>
+                  <View style={styles.row}>
+                    <View style={[styles.kind, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                      <Text style={[styles.small, { color: ink }]}>{so.kind[open.kind]}</Text>
                     </View>
-                    <View style={[styles.row, styles.between]}>
-                      <Text style={[styles.small, { color: muted }]}>{view.progressLabel}</Text>
-                      <Text style={[styles.small, { color: muted }]}>{interpolate(so.daysLeft, { n: view.progress.daysLeft })}</Text>
+                    <StatusBadge label={isFulfilledReservation(open) ? so.fulfilled : so.status[open.status]} intent={STATUS_INTENT[open.status]} />
+                  </View>
+                  <View>
+                    <Text style={[styles.period, { color: ink }]}>{view.period}</Text>
+                    <Text style={[styles.small, { color: muted }]}>{view.room}</Text>
+                  </View>
+                  {view.progress ? (
+                    <View testID="soc-progress" accessibilityRole="progressbar" accessibilityLabel={view.progressLabel} accessibilityValue={{ min: 1, max: view.progress.months, now: view.progress.month }}>
+                      <View style={[styles.track, { backgroundColor: theme.border }]}>
+                        <View style={[styles.bar, { width: `${Math.round(view.progress.ratio * 100)}%` }]} />
+                      </View>
+                      <View style={[styles.row, styles.between]}>
+                        <Text style={[styles.small, { color: muted }]}>{view.progressLabel}</Text>
+                        <Text style={[styles.small, { color: muted }]}>{interpolate(so.daysLeft, { n: view.progress.daysLeft })}</Text>
+                      </View>
                     </View>
+                  ) : null}
+                  <View style={[styles.party, { borderColor: theme.border }]}>
+                    <View style={styles.avatar}>
+                      <Text style={[styles.body, { color: tokens.colors.icon.brand }]}>{view.party.initial}</Text>
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={[styles.body, { color: ink }]} numberOfLines={2}>{view.party.name}</Text>
+                      <Text style={[styles.small, { color: muted }]}>{view.party.role}</Text>
+                    </View>
+                    {view.party.phone ? <Text style={[styles.small, { color: muted }]}>{view.party.phone}</Text> : null}
                   </View>
-                ) : null}
-                <View style={[styles.party, { borderColor: theme.border }]}>
-                  <View style={styles.avatar}>
-                    <Text style={[styles.body, { color: tokens.colors.icon.brand }]}>{view.party.initial}</Text>
+                  <View style={styles.tiles}>
+                    {view.tiles.map((tile) => (
+                      <View key={tile.label} testID={`soc-tile-${tile.label}`} style={[styles.tile, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                        <Text style={[styles.small, { color: muted }]}>{tile.label}</Text>
+                        <Text style={[styles.tileValue, { color: ink }]}>{tile.value}</Text>
+                        {tile.note ? <Text style={[styles.small, { color: muted }]}>{tile.note}</Text> : null}
+                      </View>
+                    ))}
                   </View>
-                  <View style={styles.flex}>
-                    <Text style={[styles.body, { color: ink }]} numberOfLines={2}>{view.party.name}</Text>
-                    <Text style={[styles.small, { color: muted }]}>{view.party.role}</Text>
-                  </View>
-                  {view.party.phone ? <Text style={[styles.small, { color: muted }]}>{view.party.phone}</Text> : null}
-                </View>
-                <View style={styles.tiles}>
-                  {view.tiles.map((tile) => (
-                    <View key={tile.label} testID={`soc-tile-${tile.label}`} style={[styles.tile, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                      <Text style={[styles.small, { color: muted }]}>{tile.label}</Text>
-                      <Text style={[styles.tileValue, { color: ink }]}>{tile.value}</Text>
-                      {tile.note ? <Text style={[styles.small, { color: muted }]}>{tile.note}</Text> : null}
+                  {view.extra.map(([term, value]) => (
+                    <View key={term} style={[styles.row, styles.between]}>
+                      <Text style={[styles.small, { color: muted }]}>{term}</Text>
+                      <Text style={[styles.body, { color: ink }]}>{value}</Text>
                     </View>
                   ))}
-                </View>
-                {view.extra.map(([term, value]) => (
-                  <View key={term} style={[styles.row, styles.between]}>
-                    <Text style={[styles.small, { color: muted }]}>{term}</Text>
-                    <Text style={[styles.body, { color: ink }]}>{value}</Text>
+                  {view.renewsFrom ? (
+                    <Pressable
+                      testID="soc-renews-from"
+                      accessibilityRole="button"
+                      accessibilityLabel={view.renewsFrom.label}
+                      onPress={() => pick(view.renewsFrom!.id)}
+                      style={[styles.outline, styles.row, { borderColor: theme.border }]}
+                    >
+                      <MobileIcon name="files" size={16} color={muted} />
+                      <Text style={[styles.small, styles.flex, { color: ink }]}>{view.renewsFrom.label}</Text>
+                      <MobileIcon name="chevron-right" size={16} color={muted} />
+                    </Pressable>
+                  ) : null}
+                  {/* Who signs, last before the note; "ลงนามสัญญา" opens the sign page (Jom 25 Nov 2026, option B). */}
+                  <MobileSelfOwnerContractSigning contract={open} day={fmt.day} onStart={() => setSigning(true)} />
+                  <View style={styles.row}>
+                    <MobileIcon name="lock" size={14} color={muted} />
+                    <Text style={[styles.small, styles.flex, { color: muted }]}>{so.readOnlyNote}</Text>
                   </View>
-                ))}
-                {view.renewsFrom ? (
                   <Pressable
-                    testID="soc-renews-from"
+                    testID="soc-document"
                     accessibilityRole="button"
-                    accessibilityLabel={view.renewsFrom.label}
-                    onPress={() => setSelectedId(view.renewsFrom!.id)}
-                    style={[styles.outline, styles.row, { borderColor: theme.border }]}
+                    accessibilityLabel={!hasFile ? `${so.viewDocument}, ${so.noDocument}` : so.viewDocument}
+                    accessibilityState={{ disabled: !hasFile }}
+                    disabled={!hasFile}
+                    onPress={() => setMode('document')}
+                    style={[styles.outline, styles.row, { borderColor: theme.border, opacity: !hasFile ? 0.5 : 1 }]}
                   >
-                    <MobileIcon name="files" size={16} color={muted} />
-                    <Text style={[styles.small, styles.flex, { color: ink }]}>{view.renewsFrom.label}</Text>
-                    <MobileIcon name="chevron-right" size={16} color={muted} />
+                    <MobileIcon name="file-text" size={16} color={ink} />
+                    <Text style={[styles.small, { color: ink }]}>{so.viewDocument}</Text>
                   </Pressable>
-                ) : null}
-                <View style={styles.row}>
-                  <MobileIcon name="lock" size={14} color={muted} />
-                  <Text style={[styles.small, styles.flex, { color: muted }]}>{so.readOnlyNote}</Text>
-                </View>
+                </>
+              );
+            })()
+          ) : (
+            <>
+              <Text style={[styles.small, { color: muted }]}>{room.project}</Text>
+              {room.contracts.map((c) => (
                 <Pressable
-                  testID="soc-document"
+                  key={c.id}
+                  testID={`soc-contract-${c.id}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`${so.viewDocument}, ${so.noDocument}`}
-                  accessibilityState={{ disabled: true }}
-                  disabled
-                  style={[styles.outline, styles.row, { borderColor: theme.border, opacity: 0.5 }]}
+                  accessibilityLabel={`${so.viewDetail} ${so.kind[c.kind]} ${period(c)}`}
+                  onPress={() => pick(c.id)}
+                  style={({ pressed }: { pressed: boolean }) => [styles.card, { borderColor: theme.border, backgroundColor: theme.surface }, pressed ? styles.pressed : null]}
                 >
-                  <MobileIcon name="file-text" size={16} color={ink} />
-                  <Text style={[styles.small, { color: ink }]}>{so.viewDocument}</Text>
+                  <View style={styles.row}>
+                    <Text style={[styles.body, styles.flex, { color: ink }]} numberOfLines={1}>{so.kind[c.kind]}</Text>
+                    <MobileIcon name="chevron-right" size={16} color={muted} />
+                  </View>
+                  <Text style={[styles.small, { color: muted }]}>{period(c)}</Text>
+                  {contractParty(c) ? <Text style={[styles.small, { color: muted }]} numberOfLines={1}>{contractParty(c)}</Text> : null}
+                  {status(c)}
                 </Pressable>
-              </>
-            );
-          })()
-        ) : (
-          <>
-            <Text style={[styles.small, { color: muted }]}>{room.project}</Text>
-            {room.contracts.map((c) => (
-              <Pressable
-                key={c.id}
-                testID={`soc-contract-${c.id}`}
-                accessibilityRole="button"
-                accessibilityLabel={`${so.viewDetail} ${so.kind[c.kind]} ${period(c)}`}
-                onPress={() => setSelectedId(c.id)}
-                style={({ pressed }: { pressed: boolean }) => [styles.card, { borderColor: theme.border, backgroundColor: theme.surface }, pressed ? styles.pressed : null]}
-              >
-                <View style={styles.row}>
-                  <Text style={[styles.body, styles.flex, { color: ink }]} numberOfLines={1}>{so.kind[c.kind]}</Text>
-                  <MobileIcon name="chevron-right" size={16} color={muted} />
-                </View>
-                <Text style={[styles.small, { color: muted }]}>{period(c)}</Text>
-                {contractParty(c) ? <Text style={[styles.small, { color: muted }]} numberOfLines={1}>{contractParty(c)}</Text> : null}
-                {status(c)}
-              </Pressable>
-            ))}
-            <Text style={[styles.small, { color: muted }]}>{so.readOnlyNote}</Text>
-          </>
-        )}
-      </ScrollView>
+              ))}
+              <Text style={[styles.small, { color: muted }]}>{so.readOnlyNote}</Text>
+            </>
+          )}
+        </ScrollView>
+      </TabTransition>
     </View>
   );
 }
@@ -212,7 +289,7 @@ export function MobileSelfOwnerRoomContracts({
  * one card per room (contract kinds, Jom 24 Nov 2026); a card opens all the room's contracts. Demo data until NESTYK
  * admin creates contracts.
  */
-export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initialFilter = 'all', initialQuery = '', initialPage = 1, status = 'demo', onRetry }: SelfOwnerContractsPageProps) {
+export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initialFilter = 'all', initialQuery = '', initialPage = 1, status = 'demo', onRetry, initialSignedOn }: SelfOwnerContractsPageProps) {
   // Counts, the result count and the pager only once the contracts are in (Jom 25 Nov 2026).
   const ready = status !== 'loading' && status !== 'error';
   const { t } = useLocale();
@@ -227,7 +304,19 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
   const [filter, setFilter] = useState<SelfOwnerContractFilter>(initialFilter);
   const [selected, setSelected] = useState<string | null>(null);
   const [page, setPage] = useState(initialPage);
-  const roomList = useMemo(() => groupSelfOwnerContracts(contracts), [contracts]);
+  // The owner's signatures of this session (demo, Jom 25 Nov 2026): the card, the room's list and the detail follow them.
+  const [signedOn, setSignedOn] = useState<Record<string, string>>(() => initialSignedOn ?? {});
+  const withSignatures = useMemo(() => applySelfOwnerSignatures(contracts, signedOn, selfOwnerToday()), [contracts, signedOn]);
+  // Demo: the signature is kept on this screen only. Connected: the API signs, the store holds the answer; any failure
+  // comes back as `ok: false` with a message the sign page shows (a technical English message becomes the Thai one).
+  const sign = async (contractId: string, signaturePng: string): Promise<SelfOwnerSignResult> => {
+    if (isDemoPreview) {
+      setSignedOn((previous) => ({ ...previous, [contractId]: selfOwnerToday() }));
+      return { ok: true };
+    }
+    return selfOwnerContractStore.sign(contractId, signaturePng, so.signFailed);
+  };
+  const roomList = useMemo(() => groupSelfOwnerContracts(withSignatures), [withSignatures]);
   const counts = useMemo(() => countSelfOwnerRooms(roomList), [roomList]);
   const results = useMemo(() => filterSelfOwnerRooms(roomList, query, filter), [roomList, query, filter]);
   // Ten rooms a page, like "my rooms" (Jom 25 Nov 2026); a search or filter starts again from page 1.
@@ -325,11 +414,10 @@ export function MobileSelfOwnerContractsScreen({ contracts, isDemoPreview, initi
           );
         })}
       </View>
-      {ready ? <Text style={small}>{interpolate(so.count, { n: results.length })}</Text> : null}
       <View style={styles.list}>{list()}</View>
       {ready ? <MobileSelfOwnerPager current={current} pages={pages} onPage={(next) => setPage(clampPage(next, results.length))} testIDPrefix="soc-page" /> : null}
       <Modal visible={!!open} animationType="slide" onRequestClose={() => setSelected(null)}>
-        {open ? <MobileSelfOwnerRoomContracts room={open} all={contracts} onClose={() => setSelected(null)} /> : null}
+        {open ? <MobileSelfOwnerRoomContracts room={open} all={withSignatures} onClose={() => setSelected(null)} onSign={sign} isDemoPreview={isDemoPreview} /> : null}
       </Modal>
     </View>
   );
@@ -350,6 +438,7 @@ const styles = StyleSheet.create({
   sheet: { flex: 1 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   sheetBody: { gap: 12, padding: 16, paddingBottom: 40 },
+  fillBody: { flexGrow: 1 },
   field: { gap: 2, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   between: { justifyContent: 'space-between' },
   kind: { paddingHorizontal: 10, paddingVertical: 2, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },

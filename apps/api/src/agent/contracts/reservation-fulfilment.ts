@@ -3,6 +3,7 @@ import { EntityManager } from "typeorm";
 import { LeaseContractEntity } from "../../entities/lease-contract.entity";
 import { MasterContractEndReasonEntity } from "../../entities/master-contract-end-reason.entity";
 import { asIsoDate } from "./lease-term";
+import { requireRentRoomId } from "./contract-room";
 
 /** The end reason of a booking letter its lease has taken over. Only the system sets it (not offered when closing). */
 export const RESERVATION_FULFILLED_REASON = "reservation_fulfilled";
@@ -32,7 +33,7 @@ export async function endFulfilledReservations(
     return 0;
   }
   const letters = await manager.find(LeaseContractEntity, {
-    where: { lead_id: lease.lead_id, rent_room_id: lease.rent_room_id, tenant_id: lease.tenant_id, status: "active" },
+    where: { lead_id: lease.lead_id, rent_room_id: requireRentRoomId(lease), tenant_id: lease.tenant_id, status: "active" },
     relations: { template: true, agreement_type: true },
   });
   let ended = 0;

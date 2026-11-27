@@ -75,6 +75,8 @@
 @media (max-width: 599px) {
   .soc-detail-list { grid-template-columns: minmax(0, 1fr); }
 }
+/* Documents: the status dropdown at the right of the toolbar, like the income page (Jom 25 Nov 2026). */
+.so-filter-end { margin-left: auto; }
 /* Month control on the left, status filter on the right; they stack on a narrow window (Jom 25 Nov 2026). */
 .soi-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--aw-s3); }
 .soi-month { display: flex; align-items: center; gap: var(--aw-s2); }
@@ -174,6 +176,73 @@
 .soc-link > span { flex: 1; }
 .soc-link:hover { border-color: var(--aw-brand-line); }
 .soc-readonly { display: flex; align-items: center; gap: 6px; }
+
+/* Contract signing (Jom 25 Nov 2026, demo): who signs in the detail, then the separate sign page (option B). */
+.soc-signing { display: grid; gap: var(--aw-s3); margin: var(--aw-s4) 0 0; padding: var(--aw-s4); border: 1px solid var(--aw-border); border-radius: var(--aw-r-md, 12px); background: var(--aw-surface); }
+.soc-signing-title { margin: 0; color: var(--aw-ink); font-size: var(--aw-t-body, 15px); font-weight: 600; }
+.soc-signers { display: grid; gap: var(--aw-s2); margin: 0; padding: 0; list-style: none; }
+.soc-signers li { display: flex; align-items: center; justify-content: space-between; gap: var(--aw-s3); }
+.soc-signer-who { display: grid; min-width: 0; }
+.soc-signer-who strong { color: var(--aw-ink); font-weight: 500; }
+.soc-signer-who small { overflow: hidden; color: var(--aw-muted); text-overflow: ellipsis; white-space: nowrap; }
+.soc-signer-status { display: inline-flex; align-items: center; gap: 4px; color: var(--aw-muted); font-size: var(--aw-t-small); white-space: nowrap; }
+.soc-signers li.is-signed .soc-signer-status { color: var(--aw-success); }
+.soc-signing .soc-note { margin: 0; }
+.soc-sign { justify-self: start; }
+.soc-pad { display: grid; gap: var(--aw-s2); }
+.soc-pad-hint { margin: 0; color: var(--aw-ink); font-size: var(--aw-t-small); }
+.soc-pad-demo { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-pad-error { margin: 0; color: var(--aw-danger, #991b1b); font-size: var(--aw-t-small); }
+.soc-pad-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--aw-s2); }
+.soc-sign-flow { display: grid; gap: var(--aw-s3); }
+.soc-step { margin: 0; color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-doc { display: grid; gap: var(--aw-s3); padding: var(--aw-s4); border: 1px solid var(--aw-border); border-radius: var(--aw-r-md); background: var(--aw-surface); }
+.soc-doc .soc-extra { margin: 0; }
+.soc-doc-nofile { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-doc-head { display: grid; gap: 2px; padding-bottom: var(--aw-s3); border-bottom: 1px solid var(--aw-border); }
+.soc-doc-head .soc-kind { justify-self: start; }
+.soc-doc-head strong { color: var(--aw-ink); font-size: 18px; }
+.soc-doc-head small { color: var(--aw-muted); }
+.soc-accept { display: flex; align-items: flex-start; gap: var(--aw-s2); color: var(--aw-ink); cursor: pointer; }
+.soc-accept input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--aw-brand-text); }
+.soc-sign-done { display: grid; justify-items: center; gap: var(--aw-s2); padding: var(--aw-s4) 0; text-align: center; }
+.soc-sign-done p { margin: 0; color: var(--aw-muted); }
+.soc-sign-done .soc-signers { justify-self: stretch; margin: var(--aw-s2) 0; text-align: start; }
+.soc-sign-done-mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--aw-success-soft); color: var(--aw-success); animation: soc-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1.3) both; }
+/* The "signed" mark answers the confirm once (Jom 25 Nov 2026). */
+@keyframes soc-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .soc-sign-done-mark { animation: none; }
+  .soc-pdf-skeleton { animation: none; }
+  .soc-pdf iframe { transition: none; }
+}
+/* Inside the contracts dialog and between the sign page's steps the new content fades in (Jom 25 Nov 2026: a slide
+   inside a still dialog looked odd); the dialog eases to its new width (list and detail medium, file and sign large). */
+.so-fade { animation: so-fade-in 120ms ease-out both; }
+.so-fade-fill { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
+@keyframes so-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.awu-dialog[data-testid="self-owner-room-contracts"],
+.awu-dialog[data-testid^="self-owner-contract-"] { transition: width 200ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .so-fade { animation: none; }
+  .awu-dialog[data-testid="self-owner-room-contracts"],
+  .awu-dialog[data-testid^="self-owner-contract-"] { transition: none; }
+}
+/* The contract file in the shared PDF viewer, on the sign page and from the detail (Jom 25 Nov 2026). */
+.soc-pdf { position: relative; height: min(62vh, 640px); min-height: 320px; overflow: hidden; border: 1px solid var(--aw-border); border-radius: var(--aw-r-md); background: #f1f5f9; }
+.soc-pdf iframe { display: block; width: 100%; height: 100%; border: 0; opacity: 0; transition: opacity 160ms ease-out; }
+.soc-pdf iframe.is-ready { opacity: 1; }
+/* One page-shaped skeleton for both loads (the file, then the viewer), after 300 ms like the other self owner
+   skeletons (Jom 25 Nov 2026). */
+.soc-pdf-skeleton { position: absolute; inset: 0; display: flex; justify-content: center; padding: 64px 16px 16px; animation: so-skeleton-in 160ms ease-out 300ms both; }
+.soc-pdf-sheet { display: flex; flex-direction: column; gap: 10px; width: min(100%, 560px); aspect-ratio: 1 / 1.414; max-height: 100%; padding: 28px 24px; background: white; box-shadow: 0 2px 12px #23374218; }
+.soc-pdf-sheet .awu-skeleton-bar { flex: none; height: 9px; border-radius: 5px; }
+.soc-pdf-sheet .awu-skeleton-bar:first-child { height: 14px; margin: 0 auto 10px; }
+.soc-pdf.is-fill { flex: 1 1 0; height: auto; min-height: 240px; }
+.soc-pdf-state { display: flex; align-items: center; justify-content: center; gap: var(--aw-s2); height: 100%; margin: 0; color: var(--aw-muted); }
+.soc-read { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--aw-muted); font-size: var(--aw-t-small); }
+.soc-read.is-done { color: var(--aw-success); }
+.soc-accept.is-off { color: var(--aw-muted); cursor: not-allowed; }
 
 /* Skeletons wait 300 ms before showing, so a quick load does not flash them (Jom 25 Nov 2026). Self owner pages only. */
 .so-skeleton-delay .awu-skeleton { animation: so-skeleton-in 160ms ease-out 300ms both; }

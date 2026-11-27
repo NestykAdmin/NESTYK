@@ -1,5 +1,6 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { WorkerMessageHandler } from "pdfjs-dist/legacy/build/pdf.worker.mjs";
+import { startContinuous } from "./continuous.js";
 // An in-process worker keeps the viewer self-contained in native WebViews.
 globalThis.pdfjsWorker = { WorkerMessageHandler };
 const config = window.__PDF_CONFIG__;
@@ -115,5 +116,14 @@ window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => void render(), 150);
 });
-buttons();
-void load();
+// `continuous: true` (Jom 25 Nov 2026): every page one under another; otherwise one page at a time as before.
+if (config.continuous) {
+  startContinuous({
+    getDocument,
+    config,
+    view: { scroller: document.getElementById("pages"), status, retry, previous, next, smaller, larger, counter, template: canvas },
+  });
+} else {
+  buttons();
+  void load();
+}

@@ -466,7 +466,8 @@ test('routes: the agent edits and signs on site; the parties read and sign', () 
   assert.deepEqual(route(PartyContractsController, 'handoverView'), [0, 'mine/:id/handover']);
   assert.deepEqual(route(PartyContractsController, 'handoverSign'), [1, 'mine/:id/handover/sign']);
   assert.deepEqual(Reflect.getMetadata('roles', AgentContractsController), ['agent']);
-  assert.deepEqual(Reflect.getMetadata('roles', PartyContractsController), ['tenant', 'landlord']);
+  // Self owner contracts API (Task 3): the self owner is a party too.
+  assert.deepEqual(Reflect.getMetadata('roles', PartyContractsController), ['tenant', 'landlord', 'self_owner']);
   // The parties have no route to change the record or its photos.
   const partyRoutes = Object.getOwnPropertyNames(PartyContractsController.prototype).filter((name) => /handover/i.test(name));
   assert.deepEqual(partyRoutes.sort(), ['handoverSign', 'handoverView', 'handovers'].sort());

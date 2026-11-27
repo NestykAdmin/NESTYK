@@ -236,3 +236,330 @@ test('hooks make no network call', () => {
   assert.equal(i.contracts.length, 17);
   assert.ok(i.months.length > 0);
 });
+
+// Self owner contracts API data layer (26 Nov 2026): plans/2026-11-26-self-owner-contracts-api.md Task 5.
+const TODAY = '2026-11-26';
+const party = (over = {}) => ({
+  id: 41, tenantId: 7, leadId: 3, rentRoomId: null, selfOwnerRoomId: 5, agreementTypeName: 'สัญญาเช่า', formKind: 'lease',
+  reservationFee: null, status: 'awaiting_signatures', startDate: '2026-12-01', endDate: '2027-11-30', bookingDate: null, moveInDate: null,
+  monthlyRent: 15000, deposit: 30000, endReasonCode: null, ownerSignedAt: null, tenantSignedAt: '2026-11-25T05:00:00.000Z', agentSignedAt: null,
+  data: { startDate: '2026-12-01', endDate: '2027-11-30', monthlyRent: 15000, deposit: 30000, leaseAgreement: { tenantPhone: '081-234-5678', advanceMonths: '1', depositMonths: '2' } },
+  property: 'The Line', room: 'ห้อง 2101', tenant: 'คุณกานต์', myParties: ['owner'], ...over,
+});
+const fakeBackend = (over = {}) => ({
+  list: async () => [party()],
+  sign: async () => party({ status: 'awaiting_agent_review', ownerSignedAt: '2026-11-26T03:00:00.000Z' }),
+  documentUrl: async (id) => `https://files.test/${id}.pdf`,
+  ...over,
+});
+const storeOf = () => load().selfOwnerContractStore;
+const copyOf = (l) => loadFile(path.join(__dirname, `../../../packages/i18n/src/locales/${l}.ts`))[l];
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test('maps an awaiting lease with the tenant signed', () => {
+  const c = load().fromPartyContract(party(), TODAY);
+  assert.deepEqual(
+    [c.id, c.apiId, c.kind, c.roomId, c.roomTitle, c.project, c.tenantName, c.tenantPhone, c.monthlyRent, c.advanceRentMonths, c.depositMonths, c.status, c.startDate, c.endDate],
+    ['41', 41, 'lease', '5', 'ห้อง 2101', 'The Line', 'คุณกานต์', '081-234-5678', 15000, 1, 2, 'awaiting_signature', '2026-12-01', '2027-11-30'],
+  );
+  assert.deepEqual(c.signatures, { tenant: '2026-11-25' });
+  const bare = load().fromPartyContract(party({ data: {} }), TODAY);
+  assert.deepEqual([bare.tenantPhone, bare.advanceRentMonths, bare.depositMonths], ['', 0, 0]);
+});
+
+test('signed by both maps to processing', () => {
+  const { fromPartyContract } = load();
+  for (const status of ['awaiting_agent_review', 'awaiting_deposit', 'awaiting_handover']) {
+    const c = fromPartyContract(party({ status, ownerSignedAt: '2026-11-26T20:00:00.000Z' }), TODAY);
+    assert.equal(c.status, 'processing', status);
+    assert.equal(c.signatures.owner, '2026-11-27', 'Bangkok day');
+  }
+});
+
+test('active maps to active, ending soon, or ended past its end date', () => {
+  const { fromPartyContract } = load();
+  const active = (endDate) => fromPartyContract(party({ status: 'active', endDate }), TODAY);
+  assert.equal(active('2027-11-30').status, 'active');
+  const soon = active('2027-01-20');
+  assert.deepEqual([soon.status, soon.daysLeft], ['ending_soon', 55]);
+  assert.equal(active('2026-11-25').status, 'ended');
+  assert.equal(fromPartyContract(party({ status: 'expired' }), TODAY).status, 'ended');
+  assert.equal(fromPartyContract(party({ status: 'terminated' }), TODAY).status, 'ended');
+});
+
+test('tenant rows are dropped', () => {
+  assert.equal(load().fromPartyContract(party({ myParties: ['tenant'] }), TODAY), null);
+});
+test('agent room rows are dropped', () => {
+  assert.equal(load().fromPartyContract(party({ selfOwnerRoomId: null }), TODAY), null);
+  assert.equal(load().fromPartyContract(party({ selfOwnerRoomId: undefined }), TODAY), null);
+});
+test('cancelled is dropped', () => {
+  assert.equal(load().fromPartyContract(party({ status: 'cancelled' }), TODAY), null);
+});
+
+test('reservation and broker appointment map their own fields', () => {
+  const { fromPartyContract } = load();
+  const r = fromPartyContract(party({ formKind: 'reservation', reservationFee: 15000, moveInDate: '2026-12-01', endDate: null }), TODAY);
+  assert.deepEqual(r.reservation, { moveInDate: '2026-12-01', bookingFee: 15000 });
+  assert.equal(r.endDate, '2026-12-01');
+  const b = fromPartyContract(party({ formKind: 'broker_appointment', endDate: null, tenant: '', monthlyRent: null, agentSignedAt: '2026-11-20T05:00:00.000Z', data: { startDate: '2026-12-01', brokerAppointment: { brokerCompany: 'Urban Nest', brokerContact: 'Jenny', brokerPhone: '02-660-7171', monthlyRent: '22000', commissionFee: '', commissionMonths: '1' } } }), TODAY);
+  assert.deepEqual(b.broker, { company: 'Urban Nest', contact: 'Jenny', phone: '02-660-7171', commission: { months: 1 } });
+  assert.equal(b.signatures.broker, '2026-11-20');
+  assert.equal(b.monthlyRent, 22000, 'a broker appointment has its rent only in the form');
+  const fee = fromPartyContract(party({ formKind: 'broker_appointment', endDate: null, data: { brokerAppointment: { brokerCompany: 'X', commissionFee: '12,000', commissionMonths: '' } } }), TODAY);
+  assert.deepEqual(fee.broker.commission, { amount: 12000 });
+  // Older rows (and the demo-era fixtures) with the fields at the top of data still map.
+  const flat = fromPartyContract(party({ data: { tenantPhone: '089-000-0000', advanceMonths: '2', depositMonths: '3' } }), TODAY);
+  assert.deepEqual([flat.tenantPhone, flat.advanceRentMonths, flat.depositMonths], ['089-000-0000', 2, 3]);
+});
+
+// Final review (26 Nov 2026): the contracts as the seed planner (and the agent's saveDraft) store them, with each form
+// nested in data (leaseAgreement / leaseRenewal / reservationLetter / brokerAppointment). Built from the planner itself
+// so the app mapping and the seed cannot drift.
+const { planSelfOwnerContracts } = require('../../api/scripts/self-owner-contracts-plan.cjs');
+const seedRooms = [
+  { id: 41, ownerUserId: 9, roomNumber: '2101', property: 'Aria Sathorn', monthlyRent: 25000 },
+  { id: 42, ownerUserId: 9, roomNumber: '805', property: 'Noble Ploenchit', monthlyRent: 18000 },
+  { id: 43, ownerUserId: 9, roomNumber: '1204', property: 'Lumpini Place', monthlyRent: 12000 },
+];
+/** One planned row as GET /contracts/mine serializes it for the owner (serialize + forParty in agent-contracts.service.ts). */
+const servedOf = (c, i) => {
+  const signedAt = (who) => c.signatures.find((s) => s.party === who)?.signedAt ?? null;
+  return {
+    id: 100 + i, tenantId: c.tenantIndex + 1, leadId: c.leadIndex + 1, rentRoomId: c.rent_room_id, selfOwnerRoomId: c.self_owner_room_id,
+    formKind: c.formKind, agreementTypeName: c.formKind, reservationFee: c.reservation_fee == null ? null : Number(c.reservation_fee),
+    status: c.status, startDate: c.start_date, endDate: c.end_date, bookingDate: null, moveInDate: c.move_in_date,
+    monthlyRent: c.monthly_rent == null ? null : Number(c.monthly_rent), deposit: c.deposit == null ? null : Number(c.deposit),
+    endReasonCode: c.end?.reasonCode ?? null, ownerSignedAt: signedAt('owner'), tenantSignedAt: signedAt('tenant'), agentSignedAt: signedAt('agent'),
+    data: c.data, property: c.party_snapshot.property, room: c.party_snapshot.room, tenant: c.party_snapshot.tenantName, myParties: ['owner'],
+  };
+};
+const seeded = () => {
+  const { contracts } = planSelfOwnerContracts({ adminId: 5, ownerUserId: 9, tenantUserId: 7, rooms: seedRooms, today: TODAY });
+  const mapped = contracts.map((c, i) => [c, load().fromPartyContract(servedOf(c, i), TODAY)]);
+  return (key) => mapped.find(([c]) => c.key === key)[1];
+};
+
+test('seed rows: a lease maps its tenant phone, advance and deposit from data.leaseAgreement', () => {
+  const lease = seeded()('lease-a');
+  assert.deepEqual([lease.kind, lease.monthlyRent, lease.tenantPhone, lease.advanceRentMonths, lease.depositMonths], ['lease', 25000, '0990000002', 1, 2]);
+});
+
+test('seed rows: a renewal carries the deposit (data.leaseRenewal.depositCarried) as months of rent', () => {
+  const renewal = seeded()('renewal-b');
+  assert.deepEqual([renewal.kind, renewal.monthlyRent, renewal.depositMonths], ['renewal', 18000, 2]);
+});
+
+test('seed rows: a reservation maps phone, advance, deposit and the booking fee from data.reservationLetter', () => {
+  const r = seeded()('reservation-a');
+  assert.deepEqual([r.kind, r.tenantPhone, r.advanceRentMonths, r.depositMonths, r.reservation.bookingFee], ['reservation', '0990000002', 1, 2, 25000]);
+});
+
+test('seed rows: a broker appointment maps the broker, the commission and the rent from data.brokerAppointment', () => {
+  const b = seeded()('broker-c');
+  assert.deepEqual(b.broker, { company: 'NESTYK', contact: 'QA Admin', phone: '0990000006', commission: { months: 1 } });
+  assert.equal(b.monthlyRent, 12000);
+});
+
+test('store: connect loads, then status available', async () => {
+  const lib = load();
+  const store = lib.selfOwnerContractStore;
+  assert.equal(store.getState().status, 'demo');
+  store.connect(fakeBackend({ list: async () => [party(), party({ id: 42, myParties: ['tenant'] }), party({ id: 43, selfOwnerRoomId: null })] }), 'u1');
+  assert.deepEqual([store.getState().status, store.getState().source, store.getState().contracts.length], ['loading', 'api', 0]);
+  await tick();
+  const s = store.getState();
+  assert.deepEqual([s.status, s.contracts.map((c) => c.id)], ['available', ['41']]);
+  const hook = lib.useSelfOwnerContracts();
+  assert.deepEqual([hook.status, hook.isDemoPreview, hook.contracts.length], ['available', false, 1]);
+});
+
+test('store: list failure gives error', async () => {
+  const store = storeOf();
+  store.connect(fakeBackend({ list: async () => { throw new Error('boom'); } }), 'u1');
+  await tick();
+  assert.equal(store.getState().status, 'error');
+});
+
+test('store: sign success refreshes the contract', async () => {
+  const store = storeOf();
+  const calls = [];
+  store.connect(fakeBackend({ sign: async (id, png) => { calls.push([id, png]); return party({ status: 'awaiting_agent_review', ownerSignedAt: '2026-11-26T03:00:00.000Z' }); } }), 'u1');
+  await tick();
+  assert.deepEqual(await store.sign('41', 'data:image/png;base64,AAAA'), { ok: true });
+  assert.deepEqual(calls, [[41, 'data:image/png;base64,AAAA']]);
+  const c = store.getState().contracts[0];
+  assert.deepEqual([c.status, c.signatures.owner], ['processing', '2026-11-26']);
+});
+
+test('store: sign failure returns the API message and keeps the contract unsigned', async () => {
+  const store = storeOf();
+  const fail = (message, extra = {}) => Object.assign(new Error(message), extra);
+  let error = fail('ฝ่ายนี้ลงนามแล้ว', { status: 400 });
+  store.connect(fakeBackend({ sign: async () => { throw error; } }), 'u1');
+  await tick();
+  assert.deepEqual(await store.sign('41', 'png'), { ok: false, message: 'ฝ่ายนี้ลงนามแล้ว' });
+  assert.deepEqual([store.getState().contracts[0].status, store.getState().contracts[0].signatures.owner], ['awaiting_signature', undefined]);
+  error = fail('Failed to fetch', { status: 0, code: 'NETWORK_ERROR' });
+  assert.deepEqual(await store.sign('41', 'png', 'ลองใหม่'), { ok: false, message: 'ลองใหม่' });
+  error = fail('', { status: 500 });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ลองใหม่');
+  error = 'not an error object';
+  assert.equal((await store.sign('41', 'png')).ok, false);
+  assert.equal((await store.sign('999', 'png')).ok, false, 'unknown contract');
+  assert.equal(store.getState().contracts[0].status, 'awaiting_signature');
+});
+
+test('store: a server error or a raw "HTTP ..." message never reaches the owner as English text', async () => {
+  const store = storeOf();
+  const fail = (message, extra = {}) => Object.assign(new Error(message), extra);
+  let error = fail('Internal server error', { status: 500 });
+  store.connect(fakeBackend({ sign: async () => { throw error; } }), 'u1');
+  await tick();
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ลองใหม่', '5xx');
+  error = fail('Bad gateway', { status: 502 });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ลองใหม่', '502');
+  error = fail('HTTP 404', { status: 404 });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ลองใหม่', 'a message that starts with HTTP');
+  error = fail('ฝ่ายนี้ลงนามแล้ว', { status: 409 });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).message, 'ฝ่ายนี้ลงนามแล้ว', 'the API Thai message stays');
+});
+
+test('store: a 409 sign failure loads the list again', async () => {
+  const store = storeOf();
+  let loads = 0;
+  store.connect(fakeBackend({ list: async () => { loads += 1; return [party()]; }, sign: async () => { throw Object.assign(new Error('สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม'), { status: 409 }); } }), 'u1');
+  await tick();
+  const result = await store.sign('41', 'png');
+  await tick();
+  assert.equal(result.message, 'สัญญาถูกเปลี่ยนแล้ว กรุณาเปิดใหม่ก่อนลงนาม');
+  assert.equal(loads, 2);
+});
+
+// Final review (26 Nov 2026): any sign failure loads the list again, so a contract already signed in another tab, or
+// signed by the server before the network dropped, does not stay signable.
+test('store: a 400 or a network sign failure loads the list again too', async () => {
+  const store = storeOf();
+  let loads = 0;
+  let error = Object.assign(new Error('ฝ่ายนี้ลงนามแล้ว'), { status: 400 });
+  const signed = party({ status: 'awaiting_agent_review', ownerSignedAt: '2026-11-26T03:00:00.000Z' });
+  store.connect(fakeBackend({ list: async () => { loads += 1; return [loads === 1 ? party() : signed]; }, sign: async () => { throw error; } }), 'u1');
+  await tick();
+  assert.equal((await store.sign('41', 'png')).message, 'ฝ่ายนี้ลงนามแล้ว');
+  await tick();
+  assert.equal(loads, 2, '400 reloads');
+  assert.equal(store.getState().contracts[0].status, 'processing', 'the reload shows the contract as signed');
+  error = Object.assign(new Error('Failed to fetch'), { status: 0, code: 'NETWORK_ERROR' });
+  assert.equal((await store.sign('41', 'png', 'ลองใหม่')).ok, false);
+  await tick();
+  assert.equal(loads, 3, 'a network failure reloads');
+});
+
+test('store: document url comes from the API when connected', async () => {
+  const store = storeOf();
+  store.connect(fakeBackend(), 'u1');
+  await tick();
+  assert.equal(await store.documentUrl('41'), 'https://files.test/41.pdf');
+  await assert.rejects(store.documentUrl('999'));
+});
+
+test('store: disconnect goes back to the demo', async () => {
+  const store = storeOf();
+  store.connect(fakeBackend(), 'u1');
+  await tick();
+  store.disconnect(now);
+  const s = store.getState();
+  assert.deepEqual([s.source, s.status, s.contracts.length], ['demo', 'demo', 17]);
+  assert.equal(store.backend(), null);
+  // A load that answers after the sign out does not bring the account back.
+  let release;
+  store.connect(fakeBackend({ list: () => new Promise((resolve) => { release = () => resolve([party()]); }) }), 'u2');
+  store.disconnect(now);
+  release();
+  await tick();
+  assert.deepEqual([store.getState().status, store.getState().contracts.length], ['demo', 17]);
+});
+
+test('processing counts in the filter', () => {
+  const { SELF_OWNER_CONTRACT_FILTERS, groupSelfOwnerContracts, countSelfOwnerRooms, filterSelfOwnerRooms, fromPartyContract } = load();
+  assert.ok(SELF_OWNER_CONTRACT_FILTERS.includes('processing'));
+  assert.deepEqual(SELF_OWNER_CONTRACT_FILTERS, ['all', 'awaiting_signature', 'processing', 'ending_soon', 'active', 'ended']);
+  const c = fromPartyContract(party({ status: 'awaiting_deposit', ownerSignedAt: '2026-11-26T03:00:00.000Z' }), TODAY);
+  const groups = groupSelfOwnerContracts([c]);
+  const counts = countSelfOwnerRooms(groups);
+  assert.deepEqual([counts.all, counts.processing, counts.awaiting_signature], [1, 1, 0]);
+  assert.equal(filterSelfOwnerRooms(groups, '', 'processing').length, 1);
+  assert.equal(filterSelfOwnerRooms(groups, '', 'active').length, 0);
+});
+
+test('i18n: processing label in 4 languages, th has no English', () => {
+  for (const l of ['th', 'en', 'ja', 'zh']) {
+    const so = copyOf(l).selfOwnerContracts;
+    assert.ok(typeof so.status.processing === 'string' && so.status.processing.trim(), `${l}.status.processing`);
+    assert.ok(typeof so.signFailed === 'string' && so.signFailed.trim(), `${l}.signFailed`);
+  }
+  const th = copyOf('th').selfOwnerContracts;
+  assert.equal(th.status.processing, 'เซ็นครบแล้ว รอ NESTYK ดำเนินการ');
+  for (const text of [th.status.processing, th.signFailed]) assert.ok(!/[A-Za-z]{3,}/.test(text.replace('NESTYK', '')), `${text} has no English`);
+  assert.notEqual(copyOf('en').selfOwnerContracts.status.processing, th.status.processing);
+});
+
+// Review fixes (26 Nov 2026): stale loads, account switch during a sign, and day boundaries.
+test('store: a load that started before a successful sign cannot undo it', async () => {
+  const store = storeOf();
+  const late = [];
+  let calls = 0;
+  store.connect(fakeBackend({ list: () => (++calls === 1 ? Promise.resolve([party()]) : new Promise((resolve) => late.push(() => resolve([party()])))) }), 'u1');
+  await tick();
+  const refreshing = store.refresh();
+  assert.deepEqual(await store.sign('41', 'png'), { ok: true });
+  late[0]();
+  await refreshing;
+  await tick();
+  assert.deepEqual([store.getState().contracts[0].status, store.getState().contracts[0].signatures.owner], ['processing', '2026-11-26']);
+});
+
+test('store: an account switch during a sign drops the result', async () => {
+  const store = storeOf();
+  let finish;
+  const backend = fakeBackend({
+    list: async () => [party()],
+    sign: () => new Promise((resolve) => { finish = () => resolve(party({ status: 'awaiting_agent_review', ownerSignedAt: '2026-11-26T03:00:00.000Z' })); }),
+  });
+  store.connect(backend, 'u1');
+  await tick();
+  const signing = store.sign('41', 'png');
+  store.connect(backend, 'u2');
+  await tick();
+  finish();
+  const result = await signing;
+  assert.equal(result.ok, false, 'the result is not applied');
+  assert.deepEqual([store.getState().contracts[0].status, store.getState().contracts[0].signatures.owner], ['awaiting_signature', undefined]);
+});
+
+test('store: a 409 reload after an account switch is dropped too', async () => {
+  const store = storeOf();
+  let rejectSign;
+  let loads = 0;
+  const backend = fakeBackend({ list: async () => { loads += 1; return [party()]; }, sign: () => new Promise((_, reject) => { rejectSign = () => reject(Object.assign(new Error('x'), { status: 409 })); }) });
+  store.connect(backend, 'u1');
+  await tick();
+  const signing = store.sign('41', 'png');
+  store.connect(backend, 'u2');
+  await tick();
+  const before = loads;
+  rejectSign();
+  await signing;
+  await tick();
+  assert.equal(loads, before, 'no extra load for the old account');
+});
+
+test('ending soon: exactly 60 days left is soon, 61 is active, 0 (ends today) is still in force', () => {
+  const { fromPartyContract } = load();
+  const at = (endDate) => fromPartyContract(party({ status: 'active', endDate }), TODAY);
+  assert.deepEqual([at('2027-01-25').status, at('2027-01-25').daysLeft], ['ending_soon', 60]);
+  assert.deepEqual([at('2027-01-26').status, at('2027-01-26').daysLeft], ['active', undefined]);
+  assert.deepEqual([at('2026-11-26').status, at('2026-11-26').daysLeft], ['ending_soon', 0]);
+  assert.equal(at('2026-11-25').status, 'ended');
+});

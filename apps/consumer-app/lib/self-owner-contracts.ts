@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
+import type { DashboardSectionStatus } from '@nestyk/feature-listing';
+import type { PartyContract } from '@nestyk/types';
 import { createSelfOwnerRoomsDemo, type SelfOwnerRoom } from './self-owner-rooms';
 
 /**
@@ -7,13 +9,17 @@ import { createSelfOwnerRoomsDemo, type SelfOwnerRoom } from './self-owner-rooms
  * hooks return demo data; when the API lands, only `useSelfOwnerContracts` / `useSelfOwnerIncome` change.
  * The Dashboard's rent and to-do sections read the same demo set, so the numbers agree.
  */
-export type SelfOwnerContractStatus = 'active' | 'ending_soon' | 'awaiting_signature' | 'ended';
+export type SelfOwnerContractStatus = 'active' | 'ending_soon' | 'awaiting_signature' | 'processing' | 'ended';
 export type SelfOwnerContractFilter = 'all' | SelfOwnerContractStatus;
+/** Filter order of the contracts page: work first. `processing`: everyone signed, NESTYK is on it (review, deposit, handover). */
+export const SELF_OWNER_CONTRACT_FILTERS: SelfOwnerContractFilter[] = ['all', 'awaiting_signature', 'processing', 'ending_soon', 'active', 'ended'];
 /** The `form_kind` values of `master_agreement_types` (Jom 24 Nov 2026: the owner sees all four). */
 export type SelfOwnerContractKind = 'reservation' | 'lease' | 'renewal' | 'broker_appointment';
 
 export type SelfOwnerContract = {
   id: string;
+  /** The API contract id (agent_contracts); absent on demo contracts. */
+  apiId?: number;
   kind: SelfOwnerContractKind;
   roomId: string;
   roomTitle: string;
@@ -40,7 +46,12 @@ export type SelfOwnerContract = {
   broker?: { company: string; contact: string; phone: string; commission: { months: number } | { amount: number } };
   /** A reservation: the agreed move-in date (also its end date) and the booking fee. */
   reservation?: { moveInDate: string; bookingFee: number };
+  /** Who signed and when (YYYY-MM-DD); the owner signs in the contract detail (Jom 25 Nov 2026, demo). */
+  signatures?: Partial<Record<SelfOwnerSigner, string>>;
 };
+
+/** The parties that sign a contract. */
+export type SelfOwnerSigner = 'owner' | 'tenant' | 'broker';
 
 /** One room and every contract of it, newest first; the page lists these (Jom 24 Nov 2026). */
 export type SelfOwnerRoomContracts = {
@@ -159,7 +170,7 @@ function contractOf(room: SelfOwnerRoom, fields: Partial<SelfOwnerContract> & Pi
 }
 
 function statusOn(contract: SelfOwnerContract, today: string): SelfOwnerContract {
-  if (contract.status === 'awaiting_signature') return contract;
+  if (contract.status === 'awaiting_signature' || contract.status === 'processing') return contract;
   const left = daysBetween(today, contract.endDate);
   if (left < 0) return { ...contract, status: 'ended' };
   if (isRentContract(contract) && left <= SELF_OWNER_ENDING_SOON_DAYS) return { ...contract, status: 'ending_soon', daysLeft: left };
@@ -209,7 +220,15 @@ export function createSelfOwnerContractsDemo(now: Date = new Date()): SelfOwnerC
       contracts.push(contractOf(room, { tenantName: 'มานพ ดีงาม', startDate: twelveMonthsBefore(end), endDate: end }));
     }
   }
-  const dated = contracts.map((contract) => statusOn(contract, today));
+  // Who signed (Jom 25 Nov 2026, demo): awaiting contracts wait only for the owner, the tenant signed yesterday; every
+  // other contract is signed by all, a lease or renewal three days before it starts, the others on their date.
+  const signedDemo = contracts.map((contract): SelfOwnerContract => {
+    const signers = selfOwnerSigners(contract);
+    if (contract.status === 'awaiting_signature') return { ...contract, signatures: { tenant: addDays(today, -1) } };
+    const day = isRentContract(contract) ? addDays(contract.startDate, -3) : contract.startDate;
+    return { ...contract, signatures: Object.fromEntries(signers.map((signer) => [signer, day])) };
+  });
+  const dated = signedDemo.map((contract) => statusOn(contract, today));
   // A booking letter ends as used once the room's lease from its move-in date is in force (as the API records it).
   return dated.map((c) =>
     c.kind === 'reservation' && c.status === 'ended' &&
@@ -219,7 +238,29 @@ export function createSelfOwnerContractsDemo(now: Date = new Date()): SelfOwnerC
   );
 }
 
-const STATUS_ORDER: SelfOwnerContractStatus[] = ['awaiting_signature', 'ending_soon', 'active', 'ended'];
+/** Who signs each kind: the owner always; the tenant (or booker), or the broker for a broker appointment. A self owner's
+ * booking letter has no broker signing it (in the agent system the agent signs, Jom 25 Nov 2026). */
+export function selfOwnerSigners(contract: SelfOwnerContract): SelfOwnerSigner[] {
+  return contract.kind === 'broker_appointment' ? ['owner', 'broker'] : ['owner', 'tenant'];
+}
+
+/** The owner can sign: the contract awaits signatures and the owner has not signed yet. */
+export const ownerCanSign = (contract: SelfOwnerContract): boolean =>
+  contract.status === 'awaiting_signature' && !contract.signatures?.owner;
+
+/** The owner signs on `today`; once every party has signed the contract takes its status from its dates. */
+export function signSelfOwnerContract(contract: SelfOwnerContract, today: string): SelfOwnerContract {
+  const signed = { ...contract, signatures: { ...contract.signatures, owner: today } };
+  const all = selfOwnerSigners(signed).every((signer) => signed.signatures[signer]);
+  return all ? statusOn({ ...signed, status: 'active' }, today) : signed;
+}
+
+/** The list with the owner's signatures of this session (contract id → day signed) applied. */
+export function applySelfOwnerSignatures(list: SelfOwnerContract[], signedOn: Record<string, string>, today: string): SelfOwnerContract[] {
+  return list.map((contract) => (signedOn[contract.id] && ownerCanSign(contract) ? signSelfOwnerContract(contract, signedOn[contract.id] ?? today) : contract));
+}
+
+const STATUS_ORDER: SelfOwnerContractStatus[] = ['awaiting_signature', 'processing', 'ending_soon', 'active', 'ended'];
 
 /** The contract a room's row shows: the running lease or renewal, else one awaiting signature, else the last ended one;
  * a room with no lease or renewal shows its newest contract. `newestFirst` is sorted by start date, newest first. */
@@ -245,7 +286,7 @@ export function groupSelfOwnerContracts(list: SelfOwnerContract[]): SelfOwnerRoo
 }
 
 export function countSelfOwnerRooms(rooms: SelfOwnerRoomContracts[]): Record<SelfOwnerContractFilter, number> {
-  const counts: Record<SelfOwnerContractFilter, number> = { all: rooms.length, active: 0, ending_soon: 0, awaiting_signature: 0, ended: 0 };
+  const counts: Record<SelfOwnerContractFilter, number> = { all: rooms.length, active: 0, ending_soon: 0, awaiting_signature: 0, processing: 0, ended: 0 };
   for (const room of rooms) counts[room.status] += 1;
   return counts;
 }
@@ -305,9 +346,228 @@ export function selfOwnerIncomeMonths(contracts: SelfOwnerContract[], now: Date 
   return months;
 }
 
-/** The owner's contracts (demo until the admin side and its API exist). */
-export function useSelfOwnerContracts(): { status: 'demo'; isDemoPreview: true; contracts: SelfOwnerContract[] } {
-  return useMemo(() => ({ status: 'demo' as const, isDemoPreview: true as const, contracts: createSelfOwnerContractsDemo() }), []);
+/** Bangkok day (YYYY-MM-DD) of an API timestamp. */
+const bangkokDay = (iso: string): string => bangkokToday(new Date(iso));
+const textOf = (value: unknown): string => (typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '');
+const monthsOf = (value: unknown): number => {
+  const n = Number(textOf(value).replace(/,/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+const amountOf = (value: unknown): number => monthsOf(value);
+
+/**
+ * One API contract as the owner's contract, or null when it is not the owner's own-room contract (the owner is not a
+ * party of it, it has no self owner room) or it was cancelled. `today` is the Bangkok day (YYYY-MM-DD).
+ * The forms sit nested in `data`, one per kind, as the agent's saveDraft and the seed planner
+ * (apps/api/scripts/self-owner-contracts-plan.cjs) store them: `leaseAgreement` (lease-agreement.ts: tenantPhone,
+ * advanceMonths, depositMonths), `leaseRenewal` (lease-renewal.ts: depositCarried, an amount; no phone, no advance),
+ * `reservationLetter` (reservation-letter.ts: tenantPhone, advanceMonths, depositMonths, reservationPayment) and
+ * `brokerAppointment` (broker-appointment.ts: brokerCompany, brokerContact, brokerPhone, monthlyRent, commissionMonths,
+ * commissionFee; the monthly_rent column is null for an appointment). The same keys at the top of `data` are the fallback.
+ */
+export function fromPartyContract(c: PartyContract, today: string): SelfOwnerContract | null {
+  if (!c.myParties.includes('owner') || c.selfOwnerRoomId == null) return null;
+  if (c.status === 'cancelled') return null;
+  const kind = c.formKind;
+  const data = (c.data ?? {}) as Record<string, unknown>;
+  const nestedKey = { lease: 'leaseAgreement', renewal: 'leaseRenewal', reservation: 'reservationLetter', broker_appointment: 'brokerAppointment' }[kind];
+  const nested = data[nestedKey];
+  const form = nested && typeof nested === 'object' && !Array.isArray(nested) ? (nested as Record<string, unknown>) : {};
+  /** The form's value, else the same key at the top of `data`. */
+  const field = (key: string): unknown => (textOf(form[key]) !== '' ? form[key] : data[key]);
+  const monthlyRent = c.monthlyRent ?? amountOf(field('monthlyRent'));
+  // A renewal carries the previous deposit as an amount: shown as months of rent like the other kinds.
+  const carried = kind === 'renewal' ? amountOf(form.depositCarried) || (c.deposit ?? 0) : 0;
+  const depositMonths = monthsOf(field('depositMonths')) || (carried > 0 && monthlyRent > 0 ? Math.round((carried / monthlyRent) * 100) / 100 : 0);
+  const startDate = c.startDate;
+  const endDate = c.endDate ?? (kind === 'reservation' ? c.moveInDate ?? startDate : kind === 'broker_appointment' ? twelveMonthsFrom(startDate) : startDate);
+  let status: SelfOwnerContractStatus;
+  let daysLeft: number | undefined;
+  switch (c.status) {
+    case 'draft':
+    case 'awaiting_signatures':
+      status = 'awaiting_signature';
+      break;
+    case 'awaiting_agent_review':
+    case 'awaiting_deposit':
+    case 'awaiting_handover':
+      status = 'processing';
+      break;
+    case 'active': {
+      const left = daysBetween(today, endDate);
+      if (left < 0) status = 'ended';
+      else if ((kind === 'lease' || kind === 'renewal') && left <= SELF_OWNER_ENDING_SOON_DAYS) {
+        status = 'ending_soon';
+        daysLeft = left;
+      } else status = 'active';
+      break;
+    }
+    default:
+      status = 'ended';
+  }
+  const signatures: Partial<Record<SelfOwnerSigner, string>> = {};
+  if (c.ownerSignedAt) signatures.owner = bangkokDay(c.ownerSignedAt);
+  if (c.tenantSignedAt) signatures.tenant = bangkokDay(c.tenantSignedAt);
+  if (c.agentSignedAt) signatures.broker = bangkokDay(c.agentSignedAt);
+  const contract: SelfOwnerContract = {
+    id: String(c.id),
+    apiId: c.id,
+    kind,
+    roomId: String(c.selfOwnerRoomId),
+    roomTitle: c.room ?? c.property,
+    project: c.property,
+    tenantName: kind === 'broker_appointment' ? '' : c.tenant,
+    tenantPhone: textOf(field('tenantPhone')),
+    startDate,
+    endDate,
+    monthlyRent,
+    advanceRentMonths: monthsOf(field('advanceMonths')),
+    depositMonths,
+    status,
+    signatures,
+  };
+  if (daysLeft !== undefined) contract.daysLeft = daysLeft;
+  if (c.endReasonCode === 'reservation_fulfilled') contract.endReason = 'reservation_fulfilled';
+  if (kind === 'reservation') contract.reservation = { moveInDate: c.moveInDate ?? endDate, bookingFee: c.reservationFee ?? (amountOf(data.reservationFee) || amountOf(form.reservationPayment)) };
+  if (kind === 'broker_appointment') {
+    const months = monthsOf(field('commissionMonths'));
+    contract.broker = {
+      company: textOf(field('brokerCompany')),
+      contact: textOf(field('brokerContact')),
+      phone: textOf(field('brokerPhone')),
+      commission: months > 0 ? { months } : { amount: amountOf(field('commissionFee')) },
+    };
+  }
+  return contract;
+}
+
+/** What the store needs from the party contracts API (lib/self-owner-contracts-api.ts); a fake in tests. */
+export interface SelfOwnerContractsBackend {
+  list(): Promise<PartyContract[]>;
+  sign(id: number, signaturePng: string): Promise<PartyContract>;
+  documentUrl(id: number): Promise<string>;
+}
+
+export type SelfOwnerSignResult = { ok: true } | { ok: false; message: string };
+/** Used when a failed sign has no message of its own (no answer from the server); pages pass their localized copy. */
+const SIGN_FAILED_FALLBACK = 'ลงนามไม่สำเร็จ กรุณาลองอีกครั้ง';
+
+type ContractStoreState = { source: 'demo' | 'api'; status: DashboardSectionStatus; contracts: SelfOwnerContract[] };
+
+/**
+ * The owner's contracts, shared by the contracts pages. Demo contracts until the app connects the API; connected, it
+ * holds the signed-in owner's own-room contracts (same pattern as `selfOwnerRoomStore`).
+ */
+function createContractStore() {
+  let state: ContractStoreState = { source: 'demo', status: 'demo', contracts: createSelfOwnerContractsDemo() };
+  let backend: SelfOwnerContractsBackend | null = null;
+  let accountKey: string | null = null;
+  let loadId = 0;
+  // Bumped by connect and disconnect: the backend object is shared by every account, so a call that outlives its
+  // connection is told apart by this, not by the backend.
+  let generation = 0;
+  const listeners = new Set<() => void>();
+  const set = (next: Partial<ContractStoreState>) => {
+    state = { ...state, ...next };
+    listeners.forEach((listener) => listener());
+  };
+  const mapAll = (rows: PartyContract[]): SelfOwnerContract[] => {
+    const today = selfOwnerToday();
+    return rows.map((row) => fromPartyContract(row, today)).filter((row): row is SelfOwnerContract => row !== null);
+  };
+  const load = async (): Promise<void> => {
+    if (!backend) return;
+    const id = ++loadId;
+    const source = backend;
+    try {
+      const rows = await source.list();
+      if (id !== loadId || backend !== source) return;
+      set({ status: 'available', contracts: mapAll(rows) });
+    } catch {
+      if (id !== loadId || backend !== source) return;
+      set({ status: 'error' });
+    }
+  };
+  const demoNow = (now: Date) => ({ source: 'demo' as const, status: 'demo' as const, contracts: createSelfOwnerContractsDemo(now) });
+  return {
+    getState: (): ContractStoreState => state,
+    backend: (): SelfOwnerContractsBackend | null => backend,
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    /** Use the API for this account; the same account again is a no-op, another account loads its own contracts. */
+    connect(next: SelfOwnerContractsBackend, account: string): void {
+      if (backend === next && accountKey === account) return;
+      backend = next;
+      accountKey = account;
+      generation++;
+      set({ source: 'api', status: 'loading', contracts: [] });
+      void load();
+    },
+    refresh: (): Promise<void> => load(),
+    /** Signed out: back to the demo contracts. */
+    disconnect(now: Date = new Date()): void {
+      backend = null;
+      accountKey = null;
+      generation++;
+      loadId++;
+      set(demoNow(now));
+    },
+    /** Back to the demo, not connected (tests). */
+    reset(now: Date = new Date()): void {
+      this.disconnect(now);
+    },
+    /**
+     * The owner signs. The contract changes only when the API agrees; any failure answers `{ ok: false, message }` with the
+     * API's own message (else `fallbackMessage`) and leaves the contract as it was. Not for the demo: the pages sign locally there.
+     */
+    async sign(contractId: string, signaturePng: string, fallbackMessage: string = SIGN_FAILED_FALLBACK): Promise<SelfOwnerSignResult> {
+      const source = backend;
+      const connection = generation;
+      const contract = state.contracts.find((item) => item.id === contractId);
+      if (!source || !contract || contract.apiId === undefined) return { ok: false, message: fallbackMessage };
+      try {
+        const updated = fromPartyContract(await source.sign(contract.apiId, signaturePng), selfOwnerToday());
+        // The owner signed out or another account connected meanwhile: the result is not theirs to show here.
+        if (generation !== connection) return { ok: false, message: fallbackMessage };
+        // A list that started before this sign holds the unsigned contract; its answer must not land after it.
+        loadId++;
+        set({ contracts: updated ? state.contracts.map((item) => (item.id === contractId ? updated : item)) : state.contracts.filter((item) => item.id !== contractId) });
+        return { ok: true };
+      } catch (error) {
+        const e = error as { message?: unknown; status?: unknown; code?: unknown } | null;
+        // Any failure: the contract may have changed (409), been signed in another tab (400 "ฝ่ายนี้ลงนามแล้ว") or been
+        // signed by the server before the answer was lost; load it again so the page shows what is there now.
+        if (generation === connection) void load();
+        // Only the API's own (Thai) message is shown: no answer, a server error or a raw "HTTP ..." text is the page's copy.
+        const raw = typeof e?.message === 'string' ? e.message.trim() : '';
+        const technical = e?.code === 'NETWORK_ERROR' || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500) || raw.startsWith('HTTP ');
+        const message = raw && !technical ? raw : fallbackMessage;
+        return { ok: false, message };
+      }
+    },
+    /** The file to show: the API's link, or on the demo the bundled sample file (what the Document viewer takes as `source`). */
+    documentUrl(contractId: string): Promise<number | string> {
+      const contract = state.contracts.find((item) => item.id === contractId);
+      if (backend) {
+        if (!contract || contract.apiId === undefined) return Promise.reject(new Error('contract not found'));
+        return backend.documentUrl(contract.apiId);
+      }
+      // Lazy: the bundled PDFs are Metro assets; only the demo path needs them.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const file = (require('../components/self-owner/demo-documents') as typeof import('../components/self-owner/demo-documents')).selfOwnerDocumentOf(contractId);
+      return file === undefined ? Promise.reject(new Error('no file')) : Promise.resolve(file);
+    },
+  };
+}
+
+export const selfOwnerContractStore = createContractStore();
+
+/** The owner's contracts: the demo until the app connects the API, then the signed-in owner's own-room contracts. */
+export function useSelfOwnerContracts(): { status: DashboardSectionStatus; isDemoPreview: boolean; contracts: SelfOwnerContract[] } {
+  const state = useSyncExternalStore(selfOwnerContractStore.subscribe, selfOwnerContractStore.getState, selfOwnerContractStore.getState);
+  return useMemo(() => ({ status: state.status, isDemoPreview: state.source === 'demo', contracts: state.contracts }), [state]);
 }
 
 /** The owner's rent income: the contracts and the months that can be shown (demo for now). */

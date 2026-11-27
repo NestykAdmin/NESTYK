@@ -153,3 +153,18 @@ test("search matches tenant, room, and contract number", () => {
   assert.equal(ownerRoomMatches("IDEO", "805", contracts, "r-9"), true);
   assert.equal(ownerRoomMatches("IDEO", "805", contracts, "ลาดพร้าว"), false);
 });
+
+// Final review (26 Nov 2026, self owner contracts): /contracts/mine lists every side of the user. The tenant workspace
+// keeps the rows where the user is the tenant; the landlord inbox the rows where they are the owner of an agent room
+// (a self owner room's contracts live on the self owner pages).
+test("party rows: each workspace keeps only its own side; the landlord inbox drops self owner rooms", () => {
+  const { partyRowsFor } = load("owner-contract-rooms.ts");
+  const agentOwner = row({ id: 1, myParties: ["owner"], selfOwnerRoomId: null });
+  const selfOwnerOwner = row({ id: 2, myParties: ["owner"], selfOwnerRoomId: 5 });
+  const tenantElsewhere = row({ id: 3, myParties: ["tenant"], selfOwnerRoomId: 7 });
+  const both = row({ id: 4, myParties: ["owner", "tenant"], rentRoomId: 3 });
+  const noSides = row({ id: 5, myParties: undefined });
+  const rows = [agentOwner, selfOwnerOwner, tenantElsewhere, both, noSides];
+  assert.deepEqual(partyRowsFor(rows, "owner").map((r) => r.id), [1, 4]);
+  assert.deepEqual(partyRowsFor(rows, "tenant").map((r) => r.id), [3, 4]);
+});

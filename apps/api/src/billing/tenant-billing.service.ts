@@ -13,6 +13,7 @@ import type { AgentTenantBilling, BillLateFee, BillReservationCredit, FinancialD
 import { TenantEntity } from '../entities/tenant.entity';
 import { RoomTenancyEntity } from '../entities/room-tenancy.entity';
 import { financialTotals } from '../agent/contracts/financial-document';
+import { AGENT_ROOM_ONLY } from "../agent/contracts/contract-room";
 import { closeEndedLease } from "../agent/contracts/contract-closure";
 import { LeaseContractEntity } from "../entities/lease-contract.entity";
 import { TenantBillEntity } from "../entities/tenant-bill.entity";
@@ -175,7 +176,8 @@ const formKind = (c: LeaseContractEntity) => c.template?.form_kind ?? c.agreemen
  * (same lead, room and agent, not cancelled) once its receipt is issued. Leases without one are left out.
  */
 export async function reservationCredits(db: Db, leases: LeaseContractEntity[]) {
-  const wanted = [...new Map(leases.filter((c) => c && isNewLease(c) && c.lead_id != null && c.rent_room_id != null)
+  // The guard narrows rent_room_id: a self owner lease (null) has no agent reservation and is left out, as before.
+  const wanted = [...new Map(leases.filter((c): c is LeaseContractEntity & { rent_room_id: number } => !!c && isNewLease(c) && c.lead_id != null && c.rent_room_id != null)
     .map((c) => [c.id, c])).values()];
   const out = new Map<number, number>();
   if (!wanted.length) return out;
@@ -240,7 +242,8 @@ export class TenantBillingService {
       .leftJoin("c.agreement_type", "agreementType")
       .leftJoinAndSelect("c.tenant", "tenant")
       .where("(c.status = 'active' OR (c.agreement_kind = 'renewal' AND c.document_url IS NOT NULL AND c.status IN ('awaiting_signatures', 'awaiting_agent_review')))")
-      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')");
+      .andWhere("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
+      .andWhere(AGENT_ROOM_ONLY);
   }
 
   private async insertBills(leases: LeaseContractEntity[], today: string) {
@@ -271,6 +274,8 @@ export class TenantBillingService {
         if (c.room_tenancy_id && moveIn <= today && (!c.end_date || today <= c.end_date)) {
           // Step 28 (B0b): the previous tenant's stay is released by the closing job; until then the room keeps
           // one active stay (unique index), so this one waits instead of failing every lease's bills tonight.
+          // A self owner lease has no agent room: nothing here to wait for (the agent's billing scan leaves it out anyway).
+          if (c.rent_room_id === null) continue;
           const occupied = await manager.count(RoomTenancyEntity, {
             where: { rent_room_id: c.rent_room_id, status: 'active', id: Not(c.room_tenancy_id) },
           });
@@ -309,6 +314,7 @@ export class TenantBillingService {
       .leftJoin("c.agreement_type", "agreementType")
       .select("c.id", "id")
       .where("COALESCE(template.form_kind, agreementType.form_kind) IN ('lease', 'renewal')")
+      .andWhere(AGENT_ROOM_ONLY)
       // One parameter, two types: a date column and a JSON text value (left uncast, Postgres refuses text < date).
       // AC-8.7: also the ended leases still waiting for a decision (their stay may be over now).
       .andWhere(`((c.status = 'active' AND (c.end_date < CAST(:today AS date) OR (c.data->'endsOn'->>'date') < CAST(:today AS text)))

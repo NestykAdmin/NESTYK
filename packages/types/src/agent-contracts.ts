@@ -34,6 +34,8 @@ export interface AgentContract {
   leadId: number;
   /** D2 round 2: the deal's room (to find the deal's offer). */
   rentRoomId?: number | null;
+  /** Self owner contracts: the self_owner_rooms id (exactly one of rentRoomId and selfOwnerRoomId is set). */
+  selfOwnerRoomId?: number | null;
   contractNo: string;
   templateId: number | null;
   templateVersion: number | null;

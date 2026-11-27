@@ -8,12 +8,13 @@ import {
 } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, Not, Repository } from 'typeorm';
 import { UserEntity } from '../entities/user.entity';
 import { MasterRoleEntity, MasterRoleName } from '../entities/master-role.entity';
 import { UserRoleEntity } from '../entities/user-role.entity';
 import { SavedRoomEntity } from '../entities/saved-room.entity';
 import { SelfOwnerRoomEntity } from '../entities/self-owner-room.entity';
+import { SelfOwnerRoomMediaEntity } from '../entities/self-owner-room-media.entity';
 import { RoomPhotoStorageService } from '../agent/rooms/room-photo-storage.service';
 import { AuthRequestUser } from './decorators/current-user.decorator';
 import { JwtIdentity } from './guards/auth.guard';
@@ -386,7 +387,27 @@ export class AuthService {
             AND NOT EXISTS (SELECT 1 FROM public.room_medias a WHERE a.media_url = m.media_url)`,
         [userId],
       )) as Array<{ media_url: string }>).map((row) => row.media_url);
-      await manager.getRepository(SelfOwnerRoomEntity).delete({ owner_user_id: userId });
+      // A room a lease or a tenancy points at (both ON DELETE RESTRICT) stays for that contract's record, anonymized:
+      // no contact, unlisted, no photos (their files go with the others below). Locked so no new lease points at a
+      // room while it is deleted. Only the other rooms are deleted.
+      const keptRoomIds = ((await manager.query(
+        `SELECT r.id FROM public.self_owner_rooms r
+          WHERE r.owner_user_id = $1
+            AND (EXISTS (SELECT 1 FROM public.lease_contracts l WHERE l.self_owner_room_id = r.id)
+              OR EXISTS (SELECT 1 FROM public.room_tenancies y WHERE y.self_owner_room_id = r.id))
+          FOR UPDATE OF r`,
+        [userId],
+      )) as Array<{ id: number | string }>).map((row) => Number(row.id));
+      if (keptRoomIds.length) {
+        await manager.getRepository(SelfOwnerRoomMediaEntity).delete({ room_id: In(keptRoomIds) });
+        await manager.getRepository(SelfOwnerRoomEntity).update(
+          { id: In(keptRoomIds) },
+          { contact_name: '', contact_phone: '', contact_line_id: null, contact_facebook: null, visibility: 'private' },
+        );
+      }
+      await manager.getRepository(SelfOwnerRoomEntity).delete(
+        keptRoomIds.length ? { owner_user_id: userId, id: Not(In(keptRoomIds)) } : { owner_user_id: userId },
+      );
       await manager.getRepository(UserEntity).update(userId, {
         email: anonymizedAccountEmail(userId),
         supabase_user_id: null,
@@ -430,7 +451,9 @@ export class AuthService {
                   SELECT 1 FROM lease_contracts l
                   LEFT JOIN agreement_templates lt ON lt.id = l.template_id
                   LEFT JOIN master_agreement_types la ON la.code = l.agreement_type_code
-                  WHERE l.lead_id = c.lead_id AND l.rent_room_id = c.rent_room_id AND l.tenant_id = c.tenant_id
+                  -- The same room on either column (a self owner contract has rent_room_id NULL).
+                  WHERE l.lead_id = c.lead_id AND (l.rent_room_id = c.rent_room_id OR l.self_owner_room_id = c.self_owner_room_id)
+                    AND l.tenant_id = c.tenant_id
                     AND COALESCE(lt.form_kind, la.form_kind) = 'lease' AND l.agreement_kind = 'new'
                     AND l.status IN ('active', 'expired', 'terminated')
                 ) AS lease_started

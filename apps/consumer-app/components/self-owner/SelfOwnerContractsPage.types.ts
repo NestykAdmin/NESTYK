@@ -10,4 +10,6 @@ export type SelfOwnerContractsPageProps = {
   /** Load state (Jom 25 Nov 2026): loading → skeleton, error → message + retry; demo and ready show the rows. */
   status?: 'demo' | 'ready' | 'loading' | 'error';
   onRetry?: () => void;
+  /** The owner's signatures of this session shown first (tests): contract id → day signed (Jom 25 Nov 2026, demo). */
+  initialSignedOn?: Record<string, string>;
 };

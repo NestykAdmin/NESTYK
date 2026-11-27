@@ -14,24 +14,34 @@ import {
   groupSelfOwnerContracts,
   isFulfilledReservation,
   isRentContract,
+  applySelfOwnerSignatures,
+  selfOwnerContractStore,
   selfOwnerToday,
   type SelfOwnerContract,
   type SelfOwnerContractFilter,
   type SelfOwnerContractStatus,
   type SelfOwnerRoomContracts,
+  type SelfOwnerSignResult,
 } from "../../lib/self-owner-contracts";
 import { contractDetailView, contractParty } from "./contract-detail-rows";
 import { SelfOwnerWebPager } from "./SelfOwnerWebPager";
 import { SELF_OWNER_ROOMS_WEB_PAGE_SIZE, clampPage } from "../../lib/self-owner-rooms";
 import type { SelfOwnerContractsPageProps } from "./SelfOwnerContractsPage.types";
+import { SelfOwnerContractSigning } from "./SelfOwnerContractSigning.web";
+import { SelfOwnerContractSignFlow } from "./SelfOwnerContractSignFlow.web";
+import { SelfOwnerContractDocument } from "./SelfOwnerContractDocument.web";
+import { useStepSlide } from "./useStepSlide";
+import { FadeIn } from "./FadeIn.web";
+import { selfOwnerDocumentLoader, selfOwnerHasDocument } from "./document-loader";
 import "../agent-web/agent-rooms.css";
 import "./self-owner-rooms.css";
 
-const STATUSES: SelfOwnerContractStatus[] = ["awaiting_signature", "ending_soon", "active", "ended"];
+const STATUSES: SelfOwnerContractStatus[] = ["awaiting_signature", "processing", "ending_soon", "active", "ended"];
 export const CONTRACT_STATUS_INTENT: Record<SelfOwnerContractStatus, StatusIntent> = {
   active: "done",
   ending_soon: "attn",
   awaiting_signature: "prog",
+  processing: "prog",
   ended: "neutral",
 };
 
@@ -71,24 +81,83 @@ export function SelfOwnerRoomContractsDialog({
   room,
   all,
   onClose,
+  onSign,
+  isDemoPreview = true,
+  loadDocument = selfOwnerDocumentLoader,
   initialContractId = null,
+  initialSigning = false,
+  initialView,
   now,
 }: {
   room: SelfOwnerRoomContracts;
   /** Every contract, to find the one a renewal renews. */
   all: SelfOwnerContract[];
   onClose: () => void;
+  /** The owner signs a contract awaiting signatures; `ok: false` keeps the sign page open with its message. */
+  onSign: (contractId: string, signaturePng: string) => Promise<SelfOwnerSignResult> | SelfOwnerSignResult | void;
+  /** Demo contracts: sample-file and "not saved" notes, the bundled sample files; the API has neither. */
+  isDemoPreview?: boolean;
+  /** The URL of a contract's file (a fresh one on every call). */
+  loadDocument?: (contractId: string) => Promise<string>;
   initialContractId?: string | null;
+  /** Opens the sign page of the initial contract (tests). */
+  initialSigning?: boolean;
+  /** Opens the initial contract's file (tests). */
+  initialView?: "document";
   /** "Today" for the progress bar; defaults to now. */
   now?: Date;
 }) {
   const { t } = useLocale();
   const so = t.selfOwnerContracts;
   const fmt = useFormat();
-  const [selectedId, setSelectedId] = useState<string | null>(initialContractId);
+  const [selectedId, setSelectedIdState] = useState<string | null>(initialContractId);
+  // The separate sign page (option B, Jom 25 Nov 2026) and the contract file replace the detail in this dialog.
+  const [mode, setMode] = useState<"detail" | "sign" | "document">(initialSigning ? "sign" : initialView ?? "detail");
+  const setSigning = (on: boolean) => setMode(on ? "sign" : "detail");
+  const setSelectedId = (id: string | null) => {
+    setMode("detail");
+    setSelectedIdState(id);
+  };
   const open = selectedId ? room.contracts.find((c) => c.id === selectedId) ?? null : null;
+  // The list, a contract, then its file or sign page: the new content fades in where the dialog stays (Jom 25 Nov 2026).
+  const screen = !open ? 0 : mode === "detail" ? 1 : 2;
+  const slide = useStepSlide(screen);
+  const screenKey = open ? `${mode}:${open.id}` : "list";
   const period = (c: SelfOwnerContract) => interpolate(so.period, { start: fmt.day(c.startDate), end: fmt.day(c.endDate) });
 
+  const hasFile = open ? selfOwnerHasDocument(open.id, isDemoPreview) : false;
+  if (open && hasFile && mode === "document") {
+    return (
+      <WebDialog open size="lg" title={so.viewDocument} description={`${so.kind[open.kind]} · ${open.roomTitle}`} onClose={onClose} testID="self-owner-contract-document">
+        <FadeIn key={screenKey} active={slide !== null}>
+          <button type="button" className="soc-back" data-testid="soc-back" onClick={() => setMode("detail")}>
+            <MobileIcon name="chevron-left" size={16} color="currentColor" />
+            {so.back}
+          </button>
+          {isDemoPreview ? (
+            <p className="soc-pad-demo" role="note">
+              <MobileIcon name="info" size={14} color="currentColor" />
+              {so.sampleDocument}
+            </p>
+          ) : null}
+          <SelfOwnerContractDocument load={() => loadDocument(open.id)} />
+        </FadeIn>
+      </WebDialog>
+    );
+  }
+  if (open && mode === "sign") {
+    return (
+      <WebDialog open size="lg" title={so.signAction} description={`${so.kind[open.kind]} · ${open.roomTitle}`} onClose={onClose} testID="self-owner-contract-sign">
+        <FadeIn key={screenKey} active={slide !== null}>
+          <button type="button" className="soc-back" data-testid="soc-back" onClick={() => setSigning(false)}>
+            <MobileIcon name="chevron-left" size={16} color="currentColor" />
+            {so.back}
+          </button>
+          <SelfOwnerContractSignFlow key={open.id} contract={open} all={all} fmt={fmt} today={selfOwnerToday(now)} onSign={onSign} isDemoPreview={isDemoPreview} loadDocument={loadDocument} onDone={() => setSigning(false)} />
+        </FadeIn>
+      </WebDialog>
+    );
+  }
   if (open) {
     // Layout A (Jom 24 Nov 2026): period and progress, the other party, money tiles, then the rest.
     const view = contractDetailView(open, all, so, fmt, selfOwnerToday(now));
@@ -99,85 +168,97 @@ export function SelfOwnerRoomContractsDialog({
         onClose={onClose}
         testID="self-owner-contract-detail"
         footer={
-          <button type="button" className="awu-btn" disabled aria-disabled="true" title={so.noDocument}>
+          <button
+            type="button"
+            className="awu-btn"
+            data-testid="soc-document"
+            disabled={!hasFile}
+            aria-disabled={!hasFile}
+            title={!hasFile ? so.noDocument : undefined}
+            onClick={() => setMode("document")}
+          >
             <MobileIcon name="file-text" size={16} color="currentColor" />
             {so.viewDocument}
           </button>
         }
       >
-        <button type="button" className="soc-back" data-testid="soc-back" onClick={() => setSelectedId(null)}>
-          <MobileIcon name="chevron-left" size={16} color="currentColor" />
-          {so.back}
-        </button>
-        <div className="soc-hero">
-          <div className="soc-hero-tags">
-            <span className="soc-kind">{so.kind[open.kind]}</span>
-            <StatusPill contract={open} />
-          </div>
-          <p className="soc-period">{view.period}</p>
-          <p className="soc-room">{view.room}</p>
-          {view.progress ? (
-            <>
-              <div
-                className="soc-progress"
-                role="progressbar"
-                aria-label={view.progressLabel}
-                aria-valuemin={1}
-                aria-valuemax={view.progress.months}
-                aria-valuenow={view.progress.month}
-              >
-                <span style={{ width: `${Math.round(view.progress.ratio * 100)}%` }} />
-              </div>
-              <div className="soc-progress-meta">
-                <span>{view.progressLabel}</span>
-                <span>{interpolate(so.daysLeft, { n: view.progress.daysLeft })}</span>
-              </div>
-            </>
-          ) : null}
-        </div>
-        <div className="soc-party">
-          <span className="soc-avatar" aria-hidden="true">{view.party.initial}</span>
-          <span className="soc-party-name">
-            <strong>{view.party.name}</strong>
-            <small>{view.party.role}</small>
-          </span>
-          {view.party.phone ? (
-            <a className="soc-phone" href={`tel:${view.party.phone.replace(/[^0-9+]/g, "")}`}>
-              <MobileIcon name="phone" size={14} color="currentColor" />
-              {view.party.phone}
-            </a>
-          ) : null}
-        </div>
-        <div className="soc-tiles">
-          {view.tiles.map((tile) => (
-            <div key={tile.label} className="soc-tile">
-              <span>{tile.label}</span>
-              <strong>{tile.value}</strong>
-              {tile.note ? <small>{tile.note}</small> : null}
+        <FadeIn key={screenKey} active={slide !== null}>
+          <button type="button" className="soc-back" data-testid="soc-back" onClick={() => setSelectedId(null)}>
+            <MobileIcon name="chevron-left" size={16} color="currentColor" />
+            {so.back}
+          </button>
+          <div className="soc-hero">
+            <div className="soc-hero-tags">
+              <span className="soc-kind">{so.kind[open.kind]}</span>
+              <StatusPill contract={open} />
             </div>
-          ))}
-        </div>
-        {view.extra.length ? (
-          <dl className="soc-extra">
-            {view.extra.map(([term, value]) => (
-              <div key={term}>
-                <dt>{term}</dt>
-                <dd>{value}</dd>
+            <p className="soc-period">{view.period}</p>
+            <p className="soc-room">{view.room}</p>
+            {view.progress ? (
+              <>
+                <div
+                  className="soc-progress"
+                  role="progressbar"
+                  aria-label={view.progressLabel}
+                  aria-valuemin={1}
+                  aria-valuemax={view.progress.months}
+                  aria-valuenow={view.progress.month}
+                >
+                  <span style={{ width: `${Math.round(view.progress.ratio * 100)}%` }} />
+                </div>
+                <div className="soc-progress-meta">
+                  <span>{view.progressLabel}</span>
+                  <span>{interpolate(so.daysLeft, { n: view.progress.daysLeft })}</span>
+                </div>
+              </>
+            ) : null}
+          </div>
+          <div className="soc-party">
+            <span className="soc-avatar" aria-hidden="true">{view.party.initial}</span>
+            <span className="soc-party-name">
+              <strong>{view.party.name}</strong>
+              <small>{view.party.role}</small>
+            </span>
+            {view.party.phone ? (
+              <a className="soc-phone" href={`tel:${view.party.phone.replace(/[^0-9+]/g, "")}`}>
+                <MobileIcon name="phone" size={14} color="currentColor" />
+                {view.party.phone}
+              </a>
+            ) : null}
+          </div>
+          <div className="soc-tiles">
+            {view.tiles.map((tile) => (
+              <div key={tile.label} className="soc-tile">
+                <span>{tile.label}</span>
+                <strong>{tile.value}</strong>
+                {tile.note ? <small>{tile.note}</small> : null}
               </div>
             ))}
-          </dl>
-        ) : null}
-        {view.renewsFrom ? (
-          <button type="button" className="soc-link" data-testid="soc-renews-from" onClick={() => setSelectedId(view.renewsFrom!.id)}>
-            <MobileIcon name="files" size={16} color="currentColor" />
-            <span>{view.renewsFrom.label}</span>
-            <MobileIcon name="chevron-right" size={16} color="currentColor" />
-          </button>
-        ) : null}
-        <p className="soc-note soc-readonly">
-          <MobileIcon name="lock" size={14} color="currentColor" />
-          {so.readOnlyNote}
-        </p>
+          </div>
+          {view.extra.length ? (
+            <dl className="soc-extra">
+              {view.extra.map(([term, value]) => (
+                <div key={term}>
+                  <dt>{term}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {view.renewsFrom ? (
+            <button type="button" className="soc-link" data-testid="soc-renews-from" onClick={() => setSelectedId(view.renewsFrom!.id)}>
+              <MobileIcon name="files" size={16} color="currentColor" />
+              <span>{view.renewsFrom.label}</span>
+              <MobileIcon name="chevron-right" size={16} color="currentColor" />
+            </button>
+          ) : null}
+          {/* Who signs, last before the note; "ลงนามสัญญา" opens the sign page (Jom 25 Nov 2026, option B). */}
+          <SelfOwnerContractSigning contract={open} day={fmt.day} onStart={() => setSigning(true)} />
+          <p className="soc-note soc-readonly">
+            <MobileIcon name="lock" size={14} color="currentColor" />
+            {so.readOnlyNote}
+          </p>
+        </FadeIn>
       </WebDialog>
     );
   }
@@ -189,27 +270,29 @@ export function SelfOwnerRoomContractsDialog({
       onClose={onClose}
       testID="self-owner-room-contracts"
     >
-      <ul className="soc-contract-list">
-        {room.contracts.map((c) => (
-          <li key={c.id}>
-            <button
-              type="button"
-              className="soc-contract"
-              data-testid={`soc-contract-${c.id}`}
-              aria-label={`${so.viewDetail} ${so.kind[c.kind]} ${period(c)}`}
-              onClick={() => setSelectedId(c.id)}
-            >
-              <span className="soc-contract-main">
-                <strong>{so.kind[c.kind]}</strong>
-                <small>{period(c)}</small>
-                {contractParty(c) ? <small>{contractParty(c)}</small> : null}
-              </span>
-              <StatusLine contract={c} />
-            </button>
-          </li>
-        ))}
-      </ul>
-      <p className="soc-note">{so.readOnlyNote}</p>
+      <FadeIn key={screenKey} active={slide !== null}>
+        <ul className="soc-contract-list">
+          {room.contracts.map((c) => (
+            <li key={c.id}>
+              <button
+                type="button"
+                className="soc-contract"
+                data-testid={`soc-contract-${c.id}`}
+                aria-label={`${so.viewDetail} ${so.kind[c.kind]} ${period(c)}`}
+                onClick={() => setSelectedId(c.id)}
+              >
+                <span className="soc-contract-main">
+                  <strong>{so.kind[c.kind]}</strong>
+                  <small>{period(c)}</small>
+                  {contractParty(c) ? <small>{contractParty(c)}</small> : null}
+                </span>
+                <StatusLine contract={c} />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="soc-note">{so.readOnlyNote}</p>
+      </FadeIn>
     </WebDialog>
   );
 }
@@ -218,7 +301,7 @@ export function SelfOwnerRoomContractsDialog({
  * Self owner contracts web page: one row per room (contract kinds, Jom 24 Nov 2026), showing the room's current
  * contract; a row opens every contract of that room. Read only; contracts come from NESTYK admin, demo data until then.
  */
-export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter = "all", initialQuery = "", initialPage = 1, status = "demo", onRetry }: SelfOwnerContractsPageProps) {
+export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter = "all", initialQuery = "", initialPage = 1, status = "demo", onRetry, initialSignedOn }: SelfOwnerContractsPageProps) {
   const { t } = useLocale();
   const { theme } = useMobileTheme();
   const so = t.selfOwnerContracts;
@@ -230,7 +313,19 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
   const [page, setPage] = useState(initialPage);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const rooms = useMemo(() => groupSelfOwnerContracts(contracts), [contracts]);
+  // The owner's signatures of this session (demo, Jom 25 Nov 2026): the row, the room's list and the detail follow them.
+  const [signedOn, setSignedOn] = useState<Record<string, string>>(() => initialSignedOn ?? {});
+  const withSignatures = useMemo(() => applySelfOwnerSignatures(contracts, signedOn, selfOwnerToday()), [contracts, signedOn]);
+  // Demo: the signature is kept on this page only. Connected: the API signs, the store holds the answer; any failure
+  // comes back as `ok: false` with a message the sign page shows (a technical English message becomes the Thai one).
+  const sign = async (contractId: string, signaturePng: string): Promise<SelfOwnerSignResult> => {
+    if (isDemoPreview) {
+      setSignedOn((previous) => ({ ...previous, [contractId]: selfOwnerToday() }));
+      return { ok: true };
+    }
+    return selfOwnerContractStore.sign(contractId, signaturePng, so.signFailed);
+  };
+  const rooms = useMemo(() => groupSelfOwnerContracts(withSignatures), [withSignatures]);
   const counts = useMemo(() => countSelfOwnerRooms(rooms), [rooms]);
   const results = useMemo(() => filterSelfOwnerRooms(rooms, query, filter), [rooms, query, filter]);
   // 24 rooms a page, like "my rooms" (Jom 25 Nov 2026); a search or filter starts again from page 1.
@@ -306,7 +401,8 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
             data-testid="soc-search"
           />
         </label>
-        <div className="awr-status-select">
+        {/* The dropdown sits at the right and there is no room count, like the income page (Jom 25 Nov 2026). */}
+        <div className="awr-status-select so-filter-end">
           <AgentSelect
             aria-label={so.filterLabel}
             value={filter}
@@ -321,11 +417,6 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
             ))}
           </AgentSelect>
         </div>
-        {ready ? (
-          <span className="awr-count" aria-live="polite">
-            {interpolate(so.count, { n: results.length })}
-          </span>
-        ) : null}
       </div>
       <div className="awr-results">
         <div className="awr-table-card">
@@ -347,7 +438,7 @@ export function SelfOwnerContractsPage({ contracts, isDemoPreview, initialFilter
         </div>
       </div>
       {ready ? <SelfOwnerWebPager current={current} pages={pages} total={results.length} size={size} onPage={goToPage} /> : null}
-      {open ? <SelfOwnerRoomContractsDialog room={open} all={contracts} onClose={() => setSelected(null)} /> : null}
+      {open ? <SelfOwnerRoomContractsDialog room={open} all={withSignatures} onClose={() => setSelected(null)} onSign={sign} isDemoPreview={isDemoPreview} /> : null}
     </div>
   );
 }

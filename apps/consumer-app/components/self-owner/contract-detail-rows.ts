@@ -1,6 +1,6 @@
 import { interpolate } from '@nestyk/feature-listing';
 import type { useLocale } from '@nestyk/i18n';
-import type { SelfOwnerContract } from '../../lib/self-owner-contracts';
+import { ownerCanSign, selfOwnerSigners, type SelfOwnerContract, type SelfOwnerSigner } from '../../lib/self-owner-contracts';
 
 type ContractsCopy = ReturnType<typeof useLocale>['t']['selfOwnerContracts'];
 type Format = { money: (amount: number) => string; day: (ymd: string) => string };
@@ -102,5 +102,29 @@ export function contractDetailView(contract: SelfOwnerContract, all: SelfOwnerCo
     ],
     extra: [],
     renewsFrom: renewed ? { id: renewed.id, label: `${so.renewsFrom} ${so.kind[renewed.kind]} · ${period(renewed)}` } : undefined,
+  };
+}
+
+/** The "การลงนาม" section of the detail (Jom 25 Nov 2026, demo): who signs and when, and what the owner can do. */
+export type ContractSigningView = {
+  rows: Array<{ signer: SelfOwnerSigner; label: string; name: string; status: string; signed: boolean }>;
+  /** The contract awaits signatures and the owner has not signed. */
+  canSign: boolean;
+  /** The owner has signed and another party has not yet. */
+  waiting: boolean;
+};
+
+export function contractSigningView(contract: SelfOwnerContract, so: ContractsCopy, day: (ymd: string) => string): ContractSigningView {
+  const labelOf = (signer: SelfOwnerSigner) =>
+    signer === 'owner' ? so.signerOwner : signer === 'broker' ? so.signerBroker : contract.kind === 'reservation' ? so.booker : so.tenant;
+  const nameOf = (signer: SelfOwnerSigner) => (signer === 'owner' ? '' : signer === 'broker' ? contract.broker?.company ?? '' : contract.tenantName);
+  const rows = selfOwnerSigners(contract).map((signer) => {
+    const on = contract.signatures?.[signer];
+    return { signer, label: labelOf(signer), name: nameOf(signer), signed: !!on, status: on ? interpolate(so.signedOn, { date: day(on) }) : so.notSigned };
+  });
+  return {
+    rows,
+    canSign: ownerCanSign(contract),
+    waiting: contract.status === 'awaiting_signature' && !!contract.signatures?.owner,
   };
 }
