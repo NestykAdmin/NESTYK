@@ -213,3 +213,26 @@ test('script refuses a DATABASE_URL that pg would not connect to the local DB', 
   for (const [url, message] of Object.entries(refused)) assert.throws(() => assertLocalDatabase(url), message, url);
   assert.throws(() => assertLocalDatabase(undefined), /postgres:\/\//);
 });
+
+// Bills plan (27 Nov 2026, Task 3): rent bills of the active leases, so the income page has paid, awaiting and
+// overdue rows. Periods and amounts come from the API's own schedule (rentBillHistory).
+test('bills: paid, awaiting review and overdue on the active leases', () => {
+  const p = plan();
+  assert.ok(Array.isArray(p.bills) && p.bills.length > 0, 'bills planned');
+  const active = new Set(p.contracts.map((c, i) => (c.status === 'active' && ['lease', 'renewal'].includes(c.formKind) ? i : -1)).filter((i) => i >= 0));
+  for (const b of p.bills) {
+    assert.ok(active.has(b.contractIndex), `bill of contract ${b.contractIndex} is on an active lease`);
+    assert.match(b.period, /^\d{4}-(0[1-9]|1[0-2])$/);
+    assert.ok(b.issue_date <= TODAY, `${b.period} issued by today`);
+    assert.ok(Number(b.amount) > 0);
+  }
+  const keys = p.bills.map((b) => `${b.contractIndex}:${b.period}`);
+  assert.equal(new Set(keys).size, keys.length, 'one bill per lease and period');
+  const paid = p.bills.filter((b) => b.status === 'paid');
+  const awaiting = p.bills.filter((b) => b.status === 'pending' && b.slip);
+  const overdue = p.bills.filter((b) => b.status === 'pending' && !b.slip && b.grace_until < TODAY);
+  assert.ok(paid.length >= 1 && paid.every((b) => b.slip && b.slip_submitted_at && b.paid_at && b.slip_submitted_at <= b.paid_at));
+  assert.ok(awaiting.length >= 1 && awaiting.every((b) => b.slip_submitted_at && !b.paid_at));
+  assert.ok(overdue.length >= 1);
+  for (const b of p.bills) if (b.slip_submitted_at) assert.ok(b.slip_submitted_at.slice(0, 10) <= TODAY, 'no slip from the future');
+});

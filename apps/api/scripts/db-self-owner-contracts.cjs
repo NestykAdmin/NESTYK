@@ -238,6 +238,8 @@ async function previousRun(db, adminId) {
       paths.add(r.file_path);
     for (const r of (await db.query('SELECT signature_url FROM public.agreement_signatures WHERE agreement_id = ANY($1::int[]) AND signature_url IS NOT NULL', [ids])).rows)
       paths.add(r.signature_url);
+    for (const r of (await db.query('SELECT payment_slip_path FROM public.tenant_bills WHERE lease_contract_id = ANY($1::int[]) AND payment_slip_path IS NOT NULL', [ids])).rows)
+      paths.add(r.payment_slip_path);
   }
   // Rows that point at those child rows without pointing at a contract would be left dangling by the delete below
   // (it runs with triggers off): refuse instead.
@@ -432,6 +434,12 @@ async function main() {
       documents: templates[c.formKind].groups.map((g) => `${g.subject}:${g.document_type_code}`).join(' ') || '-',
     })));
     console.log(`Also: 1 property owner, ${plan.leads.length} leads, ${plan.tenants.length} tenants, ${plan.tenancies.length} tenancies (${plan.tenancies.map((t) => `${labels[t.roomIndex]}:${t.status}`).join(' ')})`);
+    const billKinds = (plan.bills ?? []).reduce((n, b) => {
+      const kind = b.status === 'paid' ? 'paid' : b.slip ? 'awaiting review' : b.grace_until < today ? 'overdue' : 'pending';
+      n[kind] = (n[kind] ?? 0) + 1;
+      return n;
+    }, {});
+    console.log(`Bills: ${(plan.bills ?? []).length} (${Object.entries(billKinds).map(([k, v]) => `${v} ${k}`).join(', ')})`);
 
     if (check) {
       await db.query('ROLLBACK');
@@ -544,6 +552,27 @@ async function main() {
         signatureCount += 1;
       }
     }
+    // Bills plan (27 Nov 2026): rent bills of the active leases (paid / awaiting review / overdue), with slips.
+    const { billDocumentNo } = require('../src/billing/tenant-billing.service.ts');
+    let billCount = 0;
+    for (const [k, b] of (plan.bills ?? []).entries()) {
+      const leaseId = contractIds[b.contractIndex];
+      const tenantId = tenantIds[plan.contracts[b.contractIndex].tenantIndex];
+      let slipPath = null;
+      if (b.slip) {
+        const png = signaturePng(500 + k);
+        slipPath = (await storage.uploadPaymentSlip(admin.id, { buffer: png, size: png.length })).path;
+        uploaded.push(slipPath);
+      }
+      await db.query(
+        `INSERT INTO public.tenant_bills (lease_contract_id, tenant_id, period, document_no, issue_date, due_date, grace_until, amount,
+           status, payment_slip_path, slip_submitted_at, paid_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [leaseId, tenantId, b.period, billDocumentNo(leaseId, b.period), b.issue_date, b.due_date, b.grace_until, b.amount,
+          b.status, slipPath, b.slip_submitted_at, b.paid_at],
+      );
+      billCount += 1;
+    }
     await db.query('COMMIT');
     uploaded.length = 0;
 
@@ -555,7 +584,7 @@ async function main() {
       id: contractIds[i], no: contractNos[i], demo: c.demo ?? '(extra)', kind: c.formKind, status: c.status, room: labels[c.roomIndex],
     })));
     console.log(`Committed: ${contractIds.length} contracts, ${documents} attachments, ${signatureCount} signatures, ` +
-      `${tenancyIds.length} tenancies, ${tenantIds.length} tenants, ${leadIds.length} leads, property owner ${propertyOwnerId}. ` +
+      `${tenancyIds.length} tenancies, ${tenantIds.length} tenants, ${leadIds.length} leads, ${billCount} bills, property owner ${propertyOwnerId}. ` +
       `Removed ${removed}/${prev.paths.length} file(s) of the previous run.`);
     console.log(`Count: SELECT count(*) FROM lease_contracts WHERE data->>'seed' = '${SEED_MARK}';  -> ${contractIds.length}`);
   } catch (error) {

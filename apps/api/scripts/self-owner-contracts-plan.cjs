@@ -466,7 +466,46 @@ function planSelfOwnerContracts(input) {
     tenants: tenants.map(({ who, ...t }) => t),
     tenancies,
     contracts,
+    // `withBills: false` skips the bills (and loading the API billing service): the app tests only need the contracts.
+    bills: input.withBills === false ? [] : planBills(contracts, T),
   };
+}
+
+/**
+ * Bills plan (27 Nov 2026): the rent bills of the active leases up to today, from the API's own schedule, with a
+ * paid / awaiting review / overdue mix for the income page. lease-c: past periods paid except the last one (overdue,
+ * no slip), the open one awaiting review (slip sent). Other active leases: past paid, the open one pending.
+ * Times are Bangkok 10:00 (03:00Z). Rows are linked to their lease by `contractIndex`; the script sets the ids.
+ */
+function planBills(contracts, today) {
+  const { rentBillHistory } = require('../src/billing/tenant-billing.service.ts');
+  const at = (date) => `${date}T03:00:00.000Z`;
+  const out = [];
+  contracts.forEach((c, i) => {
+    if (c.status !== 'active' || !['lease', 'renewal'].includes(c.formKind)) return;
+    const rows = rentBillHistory({ id: 0, tenant_id: 0, agreement_kind: c.agreement_kind ?? 'new', start_date: c.start_date,
+      move_in_date: c.move_in_date ?? null, end_date: c.end_date, monthly_rent: c.monthly_rent, advance_rent: c.advance_rent ?? null,
+      data: c.data }, today)
+      .sort((a, b) => a.period.localeCompare(b.period));
+    const last = rows[rows.length - 1];
+    const beforeLast = rows[rows.length - 2];
+    rows.forEach((r) => {
+      const bill = { contractIndex: i, period: r.period, issue_date: r.issue_date, due_date: r.due_date, grace_until: r.grace_until,
+        amount: r.amount, status: 'pending', slip: false, slip_submitted_at: null, paid_at: null };
+      const isPast = r.grace_until < today;
+      const showcase = c.key === 'lease-c';
+      if (showcase && r === last) {
+        // Awaiting review: the slip went in yesterday (or today when the bill was issued today).
+        Object.assign(bill, { slip: true, slip_submitted_at: at(r.issue_date < today ? shiftIsoDate(today, -1) : today) });
+      } else if (showcase && r === beforeLast && isPast) {
+        // Overdue: no slip, past its grace day.
+      } else if (isPast) {
+        Object.assign(bill, { status: 'paid', slip: true, slip_submitted_at: at(shiftIsoDate(r.due_date, -1)), paid_at: at(r.due_date) });
+      }
+      out.push(bill);
+    });
+  });
+  return out;
 }
 
 module.exports = { planSelfOwnerContracts, assertCreator, assertLocalDatabase, SEED_MARK, ROOMS_NEEDED, TERM_MONTHS };
