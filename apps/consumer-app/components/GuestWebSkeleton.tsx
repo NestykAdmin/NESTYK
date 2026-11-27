@@ -10,7 +10,7 @@ const ON_INK = 'rgba(255,255,255,0.14)';
 
 /**
  * Outline of the guest home while the guest web loads in the app (canvas page "loading", board A3): ink header with
- * the logo and the search box, two room cards and the bottom tab bar, in place of a spinner on a blank screen.
+ * the logo and the search box, two room cards and the bottom tab bar (5 tabs, as the guest web), in place of a spinner on a blank screen.
  * A rough outline only: it does not try to match the page pixel for pixel.
  */
 export function GuestWebSkeleton() {
@@ -56,7 +56,7 @@ export function GuestWebSkeleton() {
           { bottom: insets.bottom + 10, backgroundColor: theme.card, borderColor: theme.border },
         ]}
       >
-        {[0, 1, 2, 3].map((key) => (
+        {[0, 1, 2, 3, 4].map((key) => (
           <View key={key} style={[styles.tab, bone]} />
         ))}
       </View>

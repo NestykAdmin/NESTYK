@@ -44,6 +44,8 @@ test('guest web in the app: the page outline while it loads, not a spinner', () 
   const skeleton = read('components/GuestWebSkeleton.tsx');
   assert.match(skeleton, /backgroundColor: INK/);
   assert.match(skeleton, /accessibilityLabel=\{t\.mobile\.preload\.preparing\}/);
+  // The same 5 tabs as the guest web's tab bar (design A, Mos 27 Nov 2026).
+  assert.match(skeleton, /\{\[0, 1, 2, 3, 4\]\.map\(\(key\) => \(\s*<View key=\{key\} style=\{\[styles\.tab, bone\]\} \/>/);
 });
 
 test('every language has its own "preparing" words (English was Thai)', () => {
