@@ -117,3 +117,17 @@ test('role switcher (Mos 20 Nov 2026, like admin): Guest first and current, then
   assert.deepEqual(session.guestRoleChoices(['admin']), [{ role: 'guest', current: true }]);
   assert.deepEqual(session.guestRoleChoices(undefined), [{ role: 'guest', current: true }]);
 });
+
+test('a self owner account gets its role page in the guest role switcher (Jom 27 Nov 2026: no way back from guest)', () => {
+  assert.deepEqual(session.roleSiteLinks(['guest', 'self_owner']), [{ role: 'self_owner', path: '/self-owner' }]);
+  assert.deepEqual(session.guestRoleChoices(['self_owner', 'tenant']), [
+    { role: 'guest', current: true },
+    { role: 'tenant', path: '/tenant', current: false },
+    { role: 'self_owner', path: '/self-owner', current: false },
+  ]);
+});
+
+test('every role the switcher offers has a tile icon (GuestRole)', () => {
+  const role = fs.readFileSync(path.join(__dirname, '../app/components/guest/GuestRole.tsx'), 'utf8');
+  for (const name of ['agent', 'landlord', 'tenant', 'self_owner']) assert.match(role, new RegExp(`\\b${name}: [A-Za-z]+Icon`));
+});

@@ -3,19 +3,20 @@
 import React from 'react';
 import { useLocale } from '@nestyk/i18n';
 import { roleTileColors } from '@nestyk/ui';
-import { CheckIcon, HandshakeIcon, HomeIcon, KeyIcon, SearchIcon } from './GuestIcons';
+import { CheckIcon, HandshakeIcon, HomeIcon, HousePlusIcon, KeyIcon, SearchIcon } from './GuestIcons';
 
 /**
  * Role tiles of the guest web (Mos 20 Nov 2026: the role switcher like the admin web). The same colours as the admin
  * web and the app (`roleTileColors`, light mode: the guest web has no dark mode yet) and the same icon per role.
  */
-export type GuestRole = 'guest' | 'agent' | 'landlord' | 'tenant';
+export type GuestRole = 'guest' | 'agent' | 'landlord' | 'tenant' | 'self_owner';
 
 const ROLE_ICON: Record<GuestRole, (props: { size?: number; className?: string }) => React.ReactElement> = {
   guest: SearchIcon,
   tenant: HomeIcon,
   landlord: KeyIcon,
   agent: HandshakeIcon,
+  self_owner: HousePlusIcon,
 };
 
 /** The role's colours as CSS variables, read by guest.css (tile, avatar ring and badge). */

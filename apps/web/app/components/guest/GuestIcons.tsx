@@ -78,6 +78,15 @@ export const HomeIcon = (props: IconProps) => (
   </Line>
 );
 
+/** The self owner role (the app's "house-plus"): a house with a plus. */
+export const HousePlusIcon = (props: IconProps) => (
+  <Line strokeWidth={1.9} {...props}>
+    <path d="M3 11 12 4l9 7" />
+    <path d="M5 10v10h14V10" />
+    <path d="M12 12v6M9 15h6" />
+  </Line>
+);
+
 export const SearchIcon = (props: IconProps) => (
   <Line strokeWidth={1.9} {...props}>
     <circle cx="11" cy="11" r="7" />

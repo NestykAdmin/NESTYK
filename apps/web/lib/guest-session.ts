@@ -111,6 +111,8 @@ const ROLE_SITES = [
   { role: 'agent', path: '/agent' },
   { role: 'landlord', path: '/landlord' },
   { role: 'tenant', path: '/tenant' },
+  // Jom 27 Nov 2026: a self owner who switched to guest had no way back to its pages.
+  { role: 'self_owner', path: '/self-owner' },
 ] as const;
 
 export type RoleSiteLink = { role: (typeof ROLE_SITES)[number]['role']; path: string };
