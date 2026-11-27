@@ -47,6 +47,8 @@ export interface MobileSmileProgressProps {
   onFilled?: () => void;
   /** Unique gradient id when multiple smiles mount. */
   gradientId?: string;
+  /** Colour of the empty part of the arc (light grey by default; the ink preload uses a light line on ink). */
+  trackColor?: string;
 }
 
 export function MobileSmileProgress({
@@ -56,6 +58,7 @@ export function MobileSmileProgress({
   metrics,
   onFilled,
   gradientId = 'smileGlow',
+  trackColor = TRACK,
 }: MobileSmileProgressProps) {
   const dash = useSharedValue(indeterminate ? 0.18 : 0.12);
   const filled = useSharedValue(false);
@@ -127,7 +130,7 @@ export function MobileSmileProgress({
         </Defs>
         <Path
           d={SMILE_D}
-          stroke={TRACK}
+          stroke={trackColor}
           strokeWidth={dims.stroke}
           strokeLinecap="round"
           fill="none"

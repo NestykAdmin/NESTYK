@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { ActivityIndicator, BackHandler, Linking, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import { BackHandler, Linking, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
 import { useFocusEffect } from 'expo-router';
@@ -22,6 +22,7 @@ import {
   profileForWeb,
   receiveScript,
 } from '../lib/guest-web-bridge';
+import { GuestWebSkeleton } from './GuestWebSkeleton';
 import type { GuestWebViewHandle, GuestWebViewProps } from './GuestWebView.types';
 
 /**
@@ -154,11 +155,8 @@ export const GuestWebView = forwardRef<GuestWebViewHandle, GuestWebViewProps>(fu
         originWhitelist={['*']}
         setSupportMultipleWindows={false}
         startInLoadingState
-        renderLoading={() => (
-          <View style={[styles.loading, { backgroundColor: theme.background }]}>
-            <ActivityIndicator color={theme.spinner} />
-          </View>
-        )}
+        // The guest home's outline while the page loads (loading design A, Mos 25 Nov 2026).
+        renderLoading={() => <GuestWebSkeleton />}
         javaScriptEnabled
         domStorageEnabled
         allowsBackForwardNavigationGestures
@@ -169,5 +167,4 @@ export const GuestWebView = forwardRef<GuestWebViewHandle, GuestWebViewProps>(fu
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  loading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
 });

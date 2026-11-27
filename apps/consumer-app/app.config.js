@@ -17,10 +17,11 @@ module.exports = {
   scheme: 'nestyk',
   userInterfaceStyle: 'light',
   newArchEnabled: true,
+  // Ink, like the preload and the guest page's header (loading design A, Mos 25 Nov 2026).
   splash: {
-    image: './assets/splash-icon.png',
+    image: './assets/splash-icon-dark.png',
     resizeMode: 'contain',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#211E1E',
   },
   ios: {
     supportsTablet: true,

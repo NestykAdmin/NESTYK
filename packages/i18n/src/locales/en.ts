@@ -389,7 +389,7 @@ export const en: TranslationSchema = {
       devNoSupabase: 'Supabase is not configured — using local DEV auth (ALLOW_DEV_AUTH).',
     },
     preload: {
-      preparing: 'กำลังเตรียมพื้นที่ของคุณ',
+      preparing: 'Preparing your space',
       preparingEn: 'Preparing your space',
       welcome: 'Welcome',
       tapToEnter: 'Tap to enter',

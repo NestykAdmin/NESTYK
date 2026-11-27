@@ -32,7 +32,8 @@ import {
 
 SplashScreen.preventAutoHideAsync();
 
-const PRELOAD_MIN_MS = 1100;
+/** Shortest preload, so the smile is seen filling; the app mounts behind it meanwhile (600 ms: Mos 27 Nov 2026, was 1.1 s). */
+const PRELOAD_MIN_MS = 600;
 
 const deviceLocale = resolveSupportedLocale(
   Localization.getLocales()[0]?.languageTag ?? Localization.getLocales()[0]?.languageCode,
@@ -49,7 +50,8 @@ function BootstrapGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const bootstrapReady = ready && minElapsed;
-  // Web has no "Tap to enter": the preload closes as soon as bootstrap is ready (Mos 3 Nov 2026). Mobile unchanged.
+  // Web closes the preload as soon as bootstrap is ready (Mos 3 Nov 2026); phones fade it out once its smile is full
+  // (loading design A, Mos 25 Nov 2026: no "tap to enter" anywhere).
   useEffect(() => {
     if (Platform.OS === 'web' && bootstrapReady) setEntered(true);
   }, [bootstrapReady]);
